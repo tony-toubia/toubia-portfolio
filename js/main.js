@@ -150,6 +150,31 @@ window.debug = {
             console.log(window.game.stats);
             return window.game.stats;
         }
+    },
+
+    // Toggle 3D mode
+    toggle3D() {
+        if (window.game) {
+            window.game.use3D = !window.game.use3D;
+            console.log(`3D Mode: ${window.game.use3D ? 'ON' : 'OFF'}`);
+            console.log('Restart the game for changes to take effect');
+        }
+    },
+
+    // Toggle post-processing
+    togglePostProcessing() {
+        if (window.game && window.game.postProcessing) {
+            window.game.postProcessing.enabled = !window.game.postProcessing.enabled;
+            console.log(`Post-processing: ${window.game.postProcessing.enabled ? 'ON' : 'OFF'}`);
+        }
+    },
+
+    // Adjust bloom intensity
+    setBloom(strength = 0.5) {
+        if (window.game && window.game.postProcessing) {
+            window.game.postProcessing.setBloomStrength(strength);
+            console.log(`Bloom strength: ${strength}`);
+        }
     }
 };
 

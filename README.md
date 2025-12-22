@@ -73,11 +73,37 @@ Each evolution increases:
 - 📊 Upgrade/skill system
 - ⏱️ Timed matches with win conditions
 - 🏆 End-game statistics
+- 🎨 **Full 3D Graphics** with Three.js
+
+## 3D Graphics Engine
+
+The game features a complete 3D rendering engine built with Three.js:
+
+### Visual Features
+- **Isometric 3D Camera**: Smooth-following camera with cinematic perspective
+- **Dynamic Terrain**: Height-mapped terrain with water, forests, and caves
+- **3D Characters**: Stylized geometric models for hunters and monsters
+  - Unique visual designs for each monster type (Goliath, Kraken, Wraith, Behemoth)
+  - Evolution glow effects that intensify with each stage
+- **GPU Particle Systems**: Explosions, fire, lightning, and magic effects
+- **Dynamic Lighting**: Ability effects cast real-time lights
+- **Post-Processing**:
+  - Bloom for glowing effects
+  - Vignette for cinematic feel
+  - Color grading for atmosphere
+- **Shadows**: Real-time shadow mapping
+
+### Performance
+- Optimized for mobile devices
+- Instanced rendering for vegetation
+- Level-of-detail management
+- Efficient particle pooling
 
 ## Technical Details
 
-- **Engine**: Pure HTML5 Canvas + JavaScript
-- **No Dependencies**: Runs entirely in the browser
+- **3D Engine**: Three.js (WebGL)
+- **Game Logic**: Vanilla JavaScript
+- **No Build Required**: Runs directly in browser
 - **Mobile-First**: Responsive design for all screen sizes
 - **Audio**: Web Audio API for procedural sounds
 
@@ -102,20 +128,27 @@ Each evolution increases:
 
 ```
 primal-hunt/
-├── index.html          # Main HTML file
+├── index.html              # Main HTML file
 ├── css/
-│   └── style.css       # Game styles
+│   └── style.css           # Game styles
 ├── js/
-│   ├── utils.js        # Utility functions
-│   ├── audio.js        # Sound system
-│   ├── abilities.js    # Ability definitions
-│   ├── characters.js   # Hunter/Monster classes
-│   ├── map.js          # Map generation
-│   ├── ai.js           # AI controllers
-│   ├── ui.js           # UI management
-│   ├── game.js         # Main game engine
-│   └── main.js         # Entry point
-└── README.md           # This file
+│   ├── utils.js            # Utility functions
+│   ├── audio.js            # Sound system
+│   ├── abilities.js        # Ability definitions
+│   ├── characters.js       # Hunter/Monster classes
+│   ├── map.js              # Map generation
+│   ├── ai.js               # AI controllers
+│   ├── ui.js               # UI management
+│   ├── game.js             # Main game engine (2D)
+│   ├── game3d.js           # 3D game extension
+│   ├── main.js             # Entry point
+│   └── engine3d/           # 3D Engine Components
+│       ├── Renderer3D.js   # Three.js renderer setup
+│       ├── Terrain3D.js    # Procedural 3D terrain
+│       ├── Characters3D.js # 3D character models
+│       ├── Effects3D.js    # Particle systems & effects
+│       └── PostProcessing.js # Bloom, vignette, etc.
+└── README.md               # This file
 ```
 
 ## Browser Support
