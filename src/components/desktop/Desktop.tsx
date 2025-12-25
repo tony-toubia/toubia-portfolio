@@ -13,6 +13,7 @@ import RecycleBinWindow from './windows/RecycleBinWindow';
 import ThoughtLeadershipWindow from './windows/ThoughtLeadershipWindow';
 import PhotosWindow from './windows/PhotosWindow';
 import MinesweeperWindow from './windows/MinesweeperWindow';
+import AIMWindow from './windows/AIMWindow';
 
 // Icon SVGs
 const icons = {
@@ -102,6 +103,22 @@ const icons = {
       <text x="13" cy="24" y="28" textAnchor="middle" fontSize="10" fill="#ff0000">🚩</text>
     </svg>
   ),
+  aim: (
+    <svg viewBox="0 0 48 48" className="w-12 h-12">
+      {/* Yellow AIM buddy icon background */}
+      <rect x="4" y="4" width="40" height="40" rx="4" fill="#FFD700" />
+      <rect x="6" y="6" width="36" height="36" rx="3" fill="#FFF8DC" />
+      {/* Running man silhouette */}
+      <g transform="translate(12, 8)">
+        <circle cx="12" cy="4" r="3.5" fill="#000"/>
+        <path d="M7 10l5-1 5 1-2.5 6-1.5 10h-2l-1.5-10z" fill="#000"/>
+        <path d="M4 18l4-3" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+        <path d="M20 18l-4-3" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+        <path d="M8 26l-3 6" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+        <path d="M16 26l3 6" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+      </g>
+    </svg>
+  ),
 };
 
 interface DesktopItem {
@@ -167,6 +184,13 @@ const desktopItems: DesktopItem[] = [
 
 // Top-right positioned items
 const topRightItems: DesktopItem[] = [
+  {
+    id: 'aim',
+    label: 'A.I.M.',
+    icon: icons.aim,
+    windowContent: <AIMWindow />,
+    windowSize: { width: 450, height: 500 },
+  },
   {
     id: 'photos',
     label: 'Photos',
