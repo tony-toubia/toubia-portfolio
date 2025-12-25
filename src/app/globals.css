@@ -1,0 +1,169 @@
+@import "tailwindcss";
+
+/* KC-Inspired Color Palette */
+:root {
+  /* Base colors */
+  --background: #fafafa;
+  --background-secondary: #ffffff;
+  --foreground: #0a0a0a;
+  --foreground-secondary: #525252;
+  --foreground-muted: #737373;
+
+  /* KC Colors - Primary Palette */
+  --kc-current-teal: #00A3AD;
+  --kc-chiefs-red: #E31837;
+  --kc-chiefs-gold: #FFB81C;
+  --kc-royals-blue: #004687;
+  --kc-sporting-blue: #0A2351;
+  --kc-current-red: #D11242;
+
+  /* Accent colors */
+  --accent-primary: var(--kc-current-teal);
+  --accent-secondary: var(--kc-chiefs-red);
+  --accent-tertiary: var(--kc-royals-blue);
+  --accent-gold: var(--kc-chiefs-gold);
+
+  /* UI Elements */
+  --border: #e5e5e5;
+  --border-hover: #d4d4d4;
+  --card-bg: #ffffff;
+  --card-hover: #fafafa;
+
+  /* Gradients */
+  --gradient-kc: linear-gradient(135deg, var(--kc-current-teal) 0%, var(--kc-royals-blue) 50%, var(--kc-chiefs-red) 100%);
+  --gradient-subtle: linear-gradient(135deg, var(--kc-current-teal) 0%, var(--kc-royals-blue) 100%);
+}
+
+/* Dark mode */
+.dark {
+  --background: #0a0a0a;
+  --background-secondary: #141414;
+  --foreground: #fafafa;
+  --foreground-secondary: #a3a3a3;
+  --foreground-muted: #737373;
+
+  --border: #262626;
+  --border-hover: #404040;
+  --card-bg: #171717;
+  --card-hover: #1f1f1f;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-background-secondary: var(--background-secondary);
+  --color-foreground: var(--foreground);
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-foreground-muted: var(--foreground-muted);
+
+  --color-accent-primary: var(--accent-primary);
+  --color-accent-secondary: var(--accent-secondary);
+  --color-accent-tertiary: var(--accent-tertiary);
+  --color-accent-gold: var(--accent-gold);
+
+  --color-border: var(--border);
+  --color-border-hover: var(--border-hover);
+  --color-card-bg: var(--card-bg);
+  --color-card-hover: var(--card-hover);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.6;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+}
+
+/* Selection */
+::selection {
+  background: var(--accent-primary);
+  color: white;
+}
+
+/* Focus states */
+:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* Gradient text utility */
+.gradient-text {
+  background: var(--gradient-kc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Gradient border utility */
+.gradient-border {
+  position: relative;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 2px;
+  background: var(--gradient-kc);
+  border-radius: inherit;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+/* Animated gradient background */
+@keyframes gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 8s ease infinite;
+}
+
+/* Subtle hover glow */
+.hover-glow {
+  transition: box-shadow 0.3s ease;
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 30px -5px var(--accent-primary);
+}
+
+/* Section divider */
+.section-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+}
