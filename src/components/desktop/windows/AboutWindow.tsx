@@ -88,9 +88,9 @@ export default function AboutWindow() {
       <div className="retro-divider" />
 
       <p className="text-xs leading-relaxed">
-        Tony Toubia is a rare breed in enterprise technology—equal parts mad scientist and pragmatic business leader.
+        Tony Toubia is a rare breed in enterprise technology - equal parts mad scientist and pragmatic business leader.
         While industry reports show 95% of AI initiatives stalling in proof-of-concept purgatory, Tony specializes in
-        the other 5%—the ones that actually make it to production and deliver measurable value.
+        the other 5% - the ones that actually make it to production and deliver measurable value.
       </p>
     </div>
   );

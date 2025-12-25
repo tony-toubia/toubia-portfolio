@@ -14,7 +14,7 @@ const projects: Record<string, ProjectData> = {
     id: 'aura',
     title: 'Aura Platform',
     tagline: 'AI Companions that flow with your day',
-    description: 'A sophisticated multi-agent AI platform that creates personalized AI companions designed to seamlessly integrate into daily life. Aura represents the next evolution of human-AI interaction—proactive, contextual, and genuinely helpful.',
+    description: 'A sophisticated multi-agent AI platform that creates personalized AI companions designed to seamlessly integrate into daily life. Aura represents the next evolution of human-AI interaction - proactive, contextual, and genuinely helpful.',
     highlights: [
       'Multi-agent architecture with specialized AI personas',
       'Context-aware scheduling and productivity assistance',

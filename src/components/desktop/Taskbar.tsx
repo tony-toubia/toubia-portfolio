@@ -113,7 +113,7 @@ export default function Taskbar() {
                 background: 'repeating-conic-gradient(var(--button-face) 0% 25%, var(--window-bg) 0% 50%) 50% / 2px 2px',
               } : {}}
             >
-              {window.icon && <span className="w-4 h-4 shrink-0">{window.icon}</span>}
+              {window.icon && <span className="w-4 h-4 shrink-0 flex items-center justify-center [&_svg]:w-4 [&_svg]:h-4">{window.icon}</span>}
               <span className="truncate text-xs">{window.title}</span>
             </button>
           ))}

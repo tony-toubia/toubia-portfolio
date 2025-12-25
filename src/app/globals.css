@@ -4,6 +4,7 @@
 :root {
   /* Classic Windows-inspired colors */
   --desktop-bg: #008080;
+  --desktop-bg-image: url('/images/light-bg.jpg');
   --window-bg: #c0c0c0;
   --window-header: #000080;
   --window-header-inactive: #808080;
@@ -32,6 +33,7 @@
 
 .dark {
   --desktop-bg: #1a1a2e;
+  --desktop-bg-image: none;
   --window-bg: #2d2d44;
   --window-header: #4a4a6a;
   --window-header-inactive: #3d3d5c;

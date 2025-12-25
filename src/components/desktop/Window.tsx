@@ -108,7 +108,7 @@ export default function Window({
         onDoubleClick={() => isMaximized ? restoreWindow(id) : maximizeWindow(id)}
       >
         <div className="flex items-center gap-2">
-          {icon && <span className="w-4 h-4">{icon}</span>}
+          {icon && <span className="w-4 h-4 flex items-center justify-center [&_svg]:w-4 [&_svg]:h-4">{icon}</span>}
           <span>{title}</span>
         </div>
         <div className="flex gap-1">

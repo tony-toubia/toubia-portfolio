@@ -112,7 +112,7 @@ export default function Recognition() {
               <blockquote className="text-sm italic text-foreground-secondary">
                 &quot;Today&apos;s consumer is more empowered than ever. That&apos;s why it is important for brands to know their customers and provide consistent, personal experiences to earn their loyalty.&quot;
               </blockquote>
-              <p className="text-xs text-foreground-muted mt-3">— Tony Toubia, on the Merkury launch</p>
+              <p className="text-xs text-foreground-muted mt-3"> -  Tony Toubia, on the Merkury launch</p>
             </div>
           </div>
         </div>

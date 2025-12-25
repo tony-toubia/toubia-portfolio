@@ -28,7 +28,7 @@ export default function Contact() {
             Let&apos;s <span className="gradient-text">Connect</span>
           </h2>
           <p className="text-foreground-secondary max-w-2xl mx-auto">
-            Whether you&apos;re looking to collaborate on a project, discuss enterprise AI strategy, or book a speaking engagement—I&apos;d love to hear from you.
+            Whether you&apos;re looking to collaborate on a project, discuss enterprise AI strategy, or book a speaking engagement - I&apos;d love to hear from you.
           </p>
           <div className="w-24 h-1 mx-auto mt-6 rounded-full bg-gradient-to-r from-accent-primary via-accent-tertiary to-accent-secondary" />
         </div>

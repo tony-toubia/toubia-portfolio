@@ -53,10 +53,10 @@ export default function About() {
         <div className="grid md:grid-cols-5 gap-12 mb-16">
           <div className="md:col-span-3">
             <p className="text-lg text-foreground-secondary mb-6">
-              Tony Toubia is a rare breed in enterprise technology—equal parts mad scientist and pragmatic business leader. As VP, Global Salesforce Lead at Merkle (a dentsu company), he bridges the gap between cutting-edge AI innovation and real-world business outcomes.
+              Tony Toubia is a rare breed in enterprise technology - equal parts mad scientist and pragmatic business leader. As VP, Global Salesforce Lead at Merkle (a dentsu company), he bridges the gap between cutting-edge AI innovation and real-world business outcomes.
             </p>
             <p className="text-lg text-foreground-secondary mb-6">
-              Dubbed a &quot;unicorn&quot; and &quot;new business threat&quot; (in the best possible way), Tony has spent his career proving that enterprise AI doesn&apos;t have to be another failed pilot. While industry reports show 95% of AI initiatives stalling in proof-of-concept purgatory, Tony specializes in the other 5%—the ones that actually make it to production and deliver measurable value.
+              Dubbed a &quot;unicorn&quot; and &quot;new business threat&quot; (in the best possible way), Tony has spent his career proving that enterprise AI doesn&apos;t have to be another failed pilot. While industry reports show 95% of AI initiatives stalling in proof-of-concept purgatory, Tony specializes in the other 5% - the ones that actually make it to production and deliver measurable value.
             </p>
             <p className="text-lg text-foreground-secondary">
               A proud Kansas City native and K-State alum, Tony serves on multiple Salesforce Partner Advisory Boards and has been instrumental in bringing solutions like Merkury to market on the Salesforce AppExchange. When he&apos;s not helping enterprises navigate the agentic AI revolution, he&apos;s building his own AI-powered applications.

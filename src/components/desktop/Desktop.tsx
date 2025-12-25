@@ -11,6 +11,8 @@ import ContactWindow from './windows/ContactWindow';
 import SpeakingWindow from './windows/SpeakingWindow';
 import RecycleBinWindow from './windows/RecycleBinWindow';
 import ThoughtLeadershipWindow from './windows/ThoughtLeadershipWindow';
+import PhotosWindow from './windows/PhotosWindow';
+import MinesweeperWindow from './windows/MinesweeperWindow';
 
 // Icon SVGs
 const icons = {
@@ -74,6 +76,32 @@ const icons = {
       <path d="M19 22v14M24 22v14M29 22v14" stroke="#606060" strokeWidth="1" />
     </svg>
   ),
+  photos: (
+    <svg viewBox="0 0 48 48" className="w-12 h-12">
+      <rect x="4" y="8" width="40" height="32" rx="2" fill="#FFB81C" />
+      <rect x="8" y="12" width="32" height="24" fill="#87CEEB" />
+      <circle cx="16" cy="20" r="4" fill="#FFD700" />
+      <path d="M8 36l10-12 8 8 6-6 8 10H8z" fill="#228B22" />
+    </svg>
+  ),
+  minesweeper: (
+    <svg viewBox="0 0 48 48" className="w-12 h-12">
+      <rect x="4" y="4" width="40" height="40" rx="2" fill="#c0c0c0" />
+      <rect x="8" y="8" width="10" height="10" fill="#fff" stroke="#808080" strokeWidth="1" />
+      <rect x="19" y="8" width="10" height="10" fill="#fff" stroke="#808080" strokeWidth="1" />
+      <rect x="30" y="8" width="10" height="10" fill="#c0c0c0" style={{ boxShadow: 'inset 1px 1px #fff' }} />
+      <rect x="8" y="19" width="10" height="10" fill="#c0c0c0" />
+      <rect x="19" y="19" width="10" height="10" fill="#fff" stroke="#808080" strokeWidth="1" />
+      <rect x="30" y="19" width="10" height="10" fill="#fff" stroke="#808080" strokeWidth="1" />
+      <rect x="8" y="30" width="10" height="10" fill="#fff" stroke="#808080" strokeWidth="1" />
+      <rect x="19" y="30" width="10" height="10" fill="#c0c0c0" />
+      <rect x="30" y="30" width="10" height="10" fill="#fff" stroke="#808080" strokeWidth="1" />
+      <circle cx="13" cy="35" r="4" fill="#000" />
+      <text x="24" y="17" textAnchor="middle" fontSize="8" fill="#0000ff" fontWeight="bold">1</text>
+      <text x="35" y="28" textAnchor="middle" fontSize="8" fill="#008000" fontWeight="bold">2</text>
+      <text x="13" cy="24" y="28" textAnchor="middle" fontSize="10" fill="#ff0000">🚩</text>
+    </svg>
+  ),
 };
 
 interface DesktopItem {
@@ -84,6 +112,7 @@ interface DesktopItem {
   windowSize?: { width: number; height: number };
 }
 
+// Main desktop items (top-left grid)
 const desktopItems: DesktopItem[] = [
   {
     id: 'about',
@@ -134,14 +163,34 @@ const desktopItems: DesktopItem[] = [
     windowContent: <ContactWindow />,
     windowSize: { width: 500, height: 420 },
   },
+];
+
+// Top-right positioned items
+const topRightItems: DesktopItem[] = [
   {
-    id: 'recycle-bin',
-    label: 'Recycle Bin',
-    icon: icons.recycle,
-    windowContent: <RecycleBinWindow />,
+    id: 'photos',
+    label: 'Photos',
+    icon: icons.photos,
+    windowContent: <PhotosWindow />,
     windowSize: { width: 500, height: 400 },
   },
+  {
+    id: 'minesweeper',
+    label: 'Minesweeper',
+    icon: icons.minesweeper,
+    windowContent: <MinesweeperWindow />,
+    windowSize: { width: 250, height: 360 },
+  },
 ];
+
+// Bottom-right positioned item
+const recycleBinItem: DesktopItem = {
+  id: 'recycle-bin',
+  label: 'Recycle Bin',
+  icon: icons.recycle,
+  windowContent: <RecycleBinWindow />,
+  windowSize: { width: 500, height: 400 },
+};
 
 export default function Desktop() {
   const { openWindow, windows } = useWindowManager();
@@ -153,13 +202,25 @@ export default function Desktop() {
 
   const handleIconDoubleClick = (item: DesktopItem) => {
     const offsetIndex = windows.filter(w => w.isOpen).length;
+    const windowSize = item.windowSize || { width: 500, height: 400 };
+
+    // Calculate center position, accounting for taskbar (36px) and stacking offset
+    const availableWidth = typeof window !== 'undefined' ? window.innerWidth : 1024;
+    const availableHeight = typeof window !== 'undefined' ? window.innerHeight - 36 : 700;
+
+    const centerX = Math.max(20, (availableWidth - windowSize.width) / 2);
+    const centerY = Math.max(20, (availableHeight - windowSize.height) / 2);
+
+    // Stack windows down and to the right
+    const stackOffset = offsetIndex * 30;
+
     openWindow({
       id: item.id,
       title: item.label,
       isMinimized: false,
       isMaximized: false,
-      position: { x: 80 + (offsetIndex * 30), y: 40 + (offsetIndex * 30) },
-      size: item.windowSize || { width: 500, height: 400 },
+      position: { x: centerX + stackOffset, y: centerY + stackOffset },
+      size: windowSize,
       content: item.windowContent,
       icon: item.icon,
     });
@@ -176,13 +237,12 @@ export default function Desktop() {
       className="desktop-area w-full h-full bg-desktop-bg relative overflow-hidden"
       onClick={handleDesktopClick}
       style={{
-        backgroundImage: `
-          radial-gradient(ellipse at 30% 20%, rgba(0, 163, 173, 0.3) 0%, transparent 50%),
-          radial-gradient(ellipse at 70% 80%, rgba(0, 70, 135, 0.3) 0%, transparent 50%)
-        `,
+        backgroundImage: 'var(--desktop-bg-image)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
       }}
     >
-      {/* Desktop Icons Grid */}
+      {/* Desktop Icons Grid - Top Left */}
       <div className="absolute top-4 left-4 flex flex-col flex-wrap gap-2 h-[calc(100%-80px)] content-start">
         {desktopItems.map((item) => (
           <DesktopIcon
@@ -194,6 +254,31 @@ export default function Desktop() {
             isSelected={selectedIcon === item.id}
           />
         ))}
+      </div>
+
+      {/* Top Right Icons */}
+      <div className="absolute top-4 right-4 flex flex-col gap-2">
+        {topRightItems.map((item) => (
+          <DesktopIcon
+            key={item.id}
+            icon={item.icon}
+            label={item.label}
+            onClick={() => handleIconClick(item.id)}
+            onDoubleClick={() => handleIconDoubleClick(item)}
+            isSelected={selectedIcon === item.id}
+          />
+        ))}
+      </div>
+
+      {/* Recycle Bin - Bottom Right */}
+      <div className="absolute bottom-14 right-4">
+        <DesktopIcon
+          icon={recycleBinItem.icon}
+          label={recycleBinItem.label}
+          onClick={() => handleIconClick(recycleBinItem.id)}
+          onDoubleClick={() => handleIconDoubleClick(recycleBinItem)}
+          isSelected={selectedIcon === recycleBinItem.id}
+        />
       </div>
 
       {/* Windows */}

@@ -20,7 +20,7 @@ const articles = [
 const insights = [
   {
     title: 'The 5% Rule',
-    content: 'If McKinsey says 95% of AI pilots fail, the key isn\'t avoiding AI—it\'s understanding why most fail and building for production from day one.',
+    content: 'If McKinsey says 95% of AI pilots fail, the key isn\'t avoiding AI - it\'s understanding why most fail and building for production from day one.',
   },
   {
     title: 'FOMU > FOMO',
