@@ -1,169 +1,460 @@
 @import "tailwindcss";
 
-/* KC-Inspired Color Palette */
+/* Retro Desktop Color Palette */
 :root {
-  /* Base colors */
-  --background: #fafafa;
-  --background-secondary: #ffffff;
-  --foreground: #0a0a0a;
-  --foreground-secondary: #525252;
-  --foreground-muted: #737373;
+  /* Classic Windows-inspired colors */
+  --desktop-bg: #008080;
+  --window-bg: #c0c0c0;
+  --window-header: #000080;
+  --window-header-inactive: #808080;
+  --window-text: #000000;
+  --button-face: #c0c0c0;
+  --button-highlight: #ffffff;
+  --button-shadow: #808080;
+  --button-dark-shadow: #000000;
 
-  /* KC Colors - Primary Palette */
-  --kc-current-teal: #00A3AD;
-  --kc-chiefs-red: #E31837;
-  --kc-chiefs-gold: #FFB81C;
-  --kc-royals-blue: #004687;
-  --kc-sporting-blue: #0A2351;
-  --kc-current-red: #D11242;
+  /* KC accent colors */
+  --kc-teal: #00A3AD;
+  --kc-red: #E31837;
+  --kc-blue: #004687;
+  --kc-gold: #FFB81C;
 
-  /* Accent colors */
-  --accent-primary: var(--kc-current-teal);
-  --accent-secondary: var(--kc-chiefs-red);
-  --accent-tertiary: var(--kc-royals-blue);
-  --accent-gold: var(--kc-chiefs-gold);
+  /* System colors */
+  --selection-bg: #000080;
+  --selection-text: #ffffff;
+  --link-color: #0000ff;
+  --taskbar-bg: #c0c0c0;
 
-  /* UI Elements */
-  --border: #e5e5e5;
-  --border-hover: #d4d4d4;
-  --card-bg: #ffffff;
-  --card-hover: #fafafa;
-
-  /* Gradients */
-  --gradient-kc: linear-gradient(135deg, var(--kc-current-teal) 0%, var(--kc-royals-blue) 50%, var(--kc-chiefs-red) 100%);
-  --gradient-subtle: linear-gradient(135deg, var(--kc-current-teal) 0%, var(--kc-royals-blue) 100%);
+  /* Icon colors */
+  --icon-text: #ffffff;
+  --icon-shadow: rgba(0, 0, 0, 0.8);
 }
 
-/* Dark mode */
 .dark {
-  --background: #0a0a0a;
-  --background-secondary: #141414;
-  --foreground: #fafafa;
-  --foreground-secondary: #a3a3a3;
-  --foreground-muted: #737373;
-
-  --border: #262626;
-  --border-hover: #404040;
-  --card-bg: #171717;
-  --card-hover: #1f1f1f;
+  --desktop-bg: #1a1a2e;
+  --window-bg: #2d2d44;
+  --window-header: #4a4a6a;
+  --window-header-inactive: #3d3d5c;
+  --window-text: #e0e0e0;
+  --button-face: #3d3d5c;
+  --button-highlight: #5a5a7a;
+  --button-shadow: #1a1a2e;
+  --button-dark-shadow: #000000;
+  --selection-bg: var(--kc-teal);
+  --taskbar-bg: #2d2d44;
+  --icon-text: #ffffff;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-background-secondary: var(--background-secondary);
-  --color-foreground: var(--foreground);
-  --color-foreground-secondary: var(--foreground-secondary);
-  --color-foreground-muted: var(--foreground-muted);
+  --color-desktop-bg: var(--desktop-bg);
+  --color-window-bg: var(--window-bg);
+  --color-window-header: var(--window-header);
+  --color-window-header-inactive: var(--window-header-inactive);
+  --color-window-text: var(--window-text);
+  --color-button-face: var(--button-face);
+  --color-button-highlight: var(--button-highlight);
+  --color-button-shadow: var(--button-shadow);
+  --color-button-dark-shadow: var(--button-dark-shadow);
+  --color-selection-bg: var(--selection-bg);
+  --color-selection-text: var(--selection-text);
+  --color-taskbar-bg: var(--taskbar-bg);
+  --color-icon-text: var(--icon-text);
 
-  --color-accent-primary: var(--accent-primary);
-  --color-accent-secondary: var(--accent-secondary);
-  --color-accent-tertiary: var(--accent-tertiary);
-  --color-accent-gold: var(--accent-gold);
-
-  --color-border: var(--border);
-  --color-border-hover: var(--border-hover);
-  --color-card-bg: var(--card-bg);
-  --color-card-hover: var(--card-hover);
+  --color-kc-teal: var(--kc-teal);
+  --color-kc-red: var(--kc-red);
+  --color-kc-blue: var(--kc-blue);
+  --color-kc-gold: var(--kc-gold);
 }
 
 * {
   box-sizing: border-box;
 }
 
-html {
-  scroll-behavior: smooth;
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  line-height: 1.6;
+  font-family: 'Segoe UI', Tahoma, Geneva, sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* Retro button styles */
+.retro-button {
+  background: var(--button-face);
+  border: none;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--window-text);
+  box-shadow:
+    inset -1px -1px 0 var(--button-shadow),
+    inset 1px 1px 0 var(--button-highlight),
+    inset -2px -2px 0 var(--button-dark-shadow),
+    inset 2px 2px 0 var(--button-face);
 }
 
-::-webkit-scrollbar-track {
-  background: var(--background);
+.retro-button:active {
+  box-shadow:
+    inset 1px 1px 0 var(--button-shadow),
+    inset -1px -1px 0 var(--button-highlight),
+    inset 2px 2px 0 var(--button-dark-shadow),
+    inset -2px -2px 0 var(--button-face);
+  padding: 5px 11px 3px 13px;
 }
 
-::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 4px;
+.retro-button:focus {
+  outline: 1px dotted #000;
+  outline-offset: -4px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--border-hover);
+/* Window styles */
+.window {
+  background: var(--window-bg);
+  box-shadow:
+    inset -1px -1px 0 var(--button-dark-shadow),
+    inset 1px 1px 0 var(--button-highlight),
+    inset -2px -2px 0 var(--button-shadow),
+    inset 2px 2px 0 var(--button-face);
+}
+
+.window-header {
+  background: linear-gradient(90deg, var(--window-header) 0%, var(--kc-teal) 100%);
+  color: white;
+  padding: 3px 4px;
+  font-weight: bold;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+
+.window-header.inactive {
+  background: linear-gradient(90deg, var(--window-header-inactive) 0%, #a0a0a0 100%);
+}
+
+.window-button {
+  width: 16px;
+  height: 14px;
+  background: var(--button-face);
+  border: none;
+  font-size: 9px;
+  font-weight: bold;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--window-text);
+  box-shadow:
+    inset -1px -1px 0 var(--button-shadow),
+    inset 1px 1px 0 var(--button-highlight);
+}
+
+.window-button:active {
+  box-shadow:
+    inset 1px 1px 0 var(--button-shadow),
+    inset -1px -1px 0 var(--button-highlight);
+}
+
+/* Inset content area */
+.inset {
+  background: #fff;
+  box-shadow:
+    inset -1px -1px 0 var(--button-highlight),
+    inset 1px 1px 0 var(--button-shadow),
+    inset -2px -2px 0 var(--button-face),
+    inset 2px 2px 0 var(--button-dark-shadow);
+}
+
+.dark .inset {
+  background: #1a1a2e;
+}
+
+/* Desktop icon */
+.desktop-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  width: 80px;
+}
+
+.desktop-icon:hover {
+  background: rgba(0, 0, 128, 0.3);
+  border: 1px dotted rgba(255, 255, 255, 0.5);
+}
+
+.desktop-icon.selected {
+  background: rgba(0, 0, 128, 0.5);
+  border: 1px dotted #fff;
+}
+
+.desktop-icon .icon-image {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.desktop-icon .icon-text {
+  color: var(--icon-text);
+  text-shadow: 1px 1px 1px var(--icon-shadow);
+  font-size: 11px;
+  text-align: center;
+  word-wrap: break-word;
+  max-width: 70px;
+  line-height: 1.2;
 }
 
 /* Selection */
 ::selection {
-  background: var(--accent-primary);
-  color: white;
+  background: var(--selection-bg);
+  color: var(--selection-text);
 }
 
-/* Focus states */
-:focus-visible {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: 2px;
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
 }
 
-/* Gradient text utility */
-.gradient-text {
-  background: var(--gradient-kc);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+::-webkit-scrollbar-track {
+  background: repeating-conic-gradient(var(--button-face) 0% 25%, var(--window-bg) 0% 50%) 50% / 2px 2px;
 }
 
-/* Gradient border utility */
-.gradient-border {
+::-webkit-scrollbar-thumb {
+  background: var(--button-face);
+  box-shadow:
+    inset -1px -1px 0 var(--button-shadow),
+    inset 1px 1px 0 var(--button-highlight);
+}
+
+::-webkit-scrollbar-button {
+  background: var(--button-face);
+  box-shadow:
+    inset -1px -1px 0 var(--button-shadow),
+    inset 1px 1px 0 var(--button-highlight);
+  display: block;
+  height: 16px;
+}
+
+/* Status bar */
+.status-bar {
+  background: var(--button-face);
+  border-top: 1px solid var(--button-highlight);
+  padding: 2px 4px;
+  font-size: 11px;
+  color: var(--window-text);
+}
+
+.status-bar-field {
+  box-shadow:
+    inset -1px -1px 0 var(--button-highlight),
+    inset 1px 1px 0 var(--button-shadow);
+  padding: 2px 8px;
+}
+
+/* Taskbar */
+.taskbar {
+  background: var(--taskbar-bg);
+  box-shadow:
+    inset 0 1px 0 var(--button-highlight);
+  height: 36px;
+}
+
+.start-button {
+  background: var(--button-face);
+  font-weight: bold;
+  font-size: 11px;
+  padding: 2px 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  box-shadow:
+    inset -1px -1px 0 var(--button-shadow),
+    inset 1px 1px 0 var(--button-highlight),
+    inset -2px -2px 0 var(--button-dark-shadow),
+    inset 2px 2px 0 var(--button-face);
+}
+
+.start-button:active,
+.start-button.active {
+  box-shadow:
+    inset 1px 1px 0 var(--button-shadow),
+    inset -1px -1px 0 var(--button-highlight),
+    inset 2px 2px 0 var(--button-dark-shadow);
+}
+
+/* System tray */
+.system-tray {
+  box-shadow:
+    inset -1px -1px 0 var(--button-highlight),
+    inset 1px 1px 0 var(--button-shadow);
+  padding: 2px 8px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Window animations */
+@keyframes window-open {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.window-animate {
+  animation: window-open 0.15s ease-out;
+}
+
+/* Cursor blink */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.cursor-blink {
+  animation: blink 1s step-end infinite;
+}
+
+/* Retro link styles */
+.retro-link {
+  color: #0000ff;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.retro-link:hover {
+  color: #ff0000;
+}
+
+.retro-link:visited {
+  color: #800080;
+}
+
+.dark .retro-link {
+  color: #6eb5ff;
+}
+
+.dark .retro-link:hover {
+  color: #ff6b6b;
+}
+
+/* Menu styles */
+.menu {
+  background: var(--button-face);
+  box-shadow:
+    inset -1px -1px 0 var(--button-dark-shadow),
+    inset 1px 1px 0 var(--button-highlight);
+  padding: 2px;
+}
+
+.menu-item {
+  padding: 4px 24px 4px 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--window-text);
+}
+
+.menu-item:hover {
+  background: var(--selection-bg);
+  color: var(--selection-text);
+}
+
+.menu-separator {
+  height: 1px;
+  background: var(--button-shadow);
+  margin: 2px 4px;
+  box-shadow: 0 1px 0 var(--button-highlight);
+}
+
+/* Input fields */
+.retro-input {
+  background: #fff;
+  border: none;
+  padding: 4px 6px;
+  font-family: inherit;
+  font-size: 12px;
+  box-shadow:
+    inset -1px -1px 0 var(--button-highlight),
+    inset 1px 1px 0 var(--button-shadow),
+    inset -2px -2px 0 var(--button-face),
+    inset 2px 2px 0 var(--button-dark-shadow);
+}
+
+.dark .retro-input {
+  background: #1a1a2e;
+  color: #e0e0e0;
+}
+
+.retro-input:focus {
+  outline: none;
+}
+
+/* Textarea */
+.retro-textarea {
+  background: #fff;
+  border: none;
+  padding: 4px 6px;
+  font-family: inherit;
+  font-size: 12px;
+  resize: none;
+  box-shadow:
+    inset -1px -1px 0 var(--button-highlight),
+    inset 1px 1px 0 var(--button-shadow),
+    inset -2px -2px 0 var(--button-face),
+    inset 2px 2px 0 var(--button-dark-shadow);
+}
+
+.dark .retro-textarea {
+  background: #1a1a2e;
+  color: #e0e0e0;
+}
+
+/* Divider line */
+.retro-divider {
+  height: 2px;
+  background: var(--button-shadow);
+  box-shadow: 0 1px 0 var(--button-highlight);
+  margin: 8px 0;
+}
+
+/* Group box */
+.group-box {
+  border: 1px solid var(--button-shadow);
+  box-shadow: 1px 1px 0 var(--button-highlight);
+  padding: 12px 8px 8px;
+  margin-top: 8px;
   position: relative;
 }
 
-.gradient-border::before {
-  content: '';
+.group-box-label {
   position: absolute;
-  inset: 0;
-  padding: 2px;
-  background: var(--gradient-kc);
-  border-radius: inherit;
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-}
-
-/* Animated gradient background */
-@keyframes gradient-shift {
-  0%, 100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-
-.animate-gradient {
-  background-size: 200% 200%;
-  animation: gradient-shift 8s ease infinite;
-}
-
-/* Subtle hover glow */
-.hover-glow {
-  transition: box-shadow 0.3s ease;
-}
-
-.hover-glow:hover {
-  box-shadow: 0 0 30px -5px var(--accent-primary);
-}
-
-/* Section divider */
-.section-divider {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--border), transparent);
+  top: -8px;
+  left: 8px;
+  background: var(--window-bg);
+  padding: 0 4px;
+  font-size: 11px;
+  color: var(--window-text);
 }
