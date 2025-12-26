@@ -11,7 +11,7 @@ export default function AboutWindow() {
           }}
         >
           <Image
-            src="/images/headshot.jpg"
+            src="/images/headshot.png"
             alt="Tony Toubia"
             width={88}
             height={88}
@@ -38,7 +38,7 @@ export default function AboutWindow() {
             </tr>
             <tr>
               <td className="py-1 pr-4 opacity-70">Location:</td>
-              <td className="py-1">Kansas City, MO</td>
+              <td className="py-1">Fairway, KS</td>
             </tr>
             <tr>
               <td className="py-1 pr-4 opacity-70">Education:</td>
@@ -55,7 +55,7 @@ export default function AboutWindow() {
       <div className="group-box">
         <span className="group-box-label">Expertise</span>
         <div className="flex flex-wrap gap-2 text-xs">
-          {['Generative AI', 'Agentic Systems', 'Salesforce', 'Data Cloud', 'Business Value', 'Identity Resolution'].map(skill => (
+          {['Generative AI', 'Agentic Systems', 'Salesforce', 'Data 360', 'Agentforce', 'Marketing Cloud', 'Pre-Sales', 'Solutioning', 'Business Value', 'Identity Resolution'].map(skill => (
             <span
               key={skill}
               className="px-2 py-1 bg-[var(--selection-bg)] text-white"
@@ -71,7 +71,7 @@ export default function AboutWindow() {
         <ul className="text-xs m-0 pl-4 space-y-1">
           <li>Salesforce Certified AI Specialist (2024)</li>
           <li>Salesforce Certified AI Associate (2024)</li>
-          <li>Salesforce Certified Data Cloud Consultant</li>
+          <li>Salesforce Certified Data 360 Consultant</li>
           <li>Salesforce Marketing Cloud Email Specialist</li>
         </ul>
       </div>
@@ -80,7 +80,8 @@ export default function AboutWindow() {
         <span className="group-box-label">Advisory Boards</span>
         <ul className="text-xs m-0 pl-4 space-y-1">
           <li>Salesforce Marketing Cloud Partner Advisory Board</li>
-          <li>Salesforce AI+Data+CRM Advisory Board</li>
+          <li>Salesforce AI+Data+CRM Partner Advisory Board</li>
+          <li>Salesforce Agentforce Partner Advisory Board</li>
           <li>Salesforce CDP Technical Advisory Board</li>
         </ul>
       </div>

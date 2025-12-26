@@ -5,6 +5,8 @@
   /* Classic Windows-inspired colors */
   --desktop-bg: #008080;
   --desktop-bg-image: url('/images/light-bg.jpg');
+  --desktop-bg-size: cover;
+  --desktop-bg-position: center;
   --window-bg: #c0c0c0;
   --window-header: #000080;
   --window-header-inactive: #808080;
@@ -33,7 +35,9 @@
 
 .dark {
   --desktop-bg: #1a1a2e;
-  --desktop-bg-image: none;
+  --desktop-bg-image: url('/images/lambo-bg.png');
+  --desktop-bg-size: 60%;
+  --desktop-bg-position: center center;
   --window-bg: #2d2d44;
   --window-header: #4a4a6a;
   --window-header-inactive: #3d3d5c;
@@ -168,16 +172,12 @@ body {
 
 /* Inset content area */
 .inset {
-  background: #fff;
+  background: var(--window-bg);
   box-shadow:
     inset -1px -1px 0 var(--button-highlight),
     inset 1px 1px 0 var(--button-shadow),
     inset -2px -2px 0 var(--button-face),
     inset 2px 2px 0 var(--button-dark-shadow);
-}
-
-.dark .inset {
-  background: #1a1a2e;
 }
 
 /* Desktop icon */
@@ -250,6 +250,63 @@ body {
     inset 1px 1px 0 var(--button-highlight);
   display: block;
   height: 16px;
+  width: 16px;
+}
+
+/* Up arrow at top */
+::-webkit-scrollbar-button:vertical:start:decrement {
+  display: block;
+  background: var(--button-face) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath d='M4 2L1 5h6z' fill='%23000'/%3E%3C/svg%3E") center center no-repeat;
+  box-shadow:
+    inset -1px -1px 0 var(--button-shadow),
+    inset 1px 1px 0 var(--button-highlight);
+}
+
+/* Hide the second button at top */
+::-webkit-scrollbar-button:vertical:start:increment {
+  display: none;
+}
+
+/* Hide the first button at bottom */
+::-webkit-scrollbar-button:vertical:end:decrement {
+  display: none;
+}
+
+/* Down arrow at bottom */
+::-webkit-scrollbar-button:vertical:end:increment {
+  display: block;
+  background: var(--button-face) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath d='M4 6L1 3h6z' fill='%23000'/%3E%3C/svg%3E") center center no-repeat;
+  box-shadow:
+    inset -1px -1px 0 var(--button-shadow),
+    inset 1px 1px 0 var(--button-highlight);
+}
+
+/* Left arrow at left */
+::-webkit-scrollbar-button:horizontal:start:decrement {
+  display: block;
+  background: var(--button-face) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath d='M2 4L5 1v6z' fill='%23000'/%3E%3C/svg%3E") center center no-repeat;
+  box-shadow:
+    inset -1px -1px 0 var(--button-shadow),
+    inset 1px 1px 0 var(--button-highlight);
+}
+
+/* Hide second button at left */
+::-webkit-scrollbar-button:horizontal:start:increment {
+  display: none;
+}
+
+/* Hide first button at right */
+::-webkit-scrollbar-button:horizontal:end:decrement {
+  display: none;
+}
+
+/* Right arrow at right */
+::-webkit-scrollbar-button:horizontal:end:increment {
+  display: block;
+  background: var(--button-face) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath d='M6 4L3 1v6z' fill='%23000'/%3E%3C/svg%3E") center center no-repeat;
+  box-shadow:
+    inset -1px -1px 0 var(--button-shadow),
+    inset 1px 1px 0 var(--button-highlight);
 }
 
 /* Status bar */
@@ -459,4 +516,59 @@ body {
   padding: 0 4px;
   font-size: 11px;
   color: var(--window-text);
+}
+
+/* Windows 2000 style tabs */
+.retro-tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 3px;
+  margin-bottom: -1px;
+  position: relative;
+  z-index: 1;
+}
+
+.retro-tab {
+  background: var(--button-face);
+  border: 1px solid var(--button-shadow);
+  border-bottom: 1px solid var(--button-shadow);
+  padding: 4px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  position: relative;
+  margin-right: 2px;
+  border-radius: 3px 3px 0 0;
+  color: var(--window-text);
+  box-shadow:
+    inset 1px 1px 0 var(--button-highlight),
+    inset -1px 0 0 var(--button-shadow);
+}
+
+.retro-tab:hover:not(.active) {
+  background: linear-gradient(to bottom, var(--button-highlight) 0%, var(--button-face) 100%);
+}
+
+.retro-tab.active {
+  background: var(--window-bg);
+  border-bottom-color: var(--window-bg);
+  padding-bottom: 5px;
+  margin-bottom: -1px;
+  box-shadow:
+    inset 1px 1px 0 var(--button-highlight),
+    inset -1px 0 0 var(--button-shadow),
+    0 1px 0 var(--window-bg);
+}
+
+.retro-tab-content {
+  border: 1px solid var(--button-shadow);
+  background: var(--window-bg);
+  box-shadow:
+    inset 1px 1px 0 var(--button-highlight);
+}
+
+/* Mobile dark mode background size */
+@media (max-width: 768px) {
+  .dark {
+    --desktop-bg-size: 90%;
+  }
 }

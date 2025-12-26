@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, ReactNode } from 'react';
+import { useState, useEffect, ReactNode } from 'react';
 import { useWindowManager } from './WindowManager';
 import DesktopIcon from './DesktopIcon';
 import Window from './Window';
@@ -14,6 +14,10 @@ import ThoughtLeadershipWindow from './windows/ThoughtLeadershipWindow';
 import PhotosWindow from './windows/PhotosWindow';
 import MinesweeperWindow from './windows/MinesweeperWindow';
 import AIMWindow from './windows/AIMWindow';
+import ShortcutsWindow from './windows/ShortcutsWindow';
+import MySpace404Window from './windows/MySpace404Window';
+import DuetWindow from './windows/DuetWindow';
+import ProjectsWindow from './windows/ProjectsWindow';
 
 // Icon SVGs
 const icons = {
@@ -104,20 +108,27 @@ const icons = {
     </svg>
   ),
   aim: (
+    <img src="/images/aim-icon.png" alt="AIM" className="w-12 h-12 object-contain" />
+  ),
+  shortcuts: (
     <svg viewBox="0 0 48 48" className="w-12 h-12">
-      {/* Yellow AIM buddy icon background */}
-      <rect x="4" y="4" width="40" height="40" rx="4" fill="#FFD700" />
-      <rect x="6" y="6" width="36" height="36" rx="3" fill="#FFF8DC" />
-      {/* Running man silhouette */}
-      <g transform="translate(12, 8)">
-        <circle cx="12" cy="4" r="3.5" fill="#000"/>
-        <path d="M7 10l5-1 5 1-2.5 6-1.5 10h-2l-1.5-10z" fill="#000"/>
-        <path d="M4 18l4-3" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
-        <path d="M20 18l-4-3" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
-        <path d="M8 26l-3 6" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
-        <path d="M16 26l3 6" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
-      </g>
+      <path d="M8 8h28v4H12v28H8V8z" fill="#FFB81C" />
+      <rect x="12" y="12" width="28" height="28" fill="#FFD700" />
+      <rect x="16" y="16" width="20" height="20" fill="#FFF8DC" />
+      <path d="M20 22h12M20 28h12M20 34h8" stroke="#666" strokeWidth="1.5" />
     </svg>
+  ),
+  projects: (
+    <svg viewBox="0 0 48 48" className="w-12 h-12">
+      <path d="M4 12h16l4-6h20v36H4z" fill="#FFB81C" />
+      <rect x="4" y="12" width="40" height="30" fill="#FFC844" />
+      <rect x="8" y="18" width="10" height="8" rx="1" fill="#00A3AD" opacity="0.8" />
+      <rect x="20" y="18" width="10" height="8" rx="1" fill="#E31837" opacity="0.8" />
+      <rect x="32" y="18" width="10" height="8" rx="1" fill="#FFB81C" stroke="#232F3E" strokeWidth="1" />
+    </svg>
+  ),
+  linkedin: (
+    <img src="/images/linkedin-icon.png" alt="LinkedIn" className="w-12 h-12 object-contain" />
   ),
 };
 
@@ -125,8 +136,9 @@ interface DesktopItem {
   id: string;
   label: string;
   icon: ReactNode;
-  windowContent: ReactNode;
+  windowContent?: ReactNode;
   windowSize?: { width: number; height: number };
+  externalUrl?: string;
 }
 
 // Main desktop items (top-left grid)
@@ -139,25 +151,11 @@ const desktopItems: DesktopItem[] = [
     windowSize: { width: 600, height: 500 },
   },
   {
-    id: 'aura',
-    label: 'Aura Platform',
-    icon: icons.aura,
-    windowContent: <ProjectWindow projectId="aura" />,
-    windowSize: { width: 550, height: 450 },
-  },
-  {
-    id: 'amz-tools',
-    label: 'AMZ Tools',
-    icon: icons.amzTools,
-    windowContent: <ProjectWindow projectId="amz-tools" />,
-    windowSize: { width: 550, height: 450 },
-  },
-  {
-    id: 'duet',
-    label: 'Duet',
-    icon: icons.duet,
-    windowContent: <ProjectWindow projectId="duet" />,
-    windowSize: { width: 550, height: 450 },
+    id: 'projects',
+    label: 'Projects',
+    icon: icons.projects,
+    windowContent: <ProjectsWindow />,
+    windowSize: { width: 400, height: 300 },
   },
   {
     id: 'speaking',
@@ -180,32 +178,15 @@ const desktopItems: DesktopItem[] = [
     windowContent: <ContactWindow />,
     windowSize: { width: 500, height: 420 },
   },
+  {
+    id: 'linkedin',
+    label: 'LinkedIn',
+    icon: icons.linkedin,
+    externalUrl: 'https://www.linkedin.com/in/tonytoubia',
+  },
 ];
 
-// Top-right positioned items
-const topRightItems: DesktopItem[] = [
-  {
-    id: 'aim',
-    label: 'A.I.M.',
-    icon: icons.aim,
-    windowContent: <AIMWindow />,
-    windowSize: { width: 450, height: 500 },
-  },
-  {
-    id: 'photos',
-    label: 'Photos',
-    icon: icons.photos,
-    windowContent: <PhotosWindow />,
-    windowSize: { width: 500, height: 400 },
-  },
-  {
-    id: 'minesweeper',
-    label: 'Minesweeper',
-    icon: icons.minesweeper,
-    windowContent: <MinesweeperWindow />,
-    windowSize: { width: 250, height: 360 },
-  },
-];
+// Top-right positioned items are built in the component to support callbacks
 
 // Bottom-right positioned item
 const recycleBinItem: DesktopItem = {
@@ -219,12 +200,152 @@ const recycleBinItem: DesktopItem = {
 export default function Desktop() {
   const { openWindow, windows } = useWindowManager();
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  // Auto-open windows on initial page load
+  useEffect(() => {
+    if (hasInitialized) return;
+
+    // Wait a brief moment for the component to fully mount
+    const timer = setTimeout(() => {
+      // Order: Contact opens first (z-index bottom), About Me opens last (z-index top)
+      // Position: Contact at top of screen, About Me at bottom of screen
+      const windowsToOpen = [
+        { id: 'contact', label: 'Contact', content: <ContactWindow />, size: { width: 500, height: 420 } },
+        { id: 'thought-leadership', label: 'Thought Leadership', content: <ThoughtLeadershipWindow />, size: { width: 550, height: 450 } },
+        { id: 'speaking', label: 'Speaking', content: <SpeakingWindow />, size: { width: 600, height: 480 } },
+        { id: 'about', label: 'About Me', content: <AboutWindow />, size: { width: 600, height: 500 } },
+      ];
+
+      const availableWidth = typeof window !== 'undefined' ? window.innerWidth : 1024;
+      const availableHeight = typeof window !== 'undefined' ? window.innerHeight - 36 : 700;
+
+      // Map window IDs to icon keys
+      const iconKeyMap: Record<string, keyof typeof icons> = {
+        'about': 'about',
+        'speaking': 'speaking',
+        'thought-leadership': 'thought',
+        'contact': 'contact',
+      };
+
+      // Find the widest/tallest window to calculate safe margins
+      const maxWindowWidth = Math.max(...windowsToOpen.map(w => w.size.width));
+      const maxWindowHeight = Math.max(...windowsToOpen.map(w => w.size.height));
+
+      // Calculate horizontal distribution for top-left corners
+      const leftMargin = 120; // Space for desktop icons
+      const rightMargin = maxWindowWidth + 20; // Ensure rightmost window fits
+      const usableWidth = availableWidth - leftMargin - rightMargin;
+
+      // Calculate vertical distribution
+      const topMargin = 55; // Middle ground between 40 and 70
+      const bottomMargin = maxWindowHeight + 50; // Middle ground between 40 and 60
+      const usableHeight = availableHeight - topMargin - bottomMargin;
+
+      const totalWindows = windowsToOpen.length;
+      const horizontalSpacing = usableWidth / (totalWindows - 1);
+      const baseVerticalSpacing = usableHeight / (totalWindows - 1);
+      const verticalSpacing = baseVerticalSpacing + 10; // Add 10px extra per window
+
+      windowsToOpen.forEach((win, index) => {
+        // Reverse index for positioning (About Me on left/bottom, Contact on right/top)
+        const reverseIndex = totalWindows - 1 - index;
+
+        // Distribute top-left corners from right to left
+        // Contact (index 0) on right, About Me (index 3) on left
+        const xPos = leftMargin + (reverseIndex * horizontalSpacing);
+        // Earlier windows (Contact) at top of screen, later windows (About Me) at bottom
+        const yPos = topMargin + (index * verticalSpacing);
+
+        openWindow({
+          id: win.id,
+          title: win.label,
+          isMinimized: false,
+          isMaximized: false,
+          position: { x: xPos, y: yPos },
+          size: win.size,
+          content: win.content,
+          icon: icons[iconKeyMap[win.id]],
+        });
+      });
+
+      setHasInitialized(true);
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [hasInitialized, openWindow]);
+
+  const handleOpenMySpace = () => {
+    const windowSize = { width: 550, height: 500 };
+    const offsetIndex = windows.filter(w => w.isOpen).length;
+    const availableWidth = typeof window !== 'undefined' ? window.innerWidth : 1024;
+    const availableHeight = typeof window !== 'undefined' ? window.innerHeight - 36 : 700;
+    const centerX = Math.max(20, (availableWidth - windowSize.width) / 2);
+    const centerY = Math.max(20, (availableHeight - windowSize.height) / 2);
+    const stackOffset = offsetIndex * 30;
+
+    openWindow({
+      id: 'myspace-404',
+      title: 'Internet Explorer - MySpace',
+      isMinimized: false,
+      isMaximized: false,
+      position: { x: centerX + stackOffset, y: centerY + stackOffset },
+      size: windowSize,
+      content: <MySpace404Window />,
+      icon: (
+        <svg viewBox="0 0 16 16" className="w-4 h-4">
+          <rect x="1" y="1" width="14" height="14" rx="1" fill="#0078D4" />
+          <text x="8" y="12" textAnchor="middle" fontSize="10" fill="#fff">e</text>
+        </svg>
+      ),
+    });
+  };
+
+  // Build topRightItems with the MySpace callback
+  const topRightItems: DesktopItem[] = [
+    {
+      id: 'aim',
+      label: 'AIM',
+      icon: icons.aim,
+      windowContent: <AIMWindow />,
+      windowSize: { width: 450, height: 500 },
+    },
+    {
+      id: 'photos',
+      label: 'Photos',
+      icon: icons.photos,
+      windowContent: <PhotosWindow />,
+      windowSize: { width: 500, height: 400 },
+    },
+    {
+      id: 'minesweeper',
+      label: 'Minesweeper',
+      icon: icons.minesweeper,
+      windowContent: <MinesweeperWindow />,
+      windowSize: { width: 250, height: 360 },
+    },
+    {
+      id: 'shortcuts',
+      label: 'Shortcuts',
+      icon: icons.shortcuts,
+      windowContent: <ShortcutsWindow onOpenMySpace={handleOpenMySpace} />,
+      windowSize: { width: 320, height: 280 },
+    },
+  ];
 
   const handleIconClick = (id: string) => {
     setSelectedIcon(id);
   };
 
   const handleIconDoubleClick = (item: DesktopItem) => {
+    // Handle external URLs
+    if (item.externalUrl) {
+      window.open(item.externalUrl, '_blank');
+      return;
+    }
+
+    if (!item.windowContent) return;
+
     const offsetIndex = windows.filter(w => w.isOpen).length;
     const windowSize = item.windowSize || { width: 500, height: 400 };
 
@@ -262,8 +383,9 @@ export default function Desktop() {
       onClick={handleDesktopClick}
       style={{
         backgroundImage: 'var(--desktop-bg-image)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
+        backgroundSize: 'var(--desktop-bg-size)',
+        backgroundPosition: 'var(--desktop-bg-position)',
+        backgroundRepeat: 'no-repeat',
       }}
     >
       {/* Desktop Icons Grid - Top Left */}

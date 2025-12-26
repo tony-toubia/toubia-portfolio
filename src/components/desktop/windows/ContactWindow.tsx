@@ -96,9 +96,9 @@ export default function ContactWindow() {
             href="https://www.linkedin.com/in/tonytoubia"
             target="_blank"
             rel="noopener noreferrer"
-            className="retro-link"
+            className="retro-link flex items-center gap-1"
           >
-            🔗 LinkedIn
+            <img src="/images/linkedin-icon.png" alt="" className="w-4 h-4 object-contain" /> LinkedIn
           </a>
           <a
             href="mailto:contact@tonytoubia.com"
@@ -110,7 +110,7 @@ export default function ContactWindow() {
       </div>
 
       <p className="text-xs opacity-70 mt-4 text-center">
-        📍 Kansas City, MO &bull; Response time: 24-48 hours
+        📍 Fairway, KS &bull; Response time: 24-48 hours
       </p>
     </div>
   );

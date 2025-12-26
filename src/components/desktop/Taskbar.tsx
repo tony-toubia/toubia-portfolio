@@ -71,11 +71,22 @@ export default function Taskbar() {
             </div>
             <div className="menu-separator" />
             <div className="menu-item">
-              <span>🔗</span>
+              <img src="/images/linkedin-icon.png" alt="" className="w-4 h-4 object-contain" />
               <a href="https://www.linkedin.com/in/tonytoubia" target="_blank" rel="noopener noreferrer" className="text-inherit no-underline">
                 LinkedIn
               </a>
             </div>
+          </div>
+          {/* Vibe coded credit */}
+          <div className="px-2 py-1 text-[9px] text-center text-gray-500 border-t border-[var(--button-shadow)]">
+            <a
+              href="https://claude.ai/claude-code"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-[var(--kc-teal)] transition-colors"
+            >
+              Proudly vibe coded with Claude Code
+            </a>
           </div>
         </div>
       )}
@@ -101,7 +112,7 @@ export default function Taskbar() {
 
         {/* Open Windows */}
         <div className="flex-1 flex gap-1 overflow-x-auto">
-          {openWindows.map(window => (
+          {[...openWindows].reverse().map(window => (
             <button
               key={window.id}
               className={`retro-button flex items-center gap-1 min-w-[120px] max-w-[200px] truncate ${

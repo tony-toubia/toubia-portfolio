@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     "Enterprise AI",
     "Agentic AI",
     "Salesforce",
-    "Data Cloud",
+    "Data 360",
     "Marketing Cloud",
     "Agentforce",
     "Business Value",

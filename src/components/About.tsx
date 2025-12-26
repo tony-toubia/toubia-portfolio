@@ -11,7 +11,7 @@ export default function About() {
     },
     {
       title: 'Salesforce Ecosystem',
-      description: 'Deep expertise across Data Cloud, Marketing Cloud, Agentforce, and the broader Customer 360 platform.',
+      description: 'Deep expertise across Data 360, Marketing Cloud, Agentforce, and the broader Customer 360 platform.',
       icon: (
         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
@@ -76,7 +76,7 @@ export default function About() {
                 {[
                   'AI Specialist',
                   'AI Associate',
-                  'Data Cloud Consultant',
+                  'Data 360 Consultant',
                   'Marketing Cloud Email Specialist',
                   'Platform Expertise',
                 ].map((cert) => (

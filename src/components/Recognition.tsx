@@ -8,7 +8,7 @@ const recognitions = [
     type: 'advisory',
   },
   {
-    title: 'Salesforce AI+Data+CRM Advisory Board',
+    title: 'Salesforce AI+Data+CRM Partner Advisory Board',
     organization: 'Salesforce',
     period: '2024 – Present',
     description:
@@ -36,7 +36,7 @@ const recognitions = [
 const certifications = [
   { name: 'Salesforce Certified AI Specialist', year: '2024' },
   { name: 'Salesforce Certified AI Associate', year: '2024' },
-  { name: 'Salesforce Certified Data Cloud Consultant', year: '2021' },
+  { name: 'Salesforce Certified Data 360 Consultant', year: '2021' },
   { name: 'Salesforce Marketing Cloud Email Specialist', year: '2020' },
 ];
 

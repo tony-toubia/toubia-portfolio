@@ -68,7 +68,7 @@ export default function Hero() {
               <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-accent-primary via-accent-tertiary to-accent-secondary blur-sm opacity-75" />
               <div className="relative w-64 h-64 md:w-80 md:h-80 rounded-full overflow-hidden border-4 border-background">
                 <Image
-                  src="/images/headshot.jpg"
+                  src="/images/headshot.png"
                   alt="Tony Toubia"
                   fill
                   className="object-cover"
@@ -77,7 +77,7 @@ export default function Hero() {
               </div>
               {/* KC Badge */}
               <div className="absolute -bottom-2 -right-2 bg-card-bg border border-border rounded-full px-4 py-2 shadow-lg">
-                <span className="text-sm font-medium">Kansas City, MO</span>
+                <span className="text-sm font-medium">Fairway, KS</span>
               </div>
             </div>
           </div>

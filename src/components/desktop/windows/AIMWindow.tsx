@@ -28,19 +28,14 @@ export default function AIMWindow() {
     {
       id: '1',
       sender: 'tonybot',
-      content: "TonyBot signed on at " + new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-      timestamp: new Date(),
-    },
-    {
-      id: '2',
-      sender: 'tonybot',
-      content: "Hey! 👋 Welcome to Automated Interaction Messenger. I'm TonyBot - Tony's AI assistant. Ask me anything about AI, Salesforce, or just chat!",
+      content: "Hey! Welcome to A.I.M. - Automated Interaction Messenger. I'm TonyBot, Tony's AI assistant. Ask me anything about AI, Salesforce, or just chat!",
       timestamp: new Date(),
     },
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [warningLevel] = useState(0);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -85,183 +80,158 @@ export default function AIMWindow() {
     }
   };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  };
-
   return (
-    <div className="h-full flex flex-col" style={{ background: '#f0f0f0' }}>
-      {/* AIM Header */}
-      <div
-        className="px-3 py-2 flex items-center gap-2"
-        style={{
-          background: 'linear-gradient(180deg, #ffde00 0%, #ffc800 50%, #e5b400 100%)',
-          borderBottom: '1px solid #c9a000'
-        }}
-      >
-        <div className="flex items-center gap-2">
-          {/* Running man icon */}
-          <div className="w-6 h-6 flex items-center justify-center">
-            <svg viewBox="0 0 24 24" className="w-5 h-5">
-              <circle cx="12" cy="4" r="2.5" fill="#000"/>
-              <path d="M8 9l4-1 4 1-2 4-1 6h-2l-1-6z" fill="#000"/>
-              <path d="M6 14l3-2M18 14l-3-2M9 19l-2 4M15 19l2 4" stroke="#000" strokeWidth="1.5" fill="none"/>
-            </svg>
-          </div>
-          <div>
-            <div className="text-xs font-bold text-black">TonyBot</div>
-            <div className="text-[10px] text-black/70">Automated Interaction Messenger</div>
-          </div>
-        </div>
-        <div className="ml-auto flex items-center gap-1">
-          <div className="w-2 h-2 rounded-full bg-green-500 shadow-sm"></div>
-          <span className="text-[10px] text-black/80">Online</span>
+    <div className="h-full flex flex-col bg-[#ece9d8]" style={{ fontFamily: 'Tahoma, sans-serif' }}>
+      {/* Menu Bar */}
+      <div className="flex items-center text-[11px] bg-[#ece9d8] border-b border-[#aca899]">
+        <button className="px-2 py-0.5 hover:bg-[#316ac5] hover:text-white">File</button>
+        <button className="px-2 py-0.5 hover:bg-[#316ac5] hover:text-white">Edit</button>
+        <button className="px-2 py-0.5 hover:bg-[#316ac5] hover:text-white">Insert</button>
+        <button className="px-2 py-0.5 hover:bg-[#316ac5] hover:text-white">People</button>
+        <div className="ml-auto pr-2 text-[10px] text-gray-600">
+          TonyBot&apos;s Warning Level: {warningLevel}%
         </div>
       </div>
 
-      {/* Chat Area */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Buddy Info Sidebar */}
-        <div
-          className="w-20 p-2 flex flex-col items-center gap-2 border-r"
+      {/* Chat Display Area */}
+      <div
+        className="flex-1 overflow-y-auto p-2 text-[11px] bg-white border-2 border-t-[#808080] border-l-[#808080] border-b-white border-r-white m-1"
+        style={{ fontFamily: 'Times New Roman, serif' }}
+      >
+        {messages.map((message) => (
+          <div key={message.id} className="mb-1">
+            <span
+              className="font-bold"
+              style={{ color: message.sender === 'user' ? '#ff0000' : '#0000ff' }}
+            >
+              {message.sender === 'user' ? 'You' : 'TonyBot'}
+            </span>
+            <span className="text-black">: {message.content}</span>
+          </div>
+        ))}
+
+        {isTyping && (
+          <div className="mb-1 text-gray-500 italic">
+            TonyBot is typing...
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Formatting Toolbar */}
+      <div className="flex items-center gap-1 px-2 py-1 bg-[#ece9d8] border-t border-[#aca899]">
+        <div className="flex items-center border border-[#808080] bg-white">
+          <select className="text-[10px] px-1 py-0.5 bg-white border-none outline-none">
+            <option>Arial</option>
+            <option>Times New Roman</option>
+            <option>Comic Sans MS</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-0.5 ml-1">
+          <button className="w-5 h-5 flex items-center justify-center text-[11px] font-bold border border-[#808080] bg-[#ece9d8] hover:bg-[#d4d0c8]">A</button>
+          <button className="w-5 h-5 flex items-center justify-center text-[10px] font-bold border border-[#808080] bg-[#ece9d8] hover:bg-[#d4d0c8]">B</button>
+          <button className="w-5 h-5 flex items-center justify-center text-[10px] italic border border-[#808080] bg-[#ece9d8] hover:bg-[#d4d0c8]">I</button>
+          <button className="w-5 h-5 flex items-center justify-center text-[10px] underline border border-[#808080] bg-[#ece9d8] hover:bg-[#d4d0c8]">U</button>
+        </div>
+        <div className="w-4 h-4 bg-black ml-1 border border-[#808080]" title="Text Color"></div>
+        <div className="w-4 h-4 bg-yellow-300 ml-0.5 border border-[#808080]" title="Background Color"></div>
+        <div className="ml-auto flex items-center gap-1">
+          <button className="text-[10px] text-blue-600 underline hover:text-blue-800">link</button>
+        </div>
+      </div>
+
+      {/* Message Input Area */}
+      <div className="m-1 mt-0">
+        <textarea
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={handleKeyPress}
+          className="w-full p-1 text-[11px] bg-white border-2 border-t-[#808080] border-l-[#808080] border-b-white border-r-white resize-none outline-none"
+          style={{ fontFamily: 'Times New Roman, serif', minHeight: '40px' }}
+          rows={2}
+        />
+      </div>
+
+      {/* Bottom Toolbar */}
+      <div className="flex items-center justify-between px-1 py-1 bg-[#ece9d8] border-t border-[#aca899]">
+        <div className="flex items-center gap-0.5">
+          {/* Warn Button */}
+          <button className="flex flex-col items-center px-2 py-0.5 hover:bg-[#d4d0c8] border border-transparent hover:border-[#808080]">
+            <div className="w-6 h-6 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" className="w-5 h-5">
+                <path d="M12 2L2 22h20L12 2z" fill="#ffcc00" stroke="#000" strokeWidth="1"/>
+                <text x="12" y="18" textAnchor="middle" fontSize="12" fontWeight="bold" fill="#000">!</text>
+              </svg>
+            </div>
+            <span className="text-[9px]">Warn</span>
+          </button>
+
+          {/* Block Button */}
+          <button className="flex flex-col items-center px-2 py-0.5 hover:bg-[#d4d0c8] border border-transparent hover:border-[#808080]">
+            <div className="w-6 h-6 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" className="w-5 h-5">
+                <circle cx="12" cy="12" r="10" fill="none" stroke="#ff0000" strokeWidth="2"/>
+                <line x1="5" y1="5" x2="19" y2="19" stroke="#ff0000" strokeWidth="2"/>
+              </svg>
+            </div>
+            <span className="text-[9px]">Block</span>
+          </button>
+
+          {/* Add Buddy Button */}
+          <button className="flex flex-col items-center px-2 py-0.5 hover:bg-[#d4d0c8] border border-transparent hover:border-[#808080]">
+            <div className="w-6 h-6 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" className="w-5 h-5">
+                <circle cx="12" cy="8" r="4" fill="#000"/>
+                <path d="M6 20c0-4 3-6 6-6s6 2 6 6" fill="#000"/>
+                <circle cx="18" cy="8" r="3" fill="#00aa00"/>
+                <text x="18" y="11" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#fff">+</text>
+              </svg>
+            </div>
+            <span className="text-[9px]">Add Buddy</span>
+          </button>
+
+          {/* Talk Button */}
+          <button className="flex flex-col items-center px-2 py-0.5 hover:bg-[#d4d0c8] border border-transparent hover:border-[#808080]">
+            <div className="w-6 h-6 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" className="w-5 h-5">
+                <ellipse cx="12" cy="14" rx="6" ry="4" fill="#4a90d9"/>
+                <rect x="10" y="6" width="4" height="10" rx="2" fill="#4a90d9"/>
+              </svg>
+            </div>
+            <span className="text-[9px]">Talk</span>
+          </button>
+
+          {/* Get Info Button */}
+          <button className="flex flex-col items-center px-2 py-0.5 hover:bg-[#d4d0c8] border border-transparent hover:border-[#808080]">
+            <div className="w-6 h-6 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" className="w-5 h-5">
+                <rect x="4" y="2" width="16" height="20" fill="#ffffd0" stroke="#000" strokeWidth="1"/>
+                <line x1="7" y1="6" x2="17" y2="6" stroke="#000" strokeWidth="1"/>
+                <line x1="7" y1="10" x2="17" y2="10" stroke="#000" strokeWidth="1"/>
+                <line x1="7" y1="14" x2="14" y2="14" stroke="#000" strokeWidth="1"/>
+              </svg>
+            </div>
+            <span className="text-[9px]">Get Info</span>
+          </button>
+        </div>
+
+        {/* Send Button */}
+        <button
+          onClick={handleSend}
+          disabled={!inputValue.trim()}
+          className="flex flex-col items-center px-3 py-0.5 border border-transparent hover:border-[#808080]"
           style={{
-            background: 'linear-gradient(180deg, #e8e8e8 0%, #d0d0d0 100%)',
-            borderColor: '#b0b0b0'
+            background: inputValue.trim() ? '#ece9d8' : '#ece9d8',
+            opacity: inputValue.trim() ? 1 : 0.5,
           }}
         >
-          {/* TonyBot Avatar */}
-          <div
-            className="w-12 h-12 rounded flex items-center justify-center text-2xl"
-            style={{
-              background: 'linear-gradient(135deg, #00A3AD 0%, #004687 100%)',
-              border: '2px solid #fff',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-            }}
-          >
-            🤖
+          <div className="w-6 h-6 flex items-center justify-center">
+            <svg viewBox="0 0 24 24" className="w-5 h-5">
+              <path d="M2 12l18-8-4 8 4 8z" fill="#4a90d9" stroke="#000" strokeWidth="1"/>
+            </svg>
           </div>
-          <div className="text-[9px] text-center font-bold text-gray-700">TonyBot</div>
-          <div className="text-[8px] text-center text-gray-500 leading-tight">
-            AI Assistant<br/>
-            <span className="text-green-600">● Available</span>
-          </div>
-
-          <div className="mt-auto text-[8px] text-gray-400 text-center">
-            Powered by<br/>the 5%
-          </div>
-        </div>
-
-        {/* Messages Area */}
-        <div className="flex-1 flex flex-col">
-          <div
-            className="flex-1 overflow-y-auto p-3 space-y-2"
-            style={{ background: '#fff' }}
-          >
-            {messages.map((message) => (
-              <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] ${message.sender === 'user' ? 'order-2' : ''}`}>
-                  <div
-                    className="text-[10px] mb-0.5"
-                    style={{ color: message.sender === 'user' ? '#c00000' : '#0000c0' }}
-                  >
-                    <span className="font-bold">{message.sender === 'user' ? 'You' : 'TonyBot'}</span>
-                    <span className="text-gray-400 ml-2">{formatTime(message.timestamp)}</span>
-                  </div>
-                  <div
-                    className="text-xs p-2 rounded"
-                    style={{
-                      background: message.sender === 'user' ? '#fff3cd' : '#e3f2fd',
-                      border: `1px solid ${message.sender === 'user' ? '#ffc107' : '#90caf9'}`,
-                    }}
-                  >
-                    {message.content}
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {isTyping && (
-              <div className="flex justify-start">
-                <div>
-                  <div className="text-[10px] mb-0.5" style={{ color: '#0000c0' }}>
-                    <span className="font-bold">TonyBot</span>
-                    <span className="text-gray-400 ml-2">is typing...</span>
-                  </div>
-                  <div
-                    className="text-xs p-2 rounded inline-flex gap-1"
-                    style={{ background: '#e3f2fd', border: '1px solid #90caf9' }}
-                  >
-                    <span className="animate-bounce">●</span>
-                    <span className="animate-bounce" style={{ animationDelay: '0.1s' }}>●</span>
-                    <span className="animate-bounce" style={{ animationDelay: '0.2s' }}>●</span>
-                  </div>
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Input Area */}
-          <div
-            className="p-2 border-t"
-            style={{
-              background: 'linear-gradient(180deg, #f5f5f5 0%, #e0e0e0 100%)',
-              borderColor: '#c0c0c0'
-            }}
-          >
-            <div className="flex gap-2">
-              <textarea
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyPress}
-                placeholder="Type a message..."
-                className="flex-1 p-2 text-xs resize-none rounded"
-                style={{
-                  border: '2px inset #c0c0c0',
-                  background: '#fff',
-                  minHeight: '36px',
-                  maxHeight: '60px',
-                }}
-                rows={1}
-              />
-              <button
-                onClick={handleSend}
-                disabled={!inputValue.trim()}
-                className="px-4 text-xs font-bold rounded"
-                style={{
-                  background: inputValue.trim()
-                    ? 'linear-gradient(180deg, #ffde00 0%, #e5b400 100%)'
-                    : '#d0d0d0',
-                  border: '2px outset #c0c0c0',
-                  color: inputValue.trim() ? '#000' : '#808080',
-                }}
-              >
-                Send
-              </button>
-            </div>
-            <div className="flex justify-between items-center mt-1">
-              <div className="text-[9px] text-gray-500">
-                Press Enter to send
-              </div>
-              <div className="text-[9px] text-gray-400">
-                A.I.M. v1.0 - Tony&apos;s Personal Agent
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Status Bar */}
-      <div
-        className="px-2 py-1 text-[9px] flex justify-between"
-        style={{
-          background: '#e0e0e0',
-          borderTop: '1px solid #c0c0c0',
-          color: '#606060'
-        }}
-      >
-        <span>Connected to TonyBot</span>
-        <span>🔒 Secure Chat</span>
+          <span className="text-[9px]">Send</span>
+        </button>
       </div>
     </div>
   );
