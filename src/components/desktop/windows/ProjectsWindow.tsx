@@ -2,6 +2,7 @@
 
 import { useWindowManager } from '../WindowManager';
 import ProjectWindow from './ProjectWindow';
+import AuraWindow from './AuraWindow';
 import DuetWindow from './DuetWindow';
 import PrimalHuntWindow from './PrimalHuntWindow';
 
@@ -25,8 +26,8 @@ const projects: Project[] = [
         <path d="M24 8v4M24 36v4M8 24h4M36 24h4" stroke="#fff" strokeWidth="2" />
       </svg>
     ),
-    windowContent: <ProjectWindow projectId="aura" />,
-    windowSize: { width: 550, height: 450 },
+    windowContent: <AuraWindow />,
+    windowSize: { width: 600, height: 520 },
   },
   {
     id: 'amz-tools',
