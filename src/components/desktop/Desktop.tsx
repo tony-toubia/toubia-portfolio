@@ -220,24 +220,8 @@ export default function Desktop() {
         'contact': 'contact',
       };
 
-      // On mobile, only open About Me maximized
-      if (isMobile) {
-        openWindow({
-          id: 'about',
-          title: 'About Me',
-          isMinimized: false,
-          isMaximized: true,
-          position: { x: 0, y: 0 },
-          size: { width: availableWidth, height: availableHeight },
-          content: <AboutWindow />,
-          icon: icons.about,
-        });
-        setHasInitialized(true);
-        return;
-      }
-
-      // Desktop: Order: Contact opens first (z-index bottom), About Me opens last (z-index top)
-      // Position: Contact at top of screen, About Me at bottom of screen
+      // Define windows to open (same for mobile and desktop)
+      // Order: Contact opens first (z-index bottom), About Me opens last (z-index top)
       const windowsToOpen = [
         { id: 'contact', label: 'Contact', content: <ContactWindow />, size: { width: 500, height: 420 } },
         { id: 'thought-leadership', label: 'Thought Leadership', content: <ThoughtLeadershipWindow />, size: { width: 550, height: 450 } },
@@ -245,48 +229,67 @@ export default function Desktop() {
         { id: 'about', label: 'About Me', content: <AboutWindow />, size: { width: 600, height: 500 } },
       ];
 
-      // Find the widest/tallest window to calculate safe margins
-      const maxWindowWidth = Math.max(...windowsToOpen.map(w => w.size.width));
-      const maxWindowHeight = Math.max(...windowsToOpen.map(w => w.size.height));
+      if (isMobile) {
+        // On mobile, scale windows to fit screen and stack them
+        const mobileWindowWidth = Math.min(availableWidth - 20, 350);
+        const mobileWindowHeight = Math.min(availableHeight - 60, 400);
+        const totalWindows = windowsToOpen.length;
 
-      // Calculate horizontal distribution for top-left corners
-      const leftMargin = 120; // Space for desktop icons
-      const rightMargin = maxWindowWidth + 20; // Ensure rightmost window fits
-      const usableWidth = availableWidth - leftMargin - rightMargin;
+        windowsToOpen.forEach((win, index) => {
+          // Reverse index for horizontal positioning (About Me on left, Contact on right)
+          const reverseIndex = totalWindows - 1 - index;
+          const xPos = 10 + (reverseIndex * 15);
+          const yPos = 10 + (index * 20);
 
-      // Calculate vertical distribution
-      const topMargin = 55;
-      const bottomMargin = maxWindowHeight + 50;
-      const usableHeight = availableHeight - topMargin - bottomMargin;
-
-      const totalWindows = windowsToOpen.length;
-      const horizontalSpacing = Math.max(0, usableWidth / (totalWindows - 1));
-      const baseVerticalSpacing = Math.max(0, usableHeight / (totalWindows - 1));
-      const verticalSpacing = baseVerticalSpacing + 10;
-
-      windowsToOpen.forEach((win, index) => {
-        // Reverse index for positioning (About Me on left/bottom, Contact on right/top)
-        const reverseIndex = totalWindows - 1 - index;
-
-        // Distribute top-left corners from right to left
-        let xPos = leftMargin + (reverseIndex * horizontalSpacing);
-        let yPos = topMargin + (index * verticalSpacing);
-
-        // Clamp positions to ensure windows stay on screen
-        xPos = Math.max(10, Math.min(xPos, availableWidth - win.size.width - 10));
-        yPos = Math.max(10, Math.min(yPos, availableHeight - win.size.height - 10));
-
-        openWindow({
-          id: win.id,
-          title: win.label,
-          isMinimized: false,
-          isMaximized: false,
-          position: { x: xPos, y: yPos },
-          size: win.size,
-          content: win.content,
-          icon: icons[iconKeyMap[win.id]],
+          openWindow({
+            id: win.id,
+            title: win.label,
+            isMinimized: false,
+            isMaximized: false,
+            position: { x: xPos, y: yPos },
+            size: { width: mobileWindowWidth, height: mobileWindowHeight },
+            content: win.content,
+            icon: icons[iconKeyMap[win.id]],
+          });
         });
-      });
+      } else {
+        // Desktop: distribute windows across screen
+        const maxWindowWidth = Math.max(...windowsToOpen.map(w => w.size.width));
+        const maxWindowHeight = Math.max(...windowsToOpen.map(w => w.size.height));
+
+        const leftMargin = 120;
+        const rightMargin = maxWindowWidth + 20;
+        const usableWidth = availableWidth - leftMargin - rightMargin;
+
+        const topMargin = 55;
+        const bottomMargin = maxWindowHeight + 50;
+        const usableHeight = availableHeight - topMargin - bottomMargin;
+
+        const totalWindows = windowsToOpen.length;
+        const horizontalSpacing = Math.max(0, usableWidth / (totalWindows - 1));
+        const baseVerticalSpacing = Math.max(0, usableHeight / (totalWindows - 1));
+        const verticalSpacing = baseVerticalSpacing + 10;
+
+        windowsToOpen.forEach((win, index) => {
+          const reverseIndex = totalWindows - 1 - index;
+          let xPos = leftMargin + (reverseIndex * horizontalSpacing);
+          let yPos = topMargin + (index * verticalSpacing);
+
+          xPos = Math.max(10, Math.min(xPos, availableWidth - win.size.width - 10));
+          yPos = Math.max(10, Math.min(yPos, availableHeight - win.size.height - 10));
+
+          openWindow({
+            id: win.id,
+            title: win.label,
+            isMinimized: false,
+            isMaximized: false,
+            position: { x: xPos, y: yPos },
+            size: win.size,
+            content: win.content,
+            icon: icons[iconKeyMap[win.id]],
+          });
+        });
+      }
 
       setHasInitialized(true);
     }, 100);
@@ -301,12 +304,12 @@ export default function Desktop() {
     const isMobile = availableWidth < 768;
 
     const windowSize = isMobile
-      ? { width: availableWidth - 20, height: availableHeight - 20 }
+      ? { width: Math.min(availableWidth - 20, 350), height: Math.min(availableHeight - 60, 400) }
       : { width: 550, height: 500 };
 
     let centerX = Math.max(10, (availableWidth - windowSize.width) / 2);
     let centerY = Math.max(10, (availableHeight - windowSize.height) / 2);
-    const stackOffset = isMobile ? offsetIndex * 10 : offsetIndex * 30;
+    const stackOffset = isMobile ? offsetIndex * 15 : offsetIndex * 30;
     centerX = Math.max(10, Math.min(centerX + stackOffset, availableWidth - windowSize.width - 10));
     centerY = Math.max(10, Math.min(centerY + stackOffset, availableHeight - windowSize.height - 10));
 
@@ -314,8 +317,8 @@ export default function Desktop() {
       id: 'myspace-404',
       title: 'Internet Explorer - MySpace',
       isMinimized: false,
-      isMaximized: isMobile,
-      position: { x: isMobile ? 10 : centerX, y: isMobile ? 10 : centerY },
+      isMaximized: false,
+      position: { x: centerX, y: centerY },
       size: windowSize,
       content: <MySpace404Window />,
       icon: (
@@ -377,9 +380,9 @@ export default function Desktop() {
     const availableHeight = typeof window !== 'undefined' ? window.innerHeight - 36 : 700;
     const isMobile = availableWidth < 768;
 
-    // On mobile, use full screen size
+    // On mobile, use scaled window size (not full screen)
     const windowSize = isMobile
-      ? { width: availableWidth - 20, height: availableHeight - 20 }
+      ? { width: Math.min(availableWidth - 20, 350), height: Math.min(availableHeight - 60, 400) }
       : (item.windowSize || { width: 500, height: 400 });
 
     // Calculate center position, accounting for taskbar (36px) and stacking offset
@@ -387,7 +390,7 @@ export default function Desktop() {
     let centerY = Math.max(10, (availableHeight - windowSize.height) / 2);
 
     // Stack windows down and to the right (smaller offset on mobile)
-    const stackOffset = isMobile ? offsetIndex * 10 : offsetIndex * 30;
+    const stackOffset = isMobile ? offsetIndex * 15 : offsetIndex * 30;
     centerX += stackOffset;
     centerY += stackOffset;
 
@@ -399,8 +402,8 @@ export default function Desktop() {
       id: item.id,
       title: item.label,
       isMinimized: false,
-      isMaximized: isMobile,
-      position: { x: isMobile ? 10 : centerX, y: isMobile ? 10 : centerY },
+      isMaximized: false,
+      position: { x: centerX, y: centerY },
       size: windowSize,
       content: item.windowContent,
       icon: item.icon,

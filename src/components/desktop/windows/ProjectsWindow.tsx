@@ -83,12 +83,12 @@ export default function ProjectsWindow() {
     const isMobile = availableWidth < 768;
 
     const windowSize = isMobile
-      ? { width: availableWidth - 20, height: availableHeight - 20 }
+      ? { width: Math.min(availableWidth - 20, 350), height: Math.min(availableHeight - 60, 400) }
       : project.windowSize;
 
     let centerX = Math.max(10, (availableWidth - windowSize.width) / 2);
     let centerY = Math.max(10, (availableHeight - windowSize.height) / 2);
-    const stackOffset = isMobile ? offsetIndex * 10 : offsetIndex * 30;
+    const stackOffset = isMobile ? offsetIndex * 15 : offsetIndex * 30;
     centerX = Math.max(10, Math.min(centerX + stackOffset, availableWidth - windowSize.width - 10));
     centerY = Math.max(10, Math.min(centerY + stackOffset, availableHeight - windowSize.height - 10));
 
@@ -96,8 +96,8 @@ export default function ProjectsWindow() {
       id: project.id,
       title: project.name,
       isMinimized: false,
-      isMaximized: isMobile,
-      position: { x: isMobile ? 10 : centerX, y: isMobile ? 10 : centerY },
+      isMaximized: false,
+      position: { x: centerX, y: centerY },
       size: windowSize,
       content: project.windowContent,
       icon: project.icon,
