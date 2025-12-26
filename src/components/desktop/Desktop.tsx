@@ -208,17 +208,9 @@ export default function Desktop() {
 
     // Wait a brief moment for the component to fully mount
     const timer = setTimeout(() => {
-      // Order: Contact opens first (z-index bottom), About Me opens last (z-index top)
-      // Position: Contact at top of screen, About Me at bottom of screen
-      const windowsToOpen = [
-        { id: 'contact', label: 'Contact', content: <ContactWindow />, size: { width: 500, height: 420 } },
-        { id: 'thought-leadership', label: 'Thought Leadership', content: <ThoughtLeadershipWindow />, size: { width: 550, height: 450 } },
-        { id: 'speaking', label: 'Speaking', content: <SpeakingWindow />, size: { width: 600, height: 480 } },
-        { id: 'about', label: 'About Me', content: <AboutWindow />, size: { width: 600, height: 500 } },
-      ];
-
       const availableWidth = typeof window !== 'undefined' ? window.innerWidth : 1024;
       const availableHeight = typeof window !== 'undefined' ? window.innerHeight - 36 : 700;
+      const isMobile = availableWidth < 768;
 
       // Map window IDs to icon keys
       const iconKeyMap: Record<string, keyof typeof icons> = {
@@ -227,6 +219,31 @@ export default function Desktop() {
         'thought-leadership': 'thought',
         'contact': 'contact',
       };
+
+      // On mobile, only open About Me maximized
+      if (isMobile) {
+        openWindow({
+          id: 'about',
+          title: 'About Me',
+          isMinimized: false,
+          isMaximized: true,
+          position: { x: 0, y: 0 },
+          size: { width: availableWidth, height: availableHeight },
+          content: <AboutWindow />,
+          icon: icons.about,
+        });
+        setHasInitialized(true);
+        return;
+      }
+
+      // Desktop: Order: Contact opens first (z-index bottom), About Me opens last (z-index top)
+      // Position: Contact at top of screen, About Me at bottom of screen
+      const windowsToOpen = [
+        { id: 'contact', label: 'Contact', content: <ContactWindow />, size: { width: 500, height: 420 } },
+        { id: 'thought-leadership', label: 'Thought Leadership', content: <ThoughtLeadershipWindow />, size: { width: 550, height: 450 } },
+        { id: 'speaking', label: 'Speaking', content: <SpeakingWindow />, size: { width: 600, height: 480 } },
+        { id: 'about', label: 'About Me', content: <AboutWindow />, size: { width: 600, height: 500 } },
+      ];
 
       // Find the widest/tallest window to calculate safe margins
       const maxWindowWidth = Math.max(...windowsToOpen.map(w => w.size.width));
@@ -238,24 +255,26 @@ export default function Desktop() {
       const usableWidth = availableWidth - leftMargin - rightMargin;
 
       // Calculate vertical distribution
-      const topMargin = 55; // Middle ground between 40 and 70
-      const bottomMargin = maxWindowHeight + 50; // Middle ground between 40 and 60
+      const topMargin = 55;
+      const bottomMargin = maxWindowHeight + 50;
       const usableHeight = availableHeight - topMargin - bottomMargin;
 
       const totalWindows = windowsToOpen.length;
-      const horizontalSpacing = usableWidth / (totalWindows - 1);
-      const baseVerticalSpacing = usableHeight / (totalWindows - 1);
-      const verticalSpacing = baseVerticalSpacing + 10; // Add 10px extra per window
+      const horizontalSpacing = Math.max(0, usableWidth / (totalWindows - 1));
+      const baseVerticalSpacing = Math.max(0, usableHeight / (totalWindows - 1));
+      const verticalSpacing = baseVerticalSpacing + 10;
 
       windowsToOpen.forEach((win, index) => {
         // Reverse index for positioning (About Me on left/bottom, Contact on right/top)
         const reverseIndex = totalWindows - 1 - index;
 
         // Distribute top-left corners from right to left
-        // Contact (index 0) on right, About Me (index 3) on left
-        const xPos = leftMargin + (reverseIndex * horizontalSpacing);
-        // Earlier windows (Contact) at top of screen, later windows (About Me) at bottom
-        const yPos = topMargin + (index * verticalSpacing);
+        let xPos = leftMargin + (reverseIndex * horizontalSpacing);
+        let yPos = topMargin + (index * verticalSpacing);
+
+        // Clamp positions to ensure windows stay on screen
+        xPos = Math.max(10, Math.min(xPos, availableWidth - win.size.width - 10));
+        yPos = Math.max(10, Math.min(yPos, availableHeight - win.size.height - 10));
 
         openWindow({
           id: win.id,
@@ -276,20 +295,27 @@ export default function Desktop() {
   }, [hasInitialized, openWindow]);
 
   const handleOpenMySpace = () => {
-    const windowSize = { width: 550, height: 500 };
     const offsetIndex = windows.filter(w => w.isOpen).length;
     const availableWidth = typeof window !== 'undefined' ? window.innerWidth : 1024;
     const availableHeight = typeof window !== 'undefined' ? window.innerHeight - 36 : 700;
-    const centerX = Math.max(20, (availableWidth - windowSize.width) / 2);
-    const centerY = Math.max(20, (availableHeight - windowSize.height) / 2);
-    const stackOffset = offsetIndex * 30;
+    const isMobile = availableWidth < 768;
+
+    const windowSize = isMobile
+      ? { width: availableWidth - 20, height: availableHeight - 20 }
+      : { width: 550, height: 500 };
+
+    let centerX = Math.max(10, (availableWidth - windowSize.width) / 2);
+    let centerY = Math.max(10, (availableHeight - windowSize.height) / 2);
+    const stackOffset = isMobile ? offsetIndex * 10 : offsetIndex * 30;
+    centerX = Math.max(10, Math.min(centerX + stackOffset, availableWidth - windowSize.width - 10));
+    centerY = Math.max(10, Math.min(centerY + stackOffset, availableHeight - windowSize.height - 10));
 
     openWindow({
       id: 'myspace-404',
       title: 'Internet Explorer - MySpace',
       isMinimized: false,
-      isMaximized: false,
-      position: { x: centerX + stackOffset, y: centerY + stackOffset },
+      isMaximized: isMobile,
+      position: { x: isMobile ? 10 : centerX, y: isMobile ? 10 : centerY },
       size: windowSize,
       content: <MySpace404Window />,
       icon: (
@@ -347,24 +373,34 @@ export default function Desktop() {
     if (!item.windowContent) return;
 
     const offsetIndex = windows.filter(w => w.isOpen).length;
-    const windowSize = item.windowSize || { width: 500, height: 400 };
-
-    // Calculate center position, accounting for taskbar (36px) and stacking offset
     const availableWidth = typeof window !== 'undefined' ? window.innerWidth : 1024;
     const availableHeight = typeof window !== 'undefined' ? window.innerHeight - 36 : 700;
+    const isMobile = availableWidth < 768;
 
-    const centerX = Math.max(20, (availableWidth - windowSize.width) / 2);
-    const centerY = Math.max(20, (availableHeight - windowSize.height) / 2);
+    // On mobile, use full screen size
+    const windowSize = isMobile
+      ? { width: availableWidth - 20, height: availableHeight - 20 }
+      : (item.windowSize || { width: 500, height: 400 });
 
-    // Stack windows down and to the right
-    const stackOffset = offsetIndex * 30;
+    // Calculate center position, accounting for taskbar (36px) and stacking offset
+    let centerX = Math.max(10, (availableWidth - windowSize.width) / 2);
+    let centerY = Math.max(10, (availableHeight - windowSize.height) / 2);
+
+    // Stack windows down and to the right (smaller offset on mobile)
+    const stackOffset = isMobile ? offsetIndex * 10 : offsetIndex * 30;
+    centerX += stackOffset;
+    centerY += stackOffset;
+
+    // Clamp to keep window on screen
+    centerX = Math.max(10, Math.min(centerX, availableWidth - windowSize.width - 10));
+    centerY = Math.max(10, Math.min(centerY, availableHeight - windowSize.height - 10));
 
     openWindow({
       id: item.id,
       title: item.label,
       isMinimized: false,
-      isMaximized: false,
-      position: { x: centerX + stackOffset, y: centerY + stackOffset },
+      isMaximized: isMobile,
+      position: { x: isMobile ? 10 : centerX, y: isMobile ? 10 : centerY },
       size: windowSize,
       content: item.windowContent,
       icon: item.icon,

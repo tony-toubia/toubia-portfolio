@@ -80,18 +80,25 @@ export default function ProjectsWindow() {
     const offsetIndex = windows.filter(w => w.isOpen).length;
     const availableWidth = typeof window !== 'undefined' ? window.innerWidth : 1024;
     const availableHeight = typeof window !== 'undefined' ? window.innerHeight - 36 : 700;
+    const isMobile = availableWidth < 768;
 
-    const centerX = Math.max(20, (availableWidth - project.windowSize.width) / 2);
-    const centerY = Math.max(20, (availableHeight - project.windowSize.height) / 2);
-    const stackOffset = offsetIndex * 30;
+    const windowSize = isMobile
+      ? { width: availableWidth - 20, height: availableHeight - 20 }
+      : project.windowSize;
+
+    let centerX = Math.max(10, (availableWidth - windowSize.width) / 2);
+    let centerY = Math.max(10, (availableHeight - windowSize.height) / 2);
+    const stackOffset = isMobile ? offsetIndex * 10 : offsetIndex * 30;
+    centerX = Math.max(10, Math.min(centerX + stackOffset, availableWidth - windowSize.width - 10));
+    centerY = Math.max(10, Math.min(centerY + stackOffset, availableHeight - windowSize.height - 10));
 
     openWindow({
       id: project.id,
       title: project.name,
       isMinimized: false,
-      isMaximized: false,
-      position: { x: centerX + stackOffset, y: centerY + stackOffset },
-      size: project.windowSize,
+      isMaximized: isMobile,
+      position: { x: isMobile ? 10 : centerX, y: isMobile ? 10 : centerY },
+      size: windowSize,
       content: project.windowContent,
       icon: project.icon,
     });
