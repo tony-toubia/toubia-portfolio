@@ -83,13 +83,13 @@ function StoryTab() {
           <p className="flex items-start gap-2">
             <span className="text-lg">🧠</span>
             <span>
-              <strong>AI is only as good as the data we feed it.</strong> I heard this every day. And when I thought about how people would adopt AI in their everyday lives - especially agentic AI combining multiple systems - something became clear.
+              <strong>AI is only as good as the data we feed it.</strong> I hear this almost daily. And when I thought about how people would adopt AI in their everyday lives - especially agentic AI combining multiple systems to work for us - something became clear.
             </span>
           </p>
           <p className="flex items-start gap-2">
             <span className="text-lg">📡</span>
             <span>
-              We needed a way to bring all our personal data sensors together into one place. Weather, health metrics, calendar, location, fitness - the contextual signals that define our daily rhythms.
+              We needed a way to bring all our personal data sensors together into one place. Weather, health metrics, calendar, location, news, fitness, sleep, music - the contextual signals that define our daily rhythms.
             </span>
           </p>
         </div>

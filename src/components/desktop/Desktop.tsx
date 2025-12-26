@@ -7,6 +7,7 @@ import Window from './Window';
 import Taskbar from './Taskbar';
 import AboutWindow from './windows/AboutWindow';
 import ProjectWindow from './windows/ProjectWindow';
+import ProjectsWindow from './windows/ProjectsWindow';
 import ContactWindow from './windows/ContactWindow';
 import SpeakingWindow from './windows/SpeakingWindow';
 import RecycleBinWindow from './windows/RecycleBinWindow';
@@ -17,7 +18,6 @@ import AIMWindow from './windows/AIMWindow';
 import ShortcutsWindow from './windows/ShortcutsWindow';
 import MySpace404Window from './windows/MySpace404Window';
 import DuetWindow from './windows/DuetWindow';
-import ProjectsWindow from './windows/ProjectsWindow';
 
 // Icon SVGs
 const icons = {
@@ -228,13 +228,16 @@ export default function Desktop() {
         'about': 'about',
         'speaking': 'speaking',
         'thought-leadership': 'thought',
+        'projects': 'projects',
         'contact': 'contact',
       };
 
       // Define windows to open (same for mobile and desktop)
       // Order: Contact opens first (z-index bottom), About Me opens last (z-index top)
+      // Projects added between Thought Leadership and Contact
       const windowsToOpen = [
         { id: 'contact', label: 'Contact', content: <ContactWindow />, size: { width: 500, height: 420 } },
+        { id: 'projects', label: 'Projects', content: <ProjectsWindow />, size: { width: 400, height: 300 } },
         { id: 'thought-leadership', label: 'Thought Leadership', content: <ThoughtLeadershipWindow />, size: { width: 550, height: 450 } },
         { id: 'speaking', label: 'Speaking', content: <SpeakingWindow />, size: { width: 600, height: 480 } },
         { id: 'about', label: 'About Me', content: <AboutWindow />, size: { width: 600, height: 500 } },
