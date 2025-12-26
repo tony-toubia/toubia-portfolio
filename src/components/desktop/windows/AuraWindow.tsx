@@ -24,7 +24,7 @@ export default function AuraWindow() {
             <p className="text-sm m-0 italic text-[#00A3AD]">AI Companions that flow with your day</p>
           </div>
           <a
-            href="https://www.aura-link.app"
+            href="https://aura-link.app"
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs px-2 py-1 text-white bg-[#00A3AD] hover:opacity-80 no-underline"

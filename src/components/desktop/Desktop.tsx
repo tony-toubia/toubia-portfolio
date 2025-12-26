@@ -238,9 +238,9 @@ export default function Desktop() {
       const windowsToOpen = [
         { id: 'contact', label: 'Contact', content: <ContactWindow />, size: { width: 500, height: 420 } },
         { id: 'projects', label: 'Projects', content: <ProjectsWindow />, size: { width: 400, height: 300 } },
-        { id: 'thought-leadership', label: 'Thought Leadership', content: <ThoughtLeadershipWindow />, size: { width: 550, height: 450 } },
-        { id: 'speaking', label: 'Speaking', content: <SpeakingWindow />, size: { width: 600, height: 480 } },
-        { id: 'about', label: 'About Me', content: <AboutWindow />, size: { width: 600, height: 500 } },
+        { id: 'thought-leadership', label: 'Thought Leadership', content: <ThoughtLeadershipWindow />, size: { width: 550, height: 415 } },
+        { id: 'speaking', label: 'Speaking', content: <SpeakingWindow />, size: { width: 600, height: 445 } },
+        { id: 'about', label: 'About Me', content: <AboutWindow />, size: { width: 600, height: 465 } },
       ];
 
       if (isMobile) {
@@ -261,17 +261,20 @@ export default function Desktop() {
           let xPos: number;
           let yPos: number;
 
-          if (index <= 1) {
-            // Back row: Contact (index 0) on right, Projects (index 1) on left
-            // These open first (lower z-index)
-            xPos = index === 0 ? backRowSpacing + 10 : 10;
-            yPos = 10;
+          if (index === 0) {
+            // Contact: back row, right side (lowest z-index)
+            xPos = backRowSpacing + 10;
+            yPos = 45;
+          } else if (index === 1) {
+            // Projects: back row, left side, but moved down to reveal Contact
+            xPos = 10;
+            yPos = 70;
           } else {
             // Front row: ThoughtLeadership (2), Speaking (3), AboutMe (4)
             // Map to positions: TL on right, Speaking middle, AboutMe on left
             const frontIndex = index - 2; // 0, 1, 2
             xPos = 10 + ((2 - frontIndex) * frontRowSpacing);
-            yPos = 30 + (frontIndex * 15);
+            yPos = 105 + (frontIndex * 25);
           }
 
           openWindow({
@@ -286,9 +289,8 @@ export default function Desktop() {
           });
         });
       } else {
-        // Desktop: distribute windows across screen
-        // Contact needs to move up ~15px, distribute others in remaining space
-        // About Me position stays fixed
+        // Desktop: distribute windows diagonally across screen
+        // Contact at top-right, About Me at bottom-left, others distributed between
         const maxWindowWidth = Math.max(...windowsToOpen.map(w => w.size.width));
         const maxWindowHeight = Math.max(...windowsToOpen.map(w => w.size.height));
 
@@ -296,36 +298,20 @@ export default function Desktop() {
         const rightMargin = maxWindowWidth + 20;
         const usableWidth = availableWidth - leftMargin - rightMargin;
 
-        const topMargin = 40; // Moved up from 55 to give Contact more room at top
+        const topMargin = 30;
         const bottomMargin = maxWindowHeight + 50;
         const usableHeight = availableHeight - topMargin - bottomMargin;
 
         const totalWindows = windowsToOpen.length;
         const horizontalSpacing = Math.max(0, usableWidth / (totalWindows - 1));
-
-        // Calculate vertical positions - About Me (last) stays at bottom, others distribute above
-        // Contact at top, others evenly distributed, About Me anchored at bottom
-        const aboutMeYPos = availableHeight - windowsToOpen[totalWindows - 1].size.height - 50;
-        const contactYPos = topMargin;
-        const middleWindowsCount = totalWindows - 2; // Excluding Contact and About Me
-        const verticalSpaceForMiddle = aboutMeYPos - contactYPos - 40; // Leave some gap
-        const middleVerticalSpacing = verticalSpaceForMiddle / (middleWindowsCount + 1);
+        // Increase vertical spacing to make title bars more visible
+        const baseVerticalSpacing = Math.max(0, usableHeight / (totalWindows - 1));
+        const verticalSpacing = baseVerticalSpacing + 10; // Added extra spacing for 5 windows
 
         windowsToOpen.forEach((win, index) => {
           const reverseIndex = totalWindows - 1 - index;
           let xPos = leftMargin + (reverseIndex * horizontalSpacing);
-          let yPos: number;
-
-          if (index === 0) {
-            // Contact - at top
-            yPos = contactYPos;
-          } else if (index === totalWindows - 1) {
-            // About Me - anchored at bottom
-            yPos = aboutMeYPos;
-          } else {
-            // Middle windows - distribute evenly between Contact and About Me
-            yPos = contactYPos + (index * middleVerticalSpacing);
-          }
+          let yPos = topMargin + (index * verticalSpacing);
 
           xPos = Math.max(10, Math.min(xPos, availableWidth - win.size.width - 10));
           yPos = Math.max(10, Math.min(yPos, availableHeight - win.size.height - 10));
