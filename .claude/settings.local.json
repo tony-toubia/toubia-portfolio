@@ -15,7 +15,11 @@
       "Bash(git push:*)",
       "Bash(npx tsc:*)",
       "Bash(dir:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(gh repo edit:*)",
+      "Bash(git remote:*)",
+      "Bash(git stash:*)",
+      "Bash(git ls-tree:*)"
     ]
   }
 }

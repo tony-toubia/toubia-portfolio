@@ -3,6 +3,7 @@
 import { useWindowManager } from '../WindowManager';
 import ProjectWindow from './ProjectWindow';
 import DuetWindow from './DuetWindow';
+import PrimalHuntWindow from './PrimalHuntWindow';
 
 interface Project {
   id: string;
@@ -54,6 +55,21 @@ const projects: Project[] = [
     ),
     windowContent: <DuetWindow />,
     windowSize: { width: 600, height: 520 },
+  },
+  {
+    id: 'primal-hunt',
+    name: 'Primal Hunt',
+    icon: (
+      <svg viewBox="0 0 48 48" className="w-10 h-10">
+        <rect x="4" y="4" width="40" height="40" rx="4" fill="#1a1a2e" />
+        <circle cx="24" cy="20" r="10" fill="#4a0" opacity="0.6" />
+        <text x="24" y="24" textAnchor="middle" fontSize="14">🎯</text>
+        <text x="16" y="40" fontSize="10">👹</text>
+        <text x="28" y="40" fontSize="10">🏃</text>
+      </svg>
+    ),
+    windowContent: <PrimalHuntWindow />,
+    windowSize: { width: 800, height: 600 },
   },
 ];
 
