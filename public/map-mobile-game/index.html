@@ -7,8 +7,36 @@
     <meta name="mobile-web-app-capable" content="yes">
     <title>Primal Hunt - Hunters vs Monsters</title>
     <link rel="stylesheet" href="/map-mobile-game/css/style.css">
+    <style>
+        .back-to-home {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 9999;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: 2px solid #fff;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 4px;
+            text-decoration: none;
+            display: none;
+            transition: background 0.2s;
+        }
+        .back-to-home:hover {
+            background: rgba(0, 0, 0, 0.9);
+        }
+        /* Only show when not in iframe */
+        body:not(.in-iframe) .back-to-home {
+            display: block;
+        }
+    </style>
 </head>
 <body>
+    <!-- Back to Home (only shown when not in iframe) -->
+    <a href="/" class="back-to-home">← Back to Home</a>
     <!-- Main Menu Screen -->
     <div id="main-menu" class="screen active">
         <div class="menu-container">
@@ -271,6 +299,13 @@
             <p id="loading-text">Preparing the hunt...</p>
         </div>
     </div>
+
+    <!-- Detect if in iframe and hide back button if so -->
+    <script>
+        if (window.self !== window.top) {
+            document.body.classList.add('in-iframe');
+        }
+    </script>
 
     <!-- Three.js Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
