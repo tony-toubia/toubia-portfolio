@@ -9,6 +9,16 @@ export default function Taskbar() {
   const { theme, toggleTheme } = useTheme();
   const [time, setTime] = useState<string>('');
   const [isStartMenuOpen, setIsStartMenuOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     const updateTime = () => {
@@ -92,7 +102,7 @@ export default function Taskbar() {
       )}
 
       {/* Taskbar */}
-      <div className="taskbar fixed bottom-0 left-0 right-0 flex items-center px-1 gap-1 z-[9998]">
+      <div className={`taskbar fixed bottom-0 left-0 right-0 flex items-center px-1 gap-1 z-[9998] ${isMobile ? 'h-12' : ''}`}>
         {/* Start Button */}
         <button
           className={`start-button cursor-pointer ${isStartMenuOpen ? 'active' : ''}`}
@@ -115,7 +125,9 @@ export default function Taskbar() {
           {[...openWindows].reverse().map(window => (
             <button
               key={window.id}
-              className={`retro-button flex items-center gap-1 min-w-[120px] max-w-[200px] truncate ${
+              className={`retro-button flex items-center gap-1 truncate ${
+                isMobile ? 'min-w-[40px] max-w-[40px] justify-center p-1' : 'min-w-[120px] max-w-[200px]'
+              } ${
                 activeWindowId === window.id && !window.isMinimized ? 'active' : ''
               }`}
               onClick={() => handleTaskbarButtonClick(window.id)}
@@ -123,9 +135,10 @@ export default function Taskbar() {
                 boxShadow: 'inset 1px 1px 0 var(--button-shadow), inset -1px -1px 0 var(--button-highlight)',
                 background: 'repeating-conic-gradient(var(--button-face) 0% 25%, var(--window-bg) 0% 50%) 50% / 2px 2px',
               } : {}}
+              title={window.title}
             >
-              {window.icon && <span className="w-4 h-4 shrink-0 flex items-center justify-center [&_svg]:w-4 [&_svg]:h-4">{window.icon}</span>}
-              <span className="truncate text-xs">{window.title}</span>
+              {window.icon && <span className={`shrink-0 flex items-center justify-center [&_svg]:w-4 [&_svg]:h-4 ${isMobile ? 'w-5 h-5 [&_svg]:w-5 [&_svg]:h-5' : 'w-4 h-4'}`}>{window.icon}</span>}
+              {!isMobile && <span className="truncate text-xs">{window.title}</span>}
             </button>
           ))}
         </div>

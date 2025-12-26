@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, ReactNode } from 'react';
+import { useState, useEffect, ReactNode, useMemo } from 'react';
 import { useWindowManager } from './WindowManager';
 import DesktopIcon from './DesktopIcon';
 import Window from './Window';
@@ -201,6 +201,17 @@ export default function Desktop() {
   const { openWindow, windows } = useWindowManager();
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
+  const [isMobileView, setIsMobileView] = useState(false);
+
+  // Detect mobile view on mount and resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobileView(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Auto-open windows on initial page load
   useEffect(() => {
@@ -427,44 +438,65 @@ export default function Desktop() {
         backgroundRepeat: 'no-repeat',
       }}
     >
-      {/* Desktop Icons Grid - Top Left */}
-      <div className="absolute top-4 left-4 flex flex-col flex-wrap gap-2 h-[calc(100%-80px)] content-start">
-        {desktopItems.map((item) => (
-          <DesktopIcon
-            key={item.id}
-            icon={item.icon}
-            label={item.label}
-            onClick={() => handleIconClick(item.id)}
-            onDoubleClick={() => handleIconDoubleClick(item)}
-            isSelected={selectedIcon === item.id}
-          />
-        ))}
-      </div>
+      {/* Desktop Icons - Bottom grid on mobile, top-left on desktop */}
+      {isMobileView ? (
+        /* Mobile: Icons in grid at bottom half of screen (above taskbar) */
+        <div className="absolute bottom-14 left-0 right-0 top-1/2 px-2 flex items-end pb-2">
+          <div className="grid grid-cols-4 gap-x-2 gap-y-1 w-full">
+            {[...desktopItems, ...topRightItems, recycleBinItem].map((item) => (
+              <DesktopIcon
+                key={item.id}
+                icon={item.icon}
+                label={item.label}
+                onClick={() => handleIconClick(item.id)}
+                onDoubleClick={() => handleIconDoubleClick(item)}
+                isSelected={selectedIcon === item.id}
+              />
+            ))}
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Desktop Icons Grid - Top Left */}
+          <div className="absolute top-4 left-4 flex flex-col flex-wrap gap-2 h-[calc(100%-80px)] content-start">
+            {desktopItems.map((item) => (
+              <DesktopIcon
+                key={item.id}
+                icon={item.icon}
+                label={item.label}
+                onClick={() => handleIconClick(item.id)}
+                onDoubleClick={() => handleIconDoubleClick(item)}
+                isSelected={selectedIcon === item.id}
+              />
+            ))}
+          </div>
 
-      {/* Top Right Icons */}
-      <div className="absolute top-4 right-4 flex flex-col gap-2">
-        {topRightItems.map((item) => (
-          <DesktopIcon
-            key={item.id}
-            icon={item.icon}
-            label={item.label}
-            onClick={() => handleIconClick(item.id)}
-            onDoubleClick={() => handleIconDoubleClick(item)}
-            isSelected={selectedIcon === item.id}
-          />
-        ))}
-      </div>
+          {/* Top Right Icons */}
+          <div className="absolute top-4 right-4 flex flex-col gap-2">
+            {topRightItems.map((item) => (
+              <DesktopIcon
+                key={item.id}
+                icon={item.icon}
+                label={item.label}
+                onClick={() => handleIconClick(item.id)}
+                onDoubleClick={() => handleIconDoubleClick(item)}
+                isSelected={selectedIcon === item.id}
+              />
+            ))}
+          </div>
 
-      {/* Recycle Bin - Bottom Right */}
-      <div className="absolute bottom-14 right-4">
-        <DesktopIcon
-          icon={recycleBinItem.icon}
-          label={recycleBinItem.label}
-          onClick={() => handleIconClick(recycleBinItem.id)}
-          onDoubleClick={() => handleIconDoubleClick(recycleBinItem)}
-          isSelected={selectedIcon === recycleBinItem.id}
-        />
-      </div>
+          {/* Recycle Bin - Bottom Right */}
+          <div className="absolute bottom-14 right-4">
+            <DesktopIcon
+              icon={recycleBinItem.icon}
+              label={recycleBinItem.label}
+              onClick={() => handleIconClick(recycleBinItem.id)}
+              onDoubleClick={() => handleIconDoubleClick(recycleBinItem)}
+              isSelected={selectedIcon === recycleBinItem.id}
+            />
+          </div>
+        </>
+      )}
 
       {/* Windows */}
       {windows.map((window) => (
