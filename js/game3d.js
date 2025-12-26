@@ -5,7 +5,9 @@
 
 class Game3D extends Game {
     constructor() {
+        // Note: super() will create a 2D context, but we'll create a new canvas for 3D
         super();
+        console.log('Game3D constructor called - 3D mode enabled');
 
         this.use3D = true;
         this.renderer3d = null;
@@ -13,40 +15,100 @@ class Game3D extends Game {
         this.characters3d = null;
         this.effects3d = null;
         this.postProcessing = null;
+        this.canvas3d = null;
     }
 
     init(role, characterData) {
-        // Call parent init
+        // Call parent init first
         super.init(role, characterData);
 
         // Initialize 3D systems
         if (this.use3D) {
+            this.setup3DCanvas();
             this.init3D();
         }
     }
 
+    setup3DCanvas() {
+        // Create a separate canvas for 3D rendering
+        this.canvas3d = document.createElement('canvas');
+        this.canvas3d.id = 'game-canvas-3d';
+        this.canvas3d.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        `;
+
+        // Insert 3D canvas into the game screen
+        const gameScreen = document.getElementById('game-screen');
+        gameScreen.insertBefore(this.canvas3d, gameScreen.firstChild);
+
+        this.canvas3d.width = window.innerWidth;
+        this.canvas3d.height = window.innerHeight;
+
+        // Hide the 2D canvas when in 3D mode
+        this.canvas.style.display = 'none';
+
+        console.log('3D Canvas created and inserted');
+    }
+
     init3D() {
-        // Create 3D renderer
-        this.renderer3d = new Renderer3D(this.canvas);
+        try {
+            console.log('Initializing 3D engine...');
 
-        // Create 3D terrain from game map
-        this.terrain3d = new Terrain3D(this.renderer3d, this.map);
+            // Check if Three.js is loaded
+            if (typeof THREE === 'undefined') {
+                console.error('Three.js is not loaded! 3D mode disabled.');
+                this.use3D = false;
+                this.canvas.style.display = '';
+                return;
+            }
 
-        // Create character manager
-        this.characters3d = new Characters3D(this.renderer3d);
+            // Create 3D renderer using the dedicated 3D canvas
+            console.log('Creating 3D renderer...');
+            this.renderer3d = new Renderer3D(this.canvas3d);
 
-        // Create effects manager
-        this.effects3d = new Effects3D(this.renderer3d);
+            // Create 3D terrain from game map
+            console.log('Creating 3D terrain...');
+            this.terrain3d = new Terrain3D(this.renderer3d, this.map);
 
-        // Create post-processing
-        this.postProcessing = new PostProcessing(this.renderer3d);
+            // Create character manager
+            console.log('Creating 3D characters...');
+            this.characters3d = new Characters3D(this.renderer3d);
 
-        // Set camera bounds
-        this.renderer3d.camera.position.set(0, 40, 30);
+            // Create effects manager
+            console.log('Creating 3D effects...');
+            this.effects3d = new Effects3D(this.renderer3d);
+
+            // Create post-processing
+            console.log('Creating post-processing...');
+            this.postProcessing = new PostProcessing(this.renderer3d);
+
+            // Set camera initial position (matches cameraOffset)
+            this.renderer3d.camera.position.set(0, 15, 12);
+
+            console.log('3D engine initialized successfully!');
+        } catch (error) {
+            console.error('Failed to initialize 3D engine:', error);
+            this.use3D = false;
+            this.canvas.style.display = '';
+            if (this.canvas3d && this.canvas3d.parentNode) {
+                this.canvas3d.parentNode.removeChild(this.canvas3d);
+            }
+        }
     }
 
     resize() {
         super.resize();
+
+        // Resize the 3D canvas
+        if (this.canvas3d) {
+            this.canvas3d.width = window.innerWidth;
+            this.canvas3d.height = window.innerHeight;
+        }
 
         if (this.renderer3d) {
             this.renderer3d.onResize();
@@ -71,7 +133,7 @@ class Game3D extends Game {
 
         // Update camera to follow player
         if (this.player) {
-            this.renderer3d.updateCamera(this.player.x, this.player.y, dt);
+            this.renderer3d.updateCamera(this.player.x, this.player.y, dt, this.map.width, this.map.height);
         }
 
         // Update terrain animations
@@ -274,8 +336,21 @@ class Game3D extends Game {
         if (this.renderer3d) {
             this.renderer3d.dispose();
         }
+
+        // Remove 3D canvas and show 2D canvas again
+        if (this.canvas3d && this.canvas3d.parentNode) {
+            this.canvas3d.parentNode.removeChild(this.canvas3d);
+            this.canvas3d = null;
+        }
+        if (this.canvas) {
+            this.canvas.style.display = '';
+        }
     }
 }
 
 // Replace the default Game with Game3D
 window.Game = Game3D;
+window.Game3D = Game3D; // Also expose Game3D directly
+console.log('Game3D loaded - Game class replaced with Game3D');
+console.log('Verifying: window.Game is Game3D:', window.Game === Game3D);
+console.log('window.Game.name:', window.Game.name);

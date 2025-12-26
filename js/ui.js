@@ -356,10 +356,14 @@ class UIManager {
                 setTimeout(() => {
                     this.showScreen('game-screen');
 
-                    // Initialize game
-                    if (!window.game) {
-                        window.game = new Game();
+                    // Always create a fresh game instance
+                    if (window.game) {
+                        window.game.stop();
                     }
+                    // Use window.Game to get Game3D (which replaces Game in game3d.js)
+                    const GameClass = window.Game;
+                    window.game = new GameClass();
+                    console.log('Created new game instance:', window.game.constructor.name, '| use3D:', window.game.use3D);
 
                     window.game.init(this.selectedRole, this.selectedCharacter);
                     window.game.start();

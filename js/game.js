@@ -480,6 +480,7 @@ class Game extends EventEmitter {
                 const dist = Utils.distance(proj.x, proj.y, entity.x, entity.y);
                 if (dist < entity.radius + proj.size) {
                     // Hit!
+                    const wasAlive = entity.isAlive;
                     const damage = proj.damage * proj.owner.getDamageMultiplier();
                     entity.takeDamage(damage, proj.owner);
 
@@ -488,6 +489,11 @@ class Game extends EventEmitter {
                     }
                     if (entity.isPlayer) {
                         this.stats.damageTaken += damage;
+                    }
+
+                    // Track kills
+                    if (wasAlive && !entity.isAlive && entity.team === 'hunters') {
+                        this.stats.huntersKilled++;
                     }
 
                     // Create hit effect
@@ -1028,9 +1034,15 @@ class Game extends EventEmitter {
 
             const dist = Utils.distance(x, y, entity.x, entity.y);
             if (dist < options.radius) {
+                const wasAlive = entity.isAlive;
                 const falloff = 1 - (dist / options.radius);
                 const damage = options.damage * falloff;
                 entity.takeDamage(damage, options.owner || null);
+
+                // Track kills
+                if (wasAlive && !entity.isAlive && entity.team === 'hunters') {
+                    this.stats.huntersKilled++;
+                }
 
                 // Knockback
                 const angle = Utils.angle(x, y, entity.x, entity.y);
@@ -1081,7 +1093,7 @@ class Game extends EventEmitter {
     }
 
     createMeleeEffect(entity, range) {
-        // Arc slash effect
+        // Arc slash effect - visual only, damage is handled by the ability
         const startAngle = entity.facingAngle - Math.PI / 4;
         const endAngle = entity.facingAngle + Math.PI / 4;
 
@@ -1094,30 +1106,11 @@ class Game extends EventEmitter {
             life: 0.2,
             duration: 0.2,
             age: 0,
+            color: entity.color,
             update: (dt, game) => {
-                // Damage during slash
+                // Visual effect follows entity
             }
         });
-
-        // Hit enemies in arc
-        for (const other of this.entities) {
-            if (other === entity || !other.isAlive || other.team === entity.team) continue;
-
-            const dist = Utils.distance(entity.x, entity.y, other.x, other.y);
-            if (dist < range + other.radius) {
-                const angle = Utils.angle(entity.x, entity.y, other.x, other.y);
-                const angleDiff = Math.abs(Utils.wrap(angle - entity.facingAngle, -Math.PI, Math.PI));
-                if (angleDiff < Math.PI / 4) {
-                    // In arc, deal damage
-                    const damage = entity.damage * entity.getDamageMultiplier();
-                    other.takeDamage(damage, entity);
-                    this.createHitEffect(other.x, other.y, entity.color);
-
-                    if (entity.isPlayer) this.stats.damageDealt += damage;
-                    if (other.isPlayer) this.stats.damageTaken += damage;
-                }
-            }
-        }
 
         Audio.play('hit');
     }
@@ -1182,6 +1175,26 @@ class Game extends EventEmitter {
         );
     }
 
+    /**
+     * Deal damage to an entity and track kills
+     * @param {Entity} target - The entity taking damage
+     * @param {number} amount - Amount of damage
+     * @param {Entity|null} attacker - The entity dealing damage (for kill tracking)
+     */
+    dealDamage(target, amount, attacker = null) {
+        if (!target || !target.isAlive) return 0;
+
+        const wasAlive = target.isAlive;
+        const actualDamage = target.takeDamage(amount, attacker);
+
+        // Track kills
+        if (wasAlive && !target.isAlive && target.team === 'hunters') {
+            this.stats.huntersKilled++;
+        }
+
+        return actualDamage;
+    }
+
     getAliveHunters() {
         return this.entities.filter(e => e instanceof Hunter && e.isAlive);
     }
@@ -1223,8 +1236,14 @@ class Game extends EventEmitter {
             const angleDiff = Math.abs(Utils.wrap(toEntity - angle, -Math.PI, Math.PI));
 
             if (angleDiff < halfAngle) {
+                const wasAlive = entity.isAlive;
                 entity.takeDamage(options.damage, user);
                 this.createHitEffect(entity.x, entity.y, options.color);
+
+                // Track kills
+                if (wasAlive && !entity.isAlive && entity.team === 'hunters') {
+                    this.stats.huntersKilled++;
+                }
             }
         }
 
@@ -1258,7 +1277,13 @@ class Game extends EventEmitter {
 
             const entityDist = Utils.distance(user.x, user.y, entity.x, entity.y);
             if (entityDist < user.radius + entity.radius + 30) {
+                const wasAlive = entity.isAlive;
                 entity.takeDamage(options.damage, user);
+
+                // Track kills
+                if (wasAlive && !entity.isAlive && entity.team === 'hunters') {
+                    this.stats.huntersKilled++;
+                }
 
                 // Knockback
                 const knockAngle = Utils.angle(user.x, user.y, entity.x, entity.y);
@@ -1410,9 +1435,15 @@ class Game extends EventEmitter {
 
                     // Check collision
                     if (nearestDist < nearest.radius + mine.radius) {
+                        const wasAlive = nearest.isAlive;
                         nearest.takeDamage(mine.damage, null);
                         game.createHitEffect(mine.x, mine.y, mine.color);
                         mine.life = 0;
+
+                        // Track kills
+                        if (wasAlive && !nearest.isAlive && nearest.team === 'hunters') {
+                            game.stats.huntersKilled++;
+                        }
                     }
                 }
             }
@@ -1510,7 +1541,13 @@ class Game extends EventEmitter {
             user.y = nearestHunter.y;
 
             // Deal damage
+            const wasAlive = nearestHunter.isAlive;
             nearestHunter.takeDamage(options.damage, user);
+
+            // Track kills
+            if (wasAlive && !nearestHunter.isAlive) {
+                this.stats.huntersKilled++;
+            }
 
             // Bring hunter back
             nearestHunter.x = startX;
@@ -1548,7 +1585,13 @@ class Game extends EventEmitter {
                         if (entity.team === 'hunters' && entity.isAlive) {
                             const dist = Utils.distance(user.x, user.y, entity.x, entity.y);
                             if (dist < this.radius) {
+                                const wasAlive = entity.isAlive;
                                 entity.takeDamage(10, user);
+
+                                // Track kills
+                                if (wasAlive && !entity.isAlive) {
+                                    game.stats.huntersKilled++;
+                                }
                             }
                         }
                     }
@@ -1622,7 +1665,13 @@ class Game extends EventEmitter {
                             if (entity.team === 'hunters' && entity.isAlive) {
                                 const dist = Utils.distance(this.x, this.y, entity.x, entity.y);
                                 if (dist < this.radius) {
+                                    const wasAlive = entity.isAlive;
                                     entity.takeDamage(this.damage, null);
+
+                                    // Track kills
+                                    if (wasAlive && !entity.isAlive) {
+                                        game.stats.huntersKilled++;
+                                    }
                                 }
                             }
                         }
@@ -1697,8 +1746,14 @@ class Game extends EventEmitter {
             nearestHunter.y += Math.sin(pullAngle) * (nearestDist * 0.7);
 
             // Deal damage
+            const wasAlive = nearestHunter.isAlive;
             nearestHunter.takeDamage(options.damage, user);
             this.createHitEffect(nearestHunter.x, nearestHunter.y, '#8B4513');
+
+            // Track kills
+            if (wasAlive && !nearestHunter.isAlive) {
+                this.stats.huntersKilled++;
+            }
         }
     }
 
@@ -1735,8 +1790,14 @@ class Game extends EventEmitter {
                         if (entity.team === 'hunters' && entity.isAlive) {
                             const dist = Utils.distance(user.x, user.y, entity.x, entity.y);
                             if (dist < user.radius + entity.radius) {
+                                const wasAlive = entity.isAlive;
                                 entity.takeDamage(this.damage, user);
                                 game.createHitEffect(entity.x, entity.y, '#654321');
+
+                                // Track kills
+                                if (wasAlive && !entity.isAlive) {
+                                    game.stats.huntersKilled++;
+                                }
 
                                 // Knockback
                                 const knockAngle = Utils.angle(user.x, user.y, entity.x, entity.y);

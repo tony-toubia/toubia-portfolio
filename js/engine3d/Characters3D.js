@@ -6,7 +6,8 @@
 class Characters3D {
     constructor(renderer) {
         this.renderer = renderer;
-        this.scale = 0.05;
+        this.scale = 0.02; // Coordinate scaling (game units to 3D units)
+        this.modelScale = 1.5; // Make models larger and more visible
         this.characterMeshes = new Map();
 
         // Pre-create geometries
@@ -14,12 +15,12 @@ class Characters3D {
     }
 
     createGeometries() {
-        // Hunter body parts
+        // Hunter body parts - using CylinderGeometry instead of CapsuleGeometry (not available in r128)
         this.hunterGeometries = {
-            body: new THREE.CapsuleGeometry(0.3, 0.6, 4, 8),
+            body: new THREE.CylinderGeometry(0.3, 0.25, 0.8, 8),
             head: new THREE.SphereGeometry(0.2, 8, 8),
-            arm: new THREE.CapsuleGeometry(0.08, 0.4, 4, 6),
-            leg: new THREE.CapsuleGeometry(0.1, 0.4, 4, 6),
+            arm: new THREE.CylinderGeometry(0.08, 0.06, 0.5, 6),
+            leg: new THREE.CylinderGeometry(0.1, 0.08, 0.5, 6),
             weapon: new THREE.BoxGeometry(0.1, 0.1, 0.5)
         };
 
@@ -50,7 +51,7 @@ class Characters3D {
         // Wildlife geometries
         this.wildlifeGeometries = {
             small: new THREE.SphereGeometry(0.15, 6, 6),
-            medium: new THREE.CapsuleGeometry(0.2, 0.3, 4, 6),
+            medium: new THREE.CylinderGeometry(0.2, 0.15, 0.4, 6),
             large: new THREE.DodecahedronGeometry(0.4, 0)
         };
     }
@@ -124,8 +125,8 @@ class Characters3D {
         ring.position.y = 0.02;
         group.add(ring);
 
-        // Scale to game size
-        const gameScale = entity.radius * this.scale * 0.08;
+        // Scale to game size - make hunters visible
+        const gameScale = this.modelScale;
         group.scale.set(gameScale, gameScale, gameScale);
 
         // Store reference
@@ -169,10 +170,9 @@ class Characters3D {
         head.castShadow = true;
         group.add(head);
 
-        // Eyes (glowing)
+        // Eyes (glowing) - MeshBasicMaterial doesn't support emissive, just use bright color
         const eyeMaterial = new THREE.MeshBasicMaterial({
-            color: 0xff0000,
-            emissive: 0xff0000
+            color: 0xff0000
         });
         const eyeGeometry = new THREE.SphereGeometry(0.08, 6, 6);
         const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
@@ -207,9 +207,9 @@ class Characters3D {
         group.add(aura);
         group.userData.aura = aura;
 
-        // Scale based on evolution stage
-        const baseScale = entity.radius * this.scale * 0.05;
-        const evolutionScale = 1 + (entity.evolutionStage - 1) * 0.2;
+        // Scale based on evolution stage - make monsters visible and larger than hunters
+        const baseScale = this.modelScale * 1.5;
+        const evolutionScale = 1 + (entity.evolutionStage - 1) * 0.3;
         group.scale.set(baseScale * evolutionScale, baseScale * evolutionScale, baseScale * evolutionScale);
 
         group.userData = { entity, type: 'monster' };
@@ -232,7 +232,7 @@ class Characters3D {
         }
 
         // Large arms
-        const armGeometry = new THREE.CapsuleGeometry(0.25, 0.6, 4, 6);
+        const armGeometry = new THREE.CylinderGeometry(0.25, 0.2, 0.7, 6);
         const leftArm = new THREE.Mesh(armGeometry, material);
         leftArm.position.set(-0.7, 0.5, 0);
         leftArm.rotation.z = 0.5;
@@ -382,7 +382,7 @@ class Characters3D {
         rightEye.position.set(0.08, 0.25, 0.12);
         group.add(rightEye);
 
-        const gameScale = entity.radius * this.scale * 0.1;
+        const gameScale = this.modelScale * 0.8;
         group.scale.set(gameScale, gameScale, gameScale);
 
         group.userData = { entity, type: 'wildlife' };

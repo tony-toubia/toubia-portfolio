@@ -341,11 +341,11 @@ class Monster extends Entity {
         this.description = monsterData.description;
         this.monsterType = monsterData.id;
 
-        // Evolution system
+        // Evolution system - increased threshold for longer games
         this.evolutionStage = 1;
         this.maxEvolutionStage = 3;
         this.evolutionProgress = 0;
-        this.evolutionThreshold = 100;
+        this.evolutionThreshold = 200;
 
         // Store evolution multipliers
         this.evolutionMultipliers = monsterData.evolutionMultipliers || {
@@ -524,11 +524,11 @@ const HunterClasses = {
         icon: '🎯',
         color: '#e74c3c',
         stats: {
-            maxHealth: 100,
+            maxHealth: 250,
             maxEnergy: 100,
             speed: 160,
-            damage: 15,
-            armor: 10,
+            damage: 8,
+            armor: 15,
             radius: 20
         }
     },
@@ -540,11 +540,11 @@ const HunterClasses = {
         icon: '🪤',
         color: '#2ecc71',
         stats: {
-            maxHealth: 90,
+            maxHealth: 220,
             maxEnergy: 120,
             speed: 170,
-            damage: 10,
-            armor: 5,
+            damage: 5,
+            armor: 10,
             radius: 18
         }
     },
@@ -556,11 +556,11 @@ const HunterClasses = {
         icon: '💉',
         color: '#3498db',
         stats: {
-            maxHealth: 80,
+            maxHealth: 200,
             maxEnergy: 150,
             speed: 165,
-            damage: 8,
-            armor: 5,
+            damage: 4,
+            armor: 10,
             radius: 18
         }
     },
@@ -572,11 +572,11 @@ const HunterClasses = {
         icon: '🛡️',
         color: '#9b59b6',
         stats: {
-            maxHealth: 95,
+            maxHealth: 230,
             maxEnergy: 130,
             speed: 155,
-            damage: 12,
-            armor: 8,
+            damage: 6,
+            armor: 12,
             radius: 19
         }
     }
@@ -593,19 +593,19 @@ const MonsterTypes = {
         icon: '👹',
         color: '#8B0000',
         stats: {
-            maxHealth: 200,
+            maxHealth: 500,
             maxEnergy: 100,
-            speed: 140,
-            damage: 25,
-            armor: 15,
+            speed: 130,
+            damage: 12,
+            armor: 20,
             radius: 35
         },
         evolutionMultipliers: {
-            health: 1.6,
-            damage: 1.5,
-            armor: 1.3,
-            speed: 1.1,
-            size: 1.15
+            health: 1.3,
+            damage: 1.25,
+            armor: 1.15,
+            speed: 1.05,
+            size: 1.1
         }
     },
     kraken: {
@@ -615,19 +615,19 @@ const MonsterTypes = {
         icon: '🦑',
         color: '#4B0082',
         stats: {
-            maxHealth: 150,
+            maxHealth: 400,
             maxEnergy: 150,
-            speed: 180,
-            damage: 20,
-            armor: 5,
+            speed: 160,
+            damage: 10,
+            armor: 10,
             radius: 30
         },
         evolutionMultipliers: {
-            health: 1.4,
-            damage: 1.6,
-            armor: 1.2,
-            speed: 1.15,
-            size: 1.1
+            health: 1.25,
+            damage: 1.3,
+            armor: 1.1,
+            speed: 1.08,
+            size: 1.08
         }
     },
     wraith: {
@@ -637,19 +637,19 @@ const MonsterTypes = {
         icon: '👻',
         color: '#800080',
         stats: {
-            maxHealth: 120,
+            maxHealth: 350,
             maxEnergy: 120,
-            speed: 200,
-            damage: 18,
-            armor: 0,
+            speed: 180,
+            damage: 9,
+            armor: 5,
             radius: 25
         },
         evolutionMultipliers: {
-            health: 1.3,
-            damage: 1.5,
-            armor: 1.0,
-            speed: 1.2,
-            size: 1.1
+            health: 1.2,
+            damage: 1.25,
+            armor: 1.1,
+            speed: 1.1,
+            size: 1.08
         }
     },
     behemoth: {
@@ -659,19 +659,19 @@ const MonsterTypes = {
         icon: '🦣',
         color: '#654321',
         stats: {
-            maxHealth: 300,
+            maxHealth: 700,
             maxEnergy: 80,
-            speed: 100,
-            damage: 35,
-            armor: 25,
+            speed: 90,
+            damage: 15,
+            armor: 30,
             radius: 45
         },
         evolutionMultipliers: {
-            health: 1.7,
-            damage: 1.4,
-            armor: 1.5,
-            speed: 1.05,
-            size: 1.2
+            health: 1.35,
+            damage: 1.2,
+            armor: 1.2,
+            speed: 1.03,
+            size: 1.12
         }
     }
 };

@@ -86,8 +86,8 @@ const HunterAbilities = {
             description: 'Rapid fire assault rifle dealing consistent damage',
             icon: '🔫',
             type: AbilityType.PROJECTILE,
-            cooldown: 0.2,
-            damage: 8,
+            cooldown: 0.25,
+            damage: 5,
             range: 400,
             effect: (user, target, game, ability) => {
                 game.createProjectile(user, target, {
@@ -104,8 +104,8 @@ const HunterAbilities = {
             description: 'Explosive grenade dealing area damage',
             icon: '💥',
             type: AbilityType.AREA,
-            cooldown: 8,
-            damage: 45,
+            cooldown: 10,
+            damage: 25,
             range: 300,
             effect: (user, target, game, ability) => {
                 game.createExplosion(target.x, target.y, {
@@ -121,14 +121,14 @@ const HunterAbilities = {
             description: 'Increase damage output for 5 seconds',
             icon: '⚡',
             type: AbilityType.BUFF,
-            cooldown: 20,
+            cooldown: 25,
             duration: 5,
             effect: (user, target, game, ability) => {
                 user.addBuff({
                     id: 'damage_boost',
                     name: 'Adrenaline',
                     duration: ability.duration,
-                    damageMultiplier: 1.5,
+                    damageMultiplier: 1.3,
                     color: '#ff0000'
                 });
             }
@@ -139,8 +139,8 @@ const HunterAbilities = {
             description: 'Fire a devastating rocket',
             icon: '🚀',
             type: AbilityType.PROJECTILE,
-            cooldown: 15,
-            damage: 80,
+            cooldown: 18,
+            damage: 45,
             range: 500,
             effect: (user, target, game, ability) => {
                 game.createProjectile(user, target, {
@@ -163,8 +163,8 @@ const HunterAbilities = {
             description: 'Fast-firing submachine gun',
             icon: '🔫',
             type: AbilityType.PROJECTILE,
-            cooldown: 0.15,
-            damage: 5,
+            cooldown: 0.18,
+            damage: 3,
             range: 300,
             effect: (user, target, game, ability) => {
                 game.createProjectile(user, target, {
@@ -181,9 +181,9 @@ const HunterAbilities = {
             description: 'Slows the monster significantly',
             icon: '🎣',
             type: AbilityType.DEBUFF,
-            cooldown: 12,
-            damage: 15,
-            duration: 3,
+            cooldown: 14,
+            damage: 8,
+            duration: 2.5,
             range: 350,
             effect: (user, target, game, ability) => {
                 game.createProjectile(user, target, {
@@ -196,7 +196,7 @@ const HunterAbilities = {
                             id: 'slowed',
                             name: 'Harpooned',
                             duration: ability.duration,
-                            speedMultiplier: 0.5,
+                            speedMultiplier: 0.6,
                             color: '#00ffff'
                         });
                     }
@@ -209,9 +209,9 @@ const HunterAbilities = {
             description: 'Place a trap that immobilizes the monster',
             icon: '🪤',
             type: AbilityType.TRAP,
-            cooldown: 18,
-            damage: 20,
-            duration: 2,
+            cooldown: 20,
+            damage: 12,
+            duration: 1.5,
             effect: (user, target, game, ability) => {
                 game.createTrap(target.x, target.y, {
                     radius: 40,
@@ -228,8 +228,8 @@ const HunterAbilities = {
             description: 'Create a dome that prevents the monster from escaping',
             icon: '🔮',
             type: AbilityType.UTILITY,
-            cooldown: 60,
-            duration: 15,
+            cooldown: 75,
+            duration: 12,
             effect: (user, target, game, ability) => {
                 game.createDome(user.x, user.y, {
                     radius: 250,
@@ -248,8 +248,8 @@ const HunterAbilities = {
             description: 'Accurate semi-automatic pistol',
             icon: '🔫',
             type: AbilityType.PROJECTILE,
-            cooldown: 0.4,
-            damage: 12,
+            cooldown: 0.45,
+            damage: 6,
             range: 350,
             effect: (user, target, game, ability) => {
                 game.createProjectile(user, target, {
@@ -266,8 +266,8 @@ const HunterAbilities = {
             description: 'Heal all nearby allies',
             icon: '💚',
             type: AbilityType.HEAL,
-            cooldown: 15,
-            damage: -40, // Negative = healing
+            cooldown: 18,
+            damage: -30, // Negative = healing
             range: 150,
             effect: (user, target, game, ability) => {
                 const healAmount = Math.abs(ability.getScaledDamage());
@@ -282,8 +282,8 @@ const HunterAbilities = {
             description: 'Continuous healing beam to target ally',
             icon: '💉',
             type: AbilityType.HEAL,
-            cooldown: 0.5,
-            damage: -5,
+            cooldown: 0.6,
+            damage: -4,
             range: 200,
             effect: (user, target, game, ability) => {
                 if (target && target.team === user.team) {
@@ -298,7 +298,7 @@ const HunterAbilities = {
             description: 'Revive a downed teammate',
             icon: '❤️‍🔥',
             type: AbilityType.UTILITY,
-            cooldown: 30,
+            cooldown: 40,
             range: 100,
             effect: (user, target, game, ability) => {
                 const downed = game.getDownedAllyInRange(user, ability.range);
@@ -318,8 +318,8 @@ const HunterAbilities = {
             description: 'Powerful close-range shotgun',
             icon: '🔫',
             type: AbilityType.PROJECTILE,
-            cooldown: 0.8,
-            damage: 35,
+            cooldown: 0.9,
+            damage: 20,
             range: 200,
             effect: (user, target, game, ability) => {
                 // Shotgun fires multiple pellets
@@ -341,8 +341,8 @@ const HunterAbilities = {
             description: 'Project a shield on an ally',
             icon: '🛡️',
             type: AbilityType.BUFF,
-            cooldown: 12,
-            duration: 4,
+            cooldown: 15,
+            duration: 3,
             range: 200,
             effect: (user, target, game, ability) => {
                 if (target && target.team === user.team) {
@@ -350,7 +350,7 @@ const HunterAbilities = {
                         id: 'shielded',
                         name: 'Shielded',
                         duration: ability.duration,
-                        shield: 50,
+                        shield: 40,
                         color: '#00aaff'
                     });
                     game.createShieldEffect(target);
@@ -363,8 +363,8 @@ const HunterAbilities = {
             description: 'Make all nearby allies invisible briefly',
             icon: '👻',
             type: AbilityType.UTILITY,
-            cooldown: 35,
-            duration: 5,
+            cooldown: 40,
+            duration: 4,
             range: 150,
             effect: (user, target, game, ability) => {
                 game.cloakAlliesInRange(user, ability.range, ability.duration);
@@ -376,14 +376,14 @@ const HunterAbilities = {
             description: 'Call in an orbital bombardment',
             icon: '☄️',
             type: AbilityType.AREA,
-            cooldown: 45,
-            damage: 100,
+            cooldown: 55,
+            damage: 55,
             range: 400,
             effect: (user, target, game, ability) => {
                 game.createOrbitalStrike(target.x, target.y, {
                     radius: 100,
                     damage: ability.getScaledDamage(),
-                    delay: 2
+                    delay: 2.5
                 });
             }
         })
@@ -402,13 +402,14 @@ const MonsterAbilities = {
             description: 'Powerful melee attack',
             icon: '👊',
             type: AbilityType.DAMAGE,
-            cooldown: 0.6,
-            damage: 25,
+            cooldown: 0.7,
+            damage: 12,
             range: 60,
             effect: (user, target, game, ability) => {
                 const enemies = game.getEnemiesInRange(user, ability.range);
                 enemies.forEach(enemy => {
-                    enemy.takeDamage(ability.getScaledDamage(), user);
+                    game.dealDamage(enemy, ability.getScaledDamage(), user);
+                    game.createHitEffect(enemy.x, enemy.y, user.color);
                 });
                 game.createMeleeEffect(user, ability.range);
             }
@@ -419,8 +420,8 @@ const MonsterAbilities = {
             description: 'Hurl a massive boulder at hunters',
             icon: '🪨',
             type: AbilityType.PROJECTILE,
-            cooldown: 8,
-            damage: 50,
+            cooldown: 10,
+            damage: 28,
             range: 400,
             effect: (user, target, game, ability) => {
                 game.createProjectile(user, target, {
@@ -439,8 +440,8 @@ const MonsterAbilities = {
             description: 'Leap to target location and smash the ground',
             icon: '💨',
             type: AbilityType.AREA,
-            cooldown: 12,
-            damage: 60,
+            cooldown: 14,
+            damage: 32,
             range: 300,
             effect: (user, target, game, ability) => {
                 game.leapTo(user, target.x, target.y, () => {
@@ -458,8 +459,8 @@ const MonsterAbilities = {
             description: 'Breathe fire in a cone',
             icon: '🔥',
             type: AbilityType.AREA,
-            cooldown: 10,
-            damage: 40,
+            cooldown: 12,
+            damage: 22,
             range: 150,
             effect: (user, target, game, ability) => {
                 game.createConeAttack(user, target, {
@@ -477,14 +478,14 @@ const MonsterAbilities = {
             description: 'Charge forward, knocking back hunters',
             icon: '🦏',
             type: AbilityType.UTILITY,
-            cooldown: 15,
-            damage: 35,
+            cooldown: 16,
+            damage: 18,
             range: 250,
             effect: (user, target, game, ability) => {
                 game.charge(user, target, {
                     speed: 600,
                     damage: ability.getScaledDamage(),
-                    knockback: 100
+                    knockback: 80
                 });
             }
         })
@@ -498,8 +499,8 @@ const MonsterAbilities = {
             description: 'Ranged lightning attack',
             icon: '⚡',
             type: AbilityType.PROJECTILE,
-            cooldown: 0.8,
-            damage: 20,
+            cooldown: 0.9,
+            damage: 10,
             range: 350,
             effect: (user, target, game, ability) => {
                 game.createProjectile(user, target, {
@@ -516,8 +517,8 @@ const MonsterAbilities = {
             description: 'Deploy floating mines that home in on hunters',
             icon: '💣',
             type: AbilityType.TRAP,
-            cooldown: 10,
-            damage: 30,
+            cooldown: 12,
+            damage: 16,
             effect: (user, target, game, ability) => {
                 for (let i = 0; i < 3; i++) {
                     game.createHomingMine(user.x, user.y, {
@@ -534,8 +535,8 @@ const MonsterAbilities = {
             description: 'Call down lightning in an area',
             icon: '🌩️',
             type: AbilityType.AREA,
-            cooldown: 14,
-            damage: 70,
+            cooldown: 16,
+            damage: 38,
             range: 300,
             effect: (user, target, game, ability) => {
                 game.createLightningStorm(target.x, target.y, {
@@ -552,8 +553,8 @@ const MonsterAbilities = {
             description: 'Release a pulse of energy around you',
             icon: '💫',
             type: AbilityType.AREA,
-            cooldown: 8,
-            damage: 45,
+            cooldown: 10,
+            damage: 24,
             range: 120,
             effect: (user, target, game, ability) => {
                 game.createExplosion(user.x, user.y, {
@@ -569,14 +570,14 @@ const MonsterAbilities = {
             description: 'Create a vortex that pulls in hunters',
             icon: '🌀',
             type: AbilityType.UTILITY,
-            cooldown: 18,
-            duration: 3,
+            cooldown: 20,
+            duration: 2.5,
             range: 200,
             effect: (user, target, game, ability) => {
                 game.createVortex(target.x, target.y, {
                     radius: ability.range,
                     duration: ability.duration,
-                    pullStrength: 200
+                    pullStrength: 150
                 });
             }
         })
@@ -590,13 +591,14 @@ const MonsterAbilities = {
             description: 'Quick slashing attack',
             icon: '⚔️',
             type: AbilityType.DAMAGE,
-            cooldown: 0.4,
-            damage: 18,
+            cooldown: 0.5,
+            damage: 10,
             range: 50,
             effect: (user, target, game, ability) => {
                 const enemies = game.getEnemiesInRange(user, ability.range);
                 enemies.forEach(enemy => {
-                    enemy.takeDamage(ability.getScaledDamage(), user);
+                    game.dealDamage(enemy, ability.getScaledDamage(), user);
+                    game.createHitEffect(enemy.x, enemy.y, user.color);
                 });
                 game.createSlashEffect(user);
             }
@@ -607,8 +609,8 @@ const MonsterAbilities = {
             description: 'Teleport and explode at target location',
             icon: '✨',
             type: AbilityType.AREA,
-            cooldown: 6,
-            damage: 55,
+            cooldown: 8,
+            damage: 30,
             range: 250,
             effect: (user, target, game, ability) => {
                 game.teleportTo(user, target.x, target.y, () => {
@@ -626,8 +628,8 @@ const MonsterAbilities = {
             description: 'Grab a hunter and drag them to you',
             icon: '👻',
             type: AbilityType.UTILITY,
-            cooldown: 14,
-            damage: 25,
+            cooldown: 16,
+            damage: 14,
             range: 300,
             effect: (user, target, game, ability) => {
                 game.createAbduction(user, target, {
@@ -642,14 +644,14 @@ const MonsterAbilities = {
             description: 'Create a damage field and attack rapidly',
             icon: '💥',
             type: AbilityType.BUFF,
-            cooldown: 20,
-            duration: 4,
+            cooldown: 24,
+            duration: 3,
             effect: (user, target, game, ability) => {
                 user.addBuff({
                     id: 'supernova',
                     name: 'Supernova',
                     duration: ability.duration,
-                    attackSpeedMultiplier: 2.5,
+                    attackSpeedMultiplier: 2,
                     color: '#ff00ff'
                 });
                 game.createSupernova(user, ability.duration);
@@ -661,8 +663,8 @@ const MonsterAbilities = {
             description: 'Create a decoy and become invisible',
             icon: '🎭',
             type: AbilityType.UTILITY,
-            cooldown: 25,
-            duration: 5,
+            cooldown: 28,
+            duration: 4,
             effect: (user, target, game, ability) => {
                 game.createDecoy(user, ability.duration);
                 user.addBuff({
@@ -684,13 +686,14 @@ const MonsterAbilities = {
             description: 'Devastating ground slam',
             icon: '👊',
             type: AbilityType.DAMAGE,
-            cooldown: 1.0,
-            damage: 40,
+            cooldown: 1.1,
+            damage: 18,
             range: 80,
             effect: (user, target, game, ability) => {
                 const enemies = game.getEnemiesInRange(user, ability.range);
                 enemies.forEach(enemy => {
-                    enemy.takeDamage(ability.getScaledDamage(), user);
+                    game.dealDamage(enemy, ability.getScaledDamage(), user);
+                    game.createHitEffect(enemy.x, enemy.y, user.color);
                 });
                 game.createShockwave(user, ability.range);
             }
@@ -701,14 +704,14 @@ const MonsterAbilities = {
             description: 'Launch lava bombs that leave burning pools',
             icon: '🌋',
             type: AbilityType.AREA,
-            cooldown: 10,
-            damage: 45,
+            cooldown: 12,
+            damage: 24,
             range: 350,
             effect: (user, target, game, ability) => {
                 game.createLavaBomb(user, target, {
                     damage: ability.getScaledDamage(),
-                    poolDuration: 5,
-                    poolDamage: 10
+                    poolDuration: 4,
+                    poolDamage: 6
                 });
             }
         }),
@@ -718,8 +721,8 @@ const MonsterAbilities = {
             description: 'Create a wall of rock',
             icon: '🧱',
             type: AbilityType.UTILITY,
-            cooldown: 16,
-            duration: 8,
+            cooldown: 18,
+            duration: 6,
             range: 200,
             effect: (user, target, game, ability) => {
                 game.createRockWall(user, target, {
@@ -734,8 +737,8 @@ const MonsterAbilities = {
             description: 'Pull a hunter towards you',
             icon: '👅',
             type: AbilityType.UTILITY,
-            cooldown: 12,
-            damage: 20,
+            cooldown: 14,
+            damage: 12,
             range: 300,
             effect: (user, target, game, ability) => {
                 game.createTongueGrab(user, target, {
@@ -750,13 +753,13 @@ const MonsterAbilities = {
             description: 'Roll into a ball and crush hunters',
             icon: '🏃',
             type: AbilityType.UTILITY,
-            cooldown: 8,
-            damage: 30,
+            cooldown: 10,
+            damage: 16,
             effect: (user, target, game, ability) => {
                 game.startRoll(user, target, {
-                    speed: 500,
+                    speed: 450,
                     damage: ability.getScaledDamage(),
-                    duration: 3
+                    duration: 2.5
                 });
             }
         })

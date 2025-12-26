@@ -49,10 +49,10 @@ class Renderer3D {
     setupCamera() {
         // Isometric-style perspective camera
         const aspect = this.width / this.height;
-        this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
+        this.camera = new THREE.PerspectiveCamera(50, aspect, 0.1, 1000);
 
-        // Isometric angle (looking down at ~45 degrees)
-        this.cameraOffset = new THREE.Vector3(0, 40, 30);
+        // Isometric angle (looking down at ~45 degrees) - closer for better visibility
+        this.cameraOffset = new THREE.Vector3(0, 15, 12);
         this.cameraTarget = new THREE.Vector3(0, 0, 0);
 
         this.camera.position.copy(this.cameraOffset);
@@ -109,12 +109,14 @@ class Renderer3D {
     /**
      * Update camera to follow target
      */
-    updateCamera(targetX, targetY, dt) {
+    updateCamera(targetX, targetY, dt, mapWidth = 0, mapHeight = 0) {
         // Convert 2D game coords to 3D (x stays x, y becomes z)
+        // Center coordinates around map center
+        const scale = 0.02;
         const targetPos = new THREE.Vector3(
-            targetX * 0.05, // Scale down game coords
+            (targetX - mapWidth / 2) * scale,
             0,
-            targetY * 0.05
+            (targetY - mapHeight / 2) * scale
         );
 
         // Smooth camera follow
