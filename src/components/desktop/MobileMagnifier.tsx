@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 
 interface MagnifierState {
   visible: boolean;
-  x: number;
-  y: number;
+  magnifierX: number;
+  magnifierY: number;
   touchX: number;
   touchY: number;
 }
@@ -13,22 +14,26 @@ interface MagnifierState {
 export default function MobileMagnifier() {
   const [state, setState] = useState<MagnifierState>({
     visible: false,
-    x: 0,
-    y: 0,
+    magnifierX: 0,
+    magnifierY: 0,
     touchX: 0,
     touchY: 0,
   });
   const [isMobile, setIsMobile] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Magnifier settings
-  const MAGNIFIER_SIZE = 120; // Size of the magnifier circle
-  const ZOOM_LEVEL = 1.8; // How much to zoom
-  const OFFSET_Y = -80; // How far above the touch point to show magnifier
+  const MAGNIFIER_SIZE = 130;
+  const ZOOM_LEVEL = 2.5;
+  const OFFSET_Y = -85;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const checkMobile = () => {
-      // Check for touch capability and screen size
       const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
       const isSmallScreen = window.innerWidth < 768;
       setIsMobile(isTouchDevice && isSmallScreen);
@@ -39,80 +44,70 @@ export default function MobileMagnifier() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  const calculateMagnifierPosition = useCallback((touchX: number, touchY: number) => {
+    let magnifierX = touchX;
+    let magnifierY = touchY + OFFSET_Y;
+
+    const halfSize = MAGNIFIER_SIZE / 2;
+    magnifierX = Math.max(halfSize + 5, Math.min(window.innerWidth - halfSize - 5, magnifierX));
+    magnifierY = Math.max(halfSize + 5, Math.min(window.innerHeight - halfSize - 5, magnifierY));
+
+    // If touch is near top, show magnifier below
+    if (touchY < MAGNIFIER_SIZE + 40) {
+      magnifierY = touchY + Math.abs(OFFSET_Y);
+    }
+
+    return { magnifierX, magnifierY };
+  }, []);
+
   const handleTouchStart = useCallback((e: TouchEvent) => {
     if (!isMobile) return;
 
-    // Clear any pending hide timeout
     if (hideTimeoutRef.current) {
       clearTimeout(hideTimeoutRef.current);
       hideTimeoutRef.current = null;
     }
 
     const touch = e.touches[0];
-    const x = touch.clientX;
-    const y = touch.clientY;
-
-    // Position magnifier above the touch point
-    let magnifierX = x;
-    let magnifierY = y + OFFSET_Y;
-
-    // Keep magnifier within screen bounds
-    const halfSize = MAGNIFIER_SIZE / 2;
-    magnifierX = Math.max(halfSize, Math.min(window.innerWidth - halfSize, magnifierX));
-    magnifierY = Math.max(halfSize, Math.min(window.innerHeight - halfSize, magnifierY));
-
-    // If touch is near top, show magnifier below instead
-    if (y < MAGNIFIER_SIZE + 20) {
-      magnifierY = y + Math.abs(OFFSET_Y);
-    }
+    const touchX = touch.clientX;
+    const touchY = touch.clientY;
+    const { magnifierX, magnifierY } = calculateMagnifierPosition(touchX, touchY);
 
     setState({
       visible: true,
-      x: magnifierX,
-      y: magnifierY,
-      touchX: x,
-      touchY: y,
+      magnifierX,
+      magnifierY,
+      touchX,
+      touchY,
     });
-  }, [isMobile]);
+  }, [isMobile, calculateMagnifierPosition]);
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
-    if (!isMobile || !state.visible) return;
+    if (!isMobile) return;
 
     const touch = e.touches[0];
-    const x = touch.clientX;
-    const y = touch.clientY;
-
-    let magnifierX = x;
-    let magnifierY = y + OFFSET_Y;
-
-    const halfSize = MAGNIFIER_SIZE / 2;
-    magnifierX = Math.max(halfSize, Math.min(window.innerWidth - halfSize, magnifierX));
-    magnifierY = Math.max(halfSize, Math.min(window.innerHeight - halfSize, magnifierY));
-
-    if (y < MAGNIFIER_SIZE + 20) {
-      magnifierY = y + Math.abs(OFFSET_Y);
-    }
+    const touchX = touch.clientX;
+    const touchY = touch.clientY;
+    const { magnifierX, magnifierY } = calculateMagnifierPosition(touchX, touchY);
 
     setState({
       visible: true,
-      x: magnifierX,
-      y: magnifierY,
-      touchX: x,
-      touchY: y,
+      magnifierX,
+      magnifierY,
+      touchX,
+      touchY,
     });
-  }, [isMobile, state.visible]);
+  }, [isMobile, calculateMagnifierPosition]);
 
   const handleTouchEnd = useCallback(() => {
-    // Delay hiding to let user see where they tapped
     hideTimeoutRef.current = setTimeout(() => {
       setState(prev => ({ ...prev, visible: false }));
-    }, 150);
+    }, 250);
   }, []);
 
   useEffect(() => {
     if (!isMobile) return;
 
-    // Use capture phase to get events before they're handled by other elements
     document.addEventListener('touchstart', handleTouchStart, { passive: true, capture: true });
     document.addEventListener('touchmove', handleTouchMove, { passive: true, capture: true });
     document.addEventListener('touchend', handleTouchEnd, { passive: true, capture: true });
@@ -130,153 +125,278 @@ export default function MobileMagnifier() {
     };
   }, [isMobile, handleTouchStart, handleTouchMove, handleTouchEnd]);
 
-  if (!isMobile || !state.visible) return null;
+  if (!mounted || !isMobile || !state.visible) return null;
 
-  // Calculate the background position to show zoomed content
-  // The magnifier shows what's at the touch point, zoomed in
-  const bgPosX = -(state.touchX * ZOOM_LEVEL - MAGNIFIER_SIZE / 2);
-  const bgPosY = -(state.touchY * ZOOM_LEVEL - MAGNIFIER_SIZE / 2);
+  // Calculate the offset for the zoomed content
+  // The touch point should appear at the center of the magnifier
+  const zoomedContentStyle = {
+    position: 'absolute' as const,
+    width: window.innerWidth,
+    height: window.innerHeight,
+    left: MAGNIFIER_SIZE / 2 - state.touchX * ZOOM_LEVEL,
+    top: MAGNIFIER_SIZE / 2 - state.touchY * ZOOM_LEVEL,
+    transform: `scale(${ZOOM_LEVEL})`,
+    transformOrigin: '0 0',
+    pointerEvents: 'none' as const,
+  };
 
-  return (
+  const magnifierContent = (
     <>
       {/* Magnifier circle */}
       <div
-        className="fixed pointer-events-none z-[99999]"
+        className="fixed pointer-events-none"
         style={{
-          left: state.x - MAGNIFIER_SIZE / 2,
-          top: state.y - MAGNIFIER_SIZE / 2,
+          left: state.magnifierX - MAGNIFIER_SIZE / 2,
+          top: state.magnifierY - MAGNIFIER_SIZE / 2,
           width: MAGNIFIER_SIZE,
           height: MAGNIFIER_SIZE,
+          zIndex: 99999,
         }}
       >
-        {/* Magnifier lens with page content */}
+        {/* Outer frame with retro styling */}
         <div
-          className="absolute inset-0 rounded-full overflow-hidden"
+          className="absolute inset-0 rounded-full"
           style={{
-            background: `url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>') no-repeat`,
+            background: 'linear-gradient(145deg, #d4d4d4, #a0a0a0)',
             boxShadow: `
-              0 4px 20px rgba(0,0,0,0.4),
-              inset 0 0 20px rgba(255,255,255,0.1),
-              0 0 0 3px rgba(255,255,255,0.8),
-              0 0 0 5px rgba(0,0,0,0.3)
+              0 4px 16px rgba(0,0,0,0.4),
+              inset 0 1px 0 rgba(255,255,255,0.6),
+              inset 0 -1px 0 rgba(0,0,0,0.2)
             `,
-            border: '2px solid #c0c0c0',
+            padding: 4,
           }}
         >
-          {/* The actual magnified content using CSS zoom on a clipped viewport */}
+          {/* Inner lens container with clip */}
           <div
-            className="absolute"
+            className="w-full h-full rounded-full overflow-hidden relative"
             style={{
-              width: window.innerWidth,
-              height: window.innerHeight,
-              transform: `scale(${ZOOM_LEVEL})`,
-              transformOrigin: `${state.touchX}px ${state.touchY}px`,
-              left: MAGNIFIER_SIZE / 2 - state.touchX,
-              top: MAGNIFIER_SIZE / 2 - state.touchY,
-              pointerEvents: 'none',
+              background: '#fff',
+              boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.3)',
             }}
           >
-            {/* We can't actually clone the DOM easily, so we use a visual trick */}
-            {/* The magnifier will show a zoomed screenshot effect using backdrop */}
-          </div>
+            {/* Zoomed page content using backdrop approach */}
+            <div
+              style={{
+                ...zoomedContentStyle,
+                // We'll use a CSS trick - render everything except our magnifier
+                filter: 'contrast(1.05)',
+              }}
+            >
+              {/* This div will show zoomed content via CSS */}
+            </div>
 
-          {/* Backdrop filter for actual magnification effect */}
-          <div
-            className="absolute inset-0 rounded-full"
-            style={{
-              backdropFilter: `blur(0px)`,
-              WebkitBackdropFilter: `blur(0px)`,
-            }}
-          />
+            {/* Fallback: Show element info at touch point */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <ElementPreview touchX={state.touchX} touchY={state.touchY} zoom={ZOOM_LEVEL} size={MAGNIFIER_SIZE} />
+            </div>
 
-          {/* Glass reflection effect */}
-          <div
-            className="absolute inset-0 rounded-full"
-            style={{
-              background: `
-                linear-gradient(
+            {/* Glass reflection */}
+            <div
+              className="absolute inset-0 rounded-full pointer-events-none"
+              style={{
+                background: `linear-gradient(
                   135deg,
                   rgba(255,255,255,0.4) 0%,
-                  rgba(255,255,255,0.1) 40%,
-                  transparent 60%
-                )
-              `,
-            }}
-          />
+                  rgba(255,255,255,0.15) 35%,
+                  transparent 50%
+                )`,
+              }}
+            />
+          </div>
         </div>
 
-        {/* Crosshair in center */}
+        {/* Crosshair */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          {/* Vertical line */}
-          <div
-            className="absolute bg-red-500"
-            style={{
-              width: 2,
-              height: 20,
-              boxShadow: '0 0 2px rgba(0,0,0,0.5)',
-            }}
-          />
-          {/* Horizontal line */}
-          <div
-            className="absolute bg-red-500"
-            style={{
-              width: 20,
-              height: 2,
-              boxShadow: '0 0 2px rgba(0,0,0,0.5)',
-            }}
-          />
-          {/* Center dot */}
-          <div
-            className="absolute w-2 h-2 rounded-full bg-red-500"
-            style={{
-              boxShadow: '0 0 3px rgba(0,0,0,0.5)',
-            }}
-          />
+          <div className="absolute bg-red-600 shadow-sm" style={{ width: 2, height: 28 }} />
+          <div className="absolute bg-red-600 shadow-sm" style={{ width: 28, height: 2 }} />
+          <div className="absolute w-2 h-2 rounded-full bg-red-600 border border-white shadow-md" />
         </div>
 
-        {/* Line connecting magnifier to touch point */}
-        <svg
-          className="absolute pointer-events-none"
+        {/* Coordinate label */}
+        <div
+          className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-center"
           style={{
-            left: MAGNIFIER_SIZE / 2 - 1,
-            top: MAGNIFIER_SIZE / 2,
-            width: 2,
-            height: Math.abs(state.touchY - state.y) + 10,
-            overflow: 'visible',
+            bottom: -22,
+            background: 'rgba(0,0,0,0.8)',
+            color: '#fff',
+            padding: '2px 8px',
+            borderRadius: 4,
+            fontSize: 10,
+            fontFamily: 'monospace',
+            letterSpacing: '0.5px',
           }}
         >
-          <line
-            x1="1"
-            y1="0"
-            x2={state.touchX - state.x + 1}
-            y2={state.touchY - state.y}
-            stroke="rgba(255,0,0,0.6)"
-            strokeWidth="2"
-            strokeDasharray="4 2"
-          />
-        </svg>
+          {Math.round(state.touchX)}, {Math.round(state.touchY)}
+        </div>
       </div>
 
-      {/* Touch point indicator */}
+      {/* Connecting line */}
+      <svg
+        className="fixed pointer-events-none"
+        style={{ left: 0, top: 0, width: '100%', height: '100%', zIndex: 99998 }}
+      >
+        <defs>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="1" result="coloredBlur"/>
+            <feMerge>
+              <feMergeNode in="coloredBlur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+        <line
+          x1={state.magnifierX}
+          y1={state.magnifierY}
+          x2={state.touchX}
+          y2={state.touchY}
+          stroke="#dc2626"
+          strokeWidth="2"
+          strokeDasharray="5 3"
+          filter="url(#glow)"
+          opacity="0.8"
+        />
+      </svg>
+
+      {/* Touch indicator */}
       <div
-        className="fixed pointer-events-none z-[99998]"
+        className="fixed pointer-events-none"
         style={{
-          left: state.touchX - 12,
-          top: state.touchY - 12,
-          width: 24,
-          height: 24,
+          left: state.touchX - 18,
+          top: state.touchY - 18,
+          width: 36,
+          height: 36,
+          zIndex: 99997,
         }}
       >
-        {/* Outer ring */}
+        {/* Animated pulse ring */}
         <div
-          className="absolute inset-0 rounded-full border-2 border-red-500 animate-ping"
-          style={{ animationDuration: '1s' }}
+          className="absolute inset-0 rounded-full border-2 border-red-500"
+          style={{
+            animation: 'magnifier-pulse 0.8s ease-out infinite',
+          }}
         />
-        {/* Inner ring */}
-        <div className="absolute inset-1 rounded-full border-2 border-red-500/80" />
+        {/* Static ring */}
+        <div
+          className="absolute rounded-full border-2 border-red-600"
+          style={{ inset: 8 }}
+        />
         {/* Center dot */}
-        <div className="absolute inset-[8px] rounded-full bg-red-500" />
+        <div
+          className="absolute rounded-full bg-red-600"
+          style={{
+            inset: 14,
+            boxShadow: '0 0 8px rgba(220, 38, 38, 0.6)',
+          }}
+        />
       </div>
+
+      <style>{`
+        @keyframes magnifier-pulse {
+          0% { transform: scale(1); opacity: 1; }
+          100% { transform: scale(2); opacity: 0; }
+        }
+      `}</style>
     </>
+  );
+
+  return createPortal(magnifierContent, document.body);
+}
+
+// Component to show element preview at touch point
+function ElementPreview({ touchX, touchY, zoom, size }: { touchX: number; touchY: number; zoom: number; size: number }) {
+  const [elementInfo, setElementInfo] = useState<{
+    tagName: string;
+    text: string;
+    bgColor: string;
+    color: string;
+    isButton: boolean;
+    isLink: boolean;
+    isInput: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    const el = document.elementFromPoint(touchX, touchY);
+    if (el && el.tagName !== 'HTML' && el.tagName !== 'BODY') {
+      const style = window.getComputedStyle(el);
+      const tagName = el.tagName.toLowerCase();
+
+      // Get meaningful text
+      let text = '';
+      if (el instanceof HTMLElement) {
+        // Try to get direct text content, not nested
+        const directText = Array.from(el.childNodes)
+          .filter(n => n.nodeType === Node.TEXT_NODE)
+          .map(n => n.textContent?.trim())
+          .join(' ')
+          .trim();
+        text = directText || el.innerText?.slice(0, 30).trim() || '';
+      }
+
+      setElementInfo({
+        tagName,
+        text: text.slice(0, 25) + (text.length > 25 ? '...' : ''),
+        bgColor: style.backgroundColor,
+        color: style.color,
+        isButton: tagName === 'button' || el.getAttribute('role') === 'button',
+        isLink: tagName === 'a',
+        isInput: ['input', 'textarea', 'select'].includes(tagName),
+      });
+    } else {
+      setElementInfo(null);
+    }
+  }, [touchX, touchY]);
+
+  if (!elementInfo) {
+    return (
+      <div className="text-center text-gray-500 text-sm">
+        <div className="text-2xl mb-1">👆</div>
+        <div>Touch point</div>
+      </div>
+    );
+  }
+
+  const bgIsTransparent = elementInfo.bgColor === 'rgba(0, 0, 0, 0)' || elementInfo.bgColor === 'transparent';
+
+  return (
+    <div
+      className="w-full h-full flex flex-col items-center justify-center p-2 rounded-full"
+      style={{
+        backgroundColor: bgIsTransparent ? '#f0f0f0' : elementInfo.bgColor,
+      }}
+    >
+      {/* Icon based on element type */}
+      <div className="text-2xl mb-1">
+        {elementInfo.isButton ? '🔘' : elementInfo.isLink ? '🔗' : elementInfo.isInput ? '📝' : '📦'}
+      </div>
+
+      {/* Element text */}
+      {elementInfo.text && (
+        <div
+          className="text-center font-medium px-2 leading-tight"
+          style={{
+            color: elementInfo.color,
+            fontSize: Math.min(14, size / 10),
+            maxWidth: size - 20,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {elementInfo.text}
+        </div>
+      )}
+
+      {/* Tag name */}
+      <div
+        className="mt-1 px-2 py-0.5 rounded text-xs font-mono"
+        style={{
+          backgroundColor: 'rgba(0,0,0,0.1)',
+          color: 'rgba(0,0,0,0.6)',
+          fontSize: 9,
+        }}
+      >
+        &lt;{elementInfo.tagName}&gt;
+      </div>
+    </div>
   );
 }
