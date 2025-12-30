@@ -19,7 +19,8 @@
       "Bash(gh repo edit:*)",
       "Bash(git remote:*)",
       "Bash(git stash:*)",
-      "Bash(git ls-tree:*)"
+      "Bash(git ls-tree:*)",
+      "Bash(cat:*)"
     ]
   }
 }

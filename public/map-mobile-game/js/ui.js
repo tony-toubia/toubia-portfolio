@@ -31,7 +31,34 @@ class UIManager {
             evolutionIndicator: document.getElementById('evolution-indicator'),
             evoProgress: document.getElementById('evo-progress'),
             abilityBar: document.getElementById('ability-bar'),
-            pauseMenu: document.getElementById('pause-menu')
+            pauseMenu: document.getElementById('pause-menu'),
+            // Team health panel elements
+            teamHealthPanel: document.getElementById('team-health-panel'),
+            monsterHealthSection: document.getElementById('monster-health-section'),
+            huntersHealthSection: document.getElementById('hunters-health-section'),
+            monsterHealthRow: document.getElementById('monster-health-row'),
+            monsterIcon: document.getElementById('monster-icon'),
+            monsterEvoBadge: document.getElementById('monster-evo-badge'),
+            hudMonsterName: document.getElementById('hud-monster-name'),
+            monsterHealthBar: document.getElementById('monster-health-bar'),
+            monsterHealthText: document.getElementById('monster-health-text'),
+            huntersHealthGrid: document.getElementById('hunters-health-grid')
+        };
+
+        // Hunter class icons
+        this.hunterIcons = {
+            'assault': '🔫',
+            'trapper': '🪤',
+            'medic': '💉',
+            'support': '🛡️'
+        };
+
+        // Monster type icons
+        this.monsterIcons = {
+            'goliath': '👹',
+            'kraken': '🐙',
+            'wraith': '👻',
+            'behemoth': '🦖'
         };
 
         this.setupEventListeners();
@@ -402,6 +429,117 @@ class UIManager {
         } else {
             this.hud.evolutionIndicator.style.display = 'none';
         }
+    }
+
+    /**
+     * Update the team health panel showing all hunters and monster health
+     * @param {Game} game - The game instance
+     */
+    updateTeamHealthPanel(game) {
+        if (!game || !game.player || !game.entities) return;
+
+        const isPlayerMonster = game.player instanceof Monster;
+
+        // Show/hide appropriate sections
+        if (isPlayerMonster) {
+            // Player is monster - show hunters' health
+            this.hud.monsterHealthSection.style.display = 'none';
+            this.hud.huntersHealthSection.style.display = 'block';
+            this.updateHuntersHealthDisplay(game);
+        } else {
+            // Player is hunter - show monster's health
+            this.hud.monsterHealthSection.style.display = 'block';
+            this.hud.huntersHealthSection.style.display = 'block';
+            this.updateMonsterHealthDisplay(game);
+            this.updateHuntersHealthDisplay(game);
+        }
+    }
+
+    /**
+     * Update the monster health display in the HUD
+     */
+    updateMonsterHealthDisplay(game) {
+        // Find the monster in entities
+        const monster = game.entities.find(e => e instanceof Monster);
+        if (!monster) return;
+
+        // Update monster info
+        const monsterType = monster.monsterType || 'goliath';
+        this.hud.monsterIcon.textContent = this.monsterIcons[monsterType] || '👹';
+        this.hud.hudMonsterName.textContent = monster.name || 'Monster';
+        this.hud.monsterEvoBadge.textContent = monster.evolutionStage || 1;
+
+        // Update health bar
+        const healthPercent = (monster.health / monster.maxHealth) * 100;
+        this.hud.monsterHealthBar.style.width = `${healthPercent}%`;
+        this.hud.monsterHealthText.textContent = `${Math.floor(monster.health)}/${Math.floor(monster.maxHealth)}`;
+
+        // Set health bar color class
+        this.hud.monsterHealthBar.classList.remove('healthy', 'wounded', 'critical');
+        if (healthPercent > 50) {
+            this.hud.monsterHealthBar.classList.add('healthy');
+        } else if (healthPercent > 25) {
+            this.hud.monsterHealthBar.classList.add('wounded');
+        } else {
+            this.hud.monsterHealthBar.classList.add('critical');
+        }
+
+        // Update row state
+        this.hud.monsterHealthRow.classList.remove('downed', 'low-health');
+        if (!monster.isAlive || monster.isDowned) {
+            this.hud.monsterHealthRow.classList.add('downed');
+        } else if (healthPercent <= 25) {
+            this.hud.monsterHealthRow.classList.add('low-health');
+        }
+    }
+
+    /**
+     * Update the hunters health display in the HUD
+     */
+    updateHuntersHealthDisplay(game) {
+        // Find all hunters in entities
+        const hunters = game.entities.filter(e => e instanceof Hunter);
+
+        // Clear and rebuild the hunters grid
+        this.hud.huntersHealthGrid.innerHTML = '';
+
+        hunters.forEach(hunter => {
+            const row = document.createElement('div');
+            const hunterClass = (hunter.hunterClass || 'assault').toLowerCase();
+            row.className = `entity-health-row hunter ${hunterClass}`;
+
+            // Calculate health
+            const healthPercent = (hunter.health / hunter.maxHealth) * 100;
+            let healthClass = 'healthy';
+            if (healthPercent <= 25) healthClass = 'critical';
+            else if (healthPercent <= 50) healthClass = 'wounded';
+
+            // Check if downed
+            if (!hunter.isAlive || hunter.isDowned) {
+                row.classList.add('downed');
+            } else if (healthPercent <= 25) {
+                row.classList.add('low-health');
+            }
+
+            // Get role initial for badge
+            const roleInitial = hunterClass.charAt(0).toUpperCase();
+
+            row.innerHTML = `
+                <div class="entity-portrait">
+                    <span class="entity-icon">${this.hunterIcons[hunterClass] || '🎯'}</span>
+                    <span class="role-badge">${roleInitial}</span>
+                </div>
+                <div class="entity-health-info">
+                    <div class="entity-name">${hunter.name || hunterClass}</div>
+                    <div class="entity-health-bar-wrapper">
+                        <div class="entity-health-bar ${healthClass}" style="width: ${healthPercent}%"></div>
+                    </div>
+                    <div class="entity-health-text">${Math.floor(hunter.health)}/${Math.floor(hunter.maxHealth)}</div>
+                </div>
+            `;
+
+            this.hud.huntersHealthGrid.appendChild(row);
+        });
     }
 
     updateAbilityBar(player) {

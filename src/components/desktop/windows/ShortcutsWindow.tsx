@@ -61,16 +61,10 @@ export default function ShortcutsWindow({ onOpenMySpace }: ShortcutsWindowProps)
   };
 
   return (
-    <div className="p-2 h-full">
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[var(--button-shadow)]">
-        <span className="text-xs text-[var(--window-text)]">
-          {shortcuts.length} items
-        </span>
-      </div>
-
+    <div className="h-full flex flex-col bg-[var(--window-bg)]">
       {/* Shortcuts Grid */}
-      <div className="flex flex-wrap gap-4 p-2">
+      <div className="flex-1 overflow-auto">
+        <div className="flex flex-wrap gap-4 p-4">
         {shortcuts.map((shortcut) => (
           <div
             key={shortcut.id}
@@ -94,11 +88,13 @@ export default function ShortcutsWindow({ onOpenMySpace }: ShortcutsWindowProps)
             </span>
           </div>
         ))}
+        </div>
       </div>
 
-      {/* Help text */}
-      <div className="absolute bottom-2 left-2 right-2 text-[9px] text-gray-500 text-center">
-        Double-click to open
+      {/* Status bar */}
+      <div className="flex items-center justify-between px-2 py-1 border-t border-[var(--button-shadow)] bg-[var(--button-face)]">
+        <span className="text-xs text-[var(--window-text)]">{shortcuts.length} items</span>
+        <span className="text-[9px] text-gray-500">Double-click to open</span>
       </div>
     </div>
   );

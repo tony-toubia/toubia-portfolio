@@ -404,6 +404,11 @@ class Monster extends Entity {
         Audio.play('roar');
         Utils.vibrate([100, 50, 100]);
 
+        // Trigger 3D evolution effect if game supports it
+        if (window.game && typeof window.game.triggerEvolutionEffect === 'function') {
+            window.game.triggerEvolutionEffect(this);
+        }
+
         return true;
     }
 

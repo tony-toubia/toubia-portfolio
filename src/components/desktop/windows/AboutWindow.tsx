@@ -69,8 +69,8 @@ export default function AboutWindow() {
       <div className="group-box">
         <span className="group-box-label">Certifications</span>
         <ul className="text-xs m-0 pl-4 space-y-1">
-          <li>Salesforce Certified AI Specialist (2024)</li>
-          <li>Salesforce Certified AI Associate (2024)</li>
+          <li>Salesforce Certified AI Specialist</li>
+          <li>Salesforce Certified AI Associate</li>
           <li>Salesforce Certified Data 360 Consultant</li>
           <li>Salesforce Marketing Cloud Email Specialist</li>
         </ul>

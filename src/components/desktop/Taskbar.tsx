@@ -122,7 +122,7 @@ export default function Taskbar() {
 
         {/* Open Windows */}
         <div className="flex-1 flex gap-1 overflow-x-auto">
-          {[...openWindows].reverse().map(window => (
+          {openWindows.map(window => (
             <button
               key={window.id}
               className={`retro-button flex items-center gap-1 truncate ${

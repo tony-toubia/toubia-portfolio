@@ -1,9 +1,9 @@
 'use client';
 
 import { useWindowManager } from '../WindowManager';
-import ProjectWindow from './ProjectWindow';
 import AuraWindow from './AuraWindow';
 import DuetWindow from './DuetWindow';
+import AMZToolsWindow from './AMZToolsWindow';
 import PrimalHuntWindow from './PrimalHuntWindow';
 
 interface Project {
@@ -40,8 +40,8 @@ const projects: Project[] = [
         <rect x="16" y="14" width="16" height="12" rx="2" fill="#232F3E" />
       </svg>
     ),
-    windowContent: <ProjectWindow projectId="amz-tools" />,
-    windowSize: { width: 550, height: 450 },
+    windowContent: <AMZToolsWindow />,
+    windowSize: { width: 600, height: 520 },
   },
   {
     id: 'duet',
@@ -107,21 +107,8 @@ export default function ProjectsWindow() {
 
   return (
     <div className="h-full flex flex-col bg-[var(--window-bg)]">
-      {/* Toolbar */}
-      <div className="flex items-center gap-1 px-2 py-1 border-b border-[var(--button-shadow)] bg-[var(--button-face)]">
-        <span className="text-xs text-[var(--window-text)]">Projects</span>
-      </div>
-
-      {/* Address bar */}
-      <div className="flex items-center gap-2 px-2 py-1 border-b border-[var(--button-shadow)] bg-[var(--button-face)]">
-        <span className="text-xs text-[var(--window-text)]">Address:</span>
-        <div className="flex-1 inset px-1 py-0.5 text-xs">
-          C:\Users\Tony\Projects
-        </div>
-      </div>
-
       {/* Content */}
-      <div className="flex-1 inset m-2 overflow-auto">
+      <div className="flex-1 overflow-auto">
         <div className="p-4 flex flex-wrap gap-6 content-start">
           {projects.map((project) => (
             <div
@@ -141,8 +128,8 @@ export default function ProjectsWindow() {
       </div>
 
       {/* Status bar */}
-      <div className="flex items-center px-2 py-1 border-t border-[var(--button-highlight)] bg-[var(--button-face)]">
-        <span className="text-xs text-[var(--window-text)]">{projects.length} object(s)</span>
+      <div className="flex items-center px-2 py-1 border-t border-[var(--button-shadow)] bg-[var(--button-face)]">
+        <span className="text-xs text-[var(--window-text)]">{projects.length} items</span>
       </div>
     </div>
   );

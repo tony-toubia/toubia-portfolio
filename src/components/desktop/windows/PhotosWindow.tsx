@@ -45,16 +45,10 @@ export default function PhotosWindow() {
   }
 
   return (
-    <div className="p-2 h-full">
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[var(--button-shadow)]">
-        <span className="text-xs text-[var(--window-text)]">
-          {photos.length} item{photos.length !== 1 ? 's' : ''}
-        </span>
-      </div>
-
+    <div className="h-full flex flex-col bg-[var(--window-bg)]">
       {/* Photo Grid */}
-      <div className="flex flex-wrap gap-4 p-2">
+      <div className="flex-1 overflow-auto">
+        <div className="flex flex-wrap gap-4 p-4">
         {photos.map((photo) => (
           <div
             key={photo.id}
@@ -82,6 +76,7 @@ export default function PhotosWindow() {
             </span>
           </div>
         ))}
+        </div>
       </div>
 
       {photos.length === 0 && (
@@ -89,6 +84,11 @@ export default function PhotosWindow() {
           No photos yet
         </div>
       )}
+
+      {/* Status bar */}
+      <div className="flex items-center px-2 py-1 border-t border-[var(--button-shadow)] bg-[var(--button-face)]">
+        <span className="text-xs text-[var(--window-text)]">{photos.length} item{photos.length !== 1 ? 's' : ''}</span>
+      </div>
     </div>
   );
 }

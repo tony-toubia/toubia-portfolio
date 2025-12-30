@@ -1,12 +1,19 @@
 /**
  * Post-Processing Effects for Primal Hunt
- * Implements bloom, vignette, and color grading
+ * Enhanced with bloom, vignette, damage effects, and more
  */
 
 class PostProcessing {
     constructor(renderer) {
         this.renderer3d = renderer;
         this.enabled = true;
+
+        // Effect states
+        this.damageFlash = 0; // 0-1 for damage vignette
+        this.evolutionFlash = 0; // 0-1 for evolution screen flash
+        this.evolutionColor = new THREE.Color(0xff6600);
+        this.lowHealthPulse = false;
+        this.currentPlayerHealth = 1.0; // 0-1
 
         // Check if we can use render targets
         this.supported = this.checkSupport();
@@ -137,7 +144,7 @@ class PostProcessing {
             `
         });
 
-        // Final composite shader (bloom + vignette + color grading)
+        // Final composite shader (bloom + vignette + color grading + damage/evolution effects)
         this.compositeMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 tDiffuse: { value: null },
@@ -146,7 +153,15 @@ class PostProcessing {
                 vignetteIntensity: { value: 0.3 },
                 saturation: { value: 1.1 },
                 contrast: { value: 1.1 },
-                time: { value: 0 }
+                time: { value: 0 },
+                // Damage effect uniforms
+                damageFlash: { value: 0.0 },
+                // Evolution effect uniforms
+                evolutionFlash: { value: 0.0 },
+                evolutionColor: { value: new THREE.Color(0xff6600) },
+                // Low health effect uniforms
+                lowHealthPulse: { value: 0.0 },
+                playerHealth: { value: 1.0 }
             },
             vertexShader: `
                 varying vec2 vUv;
@@ -163,6 +178,11 @@ class PostProcessing {
                 uniform float saturation;
                 uniform float contrast;
                 uniform float time;
+                uniform float damageFlash;
+                uniform float evolutionFlash;
+                uniform vec3 evolutionColor;
+                uniform float lowHealthPulse;
+                uniform float playerHealth;
                 varying vec2 vUv;
 
                 vec3 adjustSaturation(vec3 color, float sat) {
@@ -177,14 +197,81 @@ class PostProcessing {
                     // Add bloom
                     vec3 color = base.rgb + bloom.rgb * bloomStrength;
 
-                    // Vignette
+                    // Calculate distance from center for vignette effects
                     vec2 center = vUv - 0.5;
                     float dist = length(center);
+
+                    // Base vignette
                     float vignette = 1.0 - dist * vignetteIntensity * 2.0;
                     vignette = clamp(vignette, 0.0, 1.0);
                     color *= vignette;
 
-                    // Saturation
+                    // ========== DAMAGE FLASH EFFECT ==========
+                    if (damageFlash > 0.0) {
+                        // Red vignette from edges
+                        float damageVignette = smoothstep(0.3, 0.8, dist);
+                        vec3 damageColor = vec3(0.8, 0.0, 0.0);
+
+                        // Pulsing intensity
+                        float pulse = 0.7 + 0.3 * sin(time * 20.0);
+                        float damageIntensity = damageFlash * damageVignette * pulse;
+
+                        // Add chromatic aberration at edges when damaged
+                        vec2 aberrationOffset = center * 0.02 * damageFlash;
+                        float rOffset = texture2D(tDiffuse, vUv + aberrationOffset).r;
+                        float bOffset = texture2D(tDiffuse, vUv - aberrationOffset).b;
+                        color.r = mix(color.r, rOffset, damageFlash * 0.5);
+                        color.b = mix(color.b, bOffset, damageFlash * 0.5);
+
+                        // Blend damage color
+                        color = mix(color, damageColor, damageIntensity * 0.6);
+                    }
+
+                    // ========== LOW HEALTH PULSE ==========
+                    if (playerHealth < 0.3) {
+                        float healthFactor = 1.0 - (playerHealth / 0.3);
+                        float lowHealthPulse = 0.5 + 0.5 * sin(time * 4.0);
+                        float edgePulse = smoothstep(0.2, 0.7, dist) * lowHealthPulse * healthFactor;
+
+                        // Desaturate slightly when low health
+                        color = adjustSaturation(color, 1.0 - healthFactor * 0.4);
+
+                        // Red pulsing edges
+                        color = mix(color, vec3(0.5, 0.0, 0.0), edgePulse * 0.4);
+
+                        // Subtle heartbeat darken
+                        float heartbeat = pow(sin(time * 3.14159 * 1.5), 8.0);
+                        color *= 1.0 - heartbeat * healthFactor * 0.2;
+                    }
+
+                    // ========== EVOLUTION FLASH EFFECT ==========
+                    if (evolutionFlash > 0.0) {
+                        // Screen flash with evolution color
+                        float flashIntensity = evolutionFlash * evolutionFlash; // Ease out
+
+                        // Radial burst pattern
+                        float burstPattern = sin(dist * 30.0 - time * 10.0) * 0.5 + 0.5;
+                        burstPattern *= 1.0 - smoothstep(0.0, 0.5, dist);
+
+                        // Energy rings
+                        float rings = sin((dist - time * 0.5) * 40.0) * 0.5 + 0.5;
+                        rings *= evolutionFlash;
+
+                        // Combine effects
+                        vec3 evoGlow = evolutionColor * (flashIntensity + burstPattern * 0.3 + rings * 0.2);
+                        color += evoGlow;
+
+                        // Bloom boost during evolution
+                        color += bloom.rgb * evolutionFlash * 2.0;
+
+                        // White flash at peak
+                        if (evolutionFlash > 0.8) {
+                            float whitePeak = (evolutionFlash - 0.8) * 5.0;
+                            color = mix(color, vec3(1.0), whitePeak * 0.5);
+                        }
+                    }
+
+                    // Saturation adjustment
                     color = adjustSaturation(color, saturation);
 
                     // Contrast
@@ -276,6 +363,136 @@ class PostProcessing {
     setVignetteIntensity(intensity) {
         if (this.compositeMaterial) {
             this.compositeMaterial.uniforms.vignetteIntensity.value = intensity;
+        }
+    }
+
+    // ========== DAMAGE EFFECT METHODS ==========
+
+    /**
+     * Trigger damage flash effect
+     * @param {number} intensity - 0 to 1, how intense the damage was
+     */
+    triggerDamageFlash(intensity = 1.0) {
+        this.damageFlash = Math.min(1.0, intensity);
+        if (this.compositeMaterial) {
+            this.compositeMaterial.uniforms.damageFlash.value = this.damageFlash;
+        }
+    }
+
+    // ========== EVOLUTION EFFECT METHODS ==========
+
+    /**
+     * Trigger evolution flash effect
+     * @param {string} monsterType - goliath, kraken, wraith, behemoth
+     * @param {number} stage - evolution stage (1, 2, or 3)
+     */
+    triggerEvolutionFlash(monsterType = 'goliath', stage = 2) {
+        this.evolutionFlash = 1.0;
+
+        // Set color based on monster type
+        const colors = {
+            goliath: 0xff4400,
+            kraken: 0x9966ff,
+            wraith: 0xcc66ff,
+            behemoth: 0xff8800
+        };
+
+        this.evolutionColor.setHex(colors[monsterType] || colors.goliath);
+
+        if (this.compositeMaterial) {
+            this.compositeMaterial.uniforms.evolutionFlash.value = this.evolutionFlash;
+            this.compositeMaterial.uniforms.evolutionColor.value = this.evolutionColor;
+        }
+    }
+
+    // ========== HEALTH EFFECT METHODS ==========
+
+    /**
+     * Update player health for low health effects
+     * @param {number} healthPercent - 0 to 1
+     */
+    setPlayerHealth(healthPercent) {
+        this.currentPlayerHealth = Math.max(0, Math.min(1, healthPercent));
+        if (this.compositeMaterial) {
+            this.compositeMaterial.uniforms.playerHealth.value = this.currentPlayerHealth;
+        }
+    }
+
+    // ========== UPDATE METHOD ==========
+
+    /**
+     * Update effect animations (call each frame)
+     * @param {number} deltaTime - time since last frame in seconds
+     */
+    update(deltaTime) {
+        // Decay damage flash
+        if (this.damageFlash > 0) {
+            this.damageFlash = Math.max(0, this.damageFlash - deltaTime * 3.0);
+            if (this.compositeMaterial) {
+                this.compositeMaterial.uniforms.damageFlash.value = this.damageFlash;
+            }
+        }
+
+        // Decay evolution flash (slower decay for dramatic effect)
+        if (this.evolutionFlash > 0) {
+            this.evolutionFlash = Math.max(0, this.evolutionFlash - deltaTime * 0.5);
+            if (this.compositeMaterial) {
+                this.compositeMaterial.uniforms.evolutionFlash.value = this.evolutionFlash;
+            }
+        }
+    }
+
+    // ========== QUALITY SETTINGS ==========
+
+    /**
+     * Set quality level for performance optimization
+     * @param {string} quality - 'low', 'medium', 'high'
+     */
+    setQuality(quality) {
+        if (!this.supported) return;
+
+        const width = this.renderer3d.width;
+        const height = this.renderer3d.height;
+
+        switch (quality) {
+            case 'low':
+                // Disable bloom for low-end devices
+                this.bloomEnabled = false;
+                this.setBloomStrength(0);
+                break;
+
+            case 'medium':
+                // Quarter resolution bloom
+                this.bloomEnabled = true;
+                this.bloomTarget1.setSize(width / 4, height / 4);
+                this.bloomTarget2.setSize(width / 4, height / 4);
+                this.setBloomStrength(0.3);
+                break;
+
+            case 'high':
+            default:
+                // Half resolution bloom (default)
+                this.bloomEnabled = true;
+                this.bloomTarget1.setSize(width / 2, height / 2);
+                this.bloomTarget2.setSize(width / 2, height / 2);
+                this.setBloomStrength(0.5);
+                break;
+        }
+    }
+
+    /**
+     * Check if device is mobile for auto quality settings
+     */
+    autoDetectQuality() {
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const isLowEnd = navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4;
+
+        if (isMobile && isLowEnd) {
+            this.setQuality('low');
+        } else if (isMobile) {
+            this.setQuality('medium');
+        } else {
+            this.setQuality('high');
         }
     }
 

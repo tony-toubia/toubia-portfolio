@@ -1000,6 +1000,256 @@ html, body {
     z-index: 1000;
 }
 
+/* Team Health Panel */
+#team-health-panel {
+    position: absolute;
+    top: 50px;
+    left: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+    z-index: 50;
+}
+
+.team-health-section {
+    background: rgba(0, 0, 0, 0.7);
+    border-radius: 8px;
+    padding: 8px;
+    min-width: 180px;
+    backdrop-filter: blur(4px);
+}
+
+.section-label {
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.entity-health-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+}
+
+.entity-health-row.monster {
+    border-left: 3px solid var(--monster-color);
+    padding-left: 8px;
+    margin-left: -8px;
+}
+
+.entity-health-row.hunter {
+    border-left: 3px solid var(--hunter-color);
+    padding-left: 8px;
+    margin-left: -8px;
+}
+
+.entity-health-row.downed {
+    opacity: 0.4;
+}
+
+.entity-health-row.downed .entity-portrait::after {
+    content: "✕";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.2rem;
+    color: var(--danger-color);
+    text-shadow: 0 0 5px black;
+}
+
+.entity-health-row.low-health .entity-health-bar {
+    animation: healthPulse 0.5s ease-in-out infinite;
+}
+
+@keyframes healthPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.entity-portrait {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.entity-icon {
+    font-size: 1.2rem;
+}
+
+.evolution-badge {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    width: 16px;
+    height: 16px;
+    background: var(--monster-color);
+    border-radius: 50%;
+    font-size: 0.6rem;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid rgba(0,0,0,0.5);
+}
+
+.role-badge {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    width: 16px;
+    height: 16px;
+    background: var(--hunter-color);
+    border-radius: 50%;
+    font-size: 0.5rem;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid rgba(0,0,0,0.5);
+}
+
+.entity-health-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.entity-name {
+    font-size: 0.7rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+}
+
+.entity-health-bar-wrapper {
+    height: 8px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 2px;
+}
+
+.entity-health-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--danger-color), #ff6b6b);
+    border-radius: 4px;
+    width: 100%;
+    transition: width 0.3s ease, background 0.3s ease;
+}
+
+.entity-health-bar.healthy {
+    background: linear-gradient(90deg, var(--success-color), #5ee07a);
+}
+
+.entity-health-bar.wounded {
+    background: linear-gradient(90deg, #f39c12, #f1c40f);
+}
+
+.entity-health-bar.critical {
+    background: linear-gradient(90deg, var(--danger-color), #ff6b6b);
+}
+
+.entity-health-text {
+    font-size: 0.6rem;
+    color: var(--text-secondary);
+    font-family: monospace;
+}
+
+.hunters-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* Hunter class colors */
+.entity-health-row.assault { border-left-color: #e74c3c; }
+.entity-health-row.trapper { border-left-color: #f39c12; }
+.entity-health-row.medic { border-left-color: #2ecc71; }
+.entity-health-row.support { border-left-color: #3498db; }
+
+/* Aim Joystick */
+.aim-joystick {
+    position: absolute;
+    right: 20px;
+    bottom: 80px;
+    left: auto;
+}
+
+.aim-joystick .joystick-base {
+    background: rgba(255, 107, 53, 0.15);
+    border-color: rgba(255, 107, 53, 0.5);
+}
+
+.aim-joystick .joystick-knob {
+    background: rgba(255, 107, 53, 0.7);
+}
+
+/* Aim Reticle */
+.aim-reticle {
+    position: absolute;
+    pointer-events: none;
+    width: 40px;
+    height: 40px;
+    transform: translate(-50%, -50%);
+    z-index: 100;
+}
+
+.aim-reticle::before,
+.aim-reticle::after {
+    content: '';
+    position: absolute;
+    background: rgba(255, 107, 53, 0.8);
+}
+
+.aim-reticle::before {
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 2px;
+    transform: translateY(-50%);
+}
+
+.aim-reticle::after {
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    transform: translateX(-50%);
+}
+
+.aim-reticle .reticle-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 8px;
+    height: 8px;
+    border: 2px solid rgba(255, 107, 53, 0.8);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* Range indicator circle */
+.range-indicator {
+    position: absolute;
+    border: 2px dashed rgba(255, 107, 53, 0.4);
+    border-radius: 50%;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+}
+
 /* Responsive adjustments */
 @media (max-height: 600px) {
     .game-title { font-size: 2.5rem; }

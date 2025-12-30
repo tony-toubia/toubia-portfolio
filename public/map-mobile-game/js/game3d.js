@@ -87,6 +87,9 @@ class Game3D extends Game {
             console.log('Creating post-processing...');
             this.postProcessing = new PostProcessing(this.renderer3d);
 
+            // Auto-detect quality settings based on device
+            this.postProcessing.autoDetectQuality();
+
             // Set camera initial position (matches cameraOffset)
             this.renderer3d.camera.position.set(0, 15, 12);
 
@@ -156,6 +159,17 @@ class Game3D extends Game {
         // Update effects
         if (this.effects3d) {
             this.effects3d.update(dt);
+        }
+
+        // Update post-processing effects (decay damage flash, etc.)
+        if (this.postProcessing) {
+            this.postProcessing.update(dt);
+
+            // Update player health for low health screen effects
+            if (this.player) {
+                const healthPercent = this.player.health / this.player.maxHealth;
+                this.postProcessing.setPlayerHealth(healthPercent);
+            }
         }
 
         // Update dynamic lights
@@ -314,6 +328,52 @@ class Game3D extends Game {
                 color: entity.color || 0xffffff,
                 radius: radius
             });
+        }
+    }
+
+    // Override dealDamage to trigger damage flash when player takes damage
+    dealDamage(target, amount, attacker = null) {
+        const result = super.dealDamage(target, amount, attacker);
+
+        // Trigger damage flash if player was hit
+        if (target === this.player && result > 0 && this.postProcessing) {
+            // Intensity based on damage relative to max health
+            const intensity = Math.min(1.0, result / (this.player.maxHealth * 0.3));
+            this.postProcessing.triggerDamageFlash(intensity);
+        }
+
+        return result;
+    }
+
+    // Method to trigger evolution effects
+    triggerEvolutionEffect(monster) {
+        if (!monster) return;
+
+        // Trigger post-processing evolution flash
+        if (this.postProcessing) {
+            this.postProcessing.triggerEvolutionFlash(monster.type, monster.evolutionStage);
+        }
+
+        // Create 3D evolution particle effect
+        if (this.effects3d) {
+            this.effects3d.createEvolutionEffect(
+                monster.x,
+                monster.y,
+                monster.evolutionStage,
+                monster.type
+            );
+        }
+
+        // Request dynamic light for evolution glow
+        if (this.renderer3d) {
+            const colors = {
+                goliath: 0xff4400,
+                kraken: 0x9966ff,
+                wraith: 0xcc66ff,
+                behemoth: 0xff8800
+            };
+            const color = colors[monster.type] || 0xff6600;
+            this.renderer3d.requestDynamicLight(monster.x, monster.y, color, 3.0, 2.0);
         }
     }
 

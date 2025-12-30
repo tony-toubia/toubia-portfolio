@@ -145,6 +145,35 @@
                 </div>
             </div>
 
+            <!-- Team Health Panel -->
+            <div id="team-health-panel">
+                <!-- Monster Health (shown when playing as hunter) -->
+                <div class="team-health-section" id="monster-health-section">
+                    <div class="section-label">MONSTER</div>
+                    <div class="entity-health-row monster" id="monster-health-row">
+                        <div class="entity-portrait">
+                            <span class="entity-icon" id="monster-icon">👹</span>
+                            <span class="evolution-badge" id="monster-evo-badge">1</span>
+                        </div>
+                        <div class="entity-health-info">
+                            <div class="entity-name" id="hud-monster-name">Monster</div>
+                            <div class="entity-health-bar-wrapper">
+                                <div class="entity-health-bar" id="monster-health-bar"></div>
+                            </div>
+                            <div class="entity-health-text" id="monster-health-text">500/500</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hunter Team Health (shown when playing as monster) -->
+                <div class="team-health-section" id="hunters-health-section">
+                    <div class="section-label">HUNTERS</div>
+                    <div class="hunters-grid" id="hunters-health-grid">
+                        <!-- Hunter slots populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
             <div class="hud-bottom">
                 <div class="ability-bar" id="ability-bar">
                     <!-- Populated by JavaScript -->
@@ -160,6 +189,13 @@
                 <div class="joystick-container" id="joystick-container">
                     <div class="joystick-base">
                         <div class="joystick-knob" id="joystick-knob"></div>
+                    </div>
+                </div>
+
+                <!-- Aim Joystick (for attack direction) -->
+                <div class="joystick-container aim-joystick" id="aim-joystick-container">
+                    <div class="joystick-base">
+                        <div class="joystick-knob" id="aim-joystick-knob"></div>
                     </div>
                 </div>
             </div>
@@ -321,6 +357,7 @@
 
     <!-- 3D Engine -->
     <script src="/map-mobile-game/js/engine3d/Renderer3D.js"></script>
+    <script src="/map-mobile-game/js/engine3d/Shaders3D.js"></script>
     <script src="/map-mobile-game/js/engine3d/Terrain3D.js"></script>
     <script src="/map-mobile-game/js/engine3d/Characters3D.js"></script>
     <script src="/map-mobile-game/js/engine3d/Effects3D.js"></script>

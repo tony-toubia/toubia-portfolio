@@ -96,7 +96,7 @@ function StoryTab() {
           <p className="flex items-start gap-2">
             <span className="text-lg">🎧</span>
             <span>
-              We both had our AirPods in. Dani was vibing to Christmas music. I was catching up on a podcast. But in the wild hustle and bustle, staying within earshot - let alone actually communicating - was nearly impossible.
+              We both had our headphones in - Dani with her AirPods, me with my Bose. She was vibing to Christmas music. I was catching up on a podcast. But in the wild hustle and bustle, staying within earshot - let alone actually communicating - was nearly impossible.
             </span>
           </p>
           <p className="flex items-start gap-2">
@@ -133,7 +133,7 @@ function StoryTab() {
         <div className="grid grid-cols-3 gap-2">
           <div>
             <img
-              src="/images/af-wt-ny-dec-25-speaking.jfif"
+              src="/images/af-wt-ny-dec-25-speaking.png"
               alt="Tony speaking at Agentforce World Tour NYC"
               className="w-full h-36 object-cover rounded border border-[var(--button-shadow)]"
             />

@@ -18,6 +18,7 @@ import AIMWindow from './windows/AIMWindow';
 import ShortcutsWindow from './windows/ShortcutsWindow';
 import MySpace404Window from './windows/MySpace404Window';
 import DuetWindow from './windows/DuetWindow';
+import InfoBubble from './InfoBubble';
 
 // Icon SVGs
 const icons = {
@@ -470,7 +471,10 @@ export default function Desktop() {
         /* Mobile: Icons in grid at bottom half of screen (above taskbar) */
         <div className="absolute bottom-14 left-0 right-0 top-1/2 px-2 flex items-end pb-2">
           <div className="grid grid-cols-4 gap-x-2 gap-y-1 w-full">
-            {[...desktopItems, ...topRightItems, recycleBinItem].map((item) => (
+            {/* Row 1: About, Projects, Speaking, Thought Leadership */}
+            {/* Row 2: Contact, LinkedIn, AIM, Photos */}
+            {/* Row 3: Minesweeper, Shortcuts, (empty), Recycle Bin */}
+            {[...desktopItems, ...topRightItems].map((item) => (
               <DesktopIcon
                 key={item.id}
                 icon={item.icon}
@@ -480,6 +484,16 @@ export default function Desktop() {
                 isSelected={selectedIcon === item.id}
               />
             ))}
+            {/* Empty cell to push recycle bin to the right */}
+            <div className="w-20" />
+            {/* Recycle Bin in bottom right */}
+            <DesktopIcon
+              icon={recycleBinItem.icon}
+              label={recycleBinItem.label}
+              onClick={() => handleIconClick(recycleBinItem.id)}
+              onDoubleClick={() => handleIconDoubleClick(recycleBinItem)}
+              isSelected={selectedIcon === recycleBinItem.id}
+            />
           </div>
         </div>
       ) : (
@@ -538,6 +552,9 @@ export default function Desktop() {
           {window.content}
         </Window>
       ))}
+
+      {/* Info Bubble */}
+      <InfoBubble />
 
       {/* Taskbar */}
       <Taskbar />

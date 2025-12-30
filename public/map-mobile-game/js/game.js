@@ -58,6 +58,16 @@ class Game extends EventEmitter {
             currentY: 0
         };
 
+        // Aim joystick for attack direction
+        this.aimJoystick = {
+            active: false,
+            startX: 0,
+            startY: 0,
+            currentX: 0,
+            currentY: 0,
+            angle: 0
+        };
+
         this.setupInput();
         this.resize();
         window.addEventListener('resize', () => this.resize());
@@ -132,6 +142,65 @@ class Game extends EventEmitter {
                 this.input.aimY = touch.clientY;
             }
         });
+
+        // Aim joystick for mobile attack direction
+        const aimJoystickContainer = document.getElementById('aim-joystick-container');
+        const aimJoystickKnob = document.getElementById('aim-joystick-knob');
+
+        if (aimJoystickContainer && aimJoystickKnob) {
+            aimJoystickContainer.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const touch = e.touches[0];
+                const rect = aimJoystickContainer.getBoundingClientRect();
+                this.aimJoystick.active = true;
+                this.aimJoystick.startX = rect.left + rect.width / 2;
+                this.aimJoystick.startY = rect.top + rect.height / 2;
+                this.updateAimJoystick(touch.clientX, touch.clientY, aimJoystickKnob);
+            });
+
+            aimJoystickContainer.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!this.aimJoystick.active) return;
+                const touch = e.touches[0];
+                this.updateAimJoystick(touch.clientX, touch.clientY, aimJoystickKnob);
+            });
+
+            aimJoystickContainer.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                // Fire on release if player was aiming
+                if (this.aimJoystick.active && this.player) {
+                    this.useAbility('primary');
+                }
+                this.aimJoystick.active = false;
+                aimJoystickKnob.style.transform = 'translate(0, 0)';
+            });
+        }
+    }
+
+    /**
+     * Update aim joystick position and set aim direction
+     */
+    updateAimJoystick(touchX, touchY, knob) {
+        const dx = touchX - this.aimJoystick.startX;
+        const dy = touchY - this.aimJoystick.startY;
+        const maxDist = 50;
+
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const clampedDist = Math.min(dist, maxDist);
+
+        const angle = Math.atan2(dy, dx);
+        const clampedX = Math.cos(angle) * clampedDist;
+        const clampedY = Math.sin(angle) * clampedDist;
+
+        knob.style.transform = `translate(${clampedX}px, ${clampedY}px)`;
+
+        // Update aim direction if there's significant movement
+        if (dist > 10 && this.player) {
+            this.aimJoystick.angle = angle;
+            this.player.facingAngle = angle;
+        }
     }
 
     updateJoystick(touchX, touchY, knob) {
@@ -363,6 +432,7 @@ class Game extends EventEmitter {
         // Update UI
         window.ui.updateHUD(this.player, this.gameTime);
         window.ui.updateAbilityBar(this.player);
+        window.ui.updateTeamHealthPanel(this);
 
         // Check game over conditions
         this.checkGameOver();
@@ -684,10 +754,121 @@ class Game extends EventEmitter {
         // Render minimap
         this.map.renderMinimap(this.minimapCtx, this.entities, this.player, 120, 120);
 
+        // Render aim reticle and range preview
+        this.renderAimIndicators(ctx);
+
         // Render FPS if enabled
         if (GameSettings.showFPS) {
             this.renderFPS(ctx);
         }
+    }
+
+    /**
+     * Render aim reticle and ability range preview
+     */
+    renderAimIndicators(ctx) {
+        if (!this.player || !this.player.isAlive) return;
+
+        const playerScreenX = this.player.x - this.camera.x;
+        const playerScreenY = this.player.y - this.camera.y;
+
+        // Get aim direction
+        const aimAngle = this.player.facingAngle || 0;
+
+        // Get current selected ability (for range preview)
+        const currentAbility = this.player.abilities.primary;
+        const abilityRange = currentAbility ? (currentAbility.range || 200) : 200;
+
+        // Calculate aim position based on facing angle
+        const aimDistance = Math.min(abilityRange, 150); // Cap visual distance
+        const aimX = playerScreenX + Math.cos(aimAngle) * aimDistance;
+        const aimY = playerScreenY + Math.sin(aimAngle) * aimDistance;
+
+        // Draw aim line from player to aim point
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 107, 53, 0.4)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(playerScreenX, playerScreenY);
+        ctx.lineTo(aimX, aimY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw range circle around player
+        ctx.strokeStyle = 'rgba(255, 107, 53, 0.2)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([10, 10]);
+        ctx.beginPath();
+        ctx.arc(playerScreenX, playerScreenY, abilityRange, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw aim reticle (crosshair)
+        const reticleSize = 15;
+        ctx.strokeStyle = 'rgba(255, 107, 53, 0.9)';
+        ctx.lineWidth = 2;
+
+        // Horizontal line
+        ctx.beginPath();
+        ctx.moveTo(aimX - reticleSize, aimY);
+        ctx.lineTo(aimX - 5, aimY);
+        ctx.moveTo(aimX + 5, aimY);
+        ctx.lineTo(aimX + reticleSize, aimY);
+        ctx.stroke();
+
+        // Vertical line
+        ctx.beginPath();
+        ctx.moveTo(aimX, aimY - reticleSize);
+        ctx.lineTo(aimX, aimY - 5);
+        ctx.moveTo(aimX, aimY + 5);
+        ctx.lineTo(aimX, aimY + reticleSize);
+        ctx.stroke();
+
+        // Center dot
+        ctx.fillStyle = 'rgba(255, 107, 53, 0.9)';
+        ctx.beginPath();
+        ctx.arc(aimX, aimY, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw direction arrow from player
+        this.renderDirectionArrow(ctx, playerScreenX, playerScreenY, aimAngle);
+
+        ctx.restore();
+    }
+
+    /**
+     * Render direction arrow showing which way player is facing
+     */
+    renderDirectionArrow(ctx, x, y, angle) {
+        const arrowLength = 35;
+        const arrowHeadSize = 10;
+
+        const tipX = x + Math.cos(angle) * arrowLength;
+        const tipY = y + Math.sin(angle) * arrowLength;
+
+        // Arrow shaft
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(x + Math.cos(angle) * 20, y + Math.sin(angle) * 20);
+        ctx.lineTo(tipX, tipY);
+        ctx.stroke();
+
+        // Arrow head
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.beginPath();
+        ctx.moveTo(tipX, tipY);
+        ctx.lineTo(
+            tipX - Math.cos(angle - 0.5) * arrowHeadSize,
+            tipY - Math.sin(angle - 0.5) * arrowHeadSize
+        );
+        ctx.lineTo(
+            tipX - Math.cos(angle + 0.5) * arrowHeadSize,
+            tipY - Math.sin(angle + 0.5) * arrowHeadSize
+        );
+        ctx.closePath();
+        ctx.fill();
     }
 
     renderProjectile(ctx, proj) {
