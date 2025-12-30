@@ -19,7 +19,6 @@ import ShortcutsWindow from './windows/ShortcutsWindow';
 import MySpace404Window from './windows/MySpace404Window';
 import DuetWindow from './windows/DuetWindow';
 import InfoBubble from './InfoBubble';
-import MobileMagnifier from './MobileMagnifier';
 
 // Icon SVGs
 const icons = {
@@ -556,9 +555,6 @@ export default function Desktop() {
 
       {/* Info Bubble */}
       <InfoBubble />
-
-      {/* Mobile Magnifier - helps with small touch targets on mobile */}
-      <MobileMagnifier />
 
       {/* Taskbar */}
       <Taskbar />

@@ -20,7 +20,8 @@
       "Bash(git remote:*)",
       "Bash(git stash:*)",
       "Bash(git ls-tree:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(git merge:*)"
     ]
   }
 }
