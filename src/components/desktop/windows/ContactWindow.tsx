@@ -2,11 +2,15 @@
 
 import { useState } from 'react';
 
-export default function ContactWindow() {
+interface ContactWindowProps {
+  initialSubject?: string;
+}
+
+export default function ContactWindow({ initialSubject = 'General Inquiry' }: ContactWindowProps) {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    subject: 'General Inquiry',
+    subject: initialSubject,
     message: '',
   });
 
