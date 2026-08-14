@@ -583,8 +583,18 @@
     }
     .quote-logo img { display: block; flex-shrink: 0; }
 
-    /* IX: supplied artwork already carries its wordmark */
-    .quote-logo .lg-ix { width: 100%; max-width: 180px; height: auto; }
+    /* IX: their square mark (as used for their favicon) over the wordmark,
+       set in the tracked grey caps their own logo uses */
+    .quote-logo .lg-ix { width: 66px; height: auto; }
+    .lockup-ix {
+      font-size: 13px;
+      font-weight: 400;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: #aab3c0;
+      line-height: 1;
+      padding-left: 0.28em; /* offset the trailing letter-space so it optically centres */
+    }
 
     /* AXO: icon + "AXO" with the period in brand pink (axoapp.ai spec:
        700 weight, 20px, -0.02em, #D4537E on the dot) */
@@ -784,7 +794,6 @@
         border-bottom: 1px solid #3a4560;
         min-height: 0;
       }
-      .quote-logo .lg-ix { max-width: 140px; }
     }
 
     @media (max-width: 440px) {
@@ -1102,7 +1111,8 @@
         </figure>
         <figure>
           <div class="quote-logo">
-            <img class="lg-ix" src="/slt/media/logos/ix.png" alt="IX Partners" width="500" height="105" loading="lazy" />
+            <img class="lg-ix" src="/slt/media/logos/ix-mark.png" alt="" width="198" height="206" loading="lazy" />
+            <span class="lockup-ix">Partners</span>
           </div>
           <div class="quote-body">
           <blockquote>SLT Ventures brings clear vision and thoughtful expertise well beyond what we would expect from a co-investment partner. Their ability to execute growth plans shoulder to shoulder with our operators and management teams makes them far more than a source of capital.</blockquote>
