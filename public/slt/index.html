@@ -558,8 +558,55 @@
       border: 1px solid #3a4560;
       border-top: 2px solid #c9a84c;
       padding: clamp(28px, 4vw, 56px);
-      display: flex; flex-direction: column; justify-content: space-between;
+      display: grid;
+      grid-template-columns: minmax(0, 210px) minmax(0, 1fr);
+      column-gap: clamp(28px, 4vw, 56px);
+      align-items: center;
       min-height: 260px;
+    }
+    .quote-body { display: flex; flex-direction: column; justify-content: center; }
+
+    /* Partner lockups. Each brand is rebuilt to its own spec rather than
+       flattened to one house style, so the marks stay recognisable. */
+    /* Mark stacked over wordmark, so all three partners read as
+       similarly proportioned blocks regardless of logo aspect ratio. */
+    .quote-logo {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      text-align: center;
+      padding-right: clamp(20px, 3vw, 32px);
+      border-right: 1px solid #3a4560;
+      min-height: 56px;
+    }
+    .quote-logo img { display: block; flex-shrink: 0; }
+
+    /* IX: supplied artwork already carries its wordmark */
+    .quote-logo .lg-ix { width: 100%; max-width: 180px; height: auto; }
+
+    /* AXO: icon + "AXO" with the period in brand pink (axoapp.ai spec:
+       700 weight, 20px, -0.02em, #D4537E on the dot) */
+    .quote-logo .lg-axo { width: 78px; height: auto; }
+    .lockup-axo {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #ffffff;
+      line-height: 1;
+    }
+    .lockup-axo i { font-style: normal; color: #D4537E; }
+
+    /* Steel Cloud: white mark + name set to echo their site's spacing */
+    .quote-logo .lg-scs { width: 64px; height: auto; }
+    .lockup-scs {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #ffffff;
+      line-height: 1.35;
     }
     .quote-track blockquote {
       font-size: clamp(16px, 2vw, 22px);
@@ -726,6 +773,18 @@
       .cols-3 > :last-child { grid-column: auto; }
       .footer-grid { grid-template-columns: minmax(0, 1fr); }
       .actions .btn { flex: 1 1 auto; }
+      /* Lockup moves above the quote and its divider becomes a rule under it */
+      .quote-track figure { grid-template-columns: minmax(0, 1fr); row-gap: 20px; }
+      .quote-logo {
+        align-items: flex-start;
+        text-align: left;
+        padding-right: 0;
+        padding-bottom: 18px;
+        border-right: none;
+        border-bottom: 1px solid #3a4560;
+        min-height: 0;
+      }
+      .quote-logo .lg-ix { max-width: 140px; }
     }
 
     @media (max-width: 440px) {
@@ -1014,28 +1073,45 @@
 
       <div class="quote-track" id="quoteTrack" tabindex="0" role="region" aria-label="Partner testimonials, scrollable">
         <figure>
+          <div class="quote-logo">
+            <img class="lg-axo" src="/slt/media/logos/axo.png" alt="" width="247" height="132" loading="lazy" />
+            <span class="lockup-axo">AXO<i>.</i></span>
+          </div>
+          <div class="quote-body">
           <blockquote>For us it wasn't just about capital – it was about partners clearly willing and able to get involved in the success of the business, from go-to-market to channel strategy to operations. SLT Ventures' fingerprints are all over our business. They've smoothed the rough edges and provided meaningful support at every turn.</blockquote>
           <figcaption>
             <span class="rel">Portfolio Company</span>
             Tony Toubia
             <span class="role">Co-founder, AXO Solutions, Inc.</span>
           </figcaption>
+          </div>
         </figure>
         <figure>
+          <div class="quote-logo">
+            <img class="lg-scs" src="/slt/media/logos/scs.png" alt="" width="108" height="80" loading="lazy" />
+            <span class="lockup-scs">Steel Cloud<br />Solutions</span>
+          </div>
+          <div class="quote-body">
           <blockquote>SLT Ventures and the leadership team helped us go from a strong set of in-demand consultants to a sophisticated business with rigor, growth, and focus.</blockquote>
           <figcaption>
             <span class="rel">Portfolio Company</span>
             Chris Day
             <span class="role">CEO, Steel Cloud Solutions</span>
           </figcaption>
+          </div>
         </figure>
         <figure>
+          <div class="quote-logo">
+            <img class="lg-ix" src="/slt/media/logos/ix.png" alt="IX Partners" width="500" height="105" loading="lazy" />
+          </div>
+          <div class="quote-body">
           <blockquote>SLT Ventures brings clear vision and thoughtful expertise well beyond what we would expect from a co-investment partner. Their ability to execute growth plans shoulder to shoulder with our operators and management teams makes them far more than a source of capital.</blockquote>
           <figcaption>
             <span class="rel">Co-Investment Partner</span>
             Steven Nestor
             <span class="role">Partner, IX-Capital Partners</span>
           </figcaption>
+          </div>
         </figure>
       </div>
 
