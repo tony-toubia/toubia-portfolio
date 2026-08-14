@@ -16,7 +16,12 @@
   <meta name="twitter:title" content="SLT Ventures – Operators With Capital" />
   <meta name="twitter:description" content="A differentiated partner for tech-enabled, mid-market businesses." />
 
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' fill='%230b1221'/%3E%3Cpolygon points='20,3 37,20 20,37 3,20' fill='none' stroke='%23c9a84c' stroke-width='2.4'/%3E%3C/svg%3E" />
+  <!-- The mark is simplified for the icon: the nav lockup's "SLT" is
+       unreadable below ~32px, so the icon keeps the nested diamonds only.
+       The 180px Apple icon can carry the wordmark and does. -->
+  <link rel="icon" href="/slt/favicon.ico" sizes="16x16 32x32 48x48" />
+  <link rel="icon" href="/slt/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/slt/apple-touch-icon.png" />
 
   <style>
     /* ============================================================
@@ -188,18 +193,20 @@
       padding-right: max(var(--gutter), env(safe-area-inset-right));
     }
 
+    /* Locked up as SLT.Ventures – tight tracking, no word gap */
     .wordmark {
       display: flex; align-items: center; gap: 10px;
       min-height: 44px;
       text-decoration: none;
-      font-size: 15px;
+      font-size: 16px;
       font-weight: 700;
-      letter-spacing: 0.13em;
+      letter-spacing: 0.02em;
       text-transform: uppercase;
       white-space: nowrap;
       color: #ffffff;
     }
     .wordmark .mark { width: 30px; height: 30px; flex-shrink: 0; }
+    .wordmark .wm { display: inline-block; }
     .wordmark .alt { color: #c9a84c; }
 
     .nav-links { display: flex; gap: clamp(16px, 2vw, 30px); list-style: none; }
@@ -302,9 +309,12 @@
       object-fit: cover;
       display: block;
     }
+    /* 0.80, not less: at 0.74 the muted lede drops to 3.8:1 against a
+       pure-white video frame. This keeps every hero text style at AA
+       regardless of what the footage is doing behind it. */
     .hero-scrim {
       position: absolute; inset: 0;
-      background: rgba(11, 18, 33, 0.74);
+      background: rgba(11, 18, 33, 0.80);
     }
     .hero > .container { position: relative; z-index: 1; }
 
@@ -345,13 +355,23 @@
 
     .split {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 2.6fr);
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 2.1fr);
       column-gap: clamp(32px, 5vw, 72px);
       align-items: start;
     }
-    .split-aside h2 { margin-top: 10px; }
-    .stack-head h2 { margin-top: 10px; }
-    .stack-head .lede { margin-top: 16px; }
+    /* Beside a column the heading is meant to be narrow, but at the full
+       display size it was breaking every two or three words. */
+    .split-aside h2 {
+      margin-top: 10px;
+      font-size: clamp(1.5rem, 2.2vw, 1.85rem);
+      max-width: 18ch;
+    }
+
+    /* A heading sitting ABOVE full-width content needs a wider measure than
+       one sitting BESIDE a column – capping both at 20ch made these wrap
+       into a narrow stack over a full-bleed grid. */
+    .stack-head h2 { margin-top: 10px; max-width: 34ch; }
+    .stack-head .lede { margin-top: 16px; max-width: 68ch; }
 
     /* ── RULE GRID – hairlines built from 1px gaps ─────────────── */
 
@@ -385,29 +405,115 @@
     }
     .spec-list li:first-child { border-top: none; padding-top: 0; }
 
-    /* ── TENETS ────────────────────────────────────────────────── */
+    /* ── TENETS – a 3x3 field rather than a running list ───────── */
 
-    .tenets-list { list-style: none; margin-top: clamp(32px, 4vw, 48px); border-top: 1px solid var(--line); }
-    .tenets-list li {
-      display: grid;
-      grid-template-columns: 56px minmax(0, 1fr);
-      gap: 8px;
-      padding: 18px 0;
-      border-bottom: 1px solid var(--line);
+    .tenets-grid { list-style: none; }
+    .tenets-grid li { padding: clamp(24px, 2.4vw, 32px); }
+    .tenets-grid .n {
+      display: block;
+      font-size: clamp(30px, 3.4vw, 44px);
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -0.03em;
+      color: var(--accent);
     }
-    .tenets-list .n {
+    .tenets-grid p {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    /* ── POSITIONING DIAGRAM + DISCIPLINES ─────────────────────── */
+
+    .apart {
+      margin-top: clamp(32px, 4vw, 48px);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: clamp(28px, 4vw, 64px);
+      align-items: center;
+      border-top: 1px solid var(--line);
+      padding-top: clamp(28px, 3.5vw, 44px);
+    }
+    .apart-figure { display: flex; justify-content: center; }
+    .diagram { width: 100%; max-width: 380px; height: auto; }
+
+    .disc-label {
+      font-family: var(--sans);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.1px;
+      text-anchor: middle;
+      fill: #aab3c0;
+    }
+    .disc-mark {
+      font-family: var(--sans);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      text-anchor: middle;
+      fill: #0b1221;
+    }
+
+    /* Pointing at a discipline lights its circle and dims the rest.
+       Instant, no transition – consistent with the rest of the page. */
+    .apart[data-active] .disc-circle { stroke: #1a2233; }
+    .apart[data-active] .disc-label  { fill: #55606f; }
+    .apart[data-active="family"] #c-family,
+    .apart[data-active="pe"]     #c-pe,
+    .apart[data-active="op"]     #c-op { stroke: #c9a84c; stroke-width: 2; }
+    .apart[data-active="family"] .disc-label[data-for="family"],
+    .apart[data-active="pe"]     .disc-label[data-for="pe"],
+    .apart[data-active="op"]     .disc-label[data-for="op"] { fill: #ffffff; }
+
+    .apart-list { list-style: none; }
+    .apart-list li { border-bottom: 1px solid var(--line); }
+    .apart-list li:first-child { border-top: 1px solid var(--line); }
+    .apart-list button {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+      padding: 20px 12px 20px 0;
+      background: none;
+      border: none;
+      font-family: inherit;
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    .apart-list li:hover button,
+    .apart-list li:focus-within button { background: var(--surface); }
+    .apart-list .n {
       font-size: 11px;
       font-weight: 700;
       letter-spacing: 0.1em;
       color: var(--accent);
       padding-top: 3px;
     }
-    .tenets-list p { max-width: 76ch; }
+    .apart-list .t {
+      display: block;
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .apart-list .d {
+      display: block;
+      margin-top: 5px;
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 1.55;
+      color: var(--fg-mid);
+    }
 
-    /* ── POSITIONING DIAGRAM ───────────────────────────────────── */
-
-    .diagram-wrap { display: flex; justify-content: flex-start; margin-top: 36px; }
-    .diagram { width: 100%; max-width: 400px; height: auto; }
+    .apart-notes {
+      margin-top: clamp(28px, 3.5vw, 44px);
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: clamp(24px, 4vw, 64px);
+    }
+    .apart-notes .body-copy { max-width: none; }
 
     /* ── TESTIMONIALS – scrollable track over an image ─────────── */
 
@@ -426,36 +532,34 @@
     }
     .quotes-band > .container { position: relative; z-index: 1; }
 
+    /* One testimonial visible at a time; arrows page between them.
+       Native horizontal scroll keeps swipe working on touch. */
     .quote-track {
       margin-top: clamp(32px, 4vw, 48px);
-      display: grid;
-      grid-auto-flow: column;
-      /* Sized so the track always overflows its container – the row is
-         meant to read as a scroller, not a static three-up grid. */
-      grid-auto-columns: clamp(280px, 36vw, 480px);
-      gap: 16px;
+      display: flex;
       overflow-x: auto;
       scroll-snap-type: x mandatory;
-      padding-bottom: 16px;
-      scrollbar-width: thin;
-      scrollbar-color: #3a4560 transparent;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
     }
-    .quote-track::-webkit-scrollbar { height: 3px; }
-    .quote-track::-webkit-scrollbar-track { background: #232d42; }
-    .quote-track::-webkit-scrollbar-thumb { background: #3a4560; }
+    .quote-track::-webkit-scrollbar { display: none; }
 
     .quote-track figure {
+      flex: 0 0 100%;
+      min-width: 100%;
       scroll-snap-align: start;
-      background: rgba(11, 18, 33, 0.82);
+      background: rgba(11, 18, 33, 0.86);
       border: 1px solid #3a4560;
       border-top: 2px solid #c9a84c;
-      padding: clamp(24px, 2.6vw, 34px);
+      padding: clamp(28px, 4vw, 56px);
       display: flex; flex-direction: column; justify-content: space-between;
+      min-height: 260px;
     }
     .quote-track blockquote {
-      font-size: clamp(15px, 1.6vw, 17px);
-      line-height: 1.55;
+      font-size: clamp(16px, 2vw, 22px);
+      line-height: 1.5;
       color: #ffffff;
+      max-width: 62ch;
     }
     .quote-track figcaption {
       margin-top: 20px;
@@ -487,7 +591,15 @@
       margin-top: 3px;
     }
 
-    .quote-nav { display: flex; gap: 8px; margin-top: 20px; }
+    .quote-nav { display: flex; align-items: center; gap: 8px; margin-top: 20px; }
+    .quote-count {
+      margin-left: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: #aab3c0;
+    }
+    .quote-count b { color: #ffffff; font-weight: 700; }
     .quote-nav button {
       width: 46px; height: 46px;
       display: inline-flex; align-items: center; justify-content: center;
@@ -596,9 +708,9 @@
       .hero-layout,
       .split { grid-template-columns: minmax(0, 1fr); row-gap: 36px; }
       .split-aside h2 { max-width: 24ch; }
-      /* vw, not %: percentage track sizes collapse to content inside a
-         scroll container, which silently stops the row from overflowing. */
-      .quote-track { grid-auto-columns: clamp(260px, 62vw, 460px); }
+      .apart { grid-template-columns: minmax(0, 1fr); }
+      .apart-figure { order: -1; }
+      .apart-notes { grid-template-columns: minmax(0, 1fr); }
       /* Touch targets for the sparse footer links */
       .contact-block a,
       .legal a { display: inline-flex; align-items: center; min-height: 44px; }
@@ -609,9 +721,7 @@
       .cols-3 { grid-template-columns: minmax(0, 1fr); }
       .cols-3 > :last-child { grid-column: auto; }
       .footer-grid { grid-template-columns: minmax(0, 1fr); }
-      .tenets-list li { grid-template-columns: 40px minmax(0, 1fr); }
       .actions .btn { flex: 1 1 auto; }
-      .quote-track { grid-auto-columns: clamp(240px, 82vw, 400px); }
     }
 
     @media (max-width: 440px) {
@@ -633,7 +743,7 @@
         <polygon points="20,8 32,20 20,32 8,20" fill="none" stroke="#c9a84c" stroke-width="0.8" opacity="0.5"/>
         <text x="20" y="23.5" font-family="Helvetica, Arial, sans-serif" font-size="9" font-weight="700" fill="#c9a84c" text-anchor="middle" letter-spacing="0.4">SLT</text>
       </svg>
-      SLT&nbsp;<span class="alt">Ventures</span>
+      <span class="wm">SLT<span class="alt">.Ventures</span></span>
     </a>
 
     <ul class="nav-links">
@@ -714,44 +824,75 @@
 
   <!-- WHAT SETS US APART -->
   <section class="band" id="working">
-    <div class="container split">
-      <div class="split-aside">
+    <div class="container">
+      <div class="stack-head">
         <p class="eyebrow">What Sets Us Apart</p>
         <h2>We are not a private equity firm. We are operators with capital.</h2>
-      </div>
-      <div>
-        <p class="body-copy">
+        <p class="lede">
           We combine the long-term thinking of a family office, the financial discipline of private equity, and the focused perspective of operators who have built technology companies from startup to scale.
         </p>
+      </div>
+
+      <!-- Each discipline is a control: pointing at one lights its circle
+           in the diagram and dims the other two. -->
+      <div class="apart" id="apart">
+        <div class="apart-figure">
+          <svg class="diagram" viewBox="45 30 290 280" fill="none" xmlns="http://www.w3.org/2000/svg"
+               role="img" aria-label="SLT Ventures sits at the intersection of three disciplines: family office, private equity, and operating business.">
+            <circle id="c-family" class="disc-circle" cx="145" cy="130" r="95" fill="none" stroke="#3a4560" stroke-width="1"/>
+            <circle id="c-pe"     class="disc-circle" cx="235" cy="130" r="95" fill="none" stroke="#3a4560" stroke-width="1"/>
+            <circle id="c-op"     class="disc-circle" cx="190" cy="210" r="95" fill="none" stroke="#3a4560" stroke-width="1"/>
+
+            <text x="100" y="96"  class="disc-label" data-for="family">FAMILY</text>
+            <text x="100" y="110" class="disc-label" data-for="family">OFFICE</text>
+            <text x="280" y="96"  class="disc-label" data-for="pe">PRIVATE</text>
+            <text x="280" y="110" class="disc-label" data-for="pe">EQUITY</text>
+            <text x="190" y="272" class="disc-label" data-for="op">OPERATING</text>
+            <text x="190" y="286" class="disc-label" data-for="op">BUSINESS</text>
+
+            <polygon points="190,129 218,157 190,185 162,157" fill="#c9a84c"/>
+            <text x="190" y="161" class="disc-mark">SLT</text>
+          </svg>
+        </div>
+
+        <ol class="apart-list">
+          <li data-disc="family">
+            <button type="button">
+              <span class="n">01</span>
+              <span>
+                <span class="t">Family Office</span>
+                <span class="d">Patient capital and a horizon measured in decades, not fund cycles.</span>
+              </span>
+            </button>
+          </li>
+          <li data-disc="pe">
+            <button type="button">
+              <span class="n">02</span>
+              <span>
+                <span class="t">Private Equity</span>
+                <span class="d">The financial discipline to underwrite honestly and hold a plan to account.</span>
+              </span>
+            </button>
+          </li>
+          <li data-disc="op">
+            <button type="button">
+              <span class="n">03</span>
+              <span>
+                <span class="t">Operating Business</span>
+                <span class="d">Operators who have carried a P&amp;L, shipped product, and sold into the enterprise.</span>
+              </span>
+            </button>
+          </li>
+        </ol>
+      </div>
+
+      <div class="apart-notes">
         <p class="body-copy">
           Our flexible mandate serves one goal – build great technology companies. We bring a proven playbook for scaling recurring-revenue businesses, expanding go-to-market reach, and driving technology-led value creation across our portfolio.
         </p>
         <p class="body-copy">
           We have a long-term investment horizon with a focus on double-digit multiples of invested capital. We understand that true partnerships are built on shared vision, trust, and respect.
         </p>
-
-        <div class="diagram-wrap">
-          <!-- Three overlapping disciplines; viewBox cropped tight so it aligns flush with the copy -->
-          <svg class="diagram" viewBox="45 30 290 280" fill="none" xmlns="http://www.w3.org/2000/svg"
-               role="img" aria-label="SLT Ventures sits at the intersection of three disciplines: family office, private equity, and operating business.">
-            <circle cx="145" cy="130" r="95" fill="none" stroke="#3a4560" stroke-width="1"/>
-            <circle cx="235" cy="130" r="95" fill="none" stroke="#3a4560" stroke-width="1"/>
-            <circle cx="190" cy="210" r="95" fill="none" stroke="#3a4560" stroke-width="1"/>
-
-            <text x="100" y="96"  fill="#aab3c0" font-family="Helvetica, Arial, sans-serif" font-size="10" font-weight="700" letter-spacing="1.1" text-anchor="middle">FAMILY</text>
-            <text x="100" y="110" fill="#aab3c0" font-family="Helvetica, Arial, sans-serif" font-size="10" font-weight="700" letter-spacing="1.1" text-anchor="middle">OFFICE</text>
-
-            <text x="280" y="96"  fill="#aab3c0" font-family="Helvetica, Arial, sans-serif" font-size="10" font-weight="700" letter-spacing="1.1" text-anchor="middle">PRIVATE</text>
-            <text x="280" y="110" fill="#aab3c0" font-family="Helvetica, Arial, sans-serif" font-size="10" font-weight="700" letter-spacing="1.1" text-anchor="middle">EQUITY</text>
-
-            <text x="190" y="272" fill="#aab3c0" font-family="Helvetica, Arial, sans-serif" font-size="10" font-weight="700" letter-spacing="1.1" text-anchor="middle">OPERATING</text>
-            <text x="190" y="286" fill="#aab3c0" font-family="Helvetica, Arial, sans-serif" font-size="10" font-weight="700" letter-spacing="1.1" text-anchor="middle">BUSINESS</text>
-
-            <!-- The SLT mark sits in the shared centre of all three -->
-            <polygon points="190,129 218,157 190,185 162,157" fill="#c9a84c"/>
-            <text x="190" y="161" font-family="Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#0b1221" text-anchor="middle" letter-spacing="0.6">SLT</text>
-          </svg>
-        </div>
       </div>
     </div>
   </section>
@@ -763,7 +904,7 @@
         <p class="eyebrow">Core Tenets</p>
         <h2>We are passionate about building great technology companies.</h2>
       </div>
-      <ol class="tenets-list">
+      <ol class="rule-grid cols-3 tenets-grid">
         <li><span class="n">01</span><p>Great companies pursue mutual success. If an engagement only works for one side, it does not hold.</p></li>
         <li><span class="n">02</span><p>Great companies earn trust before they earn the sale, and they keep earning it after the contract is signed.</p></li>
         <li><span class="n">03</span><p>Great companies build products their customers depend on daily – not ones they merely renew.</p></li>
@@ -899,6 +1040,7 @@
         <button type="button" id="quoteNext" aria-label="Next testimonial" aria-controls="quoteTrack">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 2 L12 8 L6 14" stroke="currentColor" stroke-width="1.5"/></svg>
         </button>
+        <p class="quote-count" aria-live="polite"><b id="quoteIdx">1</b> / 3</p>
       </div>
     </div>
   </section>
@@ -915,7 +1057,7 @@
             <polygon points="20,8 32,20 20,32 8,20" fill="none" stroke="#c9a84c" stroke-width="0.8" opacity="0.5"/>
             <text x="20" y="23.5" font-family="Helvetica, Arial, sans-serif" font-size="9" font-weight="700" fill="#c9a84c" text-anchor="middle" letter-spacing="0.4">SLT</text>
           </svg>
-          SLT&nbsp;<span class="alt">Ventures</span>
+          <span class="wm">SLT<span class="alt">.Ventures</span></span>
         </div>
         <p>A Kansas City-based private investment firm partnering with mid-market technology companies to build enduring, category-defining businesses.</p>
         <p>Sign up to receive insights and updates from our team.</p>
@@ -993,7 +1135,7 @@
        for file specs.
     ------------------------------------------------------------- */
     var MEDIA = {
-      heroVideo:   null, // '/slt/media/hero.mp4'
+      heroVideo:   '/slt/media/hero.mp4',
       heroPoster:  null, // '/slt/media/hero-poster.jpg'
       quotesImage: null  // '/slt/media/testimonials.jpg'
     };
@@ -1004,6 +1146,9 @@
     if (heroVideo && !reduceMotion) {
       if (MEDIA.heroPoster) heroVideo.setAttribute('poster', MEDIA.heroPoster);
       if (MEDIA.heroVideo) {
+        // If the file is missing or the codec is unsupported, drop the
+        // element so the hero falls back to the flat ground cleanly.
+        heroVideo.addEventListener('error', function () { heroVideo.remove(); });
         heroVideo.src = MEDIA.heroVideo;
         var play = heroVideo.play();
         if (play && play.catch) play.catch(function () {});
@@ -1015,26 +1160,51 @@
       quotesBg.style.backgroundImage = 'url("' + MEDIA.quotesImage + '")';
     }
 
-    /* ---- Testimonial track ---- */
-    var track = document.getElementById('quoteTrack');
-    var prev  = document.getElementById('quotePrev');
-    var next  = document.getElementById('quoteNext');
+    /* ---- Testimonial carousel: one slide at a time ---- */
+    var track  = document.getElementById('quoteTrack');
+    var prev   = document.getElementById('quotePrev');
+    var next   = document.getElementById('quoteNext');
+    var idxOut = document.getElementById('quoteIdx');
+    var slides = track.querySelectorAll('figure');
 
-    function step(dir) {
-      var card = track.querySelector('figure');
-      if (!card) return;
-      track.scrollBy({ left: dir * (card.getBoundingClientRect().width + 16), behavior: 'auto' });
+    function current() {
+      var w = track.clientWidth || 1;
+      return Math.min(slides.length - 1, Math.max(0, Math.round(track.scrollLeft / w)));
+    }
+    function goTo(i) {
+      var n = Math.min(slides.length - 1, Math.max(0, i));
+      track.scrollTo({ left: n * track.clientWidth, behavior: 'auto' });
+      syncNav();
     }
     function syncNav() {
-      var max = track.scrollWidth - track.clientWidth;
-      prev.disabled = track.scrollLeft <= 1;
-      next.disabled = track.scrollLeft >= max - 1;
+      var i = current();
+      prev.disabled = i <= 0;
+      next.disabled = i >= slides.length - 1;
+      idxOut.textContent = String(i + 1);
     }
-    prev.addEventListener('click', function () { step(-1); });
-    next.addEventListener('click', function () { step(1); });
+    prev.addEventListener('click', function () { goTo(current() - 1); });
+    next.addEventListener('click', function () { goTo(current() + 1); });
     track.addEventListener('scroll', syncNav);
     window.addEventListener('resize', syncNav);
     syncNav();
+
+    /* ---- Positioning diagram: discipline highlighting ---- */
+    var apart = document.getElementById('apart');
+    if (apart) {
+      apart.querySelectorAll('.apart-list li').forEach(function (li) {
+        var key = li.getAttribute('data-disc');
+        var on  = function () { apart.setAttribute('data-active', key); };
+        var off = function () { apart.removeAttribute('data-active'); };
+        li.addEventListener('mouseenter', on);
+        li.addEventListener('mouseleave', off);
+        li.addEventListener('focusin', on);
+        li.addEventListener('focusout', off);
+        // Tapping holds the highlight on touch, where there is no hover.
+        li.querySelector('button').addEventListener('click', function () {
+          apart.getAttribute('data-active') === key ? off() : on();
+        });
+      });
+    }
 
     /* ---- Signup: no backend yet, hand off to email ---- */
     document.getElementById('signupForm').addEventListener('submit', function (e) {
