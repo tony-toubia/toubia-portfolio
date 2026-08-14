@@ -783,10 +783,15 @@
       .cols-3 > :last-child { grid-column: auto; }
       .footer-grid { grid-template-columns: minmax(0, 1fr); }
       .actions .btn { flex: 1 1 auto; }
-      /* Lockup moves above the quote and its divider becomes a rule under it */
+      /* Lockup moves above the quote and its divider becomes a rule under it.
+         It also goes horizontal here: stacked marks waste vertical space on a
+         phone, and side-by-side is how these logos are drawn natively. */
       .quote-track figure { grid-template-columns: minmax(0, 1fr); row-gap: 20px; }
       .quote-logo {
-        align-items: flex-start;
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 12px;
         text-align: left;
         padding-right: 0;
         padding-bottom: 18px;
@@ -794,6 +799,11 @@
         border-bottom: 1px solid #3a4560;
         min-height: 0;
       }
+      /* Centring offset is only right when the wordmark sits under the mark */
+      .lockup-ix { padding-left: 0; }
+      .quote-logo .lg-ix  { width: 52px; }
+      .quote-logo .lg-axo { width: 62px; }
+      .quote-logo .lg-scs { width: 48px; }
     }
 
     @media (max-width: 440px) {
@@ -840,7 +850,7 @@
       <li><a href="#criteria">Investment Criteria</a></li>
       <li><a href="#contact">Contact</a></li>
     </ul>
-    <a href="mailto:info@sltventures.com" class="btn btn-solid">Work With Us</a>
+    <a href="mailto:info@slt.ventures" class="btn btn-solid">Work With Us</a>
   </div>
 </nav>
 
@@ -1177,7 +1187,7 @@
         <p class="contact-block">
           SLT Ventures, LLC<br />
           Overland Park, Kansas<br /><br />
-          <a href="mailto:info@sltventures.com">info@sltventures.com</a>
+          <a href="mailto:info@slt.ventures">info@slt.ventures</a>
         </p>
       </div>
     </div>
@@ -1228,7 +1238,7 @@
     ------------------------------------------------------------- */
     var MEDIA = {
       heroVideo:   '/slt/media/hero.mp4',
-      heroPoster:  null, // '/slt/media/hero-poster.jpg'
+      heroPoster:  '/slt/media/hero-poster.jpg',
       quotesVideo: '/slt/media/testimonials.mp4',
       quotesImage: null  // '/slt/media/testimonials.jpg' – still image alternative
     };
@@ -1314,7 +1324,7 @@
       e.preventDefault();
       var email = document.getElementById('signupEmail').value.trim();
       if (!email) return;
-      window.location.href = 'mailto:info@sltventures.com'
+      window.location.href = 'mailto:info@slt.ventures'
         + '?subject=' + encodeURIComponent('Subscribe to SLT Ventures updates')
         + '&body=' + encodeURIComponent('Please add ' + email + ' to your insights list.');
     });
