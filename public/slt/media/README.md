@@ -1,53 +1,78 @@
 # /slt media assets
 
-The SLT Ventures page looks for three optional files in this folder. It probes
-for each one with a `HEAD` request before using it, so **nothing here is
-required** – if a file is absent the page falls back to a flat treatment and
-makes no request for it. Drop a file in and it is picked up on the next load;
-no code change needed.
+Optional files for the SLT Ventures page. Paths are declared in the `MEDIA`
+block near the bottom of `../index.html`.
 
-| File | Used by | Fallback when absent |
-| --- | --- | --- |
-| `hero.mp4` | Hero background video | Flat navy hero (`#0b1221`) |
-| `hero-poster.jpg` | First frame / slow connections | Flat navy hero |
-| `testimonials.jpg` | Testimonial section background | Flat `#0d1524` |
+| File | Used by | `MEDIA` key | Currently |
+| --- | --- | --- | --- |
+| `hero.mp4` | Hero background video | `heroVideo` | **wired** – expects this file |
+| `hero-poster.jpg` | First frame / slow connections | `heroPoster` | `null` |
+| `testimonials.jpg` | Testimonial section background | `quotesImage` | `null` |
 
-## hero.mp4
+To enable one of the `null` entries, drop the file in and replace the `null`
+with the commented-out path next to it. A key left `null` makes no request at
+all, and the section renders its flat fallback.
 
-- **Aspect / size:** 16:9, 1920×1080 is plenty. It is `object-fit: cover`, so
-  keep the subject centred – the edges get cropped on narrow viewports.
-- **Length:** 8–15 seconds, seamlessly loopable.
-- **Encoding:** H.264 (`libx264`), `yuv420p` pixel format, `+faststart` so it
-  begins playing before it fully downloads.
-- **Budget:** aim for **under 3 MB**. This is a background element and every
-  visitor pays for it. Strip the audio track entirely – the element is muted.
-- **Content:** it sits behind white headline text under a 74% navy scrim, so
-  favour slow, low-contrast, low-detail motion. Busy or bright footage will
-  fight the type even through the scrim.
+`hero.mp4` is already wired. Until the file is committed here the browser logs
+one 404 and the hero falls back to flat navy – the page still renders
+correctly. A missing file or unsupported codec removes the video element
+rather than leaving a broken frame.
 
-Example encode:
+## Transcode before committing
+
+Stock footage is far too heavy to ship as-is. A 4K 60fps clip is typically
+50–200 MB; GitHub warns above 50 MB and **rejects any file over 100 MB**, and
+every visitor would pay for it on load. Transcode to roughly 1080p30 first –
+expect to land around 1–3 MB.
 
 ```
-ffmpeg -i source.mov -an -vf "scale=1920:-2" -c:v libx264 -crf 26 \
-       -preset slow -pix_fmt yuv420p -movflags +faststart hero.mp4
+ffmpeg -i "14672626_3840_2160_60fps.mp4" \
+  -an -t 12 \
+  -vf "scale=1920:-2,fps=30" \
+  -c:v libx264 -crf 28 -preset slow -pix_fmt yuv420p \
+  -movflags +faststart \
+  hero.mp4
 ```
+
+- `-an` strips audio. The element is muted, so the track is dead weight.
+- `-t 12` trims to the first 12 seconds. Pick a window that loops cleanly.
+- `-crf 28` is deliberately aggressive. The video sits under a 74% navy scrim
+  at low opacity, so compression artefacts are invisible in practice. Drop to
+  24 if you disagree, and watch the file size.
+- `+faststart` moves the index to the front so playback begins before the
+  file finishes downloading.
+
+Check the result before committing:
+
+```
+ls -lh hero.mp4          # aim for under 3 MB
+```
+
+A matching poster helps on slow connections:
+
+```
+ffmpeg -i hero.mp4 -frames:v 1 -q:v 4 hero-poster.jpg
+```
+
+Then set `heroPoster: '/slt/media/hero-poster.jpg'` in `index.html`.
+
+## Choosing footage
+
+The video sits behind white headline text under a 74% navy scrim. Slow,
+low-contrast, low-detail motion works. Busy or bright footage fights the type
+even through the scrim, and fast motion wastes bitrate.
 
 Video is skipped entirely for visitors with `prefers-reduced-motion: reduce`;
 they get the poster or the flat fallback.
 
-## hero-poster.jpg
-
-Single frame from the video, same dimensions, JPEG quality ~75. Under 200 KB.
-
 ## testimonials.jpg
 
-- **Size:** 2000px wide is ample; it is `cover` and sits under a 78% navy scrim.
-- **Budget:** under 400 KB.
-- **Content:** low-detail and mid-to-dark works best. The testimonial cards
-  themselves are translucent navy panels, so the image reads around and behind
-  them rather than through them.
+- 2000px wide is ample. It is `cover` under a 78% navy scrim.
+- Budget under 400 KB.
+- Low-detail, mid-to-dark images work best. The testimonial card is a
+  translucent navy panel, so the image reads around it.
 
-## A note on rights
+## Rights
 
 Use footage and photography the firm owns or has licensed for commercial web
 use. Stock clips carry per-use terms and some prohibit use as a website
