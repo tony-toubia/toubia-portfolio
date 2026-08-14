@@ -304,9 +304,12 @@
       object-fit: cover;
       display: block;
     }
+    /* 0.80, not less: at 0.74 the muted lede drops to 3.8:1 against a
+       pure-white video frame. This keeps every hero text style at AA
+       regardless of what the footage is doing behind it. */
     .hero-scrim {
       position: absolute; inset: 0;
-      background: rgba(11, 18, 33, 0.74);
+      background: rgba(11, 18, 33, 0.80);
     }
     .hero > .container { position: relative; z-index: 1; }
 
@@ -347,11 +350,17 @@
 
     .split {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 2.6fr);
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 2.1fr);
       column-gap: clamp(32px, 5vw, 72px);
       align-items: start;
     }
-    .split-aside h2 { margin-top: 10px; }
+    /* Beside a column the heading is meant to be narrow, but at the full
+       display size it was breaking every two or three words. */
+    .split-aside h2 {
+      margin-top: 10px;
+      font-size: clamp(1.5rem, 2.2vw, 1.85rem);
+      max-width: 18ch;
+    }
 
     /* A heading sitting ABOVE full-width content needs a wider measure than
        one sitting BESIDE a column – capping both at 20ch made these wrap
