@@ -520,10 +520,16 @@
     .quotes-band { border-top: 1px solid var(--line); }
     .quotes-bg {
       position: absolute; inset: 0;
+      overflow: hidden;
       background-color: #0d1524;
       background-size: cover;
       background-position: center;
       pointer-events: none;
+    }
+    .quotes-bg video {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
     }
     .quotes-scrim {
       position: absolute; inset: 0;
@@ -609,8 +615,6 @@
       cursor: pointer;
     }
     .quote-nav button:hover { border-color: #ffffff; }
-    .quote-nav button[disabled] { color: #6f7a8a; border-color: #232d42; cursor: default; }
-    .quote-nav button[disabled]:hover { border-color: #232d42; }
 
     /* ── FOOTER ────────────────────────────────────────────────── */
 
@@ -997,7 +1001,9 @@
 
   <!-- TESTIMONIALS -->
   <section class="band quotes-band" id="testimonials">
-    <div class="quotes-bg" id="quotesBg" aria-hidden="true"></div>
+    <div class="quotes-bg" id="quotesBg" aria-hidden="true">
+      <video id="quotesVideo" muted loop playsinline preload="none"></video>
+    </div>
     <div class="quotes-scrim" aria-hidden="true"></div>
 
     <div class="container">
@@ -1137,7 +1143,8 @@
     var MEDIA = {
       heroVideo:   '/slt/media/hero.mp4',
       heroPoster:  null, // '/slt/media/hero-poster.jpg'
-      quotesImage: null  // '/slt/media/testimonials.jpg'
+      quotesVideo: '/slt/media/testimonials.mp4',
+      quotesImage: null  // '/slt/media/testimonials.jpg' – still image alternative
     };
 
     var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1160,6 +1167,18 @@
       quotesBg.style.backgroundImage = 'url("' + MEDIA.quotesImage + '")';
     }
 
+    var quotesVideo = document.getElementById('quotesVideo');
+    if (quotesVideo) {
+      if (MEDIA.quotesVideo && !reduceMotion) {
+        quotesVideo.addEventListener('error', function () { quotesVideo.remove(); });
+        quotesVideo.src = MEDIA.quotesVideo;
+        var qplay = quotesVideo.play();
+        if (qplay && qplay.catch) qplay.catch(function () {});
+      } else {
+        quotesVideo.remove();
+      }
+    }
+
     /* ---- Testimonial carousel: one slide at a time ---- */
     var track  = document.getElementById('quoteTrack');
     var prev   = document.getElementById('quotePrev');
@@ -1171,16 +1190,14 @@
       var w = track.clientWidth || 1;
       return Math.min(slides.length - 1, Math.max(0, Math.round(track.scrollLeft / w)));
     }
+    // Wraps in both directions, so the controls never dead-end.
     function goTo(i) {
-      var n = Math.min(slides.length - 1, Math.max(0, i));
+      var n = (i % slides.length + slides.length) % slides.length;
       track.scrollTo({ left: n * track.clientWidth, behavior: 'auto' });
       syncNav();
     }
     function syncNav() {
-      var i = current();
-      prev.disabled = i <= 0;
-      next.disabled = i >= slides.length - 1;
-      idxOut.textContent = String(i + 1);
+      idxOut.textContent = String(current() + 1);
     }
     prev.addEventListener('click', function () { goTo(current() - 1); });
     next.addEventListener('click', function () { goTo(current() + 1); });
