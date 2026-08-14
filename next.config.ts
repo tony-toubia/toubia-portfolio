@@ -11,6 +11,14 @@ const nextConfig: NextConfig = {
         source: '/map-mobile-game/',
         destination: '/map-mobile-game/index.html',
       },
+      {
+        source: '/slt',
+        destination: '/slt/index.html',
+      },
+      {
+        source: '/slt/',
+        destination: '/slt/index.html',
+      },
     ];
   },
 };

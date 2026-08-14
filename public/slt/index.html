@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>SLT Ventures — Operators With Capital</title>
+  <meta name="description" content="SLT Ventures is a Maryland-based investment firm partnering with founder-led, tech-enabled mid-market businesses in marketing services, vertical software, and tech-enabled services." />
+  <meta name="theme-color" content="#0b1221" />
+  <meta name="color-scheme" content="dark" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="SLT Ventures — Operators With Capital" />
+  <meta property="og:description" content="A differentiated partner for tech-enabled, mid-market businesses." />
+  <meta property="og:site_name" content="SLT Ventures" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="SLT Ventures — Operators With Capital" />
+  <meta name="twitter:description" content="A differentiated partner for tech-enabled, mid-market businesses." />
+
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'%3E%3Crect width='44' height='44' fill='%230b1221'/%3E%3Cpolygon points='22,3 41,22 22,41 3,22' fill='none' stroke='%23c9a84c' stroke-width='2'/%3E%3C/svg%3E" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:   #0b1221;
+      --navy2:  #111c30;
+      --navy3:  #162038;
+      --gold:   #c9a84c;
+      --gold2:  #e8c96d;
+      --cream:  #f5f0e8;
+      --white:  #ffffff;
+      --gray:   #8a95a3;
+      --light:  #eef1f6;
+      --serif:  'Cormorant Garamond', Georgia, serif;
+      --sans:   'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+      /* Fluid spacing — one source of truth for horizontal rhythm */
+      --gutter: clamp(20px, 5vw, 60px);
+      --section-y: clamp(64px, 9vw, 100px);
+      --nav-h: 72px;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      font-family: var(--sans);
+      background: var(--navy);
+      color: var(--white);
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    img, svg { max-width: 100%; }
+
+    ::selection { background: var(--gold); color: var(--navy); }
+
+    :focus-visible {
+      outline: 2px solid var(--gold2);
+      outline-offset: 3px;
+    }
+
+    .skip-link {
+      position: absolute; top: -100px; left: var(--gutter); z-index: 200;
+      background: var(--gold); color: var(--navy);
+      padding: 12px 20px; font-size: 0.8rem; letter-spacing: 0.1em;
+      text-transform: uppercase; text-decoration: none;
+    }
+    .skip-link:focus { top: 12px; }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px;
+      min-height: var(--nav-h);
+      padding: 14px var(--gutter);
+      padding-left: max(var(--gutter), env(safe-area-inset-left));
+      padding-right: max(var(--gutter), env(safe-area-inset-right));
+      background: rgba(11,18,33,0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(201,168,76,0.15);
+    }
+
+    .nav-logo {
+      display: flex; align-items: center; gap: 12px;
+      text-decoration: none; min-width: 0;
+    }
+
+    .logo-svg { width: 40px; height: 40px; flex-shrink: 0; }
+
+    .nav-wordmark {
+      font-family: var(--serif);
+      font-weight: 600;
+      font-size: clamp(1.05rem, 3.4vw, 1.35rem);
+      letter-spacing: 0.12em;
+      color: var(--white);
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .nav-wordmark span { color: var(--gold); }
+
+    .nav-links { display: flex; gap: clamp(20px, 2.6vw, 36px); list-style: none; }
+    .nav-links a {
+      font-family: var(--sans);
+      font-size: 0.78rem;
+      font-weight: 400;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.72);
+      text-decoration: none;
+      transition: color .2s;
+      white-space: nowrap;
+    }
+    .nav-links a:hover { color: var(--gold); }
+
+    /* Hamburger — hidden on desktop */
+    .nav-toggle {
+      display: none;
+      width: 44px; height: 44px;
+      flex-shrink: 0;
+      align-items: center; justify-content: center;
+      background: none; border: 1px solid rgba(201,168,76,0.3);
+      cursor: pointer; color: var(--gold);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .nav-toggle-bars { position: relative; width: 20px; height: 12px; display: block; }
+    .nav-toggle-bars::before,
+    .nav-toggle-bars::after,
+    .nav-toggle-bars span {
+      content: ''; position: absolute; left: 0;
+      width: 100%; height: 1.5px; background: var(--gold);
+      transition: transform .28s ease, opacity .2s ease;
+    }
+    .nav-toggle-bars::before { top: 0; }
+    .nav-toggle-bars span    { top: 5px; }
+    .nav-toggle-bars::after  { top: 11px; }
+
+    .nav-toggle[aria-expanded="true"] .nav-toggle-bars::before { transform: translateY(5px) rotate(45deg); }
+    .nav-toggle[aria-expanded="true"] .nav-toggle-bars span    { opacity: 0; }
+    .nav-toggle[aria-expanded="true"] .nav-toggle-bars::after   { transform: translateY(-6px) rotate(-45deg); }
+
+    /* Mobile drawer */
+    .mobile-menu {
+      position: fixed; inset: var(--nav-h) 0 0 0; z-index: 99;
+      background: var(--navy);
+      padding: 20px var(--gutter) 48px;
+      overflow-y: auto;
+      display: none;
+      flex-direction: column;
+      animation: menuIn .25s ease both;
+    }
+    .mobile-menu.open { display: flex; }
+    .mobile-menu ul { list-style: none; }
+    .mobile-menu li { border-bottom: 1px solid rgba(201,168,76,0.12); }
+    .mobile-menu a {
+      display: block;
+      padding: 20px 0;
+      font-family: var(--serif);
+      font-size: 1.5rem;
+      font-weight: 400;
+      color: rgba(255,255,255,0.88);
+      text-decoration: none;
+      transition: color .2s;
+    }
+    .mobile-menu a:hover, .mobile-menu a:active { color: var(--gold); }
+    /* Beat `.mobile-menu a` so the CTA keeps its button styling, not the serif link styling */
+    .mobile-menu a.menu-cta {
+      margin-top: 36px;
+      align-self: flex-start;
+      padding: 14px 32px;
+      font-family: var(--sans);
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--navy);
+    }
+    .mobile-menu a.menu-cta:hover { color: var(--navy); }
+    @keyframes menuIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    body.menu-open { overflow: hidden; }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      min-height: 100svh;
+      display: flex; flex-direction: column; justify-content: flex-end;
+      padding: calc(var(--nav-h) + 40px) var(--gutter) clamp(56px, 9vw, 80px);
+      padding-left: max(var(--gutter), env(safe-area-inset-left));
+      padding-right: max(var(--gutter), env(safe-area-inset-right));
+      position: relative;
+      overflow: hidden;
+      background: var(--navy);
+    }
+
+    .hero-grid {
+      position: absolute; inset: 0; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(201,168,76,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(201,168,76,0.04) 1px, transparent 1px);
+      background-size: 80px 80px;
+    }
+
+    .hero-glow {
+      position: absolute; top: -20%; right: -10%;
+      width: 55vw; height: 55vw;
+      min-width: 320px; min-height: 320px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(201,168,76,0.09) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-glow2 {
+      position: absolute; bottom: -10%; left: 5%;
+      width: 35vw; height: 35vw;
+      min-width: 260px; min-height: 260px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(20,60,120,0.35) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-eyebrow {
+      font-size: clamp(0.66rem, 2.2vw, 0.72rem);
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 22px;
+      position: relative;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .hero-eyebrow::before {
+      content: '';
+      display: inline-block; width: 32px; height: 1px;
+      background: var(--gold);
+      flex-shrink: 0;
+    }
+
+    .hero h1 {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: clamp(2.3rem, 6.4vw, 5.2rem);
+      line-height: 1.12;
+      letter-spacing: -0.01em;
+      max-width: 820px;
+      position: relative;
+    }
+
+    .hero h1 em {
+      font-style: italic;
+      color: var(--gold);
+    }
+
+    .hero-sub {
+      margin-top: clamp(20px, 3vw, 32px);
+      font-size: clamp(0.95rem, 2.6vw, 1.05rem);
+      line-height: 1.75;
+      color: rgba(255,255,255,0.65);
+      max-width: 520px;
+      font-weight: 300;
+      position: relative;
+    }
+
+    .hero-cta {
+      margin-top: clamp(32px, 5vw, 48px);
+      display: flex; flex-wrap: wrap; gap: 14px; align-items: center;
+      position: relative;
+    }
+
+    .btn-primary,
+    .btn-ghost {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-height: 48px;
+      padding: 14px clamp(24px, 5vw, 36px);
+      font-family: var(--sans);
+      font-size: 0.75rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      text-decoration: none;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: var(--gold);
+      color: var(--navy);
+      font-weight: 500;
+      border: 1px solid var(--gold);
+      transition: background .2s, transform .15s;
+    }
+    .btn-primary:hover { background: var(--gold2); border-color: var(--gold2); transform: translateY(-1px); }
+
+    .btn-ghost {
+      border: 1px solid rgba(201,168,76,0.4);
+      background: none;
+      color: rgba(255,255,255,0.8);
+      font-weight: 400;
+      transition: border-color .2s, color .2s;
+    }
+    .btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
+
+    /* ── SECTIONS ── */
+    section {
+      padding: var(--section-y) var(--gutter);
+      padding-left: max(var(--gutter), env(safe-area-inset-left));
+      padding-right: max(var(--gutter), env(safe-area-inset-right));
+    }
+    /* Offset anchor targets so the fixed nav never covers a heading */
+    section[id], footer[id] { scroll-margin-top: var(--nav-h); }
+
+    .section-label {
+      font-size: clamp(0.66rem, 2.2vw, 0.7rem);
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 18px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .section-label::before {
+      content: ''; display: inline-block;
+      width: 28px; height: 1px; background: var(--gold);
+      flex-shrink: 0;
+    }
+
+    h2.section-title {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: clamp(1.85rem, 5vw, 3.2rem);
+      line-height: 1.2;
+      max-width: 700px;
+    }
+    h2.section-title em { font-style: italic; color: var(--gold); }
+
+    p.section-body {
+      margin-top: 24px;
+      font-size: clamp(0.94rem, 2.4vw, 1rem);
+      line-height: 1.85;
+      color: rgba(255,255,255,0.65);
+      max-width: 600px;
+      font-weight: 300;
+    }
+    p.section-body + p.section-body { margin-top: 16px; }
+
+    /* ── MISSION ── */
+    .mission { background: var(--navy2); }
+    .mission-inner {
+      max-width: 1200px; margin: 0 auto;
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: clamp(36px, 6vw, 80px); align-items: center;
+    }
+    .mission-stats {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px;
+    }
+    .stat-box {
+      background: var(--navy3);
+      padding: clamp(24px, 4vw, 36px) clamp(20px, 3vw, 30px);
+      border-top: 2px solid var(--gold);
+    }
+    .stat-num {
+      font-family: var(--serif);
+      font-size: clamp(2rem, 6vw, 2.8rem);
+      font-weight: 600;
+      color: var(--gold);
+      line-height: 1;
+    }
+    .stat-label {
+      margin-top: 8px;
+      font-size: clamp(0.7rem, 2.2vw, 0.78rem);
+      letter-spacing: 0.08em;
+      color: rgba(255,255,255,0.55);
+      text-transform: uppercase;
+    }
+
+    /* ── PHILOSOPHY / VENN ── */
+    .philosophy { background: var(--navy); }
+    .philosophy-inner {
+      max-width: 1200px; margin: 0 auto;
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: clamp(36px, 6vw, 80px); align-items: center;
+    }
+    .venn-wrap {
+      display: flex; justify-content: center; align-items: center;
+    }
+    .venn-svg { width: 100%; max-width: 420px; height: auto; }
+
+    /* ── TENETS ── */
+    .tenets { background: var(--navy2); }
+    .tenets-inner { max-width: 900px; margin: 0 auto; }
+    .tenets-grid {
+      margin-top: clamp(36px, 6vw, 56px);
+      display: grid; gap: 0;
+      border-top: 1px solid rgba(201,168,76,0.15);
+    }
+    .tenet-item {
+      padding: clamp(20px, 3vw, 28px) 0;
+      border-bottom: 1px solid rgba(201,168,76,0.12);
+      display: flex; gap: clamp(16px, 3vw, 28px); align-items: flex-start;
+    }
+    .tenet-num {
+      font-family: var(--serif);
+      font-size: 1.1rem;
+      color: var(--gold);
+      opacity: 0.6;
+      flex-shrink: 0;
+      width: 28px;
+      margin-top: 2px;
+    }
+    .tenet-text {
+      font-family: var(--serif);
+      font-size: clamp(1.08rem, 3vw, 1.2rem);
+      font-weight: 400;
+      line-height: 1.5;
+      color: rgba(255,255,255,0.88);
+    }
+
+    /* ── CRITERIA ── */
+    .criteria { background: var(--navy); }
+    .criteria-inner { max-width: 1200px; margin: 0 auto; }
+    .criteria-grid {
+      margin-top: clamp(36px, 6vw, 60px);
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px;
+    }
+    .criteria-card {
+      background: var(--navy2);
+      padding: clamp(32px, 4vw, 44px) clamp(24px, 3vw, 36px);
+      border-top: 2px solid var(--gold);
+    }
+    .criteria-card h3 {
+      font-family: var(--serif);
+      font-size: clamp(1.3rem, 3.6vw, 1.5rem);
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: clamp(20px, 3vw, 28px);
+    }
+    .criteria-list { list-style: none; }
+    .criteria-list li {
+      font-size: clamp(0.85rem, 2.3vw, 0.88rem);
+      line-height: 1.75;
+      color: rgba(255,255,255,0.7);
+      padding: 7px 0 7px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      position: relative;
+    }
+    .criteria-list li::before {
+      content: '—';
+      position: absolute; left: 0;
+      color: var(--gold); opacity: 0.5;
+      font-size: 0.75rem;
+    }
+
+    /* ── FOCUS SECTORS ── */
+    .sectors { background: var(--navy2); }
+    .sectors-inner { max-width: 1200px; margin: 0 auto; }
+    .sectors-grid {
+      margin-top: clamp(36px, 6vw, 60px);
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px;
+    }
+    .sector-card {
+      background: var(--navy3);
+      padding: clamp(34px, 4.5vw, 48px) clamp(24px, 3vw, 36px);
+      position: relative; overflow: hidden;
+      transition: background .3s;
+    }
+    .sector-card:hover { background: #1a2740; }
+    .sector-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, var(--gold), transparent);
+    }
+    .sector-icon {
+      width: 48px; height: 48px;
+      margin-bottom: 24px;
+      opacity: 0.8;
+    }
+    .sector-card h3 {
+      font-family: var(--serif);
+      font-size: clamp(1.4rem, 3.8vw, 1.6rem);
+      font-weight: 400;
+      margin-bottom: 16px;
+    }
+    .sector-card p {
+      font-size: clamp(0.85rem, 2.3vw, 0.88rem);
+      line-height: 1.75;
+      color: rgba(255,255,255,0.6);
+      font-weight: 300;
+    }
+
+    /* ── TESTIMONIALS ── */
+    .testimonials { background: var(--navy); }
+    .testimonials-inner { max-width: 1000px; margin: 0 auto; }
+    .testimonials-grid {
+      margin-top: clamp(36px, 6vw, 60px);
+      display: grid; gap: 2px;
+    }
+    .testimonial-card {
+      background: var(--navy2);
+      padding: clamp(36px, 5vw, 44px) clamp(24px, 4vw, 48px);
+      position: relative;
+    }
+    .testimonial-card::before {
+      content: '\201C';
+      font-family: var(--serif);
+      font-size: clamp(4rem, 10vw, 6rem);
+      color: var(--gold);
+      opacity: 0.2;
+      position: absolute;
+      top: 6px; left: clamp(14px, 3vw, 30px);
+      line-height: 1;
+      pointer-events: none;
+    }
+    .testimonial-card blockquote {
+      font-family: var(--serif);
+      font-size: clamp(1.05rem, 3vw, 1.15rem);
+      font-weight: 300;
+      font-style: italic;
+      line-height: 1.7;
+      color: rgba(255,255,255,0.85);
+      position: relative;
+    }
+    .testimonial-attr {
+      margin-top: 20px;
+      font-size: clamp(0.7rem, 2.2vw, 0.75rem);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--navy);
+      border-top: 1px solid rgba(201,168,76,0.2);
+      padding: clamp(48px, 7vw, 60px) var(--gutter) clamp(28px, 4vw, 40px);
+      padding-left: max(var(--gutter), env(safe-area-inset-left));
+      padding-right: max(var(--gutter), env(safe-area-inset-right));
+      scroll-margin-top: var(--nav-h);
+    }
+    .footer-inner {
+      max-width: 1200px; margin: 0 auto;
+      display: grid; grid-template-columns: 1.4fr 1fr 1fr;
+      gap: clamp(32px, 5vw, 60px);
+      padding-bottom: 40px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .footer-logo-mark {
+      font-family: var(--serif);
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--white);
+      margin-bottom: 16px;
+    }
+    .footer-logo-mark span { color: var(--gold); }
+    .footer-desc {
+      font-size: 0.85rem;
+      line-height: 1.75;
+      color: rgba(255,255,255,0.5);
+      font-weight: 300;
+      max-width: 42ch;
+    }
+    .footer-desc + .footer-desc { margin-top: 20px; }
+    .footer-col h4 {
+      font-size: 0.7rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 20px;
+    }
+    .footer-col ul { list-style: none; }
+    .footer-col ul li { margin-bottom: 4px; }
+    .footer-col ul li a {
+      display: inline-block;
+      padding: 6px 0;
+      font-size: 0.85rem;
+      color: rgba(255,255,255,0.55);
+      text-decoration: none;
+      transition: color .2s;
+    }
+    .footer-col ul li a:hover { color: var(--gold); }
+    .footer-address {
+      font-size: 0.85rem;
+      line-height: 1.8;
+      color: rgba(255,255,255,0.55);
+    }
+    .footer-address a {
+      color: rgba(255,255,255,0.55);
+      text-decoration: none;
+      transition: color .2s;
+    }
+    .footer-address a:hover { color: var(--gold); }
+
+    /* Signup form — wraps instead of overflowing on narrow screens */
+    .signup {
+      margin-top: 16px;
+      display: flex; flex-wrap: wrap; gap: 0;
+      max-width: 380px;
+    }
+    .signup input[type="email"] {
+      flex: 1 1 200px;
+      min-width: 0;
+      padding: 14px 16px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(201,168,76,0.25);
+      border-right: none;
+      color: var(--white);
+      font-family: var(--sans);
+      font-size: 16px; /* 16px avoids iOS zoom-on-focus */
+      outline: none;
+    }
+    .signup input[type="email"]::placeholder { color: rgba(255,255,255,0.4); }
+    .signup input[type="email"]:focus { border-color: var(--gold); }
+    .signup button {
+      flex: 0 0 auto;
+      padding: 14px 20px;
+      min-height: 48px;
+      background: var(--gold);
+      border: 1px solid var(--gold);
+      color: var(--navy);
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+      font-family: var(--sans);
+      font-weight: 500;
+      transition: background .2s;
+    }
+    .signup button:hover { background: var(--gold2); }
+
+    .footer-bottom {
+      max-width: 1200px; margin: 0 auto;
+      padding-top: 28px;
+      display: flex; flex-wrap: wrap; gap: 16px 28px;
+      justify-content: space-between; align-items: center;
+    }
+    .footer-copy {
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.3);
+    }
+    .footer-legal { display: flex; flex-wrap: wrap; gap: 16px 28px; }
+    .footer-legal a {
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.3);
+      text-decoration: none;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      transition: color .2s;
+    }
+    .footer-legal a:hover { color: var(--gold); }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(28px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .hero h1, .hero-sub, .hero-cta, .hero-eyebrow {
+      animation: fadeUp .8s ease both;
+    }
+    .hero-eyebrow { animation-delay: .1s; }
+    .hero h1      { animation-delay: .25s; }
+    .hero-sub     { animation-delay: .4s; }
+    .hero-cta     { animation-delay: .55s; }
+
+    /* ── BREAKPOINTS ── */
+
+    /* Tablet — drop three-up grids to two-up */
+    @media (max-width: 1080px) {
+      .criteria-grid, .sectors-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .footer-inner { grid-template-columns: 1fr 1fr; }
+      .footer-brand { grid-column: 1 / -1; }
+      /* Three cards in two columns orphans the last one — let it span instead */
+      .criteria-grid > :last-child,
+      .sectors-grid > :last-child { grid-column: 1 / -1; }
+    }
+
+    /* Comfortable touch targets for the dense footer link lists */
+    @media (max-width: 900px) {
+      .footer-col ul li { margin-bottom: 0; }
+      .footer-col ul li a {
+        display: flex; align-items: center;
+        min-height: 44px;
+        padding: 4px 0;
+      }
+      .footer-address a { display: inline-flex; align-items: center; min-height: 44px; }
+      .footer-legal { gap: 4px 28px; }
+      .footer-legal a { display: inline-flex; align-items: center; min-height: 44px; }
+    }
+
+    /* Stack the two-column narratives; swap desktop nav for the drawer */
+    @media (max-width: 900px) {
+      :root { --nav-h: 64px; }
+      .nav-links { display: none; }
+      .nav-toggle { display: inline-flex; }
+      .mission-inner,
+      .philosophy-inner { grid-template-columns: 1fr; }
+      /* Diagram reads better above the copy it illustrates on narrow screens */
+      .venn-wrap { order: -1; }
+    }
+
+    /* Phone — single column everywhere */
+    @media (max-width: 700px) {
+      .criteria-grid, .sectors-grid { grid-template-columns: 1fr; }
+      .footer-inner { grid-template-columns: 1fr; }
+      .hero { justify-content: center; }
+      .hero-cta a { flex: 1 1 auto; }
+    }
+
+    /* Below this the input + button no longer fit side by side — stack them deliberately
+       so the input regains its right border instead of wrapping with an open edge. */
+    @media (max-width: 460px) {
+      .signup { display: grid; grid-template-columns: 1fr; gap: 12px; max-width: none; }
+      .signup input[type="email"] { border-right: 1px solid rgba(201,168,76,0.25); }
+      .signup input[type="email"]:focus { border-color: var(--gold); }
+      .signup button { width: 100%; }
+    }
+
+    @media (max-width: 420px) {
+      .mission-stats { grid-template-columns: 1fr; }
+      .footer-bottom { justify-content: flex-start; }
+    }
+
+    /* Wide screens — keep the hero copy from drifting off-center */
+    @media (min-width: 1600px) {
+      .hero { padding-left: max(calc((100vw - 1480px) / 2), var(--gutter)); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<!-- NAV -->
+<nav>
+  <a href="#top" class="nav-logo" aria-label="SLT Ventures — home">
+    <svg class="logo-svg" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+      <polygon points="22,2 42,22 22,42 2,22" fill="none" stroke="#c9a84c" stroke-width="1.4"/>
+      <polygon points="22,9 35,22 22,35 9,22" fill="none" stroke="#c9a84c" stroke-width="0.7" opacity="0.5"/>
+      <text x="22" y="26" font-family="Cormorant Garamond, Georgia, serif" font-size="11" font-weight="600" fill="#c9a84c" text-anchor="middle" letter-spacing="0.5">SLT</text>
+    </svg>
+    <span class="nav-wordmark">SLT<span> Ventures</span></span>
+  </a>
+
+  <ul class="nav-links">
+    <li><a href="#how-we-think">How We Think</a></li>
+    <li><a href="#working">Working With Us</a></li>
+    <li><a href="#sectors">Focus Sectors</a></li>
+    <li><a href="#criteria">Criteria</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ul>
+
+  <button class="nav-toggle" id="navToggle" type="button"
+          aria-expanded="false" aria-controls="mobileMenu" aria-label="Open menu">
+    <span class="nav-toggle-bars"><span></span></span>
+  </button>
+</nav>
+
+<!-- MOBILE MENU -->
+<div class="mobile-menu" id="mobileMenu">
+  <ul>
+    <li><a href="#how-we-think">How We Think</a></li>
+    <li><a href="#working">Working With Us</a></li>
+    <li><a href="#sectors">Focus Sectors</a></li>
+    <li><a href="#criteria">Investment Criteria</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ul>
+  <a href="mailto:info@sltventures.com" class="btn-primary menu-cta">Work With Us</a>
+</div>
+
+<main id="main">
+
+<!-- HERO -->
+<section class="hero" id="top">
+  <div class="hero-grid" aria-hidden="true"></div>
+  <div class="hero-glow" aria-hidden="true"></div>
+  <div class="hero-glow2" aria-hidden="true"></div>
+
+  <p class="hero-eyebrow">Maryland-Based Investment Firm</p>
+  <h1>A <em>differentiated partner</em> for tech-enabled, mid-market businesses</h1>
+  <p class="hero-sub">
+    We are operators with capital. SLT Ventures partners with founder-led technology companies — from marketing services to vertical software — to build category leaders.
+  </p>
+  <div class="hero-cta">
+    <a href="#working" class="btn-primary">Work With Us</a>
+    <a href="#how-we-think" class="btn-ghost">How We Think</a>
+  </div>
+</section>
+
+<!-- MISSION -->
+<section class="mission" id="how-we-think">
+  <div class="mission-inner">
+    <div>
+      <p class="section-label">Our Story</p>
+      <h2 class="section-title">Operators who understand <em>technology</em> at every layer of a business</h2>
+      <p class="section-body">
+        SLT Ventures was founded by operators who built and scaled technology companies from the ground up. We've sat in the seat of the founder, the CEO, and the CTO — navigating the challenges of product-market fit, enterprise sales cycles, and platform architecture. That experience shapes how we partner, advise, and invest.
+      </p>
+      <p class="section-body">
+        Today, SLT Ventures focuses on high-quality mid-market companies in tech-enabled services, marketing and demand-generation platforms, and vertical software — businesses where technology is the durable competitive advantage.
+      </p>
+    </div>
+    <div class="mission-stats">
+      <div class="stat-box">
+        <div class="stat-num">$25M+</div>
+        <div class="stat-label">Target Revenue Range</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num">3</div>
+        <div class="stat-label">Core Focus Verticals</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num">MD</div>
+        <div class="stat-label">Headquartered, Mid-Atlantic</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num">∞</div>
+        <div class="stat-label">Investment Horizon</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PHILOSOPHY -->
+<section class="philosophy" id="working">
+  <div class="philosophy-inner">
+    <div>
+      <p class="section-label">What Sets Us Apart</p>
+      <h2 class="section-title">We are not a private equity firm. <em>We are operators with capital.</em></h2>
+      <p class="section-body">
+        We combine the long-term thinking of a family office, the financial discipline of private equity, and the focused perspective of operators who have built technology companies from startup to scale.
+      </p>
+      <p class="section-body">
+        Our flexible mandate serves one goal — build great technology companies. We bring a proven playbook for scaling recurring-revenue businesses, expanding go-to-market reach, and driving technology-led value creation across our portfolio.
+      </p>
+      <p class="section-body">
+        We have a long-term investment horizon with a focus on double-digit multiples of invested capital. We understand that true partnerships are built on shared vision, trust, and respect.
+      </p>
+    </div>
+    <!-- VENN DIAGRAM -->
+    <div class="venn-wrap">
+      <svg class="venn-svg" viewBox="0 0 420 400" fill="none" xmlns="http://www.w3.org/2000/svg"
+           role="img" aria-label="Venn diagram: SLT Ventures sits at the intersection of family office, private equity, and operating business.">
+        <defs>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="4" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <!-- Circle 1: top-left — Family Office -->
+        <circle cx="165" cy="155" r="110" fill="rgba(201,168,76,0.07)" stroke="rgba(201,168,76,0.35)" stroke-width="1.2"/>
+        <!-- Circle 2: top-right — Private Equity -->
+        <circle cx="255" cy="155" r="110" fill="rgba(20,80,160,0.10)" stroke="rgba(100,160,255,0.25)" stroke-width="1.2"/>
+        <!-- Circle 3: bottom-center — Operating Business -->
+        <circle cx="210" cy="245" r="110" fill="rgba(201,168,76,0.05)" stroke="rgba(201,168,76,0.2)" stroke-width="1.2"/>
+
+        <!-- Labels -->
+        <text x="118" y="118" fill="rgba(255,255,255,0.65)" font-family="DM Sans, sans-serif" font-size="11" text-anchor="middle" font-weight="400" letter-spacing="0.05em">FAMILY</text>
+        <text x="118" y="134" fill="rgba(255,255,255,0.65)" font-family="DM Sans, sans-serif" font-size="11" text-anchor="middle" font-weight="400" letter-spacing="0.05em">OFFICE</text>
+
+        <text x="302" y="118" fill="rgba(255,255,255,0.65)" font-family="DM Sans, sans-serif" font-size="11" text-anchor="middle" font-weight="400" letter-spacing="0.05em">PRIVATE</text>
+        <text x="302" y="134" fill="rgba(255,255,255,0.65)" font-family="DM Sans, sans-serif" font-size="11" text-anchor="middle" font-weight="400" letter-spacing="0.05em">EQUITY</text>
+
+        <text x="210" y="340" fill="rgba(255,255,255,0.65)" font-family="DM Sans, sans-serif" font-size="11" text-anchor="middle" font-weight="400" letter-spacing="0.05em">OPERATING</text>
+        <text x="210" y="356" fill="rgba(255,255,255,0.65)" font-family="DM Sans, sans-serif" font-size="11" text-anchor="middle" font-weight="400" letter-spacing="0.05em">BUSINESS</text>
+
+        <!-- Center diamond logo -->
+        <polygon points="210,183 228,200 210,217 192,200" fill="rgba(11,18,33,0.85)" stroke="#c9a84c" stroke-width="1.2" filter="url(#glow)"/>
+        <text x="210" y="204" fill="#c9a84c" font-family="Cormorant Garamond, Georgia, serif" font-size="9" font-weight="600" text-anchor="middle" letter-spacing="0.08em">SLT</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- TENETS -->
+<section class="tenets">
+  <div class="tenets-inner">
+    <p class="section-label">Core Tenets</p>
+    <h2 class="section-title">We are passionate about building <em>great technology companies</em>.</h2>
+    <div class="tenets-grid">
+      <div class="tenet-item"><span class="tenet-num">01</span><p class="tenet-text">Great companies have an obsession with the customer's success — not just the sale.</p></div>
+      <div class="tenet-item"><span class="tenet-num">02</span><p class="tenet-text">Great technology companies build durable products that become embedded in customer workflows.</p></div>
+      <div class="tenet-item"><span class="tenet-num">03</span><p class="tenet-text">Great companies are led by strong founders and supported by a management team that scales with ambition.</p></div>
+      <div class="tenet-item"><span class="tenet-num">04</span><p class="tenet-text">Great companies have recurring or reoccurring revenue models that reward retention.</p></div>
+      <div class="tenet-item"><span class="tenet-num">05</span><p class="tenet-text">Great companies leverage technology not just in the product — but in every facet of operations and go-to-market.</p></div>
+      <div class="tenet-item"><span class="tenet-num">06</span><p class="tenet-text">Great companies have a purposeful, principle-driven culture that attracts top technical and commercial talent.</p></div>
+      <div class="tenet-item"><span class="tenet-num">07</span><p class="tenet-text">Great companies continually innovate — embracing AI and emerging capabilities before they become table stakes.</p></div>
+      <div class="tenet-item"><span class="tenet-num">08</span><p class="tenet-text">Great companies are financially disciplined and capital-efficient, scaling revenue faster than cost.</p></div>
+      <div class="tenet-item"><span class="tenet-num">09</span><p class="tenet-text">Great companies have the will, clarity, and conviction to be a great company — and act like one every day.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- FOCUS SECTORS -->
+<section class="sectors" id="sectors">
+  <div class="sectors-inner">
+    <p class="section-label">Focus Sectors</p>
+    <h2 class="section-title">Three verticals. <em>Deep conviction.</em></h2>
+    <p class="section-body">
+      We concentrate our energy where technology creates compounding competitive advantage — and where our operating expertise delivers differentiated value to portfolio companies.
+    </p>
+    <div class="sectors-grid">
+      <!-- Tech-Enabled Services -->
+      <div class="sector-card">
+        <svg class="sector-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+          <rect x="4" y="10" width="40" height="28" rx="2" stroke="#c9a84c" stroke-width="1.5" fill="none"/>
+          <path d="M16 24 L22 18 L28 24 L34 18" stroke="#c9a84c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="12" cy="24" r="2" fill="#c9a84c"/>
+          <circle cx="36" cy="24" r="2" fill="#c9a84c"/>
+        </svg>
+        <h3>Tech-Enabled Services</h3>
+        <p>
+          Businesses where proprietary technology amplifies the delivery of high-value services — creating defensible margins, scalable delivery, and measurable client ROI. We look for companies where software is the engine, not the afterthought.
+        </p>
+      </div>
+      <!-- Marketing Services -->
+      <div class="sector-card">
+        <svg class="sector-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+          <circle cx="24" cy="24" r="18" stroke="#c9a84c" stroke-width="1.5" fill="none"/>
+          <path d="M24 6 C24 6 34 18 34 24 C34 30 24 42 24 42 C24 42 14 30 14 24 C14 18 24 6 24 6Z" stroke="#c9a84c" stroke-width="1.2" fill="none"/>
+          <line x1="6" y1="24" x2="42" y2="24" stroke="#c9a84c" stroke-width="1.2"/>
+          <line x1="10" y1="15" x2="38" y2="15" stroke="#c9a84c" stroke-width="0.8" opacity="0.5"/>
+          <line x1="10" y1="33" x2="38" y2="33" stroke="#c9a84c" stroke-width="0.8" opacity="0.5"/>
+        </svg>
+        <h3>Marketing Services</h3>
+        <p>
+          Data-driven marketing, demand generation, performance media, and CRM platforms for enterprise and mid-market clients. We bring deep roots in the marketing technology landscape and relationships that open doors.
+        </p>
+      </div>
+      <!-- Vertical Software -->
+      <div class="sector-card">
+        <svg class="sector-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+          <rect x="8" y="6" width="14" height="14" rx="1" stroke="#c9a84c" stroke-width="1.5" fill="none"/>
+          <rect x="26" y="6" width="14" height="14" rx="1" stroke="#c9a84c" stroke-width="1.5" fill="none"/>
+          <rect x="8" y="28" width="14" height="14" rx="1" stroke="#c9a84c" stroke-width="1.5" fill="none"/>
+          <rect x="26" y="28" width="14" height="14" rx="1" stroke="#c9a84c" stroke-width="1.5" fill="none"/>
+          <line x1="15" y1="20" x2="15" y2="28" stroke="#c9a84c" stroke-width="1" opacity="0.5"/>
+          <line x1="33" y1="20" x2="33" y2="28" stroke="#c9a84c" stroke-width="1" opacity="0.5"/>
+          <line x1="15" y1="24" x2="33" y2="24" stroke="#c9a84c" stroke-width="1" opacity="0.5"/>
+        </svg>
+        <h3>Vertical Software</h3>
+        <p>
+          Purpose-built SaaS and platform businesses serving specific industries — healthcare, legal, real estate, logistics, and more. Vertical software creates sticky, high-NRR businesses that are ripe for buy-and-build expansion.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- INVESTMENT CRITERIA -->
+<section class="criteria" id="criteria">
+  <div class="criteria-inner">
+    <p class="section-label">Investment Criteria</p>
+    <h2 class="section-title">We want to partner with a <em>small, concentrated</em> group of exceptional companies.</h2>
+    <div class="criteria-grid">
+      <div class="criteria-card">
+        <h3>Industry</h3>
+        <ul class="criteria-list">
+          <li>Tech-enabled service businesses</li>
+          <li>Marketing &amp; demand-gen platforms</li>
+          <li>Vertical SaaS &amp; workflow software</li>
+          <li>$10B+ addressable markets</li>
+          <li>Fragmented, buy-and-build opportunity</li>
+          <li>AI-augmentable business models</li>
+        </ul>
+      </div>
+      <div class="criteria-card">
+        <h3>Company</h3>
+        <ul class="criteria-list">
+          <li>$10M–$100M in revenue</li>
+          <li>$3M–$20M in EBITDA or ARR</li>
+          <li>Recurring / subscription revenue base</li>
+          <li>Demonstrated growth track record</li>
+          <li>Limited customer concentration</li>
+          <li>Strong unit economics</li>
+        </ul>
+      </div>
+      <div class="criteria-card">
+        <h3>Team &amp; Deal</h3>
+        <ul class="criteria-list">
+          <li>Majority or significant minority stake</li>
+          <li>Founder / entrepreneur-led</li>
+          <li>CEO aligned on growth path forward</li>
+          <li>Meaningful management equity rollover</li>
+          <li>Desire for a long-term operating partner</li>
+          <li>Mid-Atlantic or national geography</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section class="testimonials">
+  <div class="testimonials-inner">
+    <p class="section-label">What Our Partners Are Saying</p>
+    <h2 class="section-title">Built on <em>shared vision, trust, and respect</em>.</h2>
+    <div class="testimonials-grid">
+      <div class="testimonial-card">
+        <blockquote>
+          We talked to multiple growth investors before partnering with SLT. Their background as operators — not just allocators — meant they understood the product roadmap, the sales motion, and the talent gaps we faced. They became the strategic resource we always wished we had on our board.
+        </blockquote>
+        <div class="testimonial-attr">— Founder &amp; CEO, B2B SaaS Platform (Portfolio Company)</div>
+      </div>
+      <div class="testimonial-card">
+        <blockquote>
+          SLT brings a rare combination: patient capital with an operator's urgency. They know when to push and when to provide runway. For a founder who wasn't ready to hand the keys to a PE fund, this partnership has been transformative.
+        </blockquote>
+        <div class="testimonial-attr">— CEO, Tech-Enabled Marketing Services Firm (Portfolio Company)</div>
+      </div>
+      <div class="testimonial-card">
+        <blockquote>
+          The SLT team spent real time understanding our vertical before they ever brought a term sheet. They came in with a clear point of view on the market, a growth thesis we believed in, and an ecosystem of relationships that immediately accelerated our pipeline.
+        </blockquote>
+        <div class="testimonial-attr">— Founder, Vertical Software Company (Portfolio Company)</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- FOOTER -->
+<footer id="contact">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="footer-logo-mark">SLT<span> Ventures</span></div>
+      <p class="footer-desc">
+        A Maryland-based private investment firm partnering with mid-market technology companies to build enduring, category-defining businesses.
+      </p>
+      <p class="footer-desc">Sign up to receive insights and updates from our team.</p>
+
+      <form class="signup" id="signupForm">
+        <label class="visually-hidden" for="signupEmail" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;">Email address</label>
+        <input id="signupEmail" name="email" type="email" inputmode="email" autocomplete="email"
+               placeholder="Email address" required />
+        <button type="submit">Submit</button>
+      </form>
+    </div>
+
+    <div class="footer-col">
+      <h4>Navigation</h4>
+      <ul>
+        <li><a href="#how-we-think">How We Think</a></li>
+        <li><a href="#working">Working With Us</a></li>
+        <li><a href="#sectors">Focus Sectors</a></li>
+        <li><a href="#criteria">Investment Criteria</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ul>
+    </div>
+
+    <div class="footer-col">
+      <h4>Contact</h4>
+      <p class="footer-address">
+        SLT Ventures, LLC<br/>
+        Maryland<br/><br/>
+        <a href="mailto:info@sltventures.com">info@sltventures.com</a>
+      </p>
+    </div>
+  </div>
+
+  <div class="footer-bottom">
+    <p class="footer-copy">© <span id="year">2026</span> SLT Ventures, LLC. All Rights Reserved.</p>
+    <div class="footer-legal">
+      <a href="#contact">Privacy Policy</a>
+      <a href="#contact">Terms</a>
+      <a href="#contact">Disclosures</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var toggle = document.getElementById('navToggle');
+    var menu   = document.getElementById('mobileMenu');
+
+    function setMenu(open) {
+      menu.classList.toggle('open', open);
+      document.body.classList.toggle('menu-open', open);
+      toggle.setAttribute('aria-expanded', String(open));
+      toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+    }
+
+    toggle.addEventListener('click', function () {
+      setMenu(toggle.getAttribute('aria-expanded') !== 'true');
+    });
+
+    // Close after tapping a link so the anchor scroll is visible
+    menu.addEventListener('click', function (e) {
+      if (e.target.closest('a')) setMenu(false);
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') setMenu(false);
+    });
+
+    // Drop the drawer if the viewport grows back to desktop width
+    window.matchMedia('(min-width: 901px)').addEventListener('change', function (e) {
+      if (e.matches) setMenu(false);
+    });
+
+    // No backend yet — hand the signup off to email
+    var form = document.getElementById('signupForm');
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var email = document.getElementById('signupEmail').value.trim();
+      if (!email) return;
+      window.location.href = 'mailto:info@sltventures.com'
+        + '?subject=' + encodeURIComponent('Subscribe to SLT Ventures updates')
+        + '&body=' + encodeURIComponent('Please add ' + email + ' to your insights list.');
+    });
+
+    document.getElementById('year').textContent = new Date().getFullYear();
+  })();
+</script>
+
+</body>
+</html>
