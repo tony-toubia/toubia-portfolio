@@ -206,7 +206,10 @@ function parseFiling(xml, url) {
   const groups = [
     ...asArray(body.Form990PartVIISectionAGrp),      // 990
     ...asArray(body.OfficerDirectorTrusteeEmplGrp),  // 990-EZ
-    ...asArray(body.OfficerDirTrstKeyEmplGrp),       // 990-PF
+    // 990-PF nests its roster one level down, inside OfficerDirTrstKeyEmplInfoGrp.
+    // Reading the flat name found nothing and made the whole 990-PF change inert.
+    ...asArray(body.OfficerDirTrstKeyEmplGrp),                              // 990-PF, flat
+    ...asArray(body.OfficerDirTrstKeyEmplInfoGrp?.OfficerDirTrstKeyEmplGrp) // 990-PF, nested
   ];
 
   const people = [];
@@ -362,8 +365,12 @@ async function main() {
         const xml = await fsp.readFile(full, 'utf8');
 
         // Two cheap string prefilters before paying for a full XML parse.
+        // Every roster element has to be listed here: omitting the 990-PF one
+        // discarded the entire form upstream of the parser, which made the
+        // 990-PF support look like it worked and yield nothing.
         if (!xml.includes('Form990PartVIISectionAGrp') &&
-            !xml.includes('OfficerDirectorTrusteeEmplGrp')) continue;
+            !xml.includes('OfficerDirectorTrusteeEmplGrp') &&
+            !xml.includes('OfficerDirTrstKeyEmplGrp')) continue;
         if (zipTags && !zipTags.some((t) => xml.includes(t))) continue;
         if (cityTag && !xml.toUpperCase().includes(cityTag)) continue;
 
