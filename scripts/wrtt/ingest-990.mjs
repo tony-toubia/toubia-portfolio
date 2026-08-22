@@ -365,8 +365,12 @@ async function main() {
         const xml = await fsp.readFile(full, 'utf8');
 
         // Two cheap string prefilters before paying for a full XML parse.
+        // Every roster element has to be listed here: omitting the 990-PF one
+        // discarded the entire form upstream of the parser, which made the
+        // 990-PF support look like it worked and yield nothing.
         if (!xml.includes('Form990PartVIISectionAGrp') &&
-            !xml.includes('OfficerDirectorTrusteeEmplGrp')) continue;
+            !xml.includes('OfficerDirectorTrusteeEmplGrp') &&
+            !xml.includes('OfficerDirTrstKeyEmplGrp')) continue;
         if (zipTags && !zipTags.some((t) => xml.includes(t))) continue;
         if (cityTag && !xml.toUpperCase().includes(cityTag)) continue;
 
