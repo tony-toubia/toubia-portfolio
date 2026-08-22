@@ -12,8 +12,8 @@
  * output is already market-scoped.
  *
  * Usage:
- *   node scripts/wrtt/ingest-990.mjs --years 2024,2025 --out data/990.ndjson
- *   node scripts/wrtt/ingest-990.mjs --years 2024 --zips 66206,66209 --limit 4
+ *   node scripts/wrtt/ingest-990.mjs --years 2024,2025 --load
+ *   node scripts/wrtt/ingest-990.mjs --years 2024 --zips 66206,66209 --limit 1
  *
  * Flags:
  *   --years   comma-separated filing years to pull        (default 2024)
@@ -22,6 +22,8 @@
  *   --limit   stop after N bundles, for smoke tests
  *   --out     NDJSON destination                          (default data/990.ndjson)
  *   --cache   directory to keep downloaded bundles        (default .cache/irs)
+ *   --load    also write straight to Postgres via WRTT_DATABASE_URL
+ *   --score   after loading, run scoring for every market
  */
 
 import { execFile } from 'node:child_process';
@@ -245,7 +247,48 @@ async function main() {
   }
 
   out.end();
+  await new Promise((r) => out.on('finish', r));
   console.log(`[wrtt] done — ${kept} in-market filings, ${officers} named officers -> ${outFile}`);
+
+  if (process.argv.includes('--load')) await load(outFile);
+}
+
+/** Push the NDJSON through wrtt.load_990_batch in chunks. */
+async function load(outFile) {
+  const url = process.env.WRTT_DATABASE_URL;
+  if (!url) {
+    console.error('[wrtt] --load needs WRTT_DATABASE_URL. See .env.example.');
+    process.exit(1);
+  }
+  const { default: postgres } = await import('postgres');
+  const sql = postgres(url, { max: 1, prepare: false, idle_timeout: 20 });
+
+  const lines = (await fsp.readFile(outFile, 'utf8')).split('\n').filter(Boolean);
+  const CHUNK = 200;
+  let orgs = 0, people = 0, affs = 0;
+
+  for (let i = 0; i < lines.length; i += CHUNK) {
+    const batch = lines.slice(i, i + CHUNK).map((l) => JSON.parse(l));
+    const [row] = await sql`select * from wrtt.load_990_batch(${JSON.stringify(batch)}::jsonb)`;
+    orgs += row.organizations; people += row.people; affs += row.affiliations;
+    console.log(`[wrtt] loaded ${Math.min(i + CHUNK, lines.length)}/${lines.length} filings`);
+  }
+  console.log(`[wrtt] loaded — ${orgs} orgs, ${people} new people, ${affs} affiliations`);
+
+  if (process.argv.includes('--score')) {
+    const markets = await sql`select id, name from wrtt.market order by name`;
+    for (const m of markets) {
+      await sql`select wrtt.run_scoring(${m.id})`;
+      const [{ n }] = await sql`
+        select count(*)::int as n from wrtt.score s
+        join wrtt.score_run r on r.id = s.score_run_id
+        where r.market_id = ${m.id}
+          and r.run_at = (select max(run_at) from wrtt.score_run where market_id = ${m.id})`;
+      console.log(`[wrtt] scored ${m.name}: ${n} candidates`);
+    }
+  }
+
+  await sql.end();
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
