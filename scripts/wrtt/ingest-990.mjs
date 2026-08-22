@@ -343,12 +343,36 @@ async function load(outFile) {
     ? (await import('node:zlib')).gunzipSync(await fsp.readFile(outFile)).toString('utf8')
     : await fsp.readFile(outFile, 'utf8');
   const lines = raw.split('\n').filter(Boolean);
+  if (!lines.length) {
+    console.error(`[wrtt] ${outFile} decoded to no records. Re-fetch it - on Windows a`);
+    console.error('       checkout can mangle the archive if it is treated as text.');
+    process.exit(1);
+  }
   const CHUNK = 200;
   let orgs = 0, people = 0, affs = 0;
 
   for (let i = 0; i < lines.length; i += CHUNK) {
     const batch = lines.slice(i, i + CHUNK).map((l) => JSON.parse(l));
-    const [row] = await sql`select * from wrtt.load_990_batch(${JSON.stringify(batch)}::jsonb)`;
+
+    // sql.json() tags the parameter as jsonb (oid 3802) explicitly. Passing a
+    // pre-stringified array and casting with ::jsonb leaves the parameter type
+    // unspecified, and the value can reach the function as a jsonb *string*
+    // rather than an array - which fails inside load_990_batch as
+    // "cannot extract elements from a scalar" (SQLSTATE 22023), pointing at
+    // the SQL rather than at the call site that caused it.
+    let row;
+    try {
+      [row] = await sql`select * from wrtt.load_990_batch(${sql.json(batch)})`;
+    } catch (e) {
+      if (e.code === '22023') {
+        console.error(
+          `[wrtt] the batch reached Postgres as a JSON scalar, not an array.\n` +
+          `       First 120 chars of what was sent:\n         ` +
+          JSON.stringify(batch).slice(0, 120)
+        );
+      }
+      throw e;
+    }
     orgs += row.organizations; people += row.people; affs += row.affiliations;
     console.log(`[wrtt] loaded ${Math.min(i + CHUNK, lines.length)}/${lines.length} filings`);
   }
