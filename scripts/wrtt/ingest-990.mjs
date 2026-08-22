@@ -12,10 +12,15 @@
  * output is already market-scoped.
  *
  * Usage:
- *   node scripts/wrtt/ingest-990.mjs --years 2024,2025 --load
+ *   # populate a database from the checked-in corpus (seconds, no download)
+ *   node scripts/wrtt/ingest-990.mjs --from data/990-full.ndjson.gz --score
+ *
+ *   # re-extract from the IRS bundles (~40 min for three years)
+ *   node scripts/wrtt/ingest-990.mjs --years 2024,2025,2026 --out data/990-full.ndjson
  *   node scripts/wrtt/ingest-990.mjs --years 2024 --zips 66206,66209 --limit 1
  *
  * Flags:
+ *   --from    load an existing NDJSON (.gz accepted) and skip the scrape
  *   --years   comma-separated filing years to pull        (default 2024)
  *   --zips    comma-separated ZIPs to keep                (default: read from --markets file)
  *   --markets JSON file of [{name,state,zips[]}]          (default scripts/wrtt/markets.json)
@@ -180,6 +185,16 @@ function parseFiling(xml, url) {
 }
 
 async function main() {
+  // Loading a corpus that was already extracted skips the scrape entirely.
+  // The bundles are ~40 minutes of download and unzip for a result that does
+  // not change, so the checked-in NDJSON is the normal way to populate a
+  // fresh database.
+  const from = arg('--from');
+  if (from) {
+    await load(from);
+    return;
+  }
+
   const years = (arg('--years', '2024')).split(',').map((s) => s.trim());
   const marketsFile = arg('--markets', 'scripts/wrtt/markets.json');
   const outFile = arg('--out', 'data/990.ndjson');
@@ -263,7 +278,10 @@ async function load(outFile) {
   const { default: postgres } = await import('postgres');
   const sql = postgres(url, { max: 1, prepare: false, idle_timeout: 20 });
 
-  const lines = (await fsp.readFile(outFile, 'utf8')).split('\n').filter(Boolean);
+  const raw = outFile.endsWith('.gz')
+    ? (await import('node:zlib')).gunzipSync(await fsp.readFile(outFile)).toString('utf8')
+    : await fsp.readFile(outFile, 'utf8');
+  const lines = raw.split('\n').filter(Boolean);
   const CHUNK = 200;
   let orgs = 0, people = 0, affs = 0;
 
