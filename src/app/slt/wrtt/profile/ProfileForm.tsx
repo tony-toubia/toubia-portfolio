@@ -7,8 +7,18 @@ type Levers = {
   components: Record<string, number>;
   roles: Record<string, number>;
   domains: Record<string, number>;
+  compensation: Record<string, number>;
+  compensation_nominal_max: number;
+  same_family_repeat: number;
   half_life_years: number;
   org_scale_divisor: number;
+};
+
+const PAY_LABELS: Record<string, string> = {
+  unpaid: 'unpaid ($0 reported)',
+  nominal: 'nominal (a stipend)',
+  paid: 'paid (a living)',
+  unknown: 'not reported',
 };
 
 const COMPONENT_LABELS: Record<string, string> = {
@@ -65,6 +75,32 @@ export function ProfileForm({ levers, editable }: { levers: Levers; editable: bo
         as chairing a PTA; this is where you say so. 1.0 is neutral.
       </p>
       <Rows group="domains" values={levers.domains} readOnly={!editable} />
+
+      <h2>Paid or unpaid</h2>
+      <p className="wrtt-prose wrtt-prose-dim">
+        The premise is people organizing things nobody pays them to organize, and Form 990
+        reports what each role paid. A volunteer director reads $0. &ldquo;Not reported&rdquo;
+        is genuinely unknown rather than zero, so it sits between the two rather than being
+        treated as free labour.
+      </p>
+      <Rows group="compensation" values={levers.compensation} labels={PAY_LABELS} readOnly={!editable} />
+      <div className="wrtt-levers">
+        <label className="wrtt-lever">
+          <span className="wrtt-lever-name">nominal ceiling ($)</span>
+          <input type="number" step="1000" min="0" max="1000000" name="compensation_nominal_max"
+                 defaultValue={levers.compensation_nominal_max} readOnly={!editable} disabled={!editable} />
+        </label>
+        <label className="wrtt-lever">
+          <span className="wrtt-lever-name">repeat seat, same family</span>
+          <input type="number" step="0.05" min="0" max="1" name="same_family_repeat"
+                 defaultValue={levers.same_family_repeat} readOnly={!editable} disabled={!editable} />
+        </label>
+      </div>
+      <p className="wrtt-prose wrtt-prose-dim">
+        Three boards of one institution are one crowd, not three. The second and later seats
+        inside an organizational family count at this fraction, and breadth counts the family
+        once however many of its boards someone sits on.
+      </p>
 
       <h2>Role seniority</h2>
       <p className="wrtt-prose wrtt-prose-dim">Evidence of leading rather than joining.</p>

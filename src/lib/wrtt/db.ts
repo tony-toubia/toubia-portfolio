@@ -206,6 +206,11 @@ export type Profile = {
     components: Record<string, number>;
     roles: Record<string, number>;
     domains: Record<string, number>;
+    /* unpaid / nominal / paid / unknown - the lever that separates
+       volunteering from employment. */
+    compensation: Record<string, number>;
+    compensation_nominal_max: number;
+    same_family_repeat: number;
     half_life_years: number;
     org_scale_divisor: number;
   };

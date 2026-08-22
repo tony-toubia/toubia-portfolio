@@ -125,6 +125,19 @@ async function getParser() {
   return parser;
 }
 
+/** Part VII amounts arrive as strings, and absent means zero, not unknown. */
+function num(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Hours, keeping absent distinct from a reported zero. */
+function num2(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 function asArray(v) {
   return v == null ? [] : Array.isArray(v) ? v : [v];
 }
@@ -147,10 +160,18 @@ function parseFiling(xml, url) {
   if (!addr) return null;                        // foreign filers are out of scope
 
   const zip5 = String(addr.ZIPCd ?? '').slice(0, 5);
-  const name =
-    filer.BusinessName?.BusinessNameLine1Txt ??
-    filer.BusinessName?.BusinessNameLine1 ??
-    filer.Name?.BusinessNameLine1;
+
+  // Filer names run across two lines and line 2 is not optional detail: it is
+  // the rest of the name. Dropping it produced "CATHOLIC CHARITIES OF" and
+  // "CHATTANOOGAHAMILTON COUNTY PUBLIC".
+  const bn = filer.BusinessName ?? filer.Name ?? {};
+  const name = [
+    bn.BusinessNameLine1Txt ?? bn.BusinessNameLine1,
+    bn.BusinessNameLine2Txt ?? bn.BusinessNameLine2,
+  ]
+    .filter((x) => typeof x === 'string' && x.trim())
+    .join(' ')
+    .trim() || null;
 
   const data = ret.ReturnData ?? {};
   const body = data.IRS990 ?? data.IRS990EZ ?? {};
@@ -178,10 +199,43 @@ function parseFiling(xml, url) {
       g.PersonNm ?? g.BusinessName?.BusinessNameLine1Txt ?? null;
     if (!person || typeof person !== 'string') continue;
     const title = g.TitleTxt ?? g.TitleTxtOrRoleTxt ?? '';
+
+    // The single most useful field on the form for this product. Part VII
+    // reports what each person was paid, and a volunteer director reads 0.
+    // That separates "organizes something nobody pays them to organize" from
+    // "does this job for a living" with no inference at all.
+    //
+    // The 990-EZ variant spells it CompensationAmt. Absent on every field is
+    // *unknown*, not zero - conflating the two would silently promote every
+    // EZ filer's paid staff into volunteers, which is the one error this
+    // whole signal exists to avoid.
+    const compFields = [
+      g.ReportableCompFromOrgAmt,
+      g.ReportableCompFromRltdOrgAmt,
+      g.OtherCompensationAmt,
+      g.CompensationAmt,
+    ];
+    const comp = compFields.some((v) => v !== undefined && v !== null)
+      ? compFields.reduce((a, v) => a + num(v), 0)
+      : null;
+
+    // The form also says which kind of person this is. HighestCompensated
+    // and KeyEmployee are staff by definition.
+    const kind =
+      g.HighestCompensatedEmployeeInd !== undefined ? 'highest_compensated'
+      : g.KeyEmployeeInd !== undefined              ? 'key_employee'
+      : g.FormerOfcrDirectorTrusteeInd !== undefined ? 'former'
+      : g.OfficerInd !== undefined                   ? 'officer'
+      : g.InstitutionalTrusteeInd !== undefined      ? 'institutional_trustee'
+      : g.IndividualTrusteeOrDirectorInd !== undefined ? 'trustee_or_director'
+      : null;
+
     people.push({
       name: person.trim(),
       title: String(title).trim(),
-      hours: g.AverageHoursPerWeekRt ? Number(g.AverageHoursPerWeekRt) : null,
+      hours: num2(g.AverageHoursPerWeekRt ?? g.AverageHrsPerWkDevotedToPosRt),
+      compensation: comp,
+      officer_kind: kind,
       role_class: classifyRole(title),
       // The snippet is mandatory: it makes a bad extraction visible and it is
       // what a publisher reads on the evidence card. (spec §6.2)
@@ -393,6 +447,11 @@ async function load(outFile) {
   console.log(`[wrtt] loaded – ${orgs} orgs, ${people} new people, ${affs} affiliations`);
 
   if (process.argv.includes('--score')) {
+    // Families depend on the names and phone numbers this load just wrote,
+    // so they have to be rebuilt before anything is scored against them.
+    const [{ families }] = await sql`select wrtt.rebuild_org_families() as families`;
+    console.log(`[wrtt] organizational families: ${families}`);
+
     const markets = await sql`select id, name from wrtt.market order by name`;
     for (const m of markets) {
       await sql`select wrtt.run_scoring(${m.id})`;
