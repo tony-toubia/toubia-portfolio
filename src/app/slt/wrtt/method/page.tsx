@@ -122,7 +122,8 @@ export default function Method() {
         supervised model can replace them later without losing history. Two modifiers apply
         throughout: organization size counts on a log scale so one very large filer cannot
         dominate, and activity fades on a three-year half-life so an old board seat weighs less
-        than a current one.
+        than a current one. The dollar figure beside a role on a sheet is that organization&apos;s
+        annual revenue, which is what &ldquo;size&rdquo; means here – it is never a person&apos;s pay.
       </p>
 
       <div className="wrtt-inputs">

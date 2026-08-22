@@ -48,6 +48,10 @@ function money(n: number | null) {
   return n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${Math.round(n / 1000)}K`;
 }
 
+function exact(n: number) {
+  return `$${Math.round(n).toLocaleString('en-US')}`;
+}
+
 function Row({ c }: { c: Candidate }) {
   const comps = c.components ?? {};
   return (
@@ -69,7 +73,17 @@ function Row({ c }: { c: Candidate }) {
                 <span className="role">{a.role_title}</span>
                 {' · '}
                 {a.org}
-                {a.revenue ? ` · ${money(a.revenue)}` : ''}
+                {/* This is the organization's revenue, not the person's pay.
+                    Sitting beside a named individual it reads as a salary
+                    unless it says otherwise, so it carries its own label. */}
+                {a.revenue ? (
+                  <>
+                    {' · '}
+                    <span className="wrtt-rev" title={`${a.org} reported ${exact(a.revenue)} in annual revenue`}>
+                      {money(a.revenue)}
+                    </span>
+                  </>
+                ) : null}
                 {years ? <span className="wrtt-span">{years}</span> : null}
                 {a.source_key ? (
                   <span className="src">
@@ -164,6 +178,9 @@ export default async function MarketSheet({
           <h2>
             Top {sheet.length} · {market.people} scored in market
           </h2>
+          <p className="wrtt-legend">
+            Dollar amounts are each organization&apos;s annual revenue, not anyone&apos;s pay.
+          </p>
           <div className="wrtt-rows">
             {sheet.map((c) => (
               <Row key={c.person_id} c={c} />
