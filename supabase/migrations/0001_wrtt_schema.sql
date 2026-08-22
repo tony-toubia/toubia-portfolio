@@ -1,5 +1,5 @@
 -- ============================================================
--- WRTT Index — core schema
+-- WRTT Index – core schema
 -- Follows the build spec, §5 (data model) and §8 (lifecycle).
 --
 -- Isolated in its own schema so it can be lifted into a dedicated

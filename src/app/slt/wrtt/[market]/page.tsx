@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getMarket, getSheet, isConfigured, type Candidate } from '@/lib/wrtt/db';
+import { Explainer } from '../Explainer';
 
 export const dynamic = 'force-dynamic';
 
@@ -106,9 +107,11 @@ export default async function MarketSheet({
         <span className={`tag tag-${market.role}`}>{market.role}</span>
       </h1>
       <p className="lede">
-        Ranked within market, not nationally — the question is whether someone is one of the
+        Ranked within market, not nationally – the question is whether someone is one of the
         most connected people in <em>this</em> town. Scores show confidence alongside, always.
       </p>
+
+      <Explainer compact />
 
       {sheet.length === 0 ? (
         <div className="wrtt-note">

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * WRTT — IRS Form 990 Part VII ingestion.
+ * WRTT – IRS Form 990 Part VII ingestion.
  *
  * Part VII of the 990 lists officers, directors, trustees and key employees by
  * name and title with hours per week. It is the richest single source in the
@@ -82,7 +82,7 @@ function arg(flag, fallback = null) {
   return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 }
 
-/** Scrape the IRS download page rather than guessing URL patterns — the
+/** Scrape the IRS download page rather than guessing URL patterns – the
  *  naming changed between 2020 and 2021 and will change again. */
 async function bundleUrls(years) {
   const res = await fetch(INDEX_URL, { headers: { 'user-agent': UA } });
@@ -156,7 +156,7 @@ function parseFiling(xml, url) {
       role_class: classifyRole(title),
       // The snippet is mandatory: it makes a bad extraction visible and it is
       // what a publisher reads on the evidence card. (spec §6.2)
-      snippet: `${person.trim()} — ${String(title).trim() || 'no title given'}`.slice(0, 300),
+      snippet: `${person.trim()} – ${String(title).trim() || 'no title given'}`.slice(0, 300),
     });
   }
   if (!people.length) return null;
@@ -248,7 +248,7 @@ async function main() {
 
   out.end();
   await new Promise((r) => out.on('finish', r));
-  console.log(`[wrtt] done — ${kept} in-market filings, ${officers} named officers -> ${outFile}`);
+  console.log(`[wrtt] done – ${kept} in-market filings, ${officers} named officers -> ${outFile}`);
 
   if (process.argv.includes('--load')) await load(outFile);
 }
@@ -273,7 +273,7 @@ async function load(outFile) {
     orgs += row.organizations; people += row.people; affs += row.affiliations;
     console.log(`[wrtt] loaded ${Math.min(i + CHUNK, lines.length)}/${lines.length} filings`);
   }
-  console.log(`[wrtt] loaded — ${orgs} orgs, ${people} new people, ${affs} affiliations`);
+  console.log(`[wrtt] loaded – ${orgs} orgs, ${people} new people, ${affs} affiliations`);
 
   if (process.argv.includes('--score')) {
     const markets = await sql`select id, name from wrtt.market order by name`;

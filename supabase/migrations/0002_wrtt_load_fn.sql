@@ -1,5 +1,5 @@
 -- ============================================================
--- WRTT — loader for a batch of parsed 990 filings.
+-- WRTT – loader for a batch of parsed 990 filings.
 --
 -- Takes the NDJSON produced by scripts/wrtt/ingest-990.mjs as a jsonb
 -- array and lands organizations, people, affiliations and evidence in

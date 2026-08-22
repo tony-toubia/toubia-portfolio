@@ -3,7 +3,7 @@ import Link from 'next/link';
 import './wrtt.css';
 
 export const metadata: Metadata = {
-  title: 'WRTT Index — SLT Ventures',
+  title: 'WRTT Index – SLT Ventures',
   description: 'Scouting console for the Who Runs This Town index.',
   robots: { index: false, follow: false },
 };
@@ -22,7 +22,7 @@ export default function WrttLayout({ children }: { children: React.ReactNode }) 
           <Link href="/slt/wrtt" className="wrtt-mark">
             WRTT<span>.Index</span>
           </Link>
-          <span className="wrtt-sub">Who Runs This Town — scouting console</span>
+          <span className="wrtt-sub">Who Runs This Town – scouting console</span>
           <nav>
             <Link href="/slt">SLT Ventures</Link>
           </nav>
