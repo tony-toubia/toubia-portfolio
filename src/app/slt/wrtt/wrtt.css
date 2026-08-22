@@ -85,9 +85,18 @@ html.wrtt-root body {
   display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
   text-transform: uppercase; padding: 2px 6px; border: 1px solid currentColor;
 }
-.tag-validation { color: var(--accent); }
-.tag-control    { color: var(--fg-dim); }
-.tag-utility    { color: var(--good); }
+/* Market status: whether a publisher is in place, not what the market is
+   for internally. The old validation/utility/control labels described an
+   experiment design that never changed what a sheet contains. */
+.tag-active { color: var(--good); }
+.tag-open   { color: var(--accent); }
+.tag-target { color: var(--fg-dim); }
+
+/* Tenure covered by one role, so a rolled-up entry still shows its span. */
+.wrtt-span {
+  font-family: var(--mono); font-size: 10.5px; color: var(--fg-dim);
+  margin-left: 8px; white-space: nowrap;
+}
 
 /* Candidate rows */
 .wrtt-rows { border: 1px solid var(--line); background: var(--panel); }
@@ -121,6 +130,7 @@ html.wrtt-root body {
   border: 1px solid var(--line); padding: 1px 5px;
 }
 .wrtt-comp span b { color: var(--fg-mid); font-weight: 500; }
+.wrtt-aff .src b { color: var(--fg-mid); font-weight: 400; }
 .wrtt-comp span.off { opacity: 0.45; text-decoration: line-through; }
 
 .wrtt-note {

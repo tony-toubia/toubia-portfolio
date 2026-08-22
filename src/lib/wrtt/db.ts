@@ -62,13 +62,24 @@ export type Market = {
   last_run: string | null;
 };
 
+export type ComponentKey = 'M' | 'B' | 'T' | 'R' | 'A' | 'X';
+
+export type Component = {
+  raw: number | null;
+  norm: number | null;
+  weight: number;
+  status?: string;
+};
+
 export type Candidate = {
   person_id: string;
   rank_in_market: number;
   display_name: string;
   wrtt_score: number;
   confidence: number;
-  components: Record<string, { raw: number | null; norm: number | null; weight: number; status?: string }> & {
+  /* An index signature intersected with numeric members is not a type any
+     value can satisfy; naming the six component keys makes it one. */
+  components: Partial<Record<ComponentKey, Component>> & {
     affiliations?: number;
     organizations?: number;
     sources?: number;
@@ -88,6 +99,11 @@ export type Candidate = {
        they lead, or through a warm introduction. */
     phone: string | null;
     website: string | null;
+    /* The tenure this role covers, and how many filings attest to it.
+       One entry per role held, never one per filing. */
+    start_date: string | null;
+    end_date: string | null;
+    sources: number;
   }[];
 };
 
@@ -122,22 +138,43 @@ export async function getSheet(marketId: string, limit = 50): Promise<Candidate[
       cs.state,
       coalesce(
         (select jsonb_agg(jsonb_build_object(
-                  'org',        o.name,
-                  'role_title', a.role_title,
-                  'role_class', a.role_class,
-                  'domain',     o.affiliation_domain,
-                  'revenue',    o.scale_revenue,
-                  'snippet',    ev.snippet,
-                  'source_key', sd.source_key,
-                  'url',        sd.url,
-                  'phone',      o.phone,
-                  'website',    o.website
-                ) order by a.end_date desc nulls last)
-           from wrtt.affiliation a
-           join wrtt.organization o on o.id = a.organization_id
-           left join wrtt.evidence ev on ev.subject_type = 'affiliation' and ev.subject_id = a.id
-           left join wrtt.source_document sd on sd.id = ev.source_document_id
-          where a.person_id = p.id),
+                  'org',        t.org,
+                  'role_title', t.role_title,
+                  'role_class', t.role_class,
+                  'domain',     t.domain,
+                  'revenue',    t.revenue,
+                  'snippet',    t.snippet,
+                  'source_key', t.source_key,
+                  'url',        t.url,
+                  'phone',      t.phone,
+                  'website',    t.website,
+                  'start_date', t.start_date,
+                  'end_date',   t.end_date,
+                  'sources',    t.sources
+                ) order by t.end_date desc nulls last, t.org)
+           from (
+             select o.name                 as org,
+                    a.role_title,
+                    a.role_class,
+                    o.affiliation_domain   as domain,
+                    o.scale_revenue        as revenue,
+                    o.phone,
+                    o.website,
+                    a.start_date,
+                    a.end_date,
+                    count(ev.id)::int      as sources,
+                    min(ev.snippet)        as snippet,
+                    min(sd.source_key)     as source_key,
+                    min(sd.url)            as url
+               from wrtt.affiliation a
+               join wrtt.organization o on o.id = a.organization_id
+               left join wrtt.evidence ev
+                 on ev.subject_type = 'affiliation' and ev.subject_id = a.id
+               left join wrtt.source_document sd on sd.id = ev.source_document_id
+              where a.person_id = p.id
+              group by a.id, o.name, a.role_title, a.role_class, o.affiliation_domain,
+                       o.scale_revenue, o.phone, o.website, a.start_date, a.end_date
+           ) t),
         '[]'::jsonb
       ) as affiliations
     from wrtt.score s

@@ -1,11 +1,14 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getMarket, getSheet, isConfigured, type Candidate } from '@/lib/wrtt/db';
+import {
+  getMarket, getSheet, isConfigured,
+  type Candidate, type Component, type ComponentKey,
+} from '@/lib/wrtt/db';
 import { SheetNote } from '../Explainer';
 
 export const dynamic = 'force-dynamic';
 
-const COMPONENT_LABELS: Record<string, string> = {
+const COMPONENT_LABELS: Record<ComponentKey, string> = {
   M: 'Mobilization',
   B: 'Breadth',
   T: 'Tenure',
@@ -31,6 +34,15 @@ function site(u: string | null) {
   return { href: /^https?:\/\//i.test(u) ? u : `https://${u}`, label: bare.toLowerCase() };
 }
 
+/** "2023–2025", or just "2024" when a tenure sits inside one filing year. */
+function span(start: string | null, end: string | null) {
+  const a = start?.slice(0, 4);
+  const b = end?.slice(0, 4);
+  if (!a && !b) return null;
+  if (!a || !b || a === b) return a ?? b ?? null;
+  return `${a}–${b}`;
+}
+
 function money(n: number | null) {
   if (!n) return null;
   return n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${Math.round(n / 1000)}K`;
@@ -51,13 +63,22 @@ function Row({ c }: { c: Candidate }) {
           {c.affiliations.map((a, i) => {
             const phone = tel(a.phone);
             const web = site(a.website);
+            const years = span(a.start_date, a.end_date);
             return (
               <li key={i}>
                 <span className="role">{a.role_title}</span>
                 {' · '}
                 {a.org}
                 {a.revenue ? ` · ${money(a.revenue)}` : ''}
-                {a.source_key ? <span className="src">{a.source_key}</span> : null}
+                {years ? <span className="wrtt-span">{years}</span> : null}
+                {a.source_key ? (
+                  <span className="src">
+                    {a.source_key}
+                    {/* How many filings attest to this one tenure. Repeat filings
+                        are evidence of a role, not additional roles. */}
+                    {a.sources > 1 ? <b>&nbsp;×{a.sources}</b> : null}
+                  </span>
+                ) : null}
                 {/* The organization's own published contact. There is no personal
                     contact detail in a 990, and none is inferred here. */}
                 {phone || web ? (
@@ -77,9 +98,7 @@ function Row({ c }: { c: Candidate }) {
 
         <div className="wrtt-comp">
           {Object.entries(COMPONENT_LABELS).map(([k, label]) => {
-            const comp = comps[k] as
-              | { raw: number | null; norm: number | null; weight: number; status?: string }
-              | undefined;
+            const comp = comps[k as ComponentKey] as Component | undefined;
             const off = !comp || comp.status === 'no_input';
             return (
               <span key={k} className={off ? 'off' : undefined} title={label}>
@@ -131,7 +150,7 @@ export default async function MarketSheet({
 
       <h1 style={{ marginTop: 12 }}>
         {market.name}, {market.state}{' '}
-        <span className={`tag tag-${market.role}`}>{market.role}</span>
+        <span className={`tag tag-${market.status}`}>{market.status}</span>
       </h1>
       <SheetNote />
 
