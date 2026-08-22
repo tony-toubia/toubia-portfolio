@@ -1,0 +1,16 @@
+-- ============================================================
+-- WRTT – 990-PF, person resolution, and one evidence row per filing.
+--
+-- Applied to the live database via the Supabase migration API; this
+-- file is the record. See the pull request for the reasoning and the
+-- before/after numbers.
+--
+--   1. wrtt.person_key(text)      first + last, honorifics stripped
+--   2. wrtt.resolve_people()      merge split identities within a market
+--   3. evidence unique index      (subject_type, subject_id, source_document_id)
+--   4. wrtt.load_990_batch        matches on person_key; evidence insert
+--                                 is now ON CONFLICT DO NOTHING
+--
+-- The 990-PF change is in scripts/wrtt/ingest-990.mjs, not here: the
+-- form is a different XML schema, not a different table.
+-- ============================================================
