@@ -53,8 +53,8 @@ export default async function WrttHome() {
           <Link key={m.id} href={`/slt/wrtt/${m.id}`} className="wrtt-market">
             <div className="nm">{m.name}</div>
             <div className="meta">
-              {m.state} · {m.zips.length} ZIPs · {m.status}{' '}
-              <span className={`tag tag-${m.role}`}>{m.role}</span>
+              {m.state} · {m.zips.length} ZIPs{' '}
+              <span className={`tag tag-${m.status}`}>{m.status}</span>
             </div>
             <dl>
               <div>
