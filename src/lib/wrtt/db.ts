@@ -83,6 +83,11 @@ export type Candidate = {
     snippet: string | null;
     source_key: string | null;
     url: string | null;
+    /* Organization contact, never personal: Part VII carries no personal
+       address, phone or email. Reaching a candidate goes through the body
+       they lead, or through a warm introduction. */
+    phone: string | null;
+    website: string | null;
   }[];
 };
 
@@ -124,7 +129,9 @@ export async function getSheet(marketId: string, limit = 50): Promise<Candidate[
                   'revenue',    o.scale_revenue,
                   'snippet',    ev.snippet,
                   'source_key', sd.source_key,
-                  'url',        sd.url
+                  'url',        sd.url,
+                  'phone',      o.phone,
+                  'website',    o.website
                 ) order by a.end_date desc nulls last)
            from wrtt.affiliation a
            join wrtt.organization o on o.id = a.organization_id

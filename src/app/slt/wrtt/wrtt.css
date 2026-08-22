@@ -294,3 +294,13 @@ html.wrtt-root body {
 @media (max-width: 620px) {
   .wrtt-levers { grid-template-columns: 1fr; }
 }
+
+/* Organization contact. Deliberately quiet and clearly attached to the
+   organization line, not to the person's name. */
+.wrtt-contact { display: block; margin-top: 3px; font-size: 12px; }
+.wrtt-contact a {
+  color: var(--fg-dim); text-decoration: none;
+  border-bottom: 1px solid var(--line-2); margin-right: 14px;
+}
+.wrtt-contact a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+@media (pointer: coarse) { .wrtt-contact a { display: inline-block; padding: 7px 0; } }
