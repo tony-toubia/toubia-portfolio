@@ -1,5 +1,5 @@
 -- ============================================================
--- WRTT — feature computation and scoring. Spec §6.4 / §6.5.
+-- WRTT – feature computation and scoring. Spec §6.4 / §6.5.
 --
 -- POC weights are an expert prior, versioned on every run so a
 -- later supervised model can replace them without losing history.

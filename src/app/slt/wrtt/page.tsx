@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getMarkets, isConfigured } from '@/lib/wrtt/db';
+import { Explainer } from './Explainer';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,10 +42,14 @@ export default async function WrttHome() {
 
   return (
     <>
+      {/* The orientation panel leads. Someone arriving cold needs to know why
+          this exists before a table of market names means anything. */}
+      <Explainer />
+
       <h1>Markets</h1>
       <p className="lede">
         Territories under index. Coverage counts are named, evidence-backed people from
-        public sources — nothing here is inferred.
+        public sources – nothing here is inferred.
       </p>
 
       <div className="wrtt-markets">
@@ -66,7 +71,7 @@ export default async function WrttHome() {
               </div>
               <div>
                 <dt>Scored</dt>
-                <dd>{m.last_run ? m.last_run.slice(0, 10) : '—'}</dd>
+                <dd>{m.last_run ? m.last_run.slice(0, 10) : '–'}</dd>
               </div>
             </dl>
           </Link>

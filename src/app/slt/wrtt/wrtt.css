@@ -141,6 +141,159 @@ html.wrtt-root body {
 .wrtt-back:hover { color: var(--fg); }
 
 @media (max-width: 620px) {
-  .wrtt-row { grid-template-columns: 32px 1fr; }
-  .wrtt-score { grid-column: 2; text-align: left; margin-top: 8px; }
+  .wrtt-bar-in { padding: 12px 16px; }
+  .wrtt-main   { padding: 22px 16px 64px; }
+  .wrtt-row    { grid-template-columns: 32px 1fr; padding: 16px 14px; }
+  .wrtt-score  { grid-column: 2; text-align: left; margin-top: 8px; min-width: 0; }
+  .wrtt-market { padding: 16px; }
+  .wrtt h1     { font-size: 20px; }
+}
+
+/* Touch targets. The bar links are 12–13px type by design, which is far
+   below a thumb; give them real height on touch without moving the
+   desktop layout a pixel. */
+@media (pointer: coarse) {
+  .wrtt-bar-in { padding-top: 3px; padding-bottom: 3px; }
+  .wrtt-mark,
+  .wrtt-bar nav a { display: inline-block; padding: 12px 0; }
+  .wrtt-back { display: inline-block; padding: 10px 0; }
+}
+
+/* ── Orientation panel ──────────────────────────────────────── */
+
+.wrtt-explain {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  margin: 0 0 28px;
+}
+
+.wrtt-explain-open { padding: 22px 24px; }
+
+.wrtt-explain-title {
+  margin: 0 0 12px;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--fg-dim);
+}
+.wrtt-explain-title-2 {
+  margin-top: 30px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+/* The standfirst: the one thing to read if you read nothing else. */
+.wrtt-explain-lead {
+  margin: 0 0 12px;
+  font-size: 15.5px; line-height: 1.6; color: var(--fg-mid);
+  max-width: 74ch;
+}
+.wrtt-explain-lead strong { color: var(--fg); font-weight: 700; }
+.wrtt-explain-lead:last-of-type { margin-bottom: 0; }
+
+.wrtt-explain-note {
+  margin: 0 0 18px;
+  font-size: 13px; line-height: 1.6; color: var(--fg-dim);
+  max-width: 82ch;
+}
+
+.wrtt-explain-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 22px 32px;
+  margin-top: 26px;
+}
+.wrtt-explain-grid-2 { margin-top: 26px; }
+.wrtt-explain-grid section { display: flex; flex-direction: column; gap: 6px; }
+.wrtt-explain-grid h3 {
+  margin: 0;
+  font-size: 13px; font-weight: 700; color: var(--accent);
+  letter-spacing: 0.02em; text-transform: none;
+}
+.wrtt-explain-grid p {
+  margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--fg-mid);
+}
+.wrtt-explain-grid strong { color: var(--fg); font-weight: 600; }
+.wrtt-explain-grid em { color: var(--fg-mid); }
+
+/* The limitation is the one section people skim past, so it gets a rule. */
+.wrtt-explain-warn { border-left: 2px solid var(--warn); padding-left: 14px; }
+.wrtt-explain-warn h3 { color: var(--warn); }
+
+/* Compact variant: collapsed by default on the sheet itself. */
+.wrtt-explain-compact summary {
+  cursor: pointer; padding: 12px 16px;
+  font-size: 13px; font-weight: 600; color: var(--fg-mid);
+  list-style: none;
+}
+.wrtt-explain-compact summary::-webkit-details-marker { display: none; }
+.wrtt-explain-compact summary::before { content: '+ '; color: var(--accent); }
+.wrtt-explain-compact[open] summary::before { content: '– '; }
+.wrtt-explain-compact summary:hover { color: var(--fg); }
+.wrtt-explain-compact summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.wrtt-explain-body {
+  padding: 0 16px 16px; display: flex; flex-direction: column; gap: 10px;
+  border-top: 1px solid var(--line);
+  margin-top: 2px; padding-top: 14px;
+}
+.wrtt-explain-body p {
+  margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--fg-mid); max-width: 76ch;
+}
+.wrtt-explain-body strong { color: var(--fg); font-weight: 600; }
+.wrtt-explain-sub {
+  color: var(--fg-dim) !important;
+  font-size: 11px !important; font-weight: 700; letter-spacing: 0.09em;
+  text-transform: uppercase; margin-top: 4px !important;
+}
+
+/* ── Score-input legend ─────────────────────────────────────
+   Doubles as the key for the M/B/T/R/A/X chips on every row, so it
+   deliberately reuses their look: mono code, struck through when the
+   component had no input this run. */
+
+.wrtt-inputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 20px 32px;
+}
+.wrtt-inputs.is-dense {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px 24px;
+  margin: 2px 0 4px;
+}
+
+.wrtt-input { border-left: 2px solid var(--line-2); padding-left: 14px; }
+.wrtt-input.is-off { border-left-color: var(--line); }
+
+.wrtt-input-head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+.wrtt-input-code {
+  font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--accent);
+  border: 1px solid var(--line-2); padding: 1px 6px; flex: none;
+}
+.wrtt-input.is-off .wrtt-input-code {
+  color: var(--fg-dim); text-decoration: line-through; opacity: 0.7;
+}
+.wrtt-input-name { font-size: 14px; font-weight: 700; color: var(--fg); }
+.wrtt-input.is-off .wrtt-input-name { color: var(--fg-mid); }
+.wrtt-input-weight {
+  margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.wrtt-input-what {
+  margin: 7px 0 0; font-size: 13px; line-height: 1.6; color: var(--fg-mid);
+}
+.wrtt-input-from {
+  margin: 6px 0 0; font-family: var(--mono); font-size: 10.5px; line-height: 1.5;
+  color: var(--fg-dim);
+}
+.wrtt-input.is-off .wrtt-input-what { color: var(--fg-dim); }
+
+.wrtt-inputs.is-dense .wrtt-input-name { font-size: 13px; }
+.wrtt-inputs.is-dense .wrtt-input-what { font-size: 12.5px; margin-top: 5px; }
+
+@media (max-width: 620px) {
+  .wrtt-explain-open { padding: 18px 16px; }
+  .wrtt-explain-lead { font-size: 14.5px; }
+  .wrtt-explain-grid { gap: 20px 24px; }
+  .wrtt-inputs, .wrtt-inputs.is-dense { grid-template-columns: 1fr; }
+  .wrtt-input { padding-left: 12px; }
 }
