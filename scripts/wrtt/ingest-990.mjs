@@ -38,6 +38,13 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { XMLParser } from 'fast-xml-parser';
 
+// Pick up WRTT_DATABASE_URL from .env.local the same way `next dev` does, so
+// --load works without remembering --env-file. A real environment variable
+// already set wins: loadEnvFile does not overwrite what is there.
+for (const f of ['.env.local', '.env']) {
+  try { process.loadEnvFile(f); } catch { /* absent, or Node < 20.12 */ }
+}
+
 const exec = promisify(execFile);
 const INDEX_URL = 'https://www.irs.gov/charities-non-profits/form-990-series-downloads';
 const UA = 'SLT-Ventures-WRTT/0.1 (+https://tonytoubia.com/slt/wrtt; research indexing)';
@@ -272,7 +279,12 @@ async function main() {
 async function load(outFile) {
   const url = process.env.WRTT_DATABASE_URL;
   if (!url) {
-    console.error('[wrtt] --load needs WRTT_DATABASE_URL. See .env.example.');
+    console.error(
+      '[wrtt] no WRTT_DATABASE_URL found in the environment or in .env.local.\n' +
+      '       Copy it from Supabase -> Connect -> Session pooler (verbatim; the\n' +
+      '       aws-0 / aws-1 prefix differs per project) into .env.local as:\n\n' +
+      '         WRTT_DATABASE_URL=postgresql://postgres.<ref>:<password>@<host>:5432/postgres\n'
+    );
     process.exit(1);
   }
   const { default: postgres } = await import('postgres');
