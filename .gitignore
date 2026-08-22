@@ -40,5 +40,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-data/
+data/*
+# ...but the extracted 990 corpus is checked in: it is public federal data,
+# it is what populates a fresh WRTT database, and re-extracting it means
+# ~40 minutes of IRS bundle downloads for a byte-identical result.
+!data/990-full.ndjson.gz
 .cache/
