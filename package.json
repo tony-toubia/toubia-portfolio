@@ -9,7 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "fast-xml-parser": "^5.11.0",
     "next": "16.1.1",
+    "postgres": "^3.4.9",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
