@@ -147,3 +147,60 @@ export async function getMarket(marketId: string): Promise<Market | null> {
   const all = await getMarkets();
   return all.find((m) => m.id === marketId) ?? null;
 }
+
+/* ── Scoring profile ───────────────────────────────────────────
+   The weights are a row, not a constant, so the shape of candidate the
+   index favours can be changed. Every score_run stores the profile that
+   produced it, which is what keeps a tuned ranking auditable. */
+
+export type Profile = {
+  name: string;
+  label: string | null;
+  notes: string | null;
+  updated_at: string;
+  profile: {
+    components: Record<string, number>;
+    roles: Record<string, number>;
+    domains: Record<string, number>;
+    half_life_years: number;
+    org_scale_divisor: number;
+  };
+};
+
+export async function getProfile(): Promise<Profile | null> {
+  const sql = await db();
+  const [row] = await sql<Profile[]>`
+    select name, label, notes, updated_at::text, profile
+      from wrtt.scoring_profile
+     where is_default
+     limit 1
+  `;
+  return row ?? null;
+}
+
+/** Save the levers and re-rank every market, so the page never shows a
+ *  profile that does not match the sheets beside it. */
+export async function saveProfileAndRescore(next: Profile['profile']): Promise<number> {
+  const sql = await db();
+  await sql`
+    update wrtt.scoring_profile
+       set profile = ${sql.json(next)}, updated_at = now()
+     where is_default
+  `;
+  const markets = await sql<{ id: string }[]>`select id from wrtt.market`;
+  for (const m of markets) await sql`select wrtt.run_scoring(${m.id})`;
+  return markets.length;
+}
+
+/** Which profile produced the sheet currently on screen. */
+export async function getRunProfile(marketId: string): Promise<{ model_version: string; run_at: string } | null> {
+  const sql = await db();
+  const [row] = await sql<{ model_version: string; run_at: string }[]>`
+    select model_version, run_at::text
+      from wrtt.score_run
+     where market_id = ${marketId}
+     order by run_at desc
+     limit 1
+  `;
+  return row ?? null;
+}
