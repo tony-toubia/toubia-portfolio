@@ -24,6 +24,7 @@ export default function WrttLayout({ children }: { children: React.ReactNode }) 
           </Link>
           <span className="wrtt-sub">Who Runs This Town – scouting console</span>
           <nav>
+            <Link href="/slt/wrtt/method">Method</Link>
             <Link href="/slt">SLT Ventures</Link>
           </nav>
         </div>

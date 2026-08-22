@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getMarkets, isConfigured } from '@/lib/wrtt/db';
-import { Explainer } from './Explainer';
+import { Intro } from './Explainer';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,15 +42,11 @@ export default async function WrttHome() {
 
   return (
     <>
-      {/* The orientation panel leads. Someone arriving cold needs to know why
-          this exists before a table of market names means anything. */}
-      <Explainer />
-
       <h1>Markets</h1>
-      <p className="lede">
-        Territories under index. Coverage counts are named, evidence-backed people from
-        public sources – nothing here is inferred.
-      </p>
+
+      {/* Three sentences, then the listings. The full explanation is a click
+          away at /slt/wrtt/method rather than in front of the work. */}
+      <Intro />
 
       <div className="wrtt-markets">
         {markets.map((m) => (

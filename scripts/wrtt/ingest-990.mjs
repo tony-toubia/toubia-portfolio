@@ -36,7 +36,6 @@ import { promisify } from 'node:util';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
-import { XMLParser } from 'fast-xml-parser';
 
 // Pick up WRTT_DATABASE_URL from .env.local the same way `next dev` does, so
 // --load works without remembering --env-file. A real environment variable
@@ -114,11 +113,17 @@ async function ensureBundle(url, cacheDir) {
   return file;
 }
 
-const parser = new XMLParser({
-  ignoreAttributes: true,
-  parseTagValue: false,
-  trimValues: true,
-});
+// Built on first use rather than imported at module scope: --from loads an
+// already-extracted corpus and never parses a byte of XML, so it should not
+// need the scrape's dependencies installed to run.
+let parser = null;
+async function getParser() {
+  if (!parser) {
+    const { XMLParser } = await import('fast-xml-parser');
+    parser = new XMLParser({ ignoreAttributes: true, parseTagValue: false, trimValues: true });
+  }
+  return parser;
+}
 
 function asArray(v) {
   return v == null ? [] : Array.isArray(v) ? v : [v];
@@ -217,6 +222,8 @@ async function main() {
   }
   console.log(`[wrtt] target ZIPs: ${wanted.size}`);
 
+  await getParser();
+
   let urls = await bundleUrls(years);
   if (limit) urls = urls.slice(0, limit);
   console.log(`[wrtt] bundles for ${years.join(',')}: ${urls.length}`);
@@ -275,6 +282,49 @@ async function main() {
   if (process.argv.includes('--load')) await load(outFile);
 }
 
+/**
+ * Open the connection, and recover from the one thing that reliably goes wrong
+ * in a Supabase connection string. The session pooler lives behind a per-shard
+ * hostname – aws-0-<region> or aws-1-<region> – and which one a project sits on
+ * is not derivable from the project ref or the region. Get it wrong and
+ * Supavisor answers "Tenant or user not found", which reads like a bad password
+ * and is not. Rather than making that a puzzle, try the other shard and say so.
+ */
+async function connect(url) {
+  let postgres;
+  try {
+    ({ default: postgres } = await import('postgres'));
+  } catch {
+    console.error('[wrtt] the "postgres" driver is not installed. Run: npm install');
+    process.exit(1);
+  }
+
+  const open = async (u) => {
+    const sql = postgres(u, { max: 1, prepare: false, idle_timeout: 20, connect_timeout: 30 });
+    await sql`select 1`;
+    return sql;
+  };
+
+  try {
+    return await open(url);
+  } catch (e) {
+    const alt = url.includes('aws-0-') ? url.replace('aws-0-', 'aws-1-')
+              : url.includes('aws-1-') ? url.replace('aws-1-', 'aws-0-')
+              : null;
+
+    if (!alt || !/tenant or user not found/i.test(String(e.message))) throw e;
+
+    console.warn(`[wrtt] ${e.message}`);
+    console.warn('[wrtt] that is the wrong pooler shard, not a bad password. Trying the other one...');
+    const sql = await open(alt);
+    console.warn(
+      `[wrtt] connected via ${new URL(alt).host}. Update WRTT_DATABASE_URL to that host\n` +
+      '       in .env.local and in Vercel, or the deployed console will keep failing.'
+    );
+    return sql;
+  }
+}
+
 /** Push the NDJSON through wrtt.load_990_batch in chunks. */
 async function load(outFile) {
   const url = process.env.WRTT_DATABASE_URL;
@@ -287,8 +337,7 @@ async function load(outFile) {
     );
     process.exit(1);
   }
-  const { default: postgres } = await import('postgres');
-  const sql = postgres(url, { max: 1, prepare: false, idle_timeout: 20 });
+  const sql = await connect(url);
 
   const raw = outFile.endsWith('.gz')
     ? (await import('node:zlib')).gunzipSync(await fsp.readFile(outFile)).toString('utf8')
