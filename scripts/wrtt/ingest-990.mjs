@@ -50,7 +50,7 @@ for (const f of ['.env.local', '.env']) {
 const exec = promisify(execFile);
 const INDEX_URL = 'https://www.irs.gov/charities-non-profits/form-990-series-downloads';
 const UA = 'SLT-Ventures-WRTT/0.1 (+https://tonytoubia.com/slt/wrtt; research indexing)';
-const EXTRACTOR_VERSION = 'irs990-partvii@0.2';   // adds 990-PF, drops institutional officers
+const EXTRACTOR_VERSION = 'irs990-partvii@0.3';   // adds 990-PF, filters institutional officers by name
 
 /** Verbatim title -> the normalized role_class the scoring model weights. */
 const ROLE_RULES = [
@@ -66,6 +66,11 @@ const ROLE_RULES = [
   [/\bvolunteer\b/i,                            'volunteer'],
   [/\bmember\b/i,                               'member'],
 ];
+
+/** Names that belong to an organization rather than a person. Officer slots
+ *  on trusts are routinely filled by a corporate trustee. */
+const INSTITUTION =
+  /\b(bank|trust\s+(co|company)|\bn\.?a\.?$|llc|l\.l\.c|llp|pllc|\binc\.?$|incorporated|corp\b|corporation|company\b|associates\b|\bfsb\b|securities|investments?\b|custody|solutions\b|advisors?\b|advisory|management\b)/i;
 
 function classifyRole(title) {
   const t = String(title || '');
@@ -206,12 +211,16 @@ function parseFiling(xml, url) {
 
   const people = [];
   for (const g of groups) {
-    // PersonNm only. Officer slots can be filled by an institution - a bank
-    // as trustee is common on 990-PF trusts - and an institution is not a
-    // community organizer. Taking the BusinessName fallback would have put
-    // "JP MORGAN CHASE BANK NA" on a scouting sheet.
-    const person = g.PersonNm ?? null;
+    // Officer slots can be filled by an institution - a bank as trustee is
+    // common on 990-PF trusts - and an institution is not a community
+    // organizer. But the fix is not "PersonNm only": plenty of filers put a
+    // real individual in the BusinessName slot, so that rule silently dropped
+    // people like BRADLEY A BERGMAN, filed under BusinessName with
+    // IndividualTrusteeOrDirectorInd set. Filter on the shape of the name.
+    const person = g.PersonNm ?? g.BusinessName?.BusinessNameLine1Txt ?? null;
     if (!person || typeof person !== 'string') continue;
+    if (g.InstitutionalTrusteeInd !== undefined) continue;
+    if (INSTITUTION.test(person)) continue;
     const title = g.TitleTxt ?? g.TitleTxtOrRoleTxt ?? '';
 
     // The single most useful field on the form for this product. Part VII
