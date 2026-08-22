@@ -53,14 +53,18 @@ export async function saveProfile(_prev: unknown, form: FormData) {
     return Number.isFinite(n) && n >= 0 && n <= max ? n : fallback;
   };
 
-  for (const group of ['components', 'roles', 'domains'] as const) {
+  for (const group of ['components', 'roles', 'domains', 'compensation'] as const) {
     for (const key of Object.keys(next[group])) {
       next[group][key] = num(form.get(`${group}.${key}`), next[group][key]);
     }
   }
-  // Half-life and the scale divisor are not 0-1 weights; they need their own range.
+  // Half-life, the scale divisor and the pay threshold are not 0-1 weights;
+  // they need their own ranges.
   next.half_life_years   = num(form.get('half_life_years'), next.half_life_years, 50);
   next.org_scale_divisor = num(form.get('org_scale_divisor'), next.org_scale_divisor, 100);
+  next.same_family_repeat = num(form.get('same_family_repeat'), next.same_family_repeat);
+  next.compensation_nominal_max =
+    num(form.get('compensation_nominal_max'), next.compensation_nominal_max, 1_000_000);
 
   const markets = await saveProfileAndRescore(next);
   revalidatePath('/slt/wrtt', 'layout');

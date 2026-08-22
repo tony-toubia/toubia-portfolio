@@ -145,6 +145,22 @@ export default function Method() {
         <strong>top of what could actually be measured here</strong>, not a perfect candidate.
       </p>
 
+      <h2>Two things it deliberately discounts</h2>
+      <p className="wrtt-prose">
+        <strong>Getting paid for it.</strong> The premise is people who organize things nobody
+        pays them to organize, and Form 990 reports what each role paid – a volunteer director
+        reads $0. Without that, a chief financial officer outranks a PTO vice-president, which
+        inverts the whole thesis. Paid roles still count, at a fraction. A filing that omitted
+        the field is treated as unknown rather than as free labour.
+      </p>
+      <p className="wrtt-prose">
+        <strong>Three seats at the same institution.</strong> Organizations that share a phone
+        number or a near-identical name are grouped into one family, because Catholic Charities,
+        Catholic Charities Foundation and Catholic Neighborhood Outreach are one crowd rather
+        than three. Breadth counts a family once however many of its boards someone sits on, and
+        the second and later seats inside it count at a fraction.
+      </p>
+
       <h2>Confidence is not the score</h2>
       <p className="wrtt-prose">
         The number beside each score says how much evidence sits behind it: how many affiliations,
