@@ -23,6 +23,9 @@
  *   --from    load an existing NDJSON (.gz accepted) and skip the scrape
  *   --years   comma-separated filing years to pull        (default 2024)
  *   --zips    comma-separated ZIPs to keep                (default: read from --markets file)
+ *   --city    keep filings whose filer city matches, e.g. --city FISHERS --state IN
+ *             (use when adding a market whose ZIP set you do not know yet;
+ *              the ZIPs found are printed at the end)
  *   --markets JSON file of [{name,state,zips[]}]          (default scripts/wrtt/markets.json)
  *   --limit   stop after N bundles, for smoke tests
  *   --out     NDJSON destination                          (default data/990.ndjson)
@@ -281,14 +284,22 @@ async function main() {
   const cacheDir = arg('--cache', '.cache/irs');
   const limit = Number(arg('--limit', '0')) || 0;
 
+  // Adding a market usually means knowing the town but not its ZIP codes.
+  // Filtering on the filer's own city name discovers them from the filings.
+  const city = arg('--city');
+  const stateFilter = arg('--state');
+
   let wanted;
-  if (arg('--zips')) {
+  if (city) {
+    wanted = null;
+    console.log(`[wrtt] target city: ${city}${stateFilter ? ', ' + stateFilter : ''}`);
+  } else if (arg('--zips')) {
     wanted = new Set(arg('--zips').split(',').map((s) => s.trim()));
   } else {
     const markets = JSON.parse(await fsp.readFile(marketsFile, 'utf8'));
     wanted = new Set(markets.flatMap((m) => m.zips));
   }
-  console.log(`[wrtt] target ZIPs: ${wanted.size}`);
+  if (wanted) console.log(`[wrtt] target ZIPs: ${wanted.size}`);
 
   await getParser();
 
@@ -301,7 +312,10 @@ async function main() {
 
   let scanned = 0, kept = 0, officers = 0;
 
-  const zipTags = [...wanted].map((z) => `<ZIPCd>${z}`);
+  const zipTags = wanted ? [...wanted].map((z) => `<ZIPCd>${z}`) : null;
+  // Compared against an uppercased document, so the tag has to be uppercase too.
+  const cityTag = city ? `<CITYNM>${city.toUpperCase()}` : null;
+  const foundZips = new Map();
 
   for (const [i, url] of urls.entries()) {
     const file = await ensureBundle(url, cacheDir);
@@ -328,10 +342,17 @@ async function main() {
         // Two cheap string prefilters before paying for a full XML parse.
         if (!xml.includes('Form990PartVIISectionAGrp') &&
             !xml.includes('OfficerDirectorTrusteeEmplGrp')) continue;
-        if (!zipTags.some((t) => xml.includes(t))) continue;
+        if (zipTags && !zipTags.some((t) => xml.includes(t))) continue;
+        if (cityTag && !xml.toUpperCase().includes(cityTag)) continue;
 
         const rec = parseFiling(xml, `${url}#${entry.name}`);
-        if (!rec || !wanted.has(rec.zip)) continue;
+        if (!rec) continue;
+        if (wanted && !wanted.has(rec.zip)) continue;
+        if (city) {
+          if (String(rec.city || '').toUpperCase() !== city.toUpperCase()) continue;
+          if (stateFilter && rec.state !== stateFilter.toUpperCase()) continue;
+          foundZips.set(rec.zip, (foundZips.get(rec.zip) || 0) + 1);
+        }
 
         out.write(JSON.stringify(rec) + '\n');
         kept++;
@@ -346,6 +367,12 @@ async function main() {
   out.end();
   await new Promise((r) => out.on('finish', r));
   console.log(`[wrtt] done – ${kept} in-market filings, ${officers} named officers -> ${outFile}`);
+
+  if (city && foundZips.size) {
+    const ranked = [...foundZips.entries()].sort((a, b) => b[1] - a[1]);
+    console.log(`[wrtt] ZIPs found for ${city}: ${ranked.map(([z, n]) => `${z}(${n})`).join(' ')}`);
+    console.log(`[wrtt] market zips: ["${ranked.map(([z]) => z).join('","')}"]`);
+  }
 
   if (process.argv.includes('--load')) await load(outFile);
 }
