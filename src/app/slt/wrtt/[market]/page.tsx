@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getMarket, getSheet, isConfigured, type Candidate } from '@/lib/wrtt/db';
-import { Explainer } from '../Explainer';
+import { SheetNote } from '../Explainer';
 
 export const dynamic = 'force-dynamic';
 
@@ -106,12 +106,7 @@ export default async function MarketSheet({
         {market.name}, {market.state}{' '}
         <span className={`tag tag-${market.role}`}>{market.role}</span>
       </h1>
-      <p className="lede">
-        Ranked within market, not nationally – the question is whether someone is one of the
-        most connected people in <em>this</em> town. Scores show confidence alongside, always.
-      </p>
-
-      <Explainer compact />
+      <SheetNote />
 
       {sheet.length === 0 ? (
         <div className="wrtt-note">
@@ -129,10 +124,9 @@ export default async function MarketSheet({
             ))}
           </div>
           <div className="wrtt-note" style={{ marginTop: 24 }}>
-            <strong>Reach, availability and adjacency have no inputs in this run.</strong> They
-            need a licensed professional-history source, which is deliberately out of the POC.
-            Their weight is excluded from the denominator rather than scored as zero, so the
-            composite reflects only what was actually measured.
+            <strong>Reach, availability and adjacency have no inputs in this run.</strong> Their
+            weight is excluded from the denominator rather than scored as zero, so the composite
+            reflects only what was measured. <Link href="/slt/wrtt/method">Method →</Link>
           </div>
         </>
       )}

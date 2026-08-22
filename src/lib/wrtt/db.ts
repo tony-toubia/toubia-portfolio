@@ -14,12 +14,40 @@ export const isConfigured = Boolean(url);
 
 let client: ReturnType<typeof postgres> | null = null;
 
-export function db() {
-  if (!url) throw new Error('WRTT_DATABASE_URL is not set');
+function open(u: string) {
   // Serverless invocations are short-lived; a small pool with a prompt idle
   // timeout avoids holding connections the pooler wants back.
-  client ??= postgres(url, { max: 3, idle_timeout: 20, prepare: false });
-  return client;
+  return postgres(u, { max: 3, idle_timeout: 20, prepare: false });
+}
+
+/**
+ * The session pooler lives behind a per-shard hostname – aws-0-<region> or
+ * aws-1-<region> – and which one a project sits on is not derivable from the
+ * project ref. Get it wrong and Supavisor answers "Tenant or user not found",
+ * which reads like a bad password and takes the whole console down. Fall back
+ * to the other shard once and keep the connection that worked.
+ */
+export async function db() {
+  if (!url) throw new Error('WRTT_DATABASE_URL is not set');
+  if (client) return client;
+
+  const first = open(url);
+  try {
+    await first`select 1`;
+    client = first;
+    return client;
+  } catch (e) {
+    const alt = url.includes('aws-0-') ? url.replace('aws-0-', 'aws-1-')
+              : url.includes('aws-1-') ? url.replace('aws-1-', 'aws-0-')
+              : null;
+    if (!alt || !/tenant or user not found/i.test(String((e as Error).message))) throw e;
+
+    console.warn('[wrtt] wrong pooler shard in WRTT_DATABASE_URL; falling back to the other one');
+    const second = open(alt);
+    await second`select 1`;
+    client = second;
+    return client;
+  }
 }
 
 export type Market = {
@@ -59,7 +87,7 @@ export type Candidate = {
 };
 
 export async function getMarkets(): Promise<Market[]> {
-  const sql = db();
+  const sql = await db();
   return sql<Market[]>`
     select m.id, m.name, m.state, m.status, m.role, m.zips,
            (select count(*)::int from wrtt.person p where p.market_id = m.id and not p.suppressed) as people,
@@ -72,7 +100,7 @@ export async function getMarkets(): Promise<Market[]> {
 
 /** Latest scored sheet for a market, with the evidence each score rests on. */
 export async function getSheet(marketId: string, limit = 50): Promise<Candidate[]> {
-  const sql = db();
+  const sql = await db();
   return sql<Candidate[]>`
     with latest as (
       select id from wrtt.score_run
