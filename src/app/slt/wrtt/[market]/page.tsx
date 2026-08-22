@@ -75,12 +75,12 @@ function Row({ c }: { c: Candidate }) {
                 {a.org}
                 {/* This is the organization's revenue, not the person's pay.
                     Sitting beside a named individual it reads as a salary
-                    unless it says otherwise, so it carries its own label. */}
+                    unless it says so, so every figure carries the label. */}
                 {a.revenue ? (
                   <>
                     {' · '}
                     <span className="wrtt-rev" title={`${a.org} reported ${exact(a.revenue)} in annual revenue`}>
-                      {money(a.revenue)}
+                      <b>REV:</b> {money(a.revenue)}
                     </span>
                   </>
                 ) : null}
@@ -178,9 +178,6 @@ export default async function MarketSheet({
           <h2>
             Top {sheet.length} · {market.people} scored in market
           </h2>
-          <p className="wrtt-legend">
-            Dollar amounts are each organization&apos;s annual revenue, not anyone&apos;s pay.
-          </p>
           <div className="wrtt-rows">
             {sheet.map((c) => (
               <Row key={c.person_id} c={c} />

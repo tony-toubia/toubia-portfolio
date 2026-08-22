@@ -95,18 +95,12 @@ html.wrtt-root body {
 .tag-open   { color: var(--accent); }
 .tag-target { color: var(--fg-dim); }
 
-/* Organization revenue. The dotted underline is the only cue that there is
-   something to hover; without it the figure reads as the person's salary. */
-.wrtt-rev {
-  border-bottom: 1px dotted var(--line-2);
-  cursor: help;
-}
-
-/* One quiet line under the heading rather than a label on every row. */
-.wrtt-legend {
-  margin: -6px 0 12px;
-  font-size: 11.5px;
-  color: var(--fg-dim);
+/* Organization revenue, never the person's pay - hence the label on every
+   figure. The tooltip carries the exact amount. */
+.wrtt-rev { cursor: help; white-space: nowrap; }
+.wrtt-rev b {
+  font-family: var(--mono); font-size: 10.5px; font-weight: 400;
+  letter-spacing: 0.06em; color: var(--fg-dim);
 }
 
 /* Tenure covered by one role, so a rolled-up entry still shows its span. */
