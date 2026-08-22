@@ -73,7 +73,10 @@ html.wrtt-root body {
   background: var(--panel); border: 1px solid var(--line); padding: 18px;
 }
 .wrtt-market:hover { border-color: var(--line-2); background: var(--panel-2); }
-.wrtt-market .nm { font-size: 17px; font-weight: 700; }
+.wrtt-market .nm {
+  font-size: 17px; font-weight: 700;
+  display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap;
+}
 .wrtt-market .meta { color: var(--fg-dim); font-size: 12px; margin-top: 2px; }
 .wrtt-market dl {
   margin: 14px 0 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;

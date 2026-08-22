@@ -51,10 +51,14 @@ export default async function WrttHome() {
       <div className="wrtt-markets">
         {markets.map((m) => (
           <Link key={m.id} href={`/slt/wrtt/${m.id}`} className="wrtt-market">
-            <div className="nm">{m.name}</div>
-            <div className="meta">
-              {m.state} · {m.zips.length} ZIPs{' '}
+            {/* Status sits beside the name, where there is room for it.
+                On the meta line it collided with the ZIP count. */}
+            <div className="nm">
+              <span>{m.name}</span>
               <span className={`tag tag-${m.status}`}>{m.status}</span>
+            </div>
+            <div className="meta">
+              {m.state} · {m.zips.length} ZIPs
             </div>
             <dl>
               <div>
