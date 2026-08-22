@@ -50,7 +50,7 @@ for (const f of ['.env.local', '.env']) {
 const exec = promisify(execFile);
 const INDEX_URL = 'https://www.irs.gov/charities-non-profits/form-990-series-downloads';
 const UA = 'SLT-Ventures-WRTT/0.1 (+https://tonytoubia.com/slt/wrtt; research indexing)';
-const EXTRACTOR_VERSION = 'irs990-partvii@0.1';
+const EXTRACTOR_VERSION = 'irs990-partvii@0.2';   // adds 990-PF, drops institutional officers
 
 /** Verbatim title -> the normalized role_class the scoring model weights. */
 const ROLE_RULES = [
@@ -163,6 +163,10 @@ function parseFiling(xml, url) {
   if (!addr) return null;                        // foreign filers are out of scope
 
   const zip5 = String(addr.ZIPCd ?? '').slice(0, 5);
+  // 990-PF officer entries also carry each trustee's own postal address,
+  // usually their home. It is deliberately not read: market membership comes
+  // from the filer's address as it does for every other form, and there is no
+  // use here that would justify collecting where people live.
 
   // Filer names run across two lines and line 2 is not optional detail: it is
   // the rest of the name. Dropping it produced "CATHOLIC CHARITIES OF" and
@@ -177,7 +181,10 @@ function parseFiling(xml, url) {
     .trim() || null;
 
   const data = ret.ReturnData ?? {};
-  const body = data.IRS990 ?? data.IRS990EZ ?? {};
+  // 990-PF is a separate schema and about 12% of all filings. Skipping it
+  // dropped every private and family foundation, which in an affluent suburb
+  // is exactly where the civic elite sit as trustees.
+  const body = data.IRS990 ?? data.IRS990EZ ?? data.IRS990PF ?? {};
 
   // Contact belongs to the organization, never the person: Part VII carries
   // no personal address, phone or email, which is exactly why this data is
@@ -192,14 +199,18 @@ function parseFiling(xml, url) {
     siteRaw && !/^(n\/?a|none|no|-+)$/i.test(siteRaw) ? siteRaw.slice(0, 200) : null;
 
   const groups = [
-    ...asArray(body.Form990PartVIISectionAGrp),
-    ...asArray(body.OfficerDirectorTrusteeEmplGrp),
+    ...asArray(body.Form990PartVIISectionAGrp),      // 990
+    ...asArray(body.OfficerDirectorTrusteeEmplGrp),  // 990-EZ
+    ...asArray(body.OfficerDirTrstKeyEmplGrp),       // 990-PF
   ];
 
   const people = [];
   for (const g of groups) {
-    const person =
-      g.PersonNm ?? g.BusinessName?.BusinessNameLine1Txt ?? null;
+    // PersonNm only. Officer slots can be filled by an institution - a bank
+    // as trustee is common on 990-PF trusts - and an institution is not a
+    // community organizer. Taking the BusinessName fallback would have put
+    // "JP MORGAN CHASE BANK NA" on a scouting sheet.
+    const person = g.PersonNm ?? null;
     if (!person || typeof person !== 'string') continue;
     const title = g.TitleTxt ?? g.TitleTxtOrRoleTxt ?? '';
 
@@ -216,7 +227,9 @@ function parseFiling(xml, url) {
       g.ReportableCompFromOrgAmt,
       g.ReportableCompFromRltdOrgAmt,
       g.OtherCompensationAmt,
-      g.CompensationAmt,
+      g.CompensationAmt,                  // 990-EZ and 990-PF
+      g.EmployeeBenefitProgramAmt,        // 990-PF
+      g.ExpenseAccountOtherAllwncAmt,     // 990-PF
     ];
     const comp = compFields.some((v) => v !== undefined && v !== null)
       ? compFields.reduce((a, v) => a + num(v), 0)
@@ -474,8 +487,11 @@ async function load(outFile) {
   console.log(`[wrtt] loaded – ${orgs} orgs, ${people} new people, ${affs} affiliations`);
 
   if (process.argv.includes('--score')) {
-    // Families depend on the names and phone numbers this load just wrote,
-    // so they have to be rebuilt before anything is scored against them.
+    // Both of these depend on what the load just wrote, so they run before
+    // anything is scored against them.
+    const [{ merged, remaining }] = await sql`select * from wrtt.resolve_people()`;
+    console.log(`[wrtt] identities merged: ${merged} -> ${remaining} people`);
+
     const [{ families }] = await sql`select wrtt.rebuild_org_families() as families`;
     console.log(`[wrtt] organizational families: ${families}`);
 
