@@ -163,6 +163,22 @@ export default function Method() {
         confirm-and-add step is part of the system rather than a nicety.
       </div>
 
+      <h2>How you reach someone</h2>
+      <p className="wrtt-prose">
+        Through the organization they lead. A Form 990 names officers with their titles and hours
+        per week and carries <strong>no personal address, phone or email</strong> – that is not a
+        gap to work around, it is why this data can be published at all. Sampling 400 filings: the
+        organization&apos;s phone is on every one, about half list a usable website, and three
+        contained any email address at all, each belonging to the accounting firm that prepared
+        the return.
+      </p>
+      <p className="wrtt-prose">
+        So each card shows the organization&apos;s own published phone and site, which is also the
+        channel a stranger is supposed to use. Personal contact details are not inferred, bought
+        from a data broker, or scraped from social profiles. If they are ever needed they come
+        from the publisher who already knows the person, at the confirm step.
+      </p>
+
       <h2>What it is not</h2>
       <p className="wrtt-prose">
         Not a personality assessment, not a prediction about anyone&apos;s character, and not a

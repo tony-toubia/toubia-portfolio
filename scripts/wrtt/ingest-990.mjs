@@ -155,6 +155,18 @@ function parseFiling(xml, url) {
   const data = ret.ReturnData ?? {};
   const body = data.IRS990 ?? data.IRS990EZ ?? {};
 
+  // Contact belongs to the organization, never the person: Part VII carries
+  // no personal address, phone or email, which is exactly why this data is
+  // publishable. The filer's own phone is on every return and roughly half
+  // list a real website, so a candidate can be reached through the body they
+  // lead rather than at home.
+  const phoneRaw = String(filer.PhoneNum ?? ret.ReturnHeader?.PhoneNum ?? '').replace(/\D/g, '');
+  const phone = phoneRaw.length === 10 ? phoneRaw : null;
+
+  const siteRaw = String(body.WebsiteAddressTxt ?? '').trim();
+  const website =
+    siteRaw && !/^(n\/?a|none|no|-+)$/i.test(siteRaw) ? siteRaw.slice(0, 200) : null;
+
   const groups = [
     ...asArray(body.Form990PartVIISectionAGrp),
     ...asArray(body.OfficerDirectorTrusteeEmplGrp),
@@ -189,6 +201,8 @@ function parseFiling(xml, url) {
     state: addr.StateAbbreviationCd ?? null,
     zip: zip5,
     revenue: revenue == null ? null : Number(revenue),
+    phone,
+    website,
     tax_year: ret.ReturnHeader?.TaxYr ? Number(ret.ReturnHeader.TaxYr) : null,
     source_url: url,
     extractor_version: EXTRACTOR_VERSION,

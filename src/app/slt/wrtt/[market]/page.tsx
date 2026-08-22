@@ -20,6 +20,17 @@ function confClass(c: number) {
   return 'conf-high';
 }
 
+function tel(n: string | null) {
+  if (!n || n.length !== 10) return null;
+  return `(${n.slice(0, 3)}) ${n.slice(3, 6)}-${n.slice(6)}`;
+}
+
+function site(u: string | null) {
+  if (!u) return null;
+  const bare = u.replace(/^https?:\/\//i, '').replace(/\/$/, '');
+  return { href: /^https?:\/\//i.test(u) ? u : `https://${u}`, label: bare.toLowerCase() };
+}
+
 function money(n: number | null) {
   if (!n) return null;
   return n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${Math.round(n / 1000)}K`;
@@ -37,15 +48,31 @@ function Row({ c }: { c: Candidate }) {
         {/* Every claim carries its source. This is what makes the sheet read as
             research rather than surveillance. */}
         <ul className="wrtt-aff">
-          {c.affiliations.map((a, i) => (
-            <li key={i}>
-              <span className="role">{a.role_title}</span>
-              {' · '}
-              {a.org}
-              {a.revenue ? ` · ${money(a.revenue)}` : ''}
-              {a.source_key ? <span className="src">{a.source_key}</span> : null}
-            </li>
-          ))}
+          {c.affiliations.map((a, i) => {
+            const phone = tel(a.phone);
+            const web = site(a.website);
+            return (
+              <li key={i}>
+                <span className="role">{a.role_title}</span>
+                {' · '}
+                {a.org}
+                {a.revenue ? ` · ${money(a.revenue)}` : ''}
+                {a.source_key ? <span className="src">{a.source_key}</span> : null}
+                {/* The organization's own published contact. There is no personal
+                    contact detail in a 990, and none is inferred here. */}
+                {phone || web ? (
+                  <span className="wrtt-contact">
+                    {phone ? <a href={`tel:+1${a.phone}`}>{phone}</a> : null}
+                    {web ? (
+                      <a href={web.href} target="_blank" rel="noopener noreferrer nofollow">
+                        {web.label}
+                      </a>
+                    ) : null}
+                  </span>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
 
         <div className="wrtt-comp">
