@@ -166,8 +166,13 @@ export default function Method() {
         <strong>Getting paid for it.</strong> The premise is people who organize things nobody
         pays them to organize, and Form 990 reports what each role paid – a volunteer director
         reads $0. Without that, a chief financial officer outranks a PTO vice-president, which
-        inverts the whole thesis. Paid roles still count, at a fraction. A filing that omitted
-        the field is treated as unknown rather than as free labour.
+        inverts the whole thesis. The discount runs at two levels. Each paid role counts at a
+        fraction of an unpaid one. And a person whose filings report substantial compensation{' '}
+        <em>anywhere</em> – the threshold is $50,000 – has their whole score halved, because a
+        hospital executive with one volunteer board seat is still a hospital executive, not
+        someone whose unpaid organizing is their life in the town. Those rows carry a small{' '}
+        <strong>salaried</strong> marker so a low-looking score explains itself. A filing that
+        omitted the field is treated as unknown rather than as free labour.
       </p>
       <p className="wrtt-prose">
         <strong>Three seats at the same institution.</strong> Organizations that share a phone
