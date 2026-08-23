@@ -23,6 +23,51 @@ function confClass(c: number) {
   return 'conf-high';
 }
 
+/**
+ * Filings arrive in whatever case the preparer typed - "SURGE FASTPITCH"
+ * beside "VidaDanceCompany Inc" - so titles and organization names are
+ * normalized to title case at display time. The stored value keeps the
+ * filing's own casing, since it is the evidence.
+ *
+ * CSS text-transform cannot do this (capitalize never lowercases), and no
+ * heuristic recases acronyms perfectly. The rules here: small words stay
+ * lower unless leading, single letters and vowelless short tokens read as
+ * initialisms and keep their caps (FHS, KCK), digit-bearing tokens too (T3,
+ * 4HG), a short allowlist covers common ones with vowels (PTO, CEO, USA),
+ * corporate suffixes get their conventional forms, and Mc names get their
+ * second cap back. The misses ("Msu", "Ijri") are rare and read fine.
+ */
+const TC_SMALL = new Set(['of', 'the', 'and', 'for', 'in', 'at', 'on', 'to', 'a', 'an', 'de', 'la', 'du', 'von', 'dem', 'en']);
+const TC_ACRONYM = new Set(['pto', 'pta', 'usa', 'us', 'aau', 'ceo', 'cfo', 'coo', 'cto', 'cio', 'vp', 'evp', 'svp', 'md', 'dds', 'rn', 'kc', 'tn', 'ks', 'ii', 'iii', 'iv', 'vfw', 'ucc', 'lgbtq']);
+const TC_SUFFIX: Record<string, string> = { inc: 'Inc', corp: 'Corp', co: 'Co', ltd: 'Ltd', llc: 'LLC', llp: 'LLP', nfp: 'NFP' };
+
+function tcPart(part: string): string {
+  const lower = part.toLowerCase();
+  if (TC_SUFFIX[lower]) return TC_SUFFIX[lower];
+  if (TC_ACRONYM.has(lower)) return lower.toUpperCase();
+  if (part.length === 1 || /\d/.test(part)) return part.toUpperCase();
+  if (part.length <= 5 && !/[aeiouy]/i.test(part)) return part.toUpperCase();
+  const cased = lower.charAt(0).toUpperCase() + lower.slice(1);
+  return cased.replace(/^Mc(\p{L})/u, (_, ch) => 'Mc' + ch.toUpperCase());
+}
+
+function titleCase(raw: string | null) {
+  if (!raw) return raw ?? '';
+  return raw
+    .split(/\s+/)
+    .map((word, i) => {
+      // A word the preparer already mixed the case of ("VidaDanceCompany")
+      // is deliberate; recasing it can only lose information.
+      if (/\p{Lu}/u.test(word) && /\p{Ll}/u.test(word)) return word;
+      const lower = word.toLowerCase();
+      if (i > 0 && TC_SMALL.has(lower)) return lower;
+      // Case each segment separately so acronyms survive inside hyphenated
+      // and slashed tokens ("LGBTQ-PLUS", "CEO/FOUNDER").
+      return word.split(/([-/'])/).map((seg, j) => (j % 2 ? seg : seg && tcPart(seg))).join('');
+    })
+    .join(' ');
+}
+
 function tel(n: string | null) {
   if (!n || n.length !== 10) return null;
   return `(${n.slice(0, 3)}) ${n.slice(3, 6)}-${n.slice(6)}`;
@@ -70,7 +115,7 @@ function Row({ c }: { c: Candidate }) {
           {emp?.flagged ? (
             <span
               className="wrtt-emp"
-              title={`Filings report ${emp.max_comp ? exact(emp.max_comp) : 'substantial'} in compensation${emp.org ? ` at ${emp.org}` : ''}. The index looks for people who organize unpaid, so this score is discounted across the board.`}
+              title={`Filings report ${emp.max_comp ? exact(emp.max_comp) : 'substantial'} in compensation${emp.org ? ` at ${titleCase(emp.org)}` : ''}. The index looks for people who organize unpaid, so this score is discounted across the board.`}
             >
               SALARIED
             </span>
@@ -86,16 +131,16 @@ function Row({ c }: { c: Candidate }) {
             const years = span(a.start_date, a.end_date);
             return (
               <li key={i}>
-                <span className="role">{a.role_title}</span>
+                <span className="role">{titleCase(a.role_title)}</span>
                 {' · '}
-                {a.org}
+                {titleCase(a.org)}
                 {/* This is the organization's revenue, not the person's pay.
                     Sitting beside a named individual it reads as a salary
                     unless it says so, so every figure carries the label. */}
                 {a.revenue ? (
                   <>
                     {' · '}
-                    <span className="wrtt-rev" title={`${a.org} reported ${exact(a.revenue)} in annual revenue`}>
+                    <span className="wrtt-rev" title={`${titleCase(a.org)} reported ${exact(a.revenue)} in annual revenue`}>
                       <b>REV:</b> {money(a.revenue)}
                     </span>
                   </>
