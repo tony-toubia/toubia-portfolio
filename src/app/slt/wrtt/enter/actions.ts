@@ -12,13 +12,19 @@ export async function enter(_prev: unknown, form: FormData) {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
-    path: '/slt/wrtt',
+    // '/' rather than '/slt/wrtt': the console also answers at /wrtt on
+    // slt.ventures, and a cookie scoped to the long path would never be
+    // sent there.
+    path: '/',
     maxAge: GATE_MAX_AGE,
   });
 
   // Only ever bounce back inside the console: an unchecked `from` is an
   // open redirect waiting to happen.
   const raw = String(form.get('from') ?? '');
-  const dest = raw.startsWith('/slt/wrtt') && !raw.startsWith('//') ? raw : '/slt/wrtt';
-  redirect(dest);
+  // Either spelling of the console - /slt/wrtt on the primary domain, /wrtt
+  // on slt.ventures. The default long form lands correctly on both: the
+  // dedicated domain redirects it to the short path.
+  const ok = (raw.startsWith('/slt/wrtt') || raw.startsWith('/wrtt')) && !raw.startsWith('//');
+  redirect(ok ? raw : '/slt/wrtt');
 }
