@@ -1,0 +1,24 @@
+-- ============================================================
+-- WRTT – make the identity lookup indexable.
+--
+-- The loader matched on wrtt.person_key(p.display_name), which is a
+-- function call on a column, so no index could serve it. Every officer
+-- in a batch drove a sequential scan over the whole person table,
+-- recomputing the key for every row: at 22,693 officers against ~10,000
+-- people that is hundreds of millions of calls, and the load died on a
+-- statement timeout partway through.
+--
+-- The key is now stored on the row and matched directly. A stored column
+-- rather than an expression index because person_key is declared
+-- IMMUTABLE but calls unaccent, which is only STABLE - an index on the
+-- expression could go stale if the dictionary ever changed.
+--
+--   alter table wrtt.person add column resolution_key text
+--   index on (market_id, resolution_key)
+--   load_990_batch  computes the key once per officer, probes the index
+--   resolve_people  partitions on the column, and backfills nulls
+--
+-- Applied to the live database via the Supabase migration API; this file
+-- is the record. Measured after: index scan, 0.144 ms, against a
+-- sequential scan with a per-row function call before.
+-- ============================================================
