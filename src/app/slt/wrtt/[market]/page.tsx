@@ -54,12 +54,28 @@ function exact(n: number) {
 
 function Row({ c }: { c: Candidate }) {
   const comps = c.components ?? {};
+  // Person-level employment flag from the scoring run: filings report
+  // substantial compensation somewhere, so the whole composite was halved.
+  // The chip explains a low-looking score; it is not an accusation.
+  const emp = (comps as Record<string, unknown>).employment as
+    | { flagged: boolean; max_comp?: number; org?: string; penalty?: number }
+    | undefined;
   return (
     <div className="wrtt-row">
       <div className="wrtt-rank">{String(c.rank_in_market).padStart(2, '0')}</div>
 
       <div>
-        <div className="wrtt-name">{c.display_name}</div>
+        <div className="wrtt-name">
+          {c.display_name}
+          {emp?.flagged ? (
+            <span
+              className="wrtt-emp"
+              title={`Filings report ${emp.max_comp ? exact(emp.max_comp) : 'substantial'} in compensation${emp.org ? ` at ${emp.org}` : ''}. The index looks for people who organize unpaid, so this score is discounted across the board.`}
+            >
+              SALARIED
+            </span>
+          ) : null}
+        </div>
 
         {/* Every claim carries its source. This is what makes the sheet read as
             research rather than surveillance. */}

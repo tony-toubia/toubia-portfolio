@@ -1,0 +1,24 @@
+-- ============================================================
+-- WRTT – person-level employment discount.
+--
+-- pay_weight already cuts the paid role itself, but that is role-level:
+-- a hospital CFO with one $400k role and one volunteer board seat still
+-- got full credit for the volunteer seat and ranked beside people for
+-- whom organizing IS the unpaid life. The premise of the index is the
+-- opposite of "senior employee who also sits on a board".
+--
+-- run_scoring now computes each person's maximum reported compensation
+-- across all affiliations. At or above employed_comp_floor (default
+-- $50,000) the whole composite is multiplied by employed_penalty
+-- (default 0.5), and the flag, figure, organization and penalty are
+-- carried in the score payload under components->'employment' so the
+-- sheet can say why a score looks low.
+--
+-- Measured on application: 902 of 12,670 people flagged (~7%), and none
+-- of them remain in any market's top 50. Both knobs live in the scoring
+-- profile like every other weight.
+--
+-- Applied to the live database via the Supabase migration API with the
+-- full run_scoring body carried forward from 0008; this file is the
+-- record.
+-- ============================================================
