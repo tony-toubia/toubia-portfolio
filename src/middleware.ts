@@ -33,13 +33,13 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url, 308);
   }
 
-  // No /slt landing page exists yet; on this domain the console is the site.
-  // A temporary redirect on purpose - when a landing page arrives, the root
-  // should start serving it without every visitor's cache disagreeing.
+  // The domain root is the SLT Ventures landing page, which exists as a
+  // static file. Rewritten straight to the file rather than to /slt, so it
+  // does not depend on next.config rewrites applying after middleware.
   if (onSlt && pathname === '/') {
     const url = req.nextUrl.clone();
-    url.pathname = '/wrtt';
-    return NextResponse.redirect(url, 307);
+    url.pathname = '/slt/index.html';
+    return NextResponse.rewrite(url);
   }
 
   // The path the router will see, and the spellings this host shows the user.
