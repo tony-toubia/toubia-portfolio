@@ -1,0 +1,17 @@
+-- The loader hardcoded 'irs_990' as the source key on every document it wrote,
+-- which was true while Part VII rosters were the only input. The 990-N
+-- e-Postcard arrives in the same record shape from a different form, and the
+-- sheet prints the source key beside each role, so a hardcoded key is a visible
+-- misstatement of provenance. Honour what the extractor declares.
+--
+-- Only the source_document insert changes; the rest is carried forward verbatim
+-- from 0009/0010/0011 so this file remains the whole current definition.
+
+--   insert into wrtt.source_document (source_key, url, content_hash, parse_status)
+--   values ('irs_990', ...)                                    -- before
+--   values (coalesce(nullif(rec->>'source_key',''), 'irs_990'), ...)  -- after
+--
+-- Applied to the live database via the Supabase migration API with the full
+-- function body carried forward from 0010; this file is the record. The
+-- content hash still folds in source_url, and the 990-N extractor makes that
+-- unique per EIN and tax year, so repeat filings remain distinct evidence.
