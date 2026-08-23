@@ -124,7 +124,11 @@ html.wrtt-root body {
 .wrtt-row:last-child { border-bottom: none; }
 .wrtt-rank { font-family: var(--mono); font-size: 13px; color: var(--fg-dim); padding-top: 3px;
              font-variant-numeric: tabular-nums; }
-.wrtt-name { font-size: 16px; font-weight: 700; }
+/* Filings arrive in whatever case the preparer typed - "Susan Marlow" on one
+   form, "PIYUSH KURUP" on the next - and a ranked list where half the names
+   shout reads as two different data sources. Normalized at display time only;
+   the stored name keeps the filing's own casing, since it is the evidence. */
+.wrtt-name { font-size: 16px; font-weight: 700; text-transform: uppercase; }
 .wrtt-aff { margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
 .wrtt-aff li { font-size: 13px; color: var(--fg-mid); }
 .wrtt-aff .role { color: var(--fg); font-weight: 600; }
