@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>SLT Ventures – Operators With Capital</title>
-  <meta name="description" content="SLT Ventures is a Kansas City-based investment firm partnering with founder-led, tech-enabled mid-market businesses in marketing services, vertical software, and tech-enabled services." />
+  <title>SLT Ventures – Relationships, Platforms, Capital</title>
+  <meta name="description" content="SLT Ventures is a Kansas City-based venture group built on three connected engines: a curated referral network, owned operating platforms, and selective strategic investments." />
   <meta name="theme-color" content="#0b1221" />
   <meta name="color-scheme" content="dark" />
 
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="SLT Ventures – Operators With Capital" />
-  <meta property="og:description" content="A differentiated partner for tech-enabled, mid-market businesses." />
+  <meta property="og:title" content="SLT Ventures – Relationships, Platforms, Capital" />
+  <meta property="og:description" content="Three connected engines: referral revenue, owned platforms, and larger strategic investments." />
   <meta property="og:site_name" content="SLT Ventures" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="SLT Ventures – Operators With Capital" />
-  <meta name="twitter:description" content="A differentiated partner for tech-enabled, mid-market businesses." />
+  <meta name="twitter:title" content="SLT Ventures – Relationships, Platforms, Capital" />
+  <meta name="twitter:description" content="Three connected engines: referral revenue, owned platforms, and larger strategic investments." />
 
   <!-- The mark is simplified for the icon: the nav lockup's "SLT" is
        unreadable below ~32px, so the icon keeps the nested diamonds only.
@@ -22,796 +22,7 @@
   <link rel="icon" href="/slt/favicon.ico" sizes="16x16 32x32 48x48" />
   <link rel="icon" href="/slt/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/slt/apple-touch-icon.png" />
-
-  <style>
-    /* ============================================================
-       SLT VENTURES
-       System: one dark ground, one accent, hairline rules, strict
-       grid. No gradients, shadows, blurs, transitions, or motion.
-       Two font weights only: 400 regular, 700 bold.
-       ============================================================ */
-
-    *, *::before, *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      border-radius: 0;
-    }
-
-    :root {
-      /* One dark ground + one raised surface. Nothing in between. */
-      --bg:        #0b1221;
-      --surface:   #131b2b;
-
-      /* Hairlines – solid, not stacked alphas */
-      --line:      #232d42;
-      --line-loud: #3a4560;
-
-      /* Type */
-      --fg:        #ffffff;
-      --fg-mid:    #aab3c0;
-      --fg-dim:    #6f7a8a;
-
-      /* The single accent */
-      --accent:    #c9a84c;
-
-      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue",
-              Helvetica, "Liberation Sans", "Nimbus Sans", Arial, sans-serif;
-
-      --gutter:  clamp(20px, 4vw, 48px);
-      --band-y:  clamp(56px, 7vw, 96px);
-      --nav-h:   64px;
-      --maxw:    1240px;
-    }
-
-    html {
-      scroll-behavior: auto; /* anchors jump; no animated scrolling */
-      -webkit-text-size-adjust: 100%;
-    }
-
-    body {
-      background: var(--bg);
-      color: var(--fg);
-      font-family: var(--sans);
-      font-size: 15px;
-      font-weight: 400;
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    svg { display: block; max-width: 100%; }
-
-    ::selection { background: var(--accent); color: #0b1221; }
-
-    a { color: inherit; }
-
-    :focus-visible {
-      outline: 2px solid var(--accent);
-      outline-offset: 2px;
-    }
-
-    .container {
-      max-width: var(--maxw);
-      margin: 0 auto;
-      width: 100%;
-    }
-
-    .band {
-      position: relative;
-      padding: var(--band-y) var(--gutter);
-      padding-left:  max(var(--gutter), env(safe-area-inset-left));
-      padding-right: max(var(--gutter), env(safe-area-inset-right));
-      border-top: 1px solid var(--line);
-      background: var(--bg);
-      color: var(--fg);
-    }
-    .band[id], footer[id] { scroll-margin-top: var(--nav-h); }
-
-    /* Light bands re-point the palette tokens, so every descendant –
-       rule grids, hairlines, muted copy – inverts without extra rules. */
-    .band--light {
-      --bg:        #f2f0ea;
-      --surface:   #e7e4dc;
-      --line:      #d4d0c5;
-      --line-loud: #b2ada0;
-      --fg:        #0b1221;
-      --fg-mid:    #4c5464;
-      --fg-dim:    #6d7484;
-      --accent:    #7a5f12; /* darkened gold – the brand gold fails contrast on cream */
-    }
-
-    .skip-link {
-      position: absolute; top: -100px; left: 0; z-index: 200;
-      background: var(--accent); color: #0b1221;
-      padding: 12px 18px;
-      font-size: 12px; font-weight: 700;
-      letter-spacing: 0.08em; text-transform: uppercase;
-      text-decoration: none;
-    }
-    .skip-link:focus { top: 0; }
-
-    /* ── TYPE SCALE ────────────────────────────────────────────── */
-
-    h1 {
-      font-size: clamp(2rem, 4.4vw, 3.5rem);
-      font-weight: 700;
-      line-height: 1.06;
-      letter-spacing: -0.022em;
-    }
-
-    h2 {
-      font-size: clamp(1.5rem, 2.8vw, 2.125rem);
-      font-weight: 700;
-      line-height: 1.15;
-      letter-spacing: -0.015em;
-      max-width: 20ch;
-    }
-
-    h3 {
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-    }
-
-    .eyebrow {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--accent);
-    }
-
-    .lede {
-      font-size: clamp(15px, 1.6vw, 17px);
-      line-height: 1.6;
-      color: var(--fg-mid);
-      max-width: 54ch;
-    }
-
-    .body-copy {
-      color: var(--fg-mid);
-      max-width: 62ch;
-    }
-    .body-copy + .body-copy { margin-top: 1em; }
-
-    /* ── NAV ───────────────────────────────────────────────────── */
-
-    nav {
-      position: sticky; top: 0; z-index: 100;
-      background: #0b1221;
-      border-bottom: 1px solid #232d42;
-    }
-    .nav-inner {
-      max-width: var(--maxw);
-      margin: 0 auto;
-      min-height: var(--nav-h);
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 16px;
-      padding: 0 var(--gutter);
-      padding-left:  max(var(--gutter), env(safe-area-inset-left));
-      padding-right: max(var(--gutter), env(safe-area-inset-right));
-    }
-
-    /* Locked up as SLT.Ventures – tight tracking, no word gap */
-    .wordmark {
-      display: flex; align-items: center; gap: 10px;
-      min-height: 44px;
-      text-decoration: none;
-      font-size: 16px;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
-      white-space: nowrap;
-      color: #ffffff;
-    }
-    .wordmark .mark { width: 30px; height: 30px; flex-shrink: 0; }
-    .wordmark .wm { display: inline-block; }
-    .wordmark .alt { color: #c9a84c; }
-
-    .nav-links { display: flex; gap: clamp(16px, 2vw, 30px); list-style: none; }
-    .nav-links a {
-      font-size: 12px;
-      font-weight: 400;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: #aab3c0;
-      text-decoration: none;
-      white-space: nowrap;
-    }
-    .nav-links a:hover { color: #ffffff; }
-
-    .nav-toggle {
-      display: none;
-      width: 44px; height: 44px;
-      align-items: center; justify-content: center;
-      background: none;
-      border: 1px solid #3a4560;
-      color: #ffffff;
-      cursor: pointer;
-      flex-shrink: 0;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .nav-toggle:hover { background: #131b2b; }
-    .bars { position: relative; display: block; width: 18px; height: 11px; }
-    .bars span, .bars::before, .bars::after {
-      content: ''; position: absolute; left: 0;
-      width: 100%; height: 1px; background: currentColor;
-    }
-    .bars::before { top: 0; }
-    .bars span    { top: 5px; }
-    .bars::after  { top: 10px; }
-    .nav-toggle[aria-expanded="true"] .bars::before { top: 5px; }
-    .nav-toggle[aria-expanded="true"] .bars::after  { top: 5px; }
-    .nav-toggle[aria-expanded="true"] .bars span    { display: none; }
-
-    .mobile-menu {
-      display: none;
-      border-top: 1px solid #232d42;
-      background: #0b1221;
-      padding: 0 var(--gutter) 24px;
-    }
-    .mobile-menu.open { display: block; }
-    .mobile-menu ul { list-style: none; }
-    .mobile-menu li { border-bottom: 1px solid #232d42; }
-    .mobile-menu a {
-      display: flex; align-items: center;
-      min-height: 52px;
-      font-size: 15px;
-      font-weight: 700;
-      text-decoration: none;
-      color: #ffffff;
-    }
-    .mobile-menu a:hover { color: #c9a84c; }
-    .mobile-menu .btn { margin-top: 20px; }
-
-    /* ── BUTTONS – sharp rectangles, solid fills ───────────────── */
-
-    .actions { display: flex; flex-wrap: wrap; gap: 10px; }
-
-    .btn {
-      display: inline-flex; align-items: center; justify-content: center;
-      min-height: 46px;
-      padding: 12px 26px;
-      font-family: var(--sans);
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.09em;
-      text-transform: uppercase;
-      text-decoration: none;
-      border: 1px solid #c9a84c;
-      cursor: pointer;
-    }
-    .btn-solid { background: #c9a84c; color: #0b1221; }
-    .btn-solid:hover { background: #ffffff; border-color: #ffffff; }
-
-    .btn-line { background: none; color: #ffffff; border-color: #3a4560; }
-    .btn-line:hover { border-color: #ffffff; }
-
-    /* ── HERO ──────────────────────────────────────────────────── */
-
-    .hero {
-      border-top: none;
-      padding-top: clamp(56px, 7vw, 96px);
-      overflow: hidden;
-    }
-
-    /* Optional video backdrop. Falls back to the flat ground when no
-       asset is present, so the hero is correct either way. */
-    .hero-bg {
-      position: absolute; inset: 0;
-      overflow: hidden;
-      background: #0b1221;
-      pointer-events: none;
-    }
-    .hero-bg video {
-      width: 100%; height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-    /* 0.80, not less: at 0.74 the muted lede drops to 3.8:1 against a
-       pure-white video frame. This keeps every hero text style at AA
-       regardless of what the footage is doing behind it. */
-    .hero-scrim {
-      position: absolute; inset: 0;
-      background: rgba(11, 18, 33, 0.80);
-    }
-    .hero > .container { position: relative; z-index: 1; }
-
-    .hero-layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-      column-gap: clamp(32px, 5vw, 64px);
-      align-items: start;
-    }
-
-    .hero h1 { margin: 14px 0 0; max-width: 20ch; }
-    .hero .lede { margin-top: 22px; }
-    .hero .actions { margin-top: 30px; }
-
-    /* Key facts – a dense table, not stat cards */
-    .facts { border-top: 2px solid var(--accent); }
-    .facts .row {
-      display: flex; justify-content: space-between; align-items: baseline;
-      gap: 16px;
-      padding: 18px 0;
-      border-bottom: 1px solid var(--line-loud);
-    }
-    .facts dt {
-      font-size: 12px;
-      font-weight: 400;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--fg-mid);
-    }
-    .facts dd {
-      font-size: clamp(18px, 2.1vw, 24px);
-      font-weight: 700;
-      text-align: right;
-      letter-spacing: -0.01em;
-    }
-
-    /* ── SECTION LAYOUTS ───────────────────────────────────────── */
-
-    .split {
-      display: grid;
-      grid-template-columns: minmax(0, 1.15fr) minmax(0, 2.1fr);
-      column-gap: clamp(32px, 5vw, 72px);
-      align-items: start;
-    }
-    /* Beside a column the heading is meant to be narrow, but at the full
-       display size it was breaking every two or three words. */
-    .split-aside h2 {
-      margin-top: 10px;
-      font-size: clamp(1.5rem, 2.2vw, 1.85rem);
-      max-width: 18ch;
-    }
-
-    /* A heading sitting ABOVE full-width content needs a wider measure than
-       one sitting BESIDE a column – capping both at 20ch made these wrap
-       into a narrow stack over a full-bleed grid. */
-    .stack-head h2 { margin-top: 10px; max-width: 34ch; }
-    .stack-head .lede { margin-top: 16px; max-width: 68ch; }
-
-    /* ── RULE GRID – hairlines built from 1px gaps ─────────────── */
-
-    .rule-grid {
-      display: grid;
-      gap: 1px;
-      background: var(--line);
-      border: 1px solid var(--line);
-      margin-top: clamp(32px, 4vw, 48px);
-    }
-    .rule-grid > * { background: var(--bg); }
-    .cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-
-    .cell { padding: clamp(24px, 2.6vw, 34px); }
-
-    .cell-index {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      color: var(--accent);
-    }
-    .cell h3 { margin-top: 16px; }
-    .cell p { margin-top: 12px; color: var(--fg-mid); font-size: 14px; }
-
-    .spec-list { list-style: none; margin-top: 18px; }
-    .spec-list li {
-      font-size: 14px;
-      color: var(--fg-mid);
-      padding: 10px 0;
-      border-top: 1px solid var(--line);
-    }
-    .spec-list li:first-child { border-top: none; padding-top: 0; }
-
-    /* ── TENETS – a 3x3 field rather than a running list ───────── */
-
-    .tenets-grid { list-style: none; }
-    .tenets-grid li { padding: clamp(24px, 2.4vw, 32px); }
-    .tenets-grid .n {
-      display: block;
-      font-size: clamp(30px, 3.4vw, 44px);
-      font-weight: 700;
-      line-height: 1;
-      letter-spacing: -0.03em;
-      color: var(--accent);
-    }
-    .tenets-grid p {
-      margin-top: 16px;
-      padding-top: 16px;
-      border-top: 1px solid var(--line);
-      font-size: 15px;
-      line-height: 1.55;
-    }
-
-    /* ── POSITIONING DIAGRAM + DISCIPLINES ─────────────────────── */
-
-    .apart {
-      margin-top: clamp(32px, 4vw, 48px);
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: clamp(28px, 4vw, 64px);
-      align-items: center;
-      border-top: 1px solid var(--line);
-      padding-top: clamp(28px, 3.5vw, 44px);
-    }
-    .apart-figure { display: flex; justify-content: center; }
-    .diagram { width: 100%; max-width: 380px; height: auto; }
-
-    .disc-label {
-      font-family: var(--sans);
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 1.1px;
-      text-anchor: middle;
-      fill: #aab3c0;
-    }
-    .disc-mark {
-      font-family: var(--sans);
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.6px;
-      text-anchor: middle;
-      fill: #0b1221;
-    }
-
-    /* Pointing at a discipline lights its circle and dims the rest.
-       Instant, no transition – consistent with the rest of the page. */
-    .apart[data-active] .disc-circle { stroke: #1a2233; }
-    .apart[data-active] .disc-label  { fill: #55606f; }
-    .apart[data-active="family"] #c-family,
-    .apart[data-active="pe"]     #c-pe,
-    .apart[data-active="op"]     #c-op { stroke: #c9a84c; stroke-width: 2; }
-    .apart[data-active="family"] .disc-label[data-for="family"],
-    .apart[data-active="pe"]     .disc-label[data-for="pe"],
-    .apart[data-active="op"]     .disc-label[data-for="op"] { fill: #ffffff; }
-
-    .apart-list { list-style: none; }
-    .apart-list li { border-bottom: 1px solid var(--line); }
-    .apart-list li:first-child { border-top: 1px solid var(--line); }
-    .apart-list button {
-      width: 100%;
-      display: grid;
-      grid-template-columns: 34px minmax(0, 1fr);
-      gap: 14px;
-      align-items: start;
-      padding: 20px 12px 20px 0;
-      background: none;
-      border: none;
-      font-family: inherit;
-      color: inherit;
-      text-align: left;
-      cursor: pointer;
-    }
-    .apart-list li:hover button,
-    .apart-list li:focus-within button { background: var(--surface); }
-    .apart-list .n {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      color: var(--accent);
-      padding-top: 3px;
-    }
-    .apart-list .t {
-      display: block;
-      font-size: 15px;
-      font-weight: 700;
-    }
-    .apart-list .d {
-      display: block;
-      margin-top: 5px;
-      font-size: 14px;
-      font-weight: 400;
-      line-height: 1.55;
-      color: var(--fg-mid);
-    }
-
-    .apart-notes {
-      margin-top: clamp(28px, 3.5vw, 44px);
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: clamp(24px, 4vw, 64px);
-    }
-    .apart-notes .body-copy { max-width: none; }
-
-    /* ── TESTIMONIALS – scrollable track over an image ─────────── */
-
-    .quotes-band { border-top: 1px solid var(--line); }
-    .quotes-bg {
-      position: absolute; inset: 0;
-      overflow: hidden;
-      background-color: #0d1524;
-      background-size: cover;
-      background-position: center;
-      pointer-events: none;
-    }
-    .quotes-bg video {
-      width: 100%; height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-    .quotes-scrim {
-      position: absolute; inset: 0;
-      background: rgba(11, 18, 33, 0.78);
-      pointer-events: none;
-    }
-    .quotes-band > .container { position: relative; z-index: 1; }
-
-    /* One testimonial visible at a time; arrows page between them.
-       Native horizontal scroll keeps swipe working on touch. */
-    .quote-track {
-      margin-top: clamp(32px, 4vw, 48px);
-      display: flex;
-      overflow-x: auto;
-      scroll-snap-type: x mandatory;
-      scrollbar-width: none;
-      -ms-overflow-style: none;
-    }
-    .quote-track::-webkit-scrollbar { display: none; }
-
-    .quote-track figure {
-      flex: 0 0 100%;
-      min-width: 100%;
-      scroll-snap-align: start;
-      background: rgba(11, 18, 33, 0.86);
-      border: 1px solid #3a4560;
-      border-top: 2px solid #c9a84c;
-      padding: clamp(28px, 4vw, 56px);
-      display: grid;
-      grid-template-columns: minmax(0, 210px) minmax(0, 1fr);
-      column-gap: clamp(28px, 4vw, 56px);
-      align-items: center;
-      min-height: 260px;
-    }
-    .quote-body { display: flex; flex-direction: column; justify-content: center; }
-
-    /* Partner lockups. Each brand is rebuilt to its own spec rather than
-       flattened to one house style, so the marks stay recognisable. */
-    /* Mark stacked over wordmark, so all three partners read as
-       similarly proportioned blocks regardless of logo aspect ratio. */
-    .quote-logo {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 14px;
-      text-align: center;
-      padding-right: clamp(20px, 3vw, 32px);
-      border-right: 1px solid #3a4560;
-      min-height: 56px;
-    }
-    .quote-logo img { display: block; flex-shrink: 0; }
-
-    /* IX: their square mark (as used for their favicon) over the wordmark,
-       set in the tracked grey caps their own logo uses */
-    .quote-logo .lg-ix { width: 66px; height: auto; }
-    .lockup-ix {
-      font-size: 13px;
-      font-weight: 400;
-      letter-spacing: 0.28em;
-      text-transform: uppercase;
-      color: #aab3c0;
-      line-height: 1;
-      padding-left: 0.28em; /* offset the trailing letter-space so it optically centres */
-    }
-
-    /* AXO: icon + "AXO" with the period in brand pink (axoapp.ai spec:
-       700 weight, 20px, -0.02em, #D4537E on the dot) */
-    .quote-logo .lg-axo { width: 78px; height: auto; }
-    .lockup-axo {
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      color: #ffffff;
-      line-height: 1;
-    }
-    .lockup-axo i { font-style: normal; color: #D4537E; }
-
-    /* Steel Cloud: white mark + name set to echo their site's spacing */
-    .quote-logo .lg-scs { width: 64px; height: auto; }
-    .lockup-scs {
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: #ffffff;
-      line-height: 1.35;
-    }
-    .quote-track blockquote {
-      font-size: clamp(16px, 2vw, 22px);
-      line-height: 1.5;
-      color: #ffffff;
-      max-width: 62ch;
-    }
-    .quote-track figcaption {
-      margin-top: 20px;
-      padding-top: 14px;
-      border-top: 1px solid #3a4560;
-      font-size: 13px;
-      font-weight: 700;
-      color: #ffffff;
-    }
-    /* Relationship tag – the quotes come from two different kinds of
-       counterparty, so each is labelled rather than left ambiguous. */
-    .quote-track .rel {
-      display: block;
-      width: fit-content;
-      margin-bottom: 10px;
-      padding: 4px 8px;
-      border: 1px solid #c9a84c;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: #c9a84c;
-    }
-    .quote-track .role {
-      display: block;
-      font-size: 12px;
-      font-weight: 400;
-      color: #aab3c0;
-      margin-top: 3px;
-    }
-
-    .quote-nav { display: flex; align-items: center; gap: 8px; margin-top: 20px; }
-    .quote-count {
-      margin-left: 8px;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      color: #aab3c0;
-    }
-    .quote-count b { color: #ffffff; font-weight: 700; }
-    .quote-nav button {
-      width: 46px; height: 46px;
-      display: inline-flex; align-items: center; justify-content: center;
-      background: none;
-      border: 1px solid #3a4560;
-      color: #ffffff;
-      cursor: pointer;
-    }
-    .quote-nav button:hover { border-color: #ffffff; }
-
-    /* ── FOOTER ────────────────────────────────────────────────── */
-
-    footer {
-      border-top: 1px solid #232d42;
-      background: #0b1221;
-      color: #ffffff;
-      padding: var(--band-y) var(--gutter) 24px;
-      padding-left:  max(var(--gutter), env(safe-area-inset-left));
-      padding-right: max(var(--gutter), env(safe-area-inset-right));
-      scroll-margin-top: var(--nav-h);
-    }
-    .footer-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr);
-      gap: clamp(28px, 4vw, 56px);
-      padding-bottom: 36px;
-      border-bottom: 1px solid #232d42;
-    }
-    .footer-grid h3 { color: #6f7a8a; margin-bottom: 14px; }
-    .footer-brand .wordmark { font-size: 15px; margin-bottom: 16px; }
-    .footer-brand p { color: #aab3c0; font-size: 14px; max-width: 46ch; }
-    .footer-brand p + p { margin-top: 14px; }
-
-    .footer-grid ul { list-style: none; }
-    .footer-grid ul a {
-      display: flex; align-items: center;
-      min-height: 34px;
-      font-size: 14px;
-      color: #aab3c0;
-      text-decoration: none;
-    }
-    .footer-grid ul a:hover { color: #ffffff; }
-
-    .contact-block { font-size: 14px; color: #aab3c0; }
-    .contact-block a { color: #aab3c0; text-decoration: none; }
-    .contact-block a:hover { color: #ffffff; }
-
-    .signup { margin-top: 16px; display: flex; max-width: 400px; }
-    .signup input {
-      flex: 1 1 auto;
-      min-width: 0;
-      height: 46px;
-      padding: 0 14px;
-      background: #131b2b;
-      border: 1px solid #3a4560;
-      border-right: none;
-      color: #ffffff;
-      font-family: var(--sans);
-      font-size: 16px; /* prevents iOS zoom-on-focus */
-    }
-    .signup input::placeholder { color: #6f7a8a; }
-    .signup input:focus { outline: none; border-color: #c9a84c; }
-    .signup button {
-      flex: 0 0 auto;
-      height: 46px;
-      padding: 0 20px;
-      background: #c9a84c;
-      border: 1px solid #c9a84c;
-      color: #0b1221;
-      font-family: var(--sans);
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.09em;
-      text-transform: uppercase;
-      cursor: pointer;
-    }
-    .signup button:hover { background: #ffffff; border-color: #ffffff; }
-
-    .footer-bottom {
-      display: flex; flex-wrap: wrap; justify-content: space-between;
-      gap: 8px 24px;
-      padding-top: 20px;
-    }
-    .footer-bottom p, .footer-bottom a {
-      font-size: 12px;
-      color: #6f7a8a;
-      text-decoration: none;
-    }
-    .footer-bottom a:hover { color: #aab3c0; }
-    .legal { display: flex; flex-wrap: wrap; gap: 8px 24px; }
-
-    /* ── BREAKPOINTS ───────────────────────────────────────────── */
-
-    @media (max-width: 1000px) {
-      .cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .cols-3 > :last-child { grid-column: 1 / -1; }
-      .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .footer-brand { grid-column: 1 / -1; }
-    }
-
-    @media (max-width: 860px) {
-      .nav-links { display: none; }
-      .nav-toggle { display: inline-flex; }
-      .hero-layout,
-      .split { grid-template-columns: minmax(0, 1fr); row-gap: 36px; }
-      .split-aside h2 { max-width: 24ch; }
-      .apart { grid-template-columns: minmax(0, 1fr); }
-      .apart-figure { order: -1; }
-      .apart-notes { grid-template-columns: minmax(0, 1fr); }
-      /* Touch targets for the sparse footer links */
-      .contact-block a,
-      .legal a { display: inline-flex; align-items: center; min-height: 44px; }
-      .legal { gap: 0 24px; }
-    }
-
-    @media (max-width: 640px) {
-      .cols-3 { grid-template-columns: minmax(0, 1fr); }
-      .cols-3 > :last-child { grid-column: auto; }
-      .footer-grid { grid-template-columns: minmax(0, 1fr); }
-      .actions .btn { flex: 1 1 auto; }
-      /* Lockup moves above the quote and its divider becomes a rule under it.
-         It also goes horizontal here: stacked marks waste vertical space on a
-         phone, and side-by-side is how these logos are drawn natively. */
-      .quote-track figure { grid-template-columns: minmax(0, 1fr); row-gap: 20px; }
-      .quote-logo {
-        flex-direction: row;
-        align-items: center;
-        justify-content: flex-start;
-        gap: 12px;
-        text-align: left;
-        padding-right: 0;
-        padding-bottom: 18px;
-        border-right: none;
-        border-bottom: 1px solid #3a4560;
-        min-height: 0;
-      }
-      /* Centring offset is only right when the wordmark sits under the mark */
-      .lockup-ix { padding-left: 0; }
-      .quote-logo .lg-ix  { width: 52px; }
-      .quote-logo .lg-axo { width: 62px; }
-      .quote-logo .lg-scs { width: 48px; }
-    }
-
-    @media (max-width: 440px) {
-      .signup { display: grid; grid-template-columns: 1fr; gap: 10px; max-width: none; }
-      .signup input { border-right: 1px solid #3a4560; }
-      .signup button { width: 100%; }
-    }
-  </style>
+  <link rel="stylesheet" href="/slt/site.css" />
 </head>
 <body>
 
@@ -819,7 +30,7 @@
 
 <nav>
   <div class="nav-inner">
-    <a href="#top" class="wordmark" aria-label="SLT Ventures – home">
+    <a href="/slt" class="wordmark" aria-label="SLT Ventures – home">
       <svg class="mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
         <polygon points="20,2 38,20 20,38 2,20" fill="none" stroke="#c9a84c" stroke-width="1.5"/>
         <polygon points="20,8 32,20 20,32 8,20" fill="none" stroke="#c9a84c" stroke-width="0.8" opacity="0.5"/>
@@ -829,10 +40,11 @@
     </a>
 
     <ul class="nav-links">
-      <li><a href="#how-we-think">How We Think</a></li>
-      <li><a href="#working">Working With Us</a></li>
-      <li><a href="#sectors">Focus Sectors</a></li>
-      <li><a href="#criteria">Criteria</a></li>
+      <li><a href="#thesis">Thesis</a></li>
+      <li><a href="#pillars">The Pillars</a></li>
+      <li><a href="/slt/growth-advisors">Growth Advisors</a></li>
+      <li><a href="/slt/platforms">Platforms</a></li>
+      <li><a href="/slt/capital">Capital</a></li>
       <li><a href="#contact">Contact</a></li>
     </ul>
 
@@ -844,13 +56,14 @@
 
   <div class="mobile-menu" id="mobileMenu">
     <ul>
-      <li><a href="#how-we-think">How We Think</a></li>
-      <li><a href="#working">Working With Us</a></li>
-      <li><a href="#sectors">Focus Sectors</a></li>
-      <li><a href="#criteria">Investment Criteria</a></li>
+      <li><a href="#thesis">Thesis</a></li>
+      <li><a href="#pillars">The Pillars</a></li>
+      <li><a href="/slt/growth-advisors">Growth Advisors</a></li>
+      <li><a href="/slt/platforms">Platforms &amp; Services</a></li>
+      <li><a href="/slt/capital">Capital Investments</a></li>
       <li><a href="#contact">Contact</a></li>
     </ul>
-    <a href="mailto:info@slt.ventures" class="btn btn-solid">Work With Us</a>
+    <a href="mailto:info@slt.ventures?subject=Opportunity%20for%20SLT%20Ventures" class="btn btn-solid">Submit an Opportunity</a>
   </div>
 </nav>
 
@@ -866,71 +79,52 @@
 
     <div class="container hero-layout">
       <div>
-        <p class="eyebrow">Kansas City-Based Investment Firm</p>
-        <h1>A differentiated partner for tech-enabled, mid-market businesses</h1>
+        <p class="eyebrow">Kansas City-Based Venture Group</p>
+        <h1>Three connected engines. One compounding model.</h1>
         <p class="lede">
-          We are operators with capital. SLT Ventures partners with founder-led technology companies – from marketing services to vertical software – to build category leaders.
+          We are operators with capital. SLT Ventures identifies, builds, and scales businesses where relationships, technology, capital, and operating expertise create measurable value – through a curated referral network, owned operating platforms, and selective strategic investments.
         </p>
         <div class="actions">
-          <a href="#working" class="btn btn-solid">Work With Us</a>
-          <a href="#how-we-think" class="btn btn-line">How We Think</a>
+          <a href="#pillars" class="btn btn-solid">The Three Pillars</a>
+          <a href="#contact" class="btn btn-line">Partner With Us</a>
         </div>
       </div>
 
       <dl class="facts">
-        <div class="row"><dt>Target revenue</dt><dd>$10M+</dd></div>
-        <div class="row"><dt>Focus verticals</dt><dd>Three</dd></div>
+        <div class="row"><dt>Pillars</dt><dd>Three</dd></div>
+        <div class="row"><dt>Approach</dt><dd>Operator-led</dd></div>
         <div class="row"><dt>Headquarters</dt><dd>Kansas City</dd></div>
-        <div class="row"><dt>Investment horizon</dt><dd>Long-term</dd></div>
+        <div class="row"><dt>Horizon</dt><dd>Long-term</dd></div>
       </dl>
     </div>
   </section>
 
-  <!-- OUR STORY -->
-  <section class="band" id="how-we-think">
-    <div class="container split">
-      <div class="split-aside">
-        <p class="eyebrow">Our Story</p>
-        <h2>Operators who understand technology at every layer of a business</h2>
-      </div>
-      <div>
-        <p class="body-copy">
-          SLT Ventures was founded by operators who built and scaled technology companies from the ground up. We've sat in the seat of the founder, the CEO, and the CTO – navigating the challenges of product-market fit, enterprise sales cycles, and platform architecture. That experience shapes how we partner, advise, and invest.
-        </p>
-        <p class="body-copy">
-          Today, SLT Ventures focuses on high-quality mid-market companies in tech-enabled services, marketing and demand-generation platforms, and vertical software – businesses where technology is the durable competitive advantage.
-        </p>
-      </div>
-    </div>
-  </section>
-
-  <!-- WHAT SETS US APART -->
-  <section class="band" id="working">
+  <!-- INVESTMENT THESIS -->
+  <section class="band" id="thesis">
     <div class="container">
       <div class="stack-head">
-        <p class="eyebrow">What Sets Us Apart</p>
-        <h2>We are not a private equity firm. We are operators with capital.</h2>
+        <p class="eyebrow">Investment Thesis</p>
+        <h2>Relationships create deal flow. Platforms create repeatable value. Capital captures upside.</h2>
         <p class="lede">
-          We combine the long-term thinking of a family office, the financial discipline of private equity, and the focused perspective of operators who have built technology companies from startup to scale.
+          Use trusted relationships and practical AI-enabled platforms to create proprietary deal flow, recurring revenue, and long-term equity value.
         </p>
       </div>
 
-      <!-- Each discipline is a control: pointing at one lights its circle
+      <!-- Each engine is a control: pointing at one lights its circle
            in the diagram and dims the other two. -->
       <div class="apart" id="apart">
         <div class="apart-figure">
           <svg class="diagram" viewBox="45 30 290 280" fill="none" xmlns="http://www.w3.org/2000/svg"
-               role="img" aria-label="SLT Ventures sits at the intersection of three disciplines: family office, private equity, and operating business.">
-            <circle id="c-family" class="disc-circle" cx="145" cy="130" r="95" fill="none" stroke="#3a4560" stroke-width="1"/>
-            <circle id="c-pe"     class="disc-circle" cx="235" cy="130" r="95" fill="none" stroke="#3a4560" stroke-width="1"/>
-            <circle id="c-op"     class="disc-circle" cx="190" cy="210" r="95" fill="none" stroke="#3a4560" stroke-width="1"/>
+               role="img" aria-label="SLT Ventures sits at the intersection of three engines: relationships, technology, and capital.">
+            <circle id="c-rel"  class="disc-circle" cx="145" cy="130" r="95" fill="none" stroke="#3a4560" stroke-width="1"/>
+            <circle id="c-tech" class="disc-circle" cx="235" cy="130" r="95" fill="none" stroke="#3a4560" stroke-width="1"/>
+            <circle id="c-cap"  class="disc-circle" cx="190" cy="210" r="95" fill="none" stroke="#3a4560" stroke-width="1"/>
 
-            <text x="100" y="96"  class="disc-label" data-for="family">FAMILY</text>
-            <text x="100" y="110" class="disc-label" data-for="family">OFFICE</text>
-            <text x="280" y="96"  class="disc-label" data-for="pe">PRIVATE</text>
-            <text x="280" y="110" class="disc-label" data-for="pe">EQUITY</text>
-            <text x="190" y="272" class="disc-label" data-for="op">OPERATING</text>
-            <text x="190" y="286" class="disc-label" data-for="op">BUSINESS</text>
+            <text x="100" y="96"  class="disc-label" data-for="rel">RELATION-</text>
+            <text x="100" y="110" class="disc-label" data-for="rel">SHIPS</text>
+            <text x="280" y="96"  class="disc-label" data-for="tech">TECH-</text>
+            <text x="280" y="110" class="disc-label" data-for="tech">NOLOGY</text>
+            <text x="190" y="272" class="disc-label" data-for="cap">CAPITAL</text>
 
             <polygon points="190,129 218,157 190,185 162,157" fill="#c9a84c"/>
             <text x="190" y="161" class="disc-mark">SLT</text>
@@ -938,30 +132,30 @@
         </div>
 
         <ol class="apart-list">
-          <li data-disc="family">
+          <li data-disc="rel">
             <button type="button">
               <span class="n">01</span>
               <span>
-                <span class="t">Family Office</span>
-                <span class="d">Patient capital and a horizon measured in decades, not fund cycles.</span>
+                <span class="t">Relationships</span>
+                <span class="d">Trusted networks generate proprietary opportunities and qualified introductions.</span>
               </span>
             </button>
           </li>
-          <li data-disc="pe">
+          <li data-disc="tech">
             <button type="button">
               <span class="n">02</span>
               <span>
-                <span class="t">Private Equity</span>
-                <span class="d">The financial discipline to underwrite honestly and hold a plan to account.</span>
+                <span class="t">Technology</span>
+                <span class="d">Automation and AI turn manual workflows into scalable platforms.</span>
               </span>
             </button>
           </li>
-          <li data-disc="op">
+          <li data-disc="cap">
             <button type="button">
               <span class="n">03</span>
               <span>
-                <span class="t">Operating Business</span>
-                <span class="d">Operators who have carried a P&amp;L, shipped product, and sold into the enterprise.</span>
+                <span class="t">Capital</span>
+                <span class="d">Selective investment captures long-term equity value beyond advisory revenue.</span>
               </span>
             </button>
           </li>
@@ -970,11 +164,45 @@
 
       <div class="apart-notes">
         <p class="body-copy">
-          Our flexible mandate serves one goal – build great technology companies. We bring a proven playbook for scaling recurring-revenue businesses, expanding go-to-market reach, and driving technology-led value creation across our portfolio.
+          SLT Ventures was founded by operators who built and scaled technology companies from the ground up. We have sat in the seat of the founder, the CEO, and the CTO – and that experience shapes how we partner, advise, and invest.
         </p>
         <p class="body-copy">
-          We have a long-term investment horizon with a focus on double-digit multiples of invested capital. We understand that true partnerships are built on shared vision, trust, and respect.
+          The model compounds. Growth Advisors creates relationships and revenue; Platforms creates repeatable value; Capital captures the larger upside. Each pillar strengthens the other two: referral revenue, platform ownership, service margins, investment upside, and proprietary deal flow.
         </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- THE THREE PILLARS -->
+  <section class="band band--light" id="pillars">
+    <div class="container">
+      <div class="stack-head">
+        <p class="eyebrow">The Three Pillars</p>
+        <h2>One umbrella. Three pillars that reinforce each other.</h2>
+        <p class="lede">
+          Each pillar stands on its own economics, and each one feeds the others – the relationships surface the deals, the platforms prove the operating playbook, and the capital takes the positions worth holding.
+        </p>
+      </div>
+
+      <div class="rule-grid cols-3">
+        <a class="cell" href="/slt/growth-advisors">
+          <p class="cell-index">PILLAR 01</p>
+          <h3>SLT Growth Advisors</h3>
+          <p>A curated referral network connecting trusted referrers with hand-selected service partners that need qualified business opportunities. Recurring revenue without heavy delivery responsibility – and the relationship engine behind everything else.</p>
+          <span class="cell-link">Explore the network →</span>
+        </a>
+        <a class="cell" href="/slt/platforms">
+          <p class="cell-index">PILLAR 02</p>
+          <h3>Platforms &amp; Services</h3>
+          <p>Owned and partnered operating platforms – SitRep for public-sector situation reporting, SLT Scale for back-office enablement, and a disciplined, venture-style intake for what comes next.</p>
+          <span class="cell-link">See the platforms →</span>
+        </a>
+        <a class="cell" href="/slt/capital">
+          <p class="cell-index">PILLAR 03</p>
+          <h3>Capital Investments</h3>
+          <p>Selective, PE-style positions in operating businesses where SLT can create value beyond the check – through its network, its technology capability, and its operating experience.</p>
+          <span class="cell-link">How we invest →</span>
+        </a>
       </div>
     </div>
   </section>
@@ -984,7 +212,7 @@
     <div class="container">
       <div class="stack-head">
         <p class="eyebrow">Core Tenets</p>
-        <h2>We are passionate about building great technology companies.</h2>
+        <h2>We are passionate about building great companies.</h2>
       </div>
       <ol class="rule-grid cols-3 tenets-grid">
         <li><span class="n">01</span><p>Great companies pursue mutual success. If an engagement only works for one side, it does not hold.</p></li>
@@ -997,83 +225,6 @@
         <li><span class="n">08</span><p>Great companies are disciplined with money. They grow revenue faster than cost, and they know the difference between spending and investing.</p></li>
         <li><span class="n">09</span><p>Great companies give credit away, and they are worth having in a community. Leaders who talk about their teams before themselves build teams worth talking about.</p></li>
       </ol>
-    </div>
-  </section>
-
-  <!-- FOCUS SECTORS -->
-  <section class="band band--light" id="sectors">
-    <div class="container">
-      <div class="stack-head">
-        <p class="eyebrow">Focus Sectors</p>
-        <h2>Three verticals. Deep conviction.</h2>
-        <p class="lede">
-          We concentrate our energy where technology creates compounding competitive advantage – and where our operating expertise delivers differentiated value to portfolio companies.
-        </p>
-      </div>
-
-      <div class="rule-grid cols-3">
-        <article class="cell">
-          <p class="cell-index">01</p>
-          <h3>Tech-Enabled Services</h3>
-          <p>Businesses where proprietary technology amplifies the delivery of high-value services – creating defensible margins, scalable delivery, and measurable client ROI. We look for companies where software is the engine, not the afterthought.</p>
-        </article>
-        <article class="cell">
-          <p class="cell-index">02</p>
-          <h3>Marketing Services</h3>
-          <p>Data-driven marketing, demand generation, performance media, and CRM platforms for enterprise and mid-market clients. We bring deep roots in the marketing technology landscape and relationships that open doors.</p>
-        </article>
-        <article class="cell">
-          <p class="cell-index">03</p>
-          <h3>Vertical Software</h3>
-          <p>Purpose-built SaaS and platform businesses serving specific industries – healthcare, legal, real estate, logistics, and more. Vertical software creates sticky, high-NRR businesses that are ripe for buy-and-build expansion.</p>
-        </article>
-      </div>
-    </div>
-  </section>
-
-  <!-- INVESTMENT CRITERIA -->
-  <section class="band band--light" id="criteria">
-    <div class="container">
-      <div class="stack-head">
-        <p class="eyebrow">Investment Criteria</p>
-        <h2>We want to partner with a small, concentrated group of exceptional companies.</h2>
-      </div>
-
-      <div class="rule-grid cols-3">
-        <div class="cell">
-          <h3>Industry</h3>
-          <ul class="spec-list">
-            <li>Tech-enabled service businesses</li>
-            <li>Marketing &amp; demand-gen platforms</li>
-            <li>Vertical SaaS &amp; workflow software</li>
-            <li>$10B+ addressable markets</li>
-            <li>Fragmented, buy-and-build opportunity</li>
-            <li>AI-augmentable business models</li>
-          </ul>
-        </div>
-        <div class="cell">
-          <h3>Company</h3>
-          <ul class="spec-list">
-            <li>$10M–$100M in revenue</li>
-            <li>$3M–$20M in EBITDA or ARR</li>
-            <li>Recurring / subscription revenue base</li>
-            <li>Demonstrated growth track record</li>
-            <li>Limited customer concentration</li>
-            <li>Strong unit economics</li>
-          </ul>
-        </div>
-        <div class="cell">
-          <h3>Team &amp; Deal</h3>
-          <ul class="spec-list">
-            <li>Majority or significant minority stake</li>
-            <li>Founder / entrepreneur-led</li>
-            <li>CEO aligned on growth path forward</li>
-            <li>Meaningful management equity rollover</li>
-            <li>Desire for a long-term operating partner</li>
-            <li>Midwest or national geography</li>
-          </ul>
-        </div>
-      </div>
     </div>
   </section>
 
@@ -1161,7 +312,7 @@
           </svg>
           <span class="wm">SLT<span class="alt">.Ventures</span></span>
         </div>
-        <p>A Kansas City-based private investment firm partnering with mid-market technology companies to build enduring, category-defining businesses.</p>
+        <p>A Kansas City-based venture group built on three connected engines: a curated referral network, owned operating platforms, and selective strategic investments.</p>
         <p>Sign up to receive insights and updates from our team.</p>
 
         <form class="signup" id="signupForm">
@@ -1174,11 +325,11 @@
       <div>
         <h3>Navigation</h3>
         <ul>
-          <li><a href="#how-we-think">How We Think</a></li>
-          <li><a href="#working">Working With Us</a></li>
-          <li><a href="#sectors">Focus Sectors</a></li>
-          <li><a href="#criteria">Investment Criteria</a></li>
-          <li><a href="#contact">Contact</a></li>
+          <li><a href="#thesis">Investment Thesis</a></li>
+          <li><a href="#pillars">The Three Pillars</a></li>
+          <li><a href="/slt/growth-advisors">SLT Growth Advisors</a></li>
+          <li><a href="/slt/platforms">Platforms &amp; Services</a></li>
+          <li><a href="/slt/capital">Capital Investments</a></li>
         </ul>
       </div>
 
@@ -1187,7 +338,8 @@
         <p class="contact-block">
           SLT Ventures, LLC<br />
           Overland Park, Kansas<br /><br />
-          <a href="mailto:info@slt.ventures">info@slt.ventures</a>
+          <a href="mailto:info@slt.ventures">info@slt.ventures</a><br />
+          <a href="mailto:info@slt.ventures?subject=Opportunity%20for%20SLT%20Ventures">Submit an opportunity</a>
         </p>
       </div>
     </div>
@@ -1301,7 +453,7 @@
     window.addEventListener('resize', syncNav);
     syncNav();
 
-    /* ---- Positioning diagram: discipline highlighting ---- */
+    /* ---- Thesis diagram: engine highlighting ---- */
     var apart = document.getElementById('apart');
     if (apart) {
       apart.querySelectorAll('.apart-list li').forEach(function (li) {

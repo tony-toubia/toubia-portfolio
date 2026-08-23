@@ -20,6 +20,11 @@ import { GATE_COOKIE, GATE_TOKEN, GATE_MAX_AGE, passwordMatches } from '@/lib/wr
 
 const SLT_HOST = /(^|\.)slt\.ventures$/i;
 
+/** Static pages that live at the domain root on slt.ventures. Rewritten
+ *  straight to their files, like the landing page - a middleware rewrite
+ *  does not reliably pass through next.config rewrites afterwards. */
+const SLT_STATIC = new Set(['/growth-advisors', '/platforms', '/capital']);
+
 export function middleware(req: NextRequest) {
   const host = (req.headers.get('host') ?? '').split(':')[0];
   const onSlt = SLT_HOST.test(host);
@@ -39,6 +44,12 @@ export function middleware(req: NextRequest) {
   if (onSlt && pathname === '/') {
     const url = req.nextUrl.clone();
     url.pathname = '/slt/index.html';
+    return NextResponse.rewrite(url);
+  }
+
+  if (onSlt && SLT_STATIC.has(pathname)) {
+    const url = req.nextUrl.clone();
+    url.pathname = `/slt${pathname}.html`;
     return NextResponse.rewrite(url);
   }
 

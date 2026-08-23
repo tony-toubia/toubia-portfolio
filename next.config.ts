@@ -24,6 +24,21 @@ const nextConfig: NextConfig = {
         source: '/slt/',
         destination: '/slt/index.html',
       },
+      // The pillar sub-pages are static files like the landing page. On
+      // slt.ventures the middleware serves them at /growth-advisors etc.;
+      // these cover the /slt/... spellings on the primary domain.
+      {
+        source: '/slt/growth-advisors',
+        destination: '/slt/growth-advisors.html',
+      },
+      {
+        source: '/slt/platforms',
+        destination: '/slt/platforms.html',
+      },
+      {
+        source: '/slt/capital',
+        destination: '/slt/capital.html',
+      },
     ];
   },
 };
