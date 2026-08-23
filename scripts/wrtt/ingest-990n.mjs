@@ -66,6 +66,55 @@ const COL = {
   addr1: 9, city: 11, state: 13, zip: 14,
 };
 
+/**
+ * The officer column is free text a filer typed, and a handful append the role
+ * to the name - "CALVIN THOMPSON PRESIDENT", "LINDSEY DINNEEN OFFICER". Left
+ * alone that is not cosmetic: person_key takes the first and last token, so
+ * those key as "calvin|president" and never match the same person on a 990.
+ *
+ * Six of 1,474 in the current corpus, five of them real names with a role
+ * stuck on the end and one ("Volunteer Treasurer") that is a role and nothing
+ * else. Strip the first, drop the second.
+ */
+const ROLE_WORD =
+  /(officer|president|pres|treasurer|treas|secretary|sec|chair(man|person)?|director|dir|ceo|cfo|coo|founder|principal|owner|member|manager|mgr|trustee|v\.?p\.?|admin(istrator)?|coordinator|board|exec(utive)?|volunteer)/i;
+
+/**
+ * Same shape-based test the Part VII extractor uses: a corporate trustee is
+ * rejected by what its name looks like, not by any field the form provides.
+ * "MIDWEST TRUST COMPANY" is the principal officer of a memorial trust here.
+ *
+ * Deliberately narrower than the Part VII version, which matches a bare
+ * /\bbank/ and so rejects everyone surnamed Banks. Every token here has to
+ * appear in a corporate form - "Bank of", "Trust Company", a trailing Inc -
+ * rather than as a word that happens to occur in a surname.
+ */
+const INSTITUTION =
+  /\b(trust\s+(co|company)|bank\s+(of|and|&|n\.?a\.?)\b|\bbank$|llc|l\.l\.c|llp|pllc|\binc\.?$|incorporated|corp\b|corporation|company\b|associates\b|\bfsb\b|securities\b|custody|advisors?\b|advisory|\bn\.a\.$)/i;
+
+function cleanOfficer(raw) {
+  let n = String(raw ?? '').replace(/\s+/g, ' ').trim();
+  // Trailing club or chapter identifiers - "Eduardo Jose Vivas PI5" on a
+  // Toastmasters postcard. Any trailing token carrying a digit is not a name.
+  n = n.replace(/\s+\S*\d\S*$/, '').trim();
+  // Only ever peel from the end, and only while at least two tokens remain -
+  // "Chairman" as a surname is unlikely, but a one-word result is not a name.
+  for (;;) {
+    const m = n.match(new RegExp(`^(.*\\S)\\s+${ROLE_WORD.source}[.,]?$`, 'i'));
+    if (!m || m[1].split(' ').length < 2) break;
+    n = m[1].trim();
+  }
+  // Nothing but a role, or a single token: not a person we can resolve.
+  // "Volunteer Treasurer" survives the peel above - it is two tokens, so
+  // stripping "Treasurer" would leave one - but every token is a role word,
+  // which is the tell that no human was named at all.
+  if (n.split(' ').length < 2) return null;
+  const roleOnly = new RegExp(`^${ROLE_WORD.source}[.,]?$`, 'i');
+  if (n.split(' ').every((t) => roleOnly.test(t))) return null;
+  if (INSTITUTION.test(n)) return null;
+  return n;
+}
+
 async function ensureFile(cacheDir) {
   const zip = path.join(cacheDir, 'data-download-epostcard.zip');
   const txt = path.join(cacheDir, 'data-download-epostcard.txt');
@@ -112,7 +161,7 @@ async function main() {
     const year = Number(f[COL.tax_year]);
     if (!Number.isFinite(year) || year < since) { dormant++; continue; }
 
-    const officer = String(f[COL.officer] ?? '').trim();
+    const officer = cleanOfficer(f[COL.officer]);
     if (!officer) { noOfficer++; continue; }
 
     const name = String(f[COL.org_name] ?? '').trim();
@@ -155,7 +204,7 @@ async function main() {
 
   out.end();
   await new Promise((r) => out.on('finish', r));
-  console.log(`[wrtt-n] scanned ${scanned.toLocaleString()} | kept ${kept} | skipped: ${dormant} last filed before ${since}, ${noOfficer} with no officer named`);
+  console.log(`[wrtt-n] scanned ${scanned.toLocaleString()} | kept ${kept} | skipped: ${dormant} last filed before ${since}, ${noOfficer} with no usable officer name`);
   console.log(`[wrtt-n] -> ${outFile}`);
 
   if (process.argv.includes('--load')) await load(outFile);
