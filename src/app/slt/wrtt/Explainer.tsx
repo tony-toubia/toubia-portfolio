@@ -16,9 +16,16 @@ export function Intro() {
         public record of who leads and organizes in a town, ranks it{' '}
         <em>within that town</em>, and shows the evidence behind every name.
       </p>
-      <Link href="/slt/wrtt/method" className="wrtt-intro-link">
-        How the score works →
-      </Link>
+      <div className="wrtt-intro-links">
+        <Link href="/slt/wrtt/method" className="wrtt-intro-link">
+          How the score works →
+        </Link>
+        {/* A plain anchor, not <Link>: the target is a PDF served by a route
+            handler, and prefetching a document download helps nobody. */}
+        <a href="/slt/wrtt/deck" className="wrtt-intro-link">
+          The concepts deck →
+        </a>
+      </div>
     </div>
   );
 }
