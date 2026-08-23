@@ -26,8 +26,8 @@ const INPUTS: Input[] = [
     weight: '35%',
     live: true,
     what:
-      'How much leading someone actually does. Every role they hold is weighted by seniority – founder, president and chair count full, an officer or committee chair somewhat less, a listed member or volunteer counts little – then scaled by how big the organization is and faded by how long ago it was.',
-    from: 'Form 990 Part VII officer lists, municipal board rosters',
+      'How much leading someone actually does. Every role they hold is weighted by seniority – founder, president and chair count full, an officer or committee chair somewhat less, a listed member or volunteer counts little – then scaled by how big the organization is, faded by how long ago it was, and cut sharply if the role was paid.',
+    from: 'Officer rosters on Forms 990, 990-EZ and 990-PF',
   },
   {
     code: 'B',
@@ -36,7 +36,7 @@ const INPUTS: Input[] = [
     live: true,
     what:
       'How many different worlds they move in. Someone who chairs a school foundation, sits on a chamber board and runs a youth league reaches three separate crowds. Someone with three roles inside one church reaches one. Only leadership-grade roles count here.',
-    from: 'Organization type across all of a person’s affiliations',
+    from: 'Organization type, counted once per organizational family',
   },
   {
     code: 'T',
@@ -103,11 +103,17 @@ export default function Method() {
 
       <h2>Where the data comes from</h2>
       <p className="wrtt-prose">
-        Every US nonprofit files a Form 990, and Part VII of it names officers, directors and
-        trustees with their titles and hours per week, signed under penalty of perjury. That is
-        the backbone – no inference, no scraping of anyone&apos;s personal life. Municipal boards,
-        chamber directories, sports leagues and race organizers fill in around it.{' '}
-        <strong>Every claim on a card links back to the document it came from.</strong>
+        Federal nonprofit filings, and nothing else. Every US nonprofit files an annual return –
+        a <strong>990</strong>, a <strong>990-EZ</strong> if it is small, or a{' '}
+        <strong>990-PF</strong> if it is a private or family foundation – and each one names its
+        officers, directors and trustees with their titles, hours per week and pay, signed under
+        penalty of perjury. No inference, no scraping of anyone&apos;s personal life.{' '}
+        <strong>Every claim on a card links back to the filing it came from.</strong>
+      </p>
+      <p className="wrtt-prose wrtt-prose-dim">
+        That is the whole source list today. Municipal board rosters, chamber directories, sports
+        leagues and race organisers are the obvious next additions and are not in here yet – which
+        matters more than it sounds, and is picked up under what it misses.
       </p>
 
       <h2>How a score is built</h2>
@@ -165,8 +171,8 @@ export default function Method() {
       <h2>Confidence is not the score</h2>
       <p className="wrtt-prose">
         The number beside each score says how much evidence sits behind it: how many affiliations,
-        how many distinct organizations, how many independent sources, and how sure we are the
-        records refer to one person rather than two people with the same name. A strong score built
+        how many separate organizational families, how many independent sources, and how sure we
+        are the records refer to one person rather than two people with the same name. A strong score built
         on a single filing is a lead worth checking, not a fact. Low confidence usually means one
         source and needs more before anyone reaches out.
       </p>
@@ -179,6 +185,15 @@ export default function Method() {
         qualify. The other third only comes from publishers naming them, which is why the
         confirm-and-add step is part of the system rather than a nicety.
       </div>
+      <p className="wrtt-prose" style={{ marginTop: 18 }}>
+        <strong>And breadth is thinner than it looks.</strong> On federal filings alone, about
+        97% of the people in a market appear on exactly one organization – so for almost everyone
+        that input is close to a yes-or-no, and the handful with two or three stand well clear of
+        the rest. That is a property of the source, not of the town: a school PTO, a chamber
+        committee and a youth league board are all real local leadership and none of them
+        necessarily file a 990 naming the person. Until the sources above are added, read a high
+        breadth score as genuinely unusual and a low one as mostly uninformative.
+      </p>
 
       <h2>How you reach someone</h2>
       <p className="wrtt-prose">
