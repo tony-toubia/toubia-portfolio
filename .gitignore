@@ -45,4 +45,5 @@ data/*
 # it is what populates a fresh WRTT database, and re-extracting it means
 # ~40 minutes of IRS bundle downloads for a byte-identical result.
 !data/990-full.ndjson.gz
+!data/990n.ndjson.gz
 .cache/

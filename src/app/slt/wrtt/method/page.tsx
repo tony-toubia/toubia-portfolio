@@ -27,7 +27,7 @@ const INPUTS: Input[] = [
     live: true,
     what:
       'How much leading someone actually does. Every role they hold is weighted by seniority – founder, president and chair count full, an officer or committee chair somewhat less, a listed member or volunteer counts little – then scaled by how big the organization is, faded by how long ago it was, and cut sharply if the role was paid.',
-    from: 'Officer rosters on Forms 990, 990-EZ and 990-PF',
+    from: 'Officer rosters on Forms 990, 990-EZ and 990-PF; principal officers on 990-N',
   },
   {
     code: 'B',
@@ -45,7 +45,7 @@ const INPUTS: Input[] = [
     live: true,
     what:
       'How long they have been at it locally, measured from first to most recent appearance and capped at fifteen years. Long tenure is a proxy for the thing that actually matters and cannot be observed directly: that the town trusts them.',
-    from: 'Span between earliest and latest filing they appear in',
+    from: 'Span between earliest and latest filing they appear in; a 990-N gives only one year',
   },
   {
     code: 'R',
@@ -110,10 +110,19 @@ export default function Method() {
         penalty of perjury. No inference, no scraping of anyone&apos;s personal life.{' '}
         <strong>Every claim on a card links back to the filing it came from.</strong>
       </p>
+      <p className="wrtt-prose">
+        Below all of those sits the <strong>990-N</strong>, the electronic postcard an
+        organization files when it takes in $50,000 a year or less. That is where PTOs, booster
+        clubs, small youth leagues and neighbourhood associations live, and they were missing here
+        not because they were hard to parse but because the form the parser reads is not the form
+        they file. The postcard is thin – one principal officer, no roster, no revenue figure, and
+        the IRS publishes only each organization&apos;s most recent one rather than a history – so
+        it contributes a name and a year and little else. It is still a name from a population
+        that had none.
+      </p>
       <p className="wrtt-prose wrtt-prose-dim">
-        That is the whole source list today. Municipal board rosters, chamber directories, sports
-        leagues and race organisers are the obvious next additions and are not in here yet – which
-        matters more than it sounds, and is picked up under what it misses.
+        That is the whole source list: four federal forms. Everything on a sheet is drawn from one
+        of them.
       </p>
 
       <h2>How a score is built</h2>
@@ -186,13 +195,13 @@ export default function Method() {
         confirm-and-add step is part of the system rather than a nicety.
       </div>
       <p className="wrtt-prose" style={{ marginTop: 18 }}>
-        <strong>And breadth is thinner than it looks.</strong> On federal filings alone, about
-        97% of the people in a market appear on exactly one organization – so for almost everyone
-        that input is close to a yes-or-no, and the handful with two or three stand well clear of
-        the rest. That is a property of the source, not of the town: a school PTO, a chamber
-        committee and a youth league board are all real local leadership and none of them
-        necessarily file a 990 naming the person. Until the sources above are added, read a high
-        breadth score as genuinely unusual and a low one as mostly uninformative.
+        <strong>And breadth is thinner than it looks.</strong> The large majority of people in a
+        market appear on exactly one organization, so for most of them that input is close to a
+        yes-or-no, and the few with two or three stand well clear of the rest. That is a property
+        of the source rather than of the town. Adding the 990-N helped, because it reaches the
+        small organizations where a lot of the second and third seats actually are – but a
+        postcard names one officer and stops, so the rest of that board is still invisible. Read a
+        high breadth score as genuinely unusual and a low one as mostly uninformative.
       </p>
 
       <h2>How you reach someone</h2>
@@ -206,7 +215,9 @@ export default function Method() {
       </p>
       <p className="wrtt-prose">
         So each card shows the organization&apos;s own published phone and site, which is also the
-        channel a stranger is supposed to use. Personal contact details are not inferred, bought
+        channel a stranger is supposed to use. A 990-N carries neither, so roles sourced from a
+        postcard show the name and the year and no way in – those are leads to research, not
+        leads to call. Personal contact details are not inferred, bought
         from a data broker, or scraped from social profiles. If they are ever needed they come
         from the publisher who already knows the person, at the confirm step.
       </p>
