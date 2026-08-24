@@ -3,9 +3,14 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { GATE_COOKIE, GATE_TOKEN, GATE_MAX_AGE, passwordMatches } from '@/lib/wrtt/gate';
+import { recordHit } from '@/lib/wrtt/hits';
 
 export async function enter(_prev: unknown, form: FormData) {
-  if (!passwordMatches(String(form.get('password') ?? ''))) return { error: 'Not that.' };
+  if (!passwordMatches(String(form.get('password') ?? ''))) {
+    await recordHit('gate_fail', { path: '/slt/wrtt/enter' });
+    return { error: 'Not that.' };
+  }
+  await recordHit('gate_pass', { path: '/slt/wrtt/enter' });
 
   const jar = await cookies();
   jar.set(GATE_COOKIE, GATE_TOKEN, {

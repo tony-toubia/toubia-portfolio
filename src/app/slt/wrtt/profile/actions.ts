@@ -27,7 +27,9 @@ export async function unlock(_prev: unknown, form: FormData) {
 
   const jar = await cookies();
   jar.set(ADMIN_COOKIE, token, {
-    httpOnly: true, sameSite: 'lax', secure: true, path: '/slt/wrtt', maxAge: 60 * 60 * 8,
+    // '/' rather than '/slt/wrtt': the console also answers at /wrtt on
+    // slt.ventures, and a cookie scoped to the long path is never sent there.
+    httpOnly: true, sameSite: 'lax', secure: true, path: '/', maxAge: 60 * 60 * 8,
   });
   revalidatePath('/slt/wrtt/profile');
   return { ok: true };

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getMarkets, isConfigured } from '@/lib/wrtt/db';
+import { recordHit } from '@/lib/wrtt/hits';
 import { Intro } from './Explainer';
 
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,8 @@ export default async function WrttHome() {
       </>
     );
   }
+
+  await recordHit('page', { path: '/slt/wrtt' });
 
   let markets;
   try {

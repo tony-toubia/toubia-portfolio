@@ -5,6 +5,7 @@ import {
   type Candidate, type Component, type ComponentKey,
 } from '@/lib/wrtt/db';
 import { SheetNote } from '../Explainer';
+import { recordHit } from '@/lib/wrtt/hits';
 
 export const dynamic = 'force-dynamic';
 
@@ -214,6 +215,8 @@ export default async function MarketSheet({
 
   const market = await getMarket(marketId);
   if (!market) notFound();
+
+  await recordHit('sheet', { market: marketId, path: `/slt/wrtt/${marketId}` });
 
   const sheet = await getSheet(marketId, 50);
 
