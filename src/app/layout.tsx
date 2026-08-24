@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { WindowManagerProvider } from "@/components/desktop/WindowManager";
 import "./globals.css";
@@ -50,6 +51,7 @@ export default function RootLayout({
         <ThemeProvider>
           <WindowManagerProvider>{children}</WindowManagerProvider>
         </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   );

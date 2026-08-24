@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { recordHit } from '@/lib/wrtt/hits';
 
 /**
  * The long-form explanation, moved off the markets page so the listings are
@@ -9,6 +10,11 @@ import Link from 'next/link';
 export const metadata = {
   title: 'Method – WRTT Index',
 };
+
+// Explicit rather than inferred: recordHit reads request headers only when
+// the database is configured, so at build time (no WRTT_DATABASE_URL) this
+// page would prerender static and the hit would never fire in production.
+export const dynamic = 'force-dynamic';
 
 type Input = {
   code: string;
@@ -76,7 +82,8 @@ const INPUTS: Input[] = [
   },
 ];
 
-export default function Method() {
+export default async function Method() {
+  await recordHit('method', { path: '/slt/wrtt/method' });
   return (
     <>
       <Link href="/slt/wrtt" className="wrtt-back">

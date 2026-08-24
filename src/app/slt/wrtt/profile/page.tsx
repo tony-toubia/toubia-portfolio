@@ -5,6 +5,7 @@ import { ProfileForm } from './ProfileForm';
 import { unlock, lock } from './actions';
 import { ADMIN_COOKIE } from './constants';
 import { Unlock } from './Unlock';
+import { recordHit } from '@/lib/wrtt/hits';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,7 @@ export default async function ProfilePage() {
     return <div className="wrtt-note"><strong>Not connected.</strong></div>;
   }
 
+  await recordHit('profile', { path: '/slt/wrtt/profile' });
   const profile = await getProfile();
   if (!profile) {
     return (

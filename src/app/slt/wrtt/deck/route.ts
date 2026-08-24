@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { recordHit } from '@/lib/wrtt/hits';
 
 /**
  * The City Lifestyle concepts deck, served from inside the gate.
@@ -17,6 +18,7 @@ import path from 'node:path';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  await recordHit('deck', { path: '/slt/wrtt/deck' });
   const buf = await readFile(
     path.join(process.cwd(), 'src/app/slt/wrtt/deck/city-lifestyle-concepts.pdf'),
   );
