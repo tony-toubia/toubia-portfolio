@@ -2,10 +2,34 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import './wrtt.css';
 
+/**
+ * Link-preview metadata mirrors the SLT Ventures landing page. Only title
+ * and description were set here before; openGraph and twitter fell through
+ * to the portfolio root layout, so a shared slt.ventures/wrtt link unfurled
+ * as the personal site. Scrapers hit the gate and land on /enter, which
+ * inherits all of this - so every gated URL previews as SLT Ventures and
+ * nothing about the console itself leaks into the preview.
+ */
+const TITLE = 'SLT Ventures – Relationships, Platforms, Capital';
+const DESCRIPTION =
+  'SLT Ventures is a Kansas City-based venture group built on three connected engines: a curated referral network, owned operating platforms, and selective strategic investments.';
+
 export const metadata: Metadata = {
-  title: 'WRTT Index – SLT Ventures',
-  description: 'Scouting console for the Who Runs This Town index.',
+  title: TITLE,
+  description: DESCRIPTION,
   robots: { index: false, follow: false },
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    type: 'website',
+    siteName: 'SLT Ventures',
+    locale: 'en_US',
+  },
+  twitter: {
+    card: 'summary',
+    title: TITLE,
+    description: DESCRIPTION,
+  },
 };
 
 export default function WrttLayout({ children }: { children: React.ReactNode }) {
