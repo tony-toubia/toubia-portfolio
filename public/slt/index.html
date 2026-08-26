@@ -270,6 +270,9 @@
           </figcaption>
           </div>
         </figure>
+        <!-- Hidden for now, on request - not deleted, so it can come back
+             by removing this comment. The carousel counts real <figure> elements,
+             so the "1 / N" readout and arrows adjust on their own.
         <figure>
           <div class="quote-logo">
             <img class="lg-ix" src="/slt/media/logos/ix-mark.png" alt="" width="198" height="206" loading="lazy" />
@@ -284,6 +287,7 @@
           </figcaption>
           </div>
         </figure>
+        -->
       </div>
 
       <div class="quote-nav">
@@ -293,7 +297,7 @@
         <button type="button" id="quoteNext" aria-label="Next testimonial" aria-controls="quoteTrack">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 2 L12 8 L6 14" stroke="currentColor" stroke-width="1.5"/></svg>
         </button>
-        <p class="quote-count" aria-live="polite"><b id="quoteIdx">1</b> / 3</p>
+        <p class="quote-count" aria-live="polite"><b id="quoteIdx">1</b> / <span id="quoteTotal">2</span></p>
       </div>
     </div>
   </section>
@@ -447,6 +451,9 @@
     function syncNav() {
       idxOut.textContent = String(current() + 1);
     }
+    // The total tracks the real slide count, so hiding or restoring a
+    // testimonial never leaves the readout lying.
+    document.getElementById('quoteTotal').textContent = String(slides.length);
     prev.addEventListener('click', function () { goTo(current() - 1); });
     next.addEventListener('click', function () { goTo(current() + 1); });
     track.addEventListener('scroll', syncNav);
