@@ -46,4 +46,10 @@ data/*
 # ~40 minutes of IRS bundle downloads for a byte-identical result.
 !data/990-full.ndjson.gz
 !data/990n.ndjson.gz
+# The six target-market corpus is checked in UNCOMPRESSED, unlike the two
+# above. Git zlib-compresses blobs, so it costs the repo the same either way -
+# and a plain-text file is fetchable by URL, which is how it gets loaded:
+# Postgres pulls it from raw.githubusercontent.com rather than having 5MB of
+# officer rosters relayed through a tool call.
+!data/990-targets.ndjson
 .cache/
