@@ -314,8 +314,22 @@ async function main() {
   const city = arg('--city');
   const stateFilter = arg('--state');
 
+  // --cities discovers several at once. The pass over the bundles costs the
+  // same whether it is looking for one town or twenty, so adding a batch of
+  // markets should not mean paying for the scan once per town.
+  const citiesArg = arg('--cities');
+  const cities = citiesArg
+    ? new Map(citiesArg.split(',').map((pair) => {
+        const [c, st] = pair.split(':').map((x) => x.trim().toUpperCase());
+        return [c, st ?? null];
+      }))
+    : null;
+
   let wanted;
-  if (city) {
+  if (cities) {
+    wanted = null;
+    console.log(`[wrtt] target cities: ${[...cities].map(([c, st]) => c + (st ? ', ' + st : '')).join(' | ')}`);
+  } else if (city) {
     wanted = null;
     console.log(`[wrtt] target city: ${city}${stateFilter ? ', ' + stateFilter : ''}`);
   } else if (arg('--zips')) {
@@ -340,7 +354,10 @@ async function main() {
   const zipTags = wanted ? [...wanted].map((z) => `<ZIPCd>${z}`) : null;
   // Compared against an uppercased document, so the tag has to be uppercase too.
   const cityTag = city ? `<CITYNM>${city.toUpperCase()}` : null;
+  const cityTags = cities ? [...cities.keys()].map((c) => `<CITYNM>${c}`) : null;
   const foundZips = new Map();
+  // city -> Map(zip -> count), so each town's ZIP set comes out separately.
+  const foundByCity = new Map();
 
   for (const [i, url] of urls.entries()) {
     const file = await ensureBundle(url, cacheDir);
@@ -373,6 +390,7 @@ async function main() {
             !xml.includes('OfficerDirTrstKeyEmplGrp')) continue;
         if (zipTags && !zipTags.some((t) => xml.includes(t))) continue;
         if (cityTag && !xml.toUpperCase().includes(cityTag)) continue;
+        if (cityTags && !cityTags.some((t) => xml.toUpperCase().includes(t))) continue;
 
         const rec = parseFiling(xml, `${url}#${entry.name}`);
         if (!rec) continue;
@@ -381,6 +399,17 @@ async function main() {
           if (String(rec.city || '').toUpperCase() !== city.toUpperCase()) continue;
           if (stateFilter && rec.state !== stateFilter.toUpperCase()) continue;
           foundZips.set(rec.zip, (foundZips.get(rec.zip) || 0) + 1);
+        }
+        if (cities) {
+          // The prefilter matches anywhere in the document - a grant recipient's
+          // address counts - so the filer's own city still has to be confirmed.
+          const c = String(rec.city || '').toUpperCase();
+          if (!cities.has(c)) continue;
+          const st = cities.get(c);
+          if (st && rec.state !== st) continue;
+          if (!foundByCity.has(c)) foundByCity.set(c, new Map());
+          const z = foundByCity.get(c);
+          z.set(rec.zip, (z.get(rec.zip) || 0) + 1);
         }
 
         out.write(JSON.stringify(rec) + '\n');
@@ -396,6 +425,18 @@ async function main() {
   out.end();
   await new Promise((r) => out.on('finish', r));
   console.log(`[wrtt] done – ${kept} in-market filings, ${officers} named officers -> ${outFile}`);
+
+  if (cities) {
+    for (const [c, st] of cities) {
+      const found = foundByCity.get(c);
+      if (!found || !found.size) { console.log(`[wrtt] ${c}: no filings found`); continue; }
+      // A ZIP with one or two filings is usually a PO box or a stray, not part
+      // of the town's footprint; the ranked list makes that easy to eyeball.
+      const ranked = [...found.entries()].sort((a, b) => b[1] - a[1]);
+      console.log(`[wrtt] ${c}${st ? ', ' + st : ''}: ${ranked.map(([z, n]) => `${z}(${n})`).join(' ')}`);
+      console.log(`[wrtt]   "zips": ["${ranked.map(([z]) => z).join('","')}"]`);
+    }
+  }
 
   if (city && foundZips.size) {
     const ranked = [...foundZips.entries()].sort((a, b) => b[1] - a[1]);
