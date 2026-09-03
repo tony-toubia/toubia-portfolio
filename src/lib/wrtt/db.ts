@@ -253,3 +253,68 @@ export async function getRunProfile(marketId: string): Promise<{ model_version: 
   `;
   return row ?? null;
 }
+
+export type ResearchRow = {
+  person_id: string;
+  rank_in_market: number;
+  display_name: string;
+  wrtt_score: number;
+  confidence: number;
+  market: string;
+  state: string;
+  roles: string | null;
+  org_phones: string | null;
+  org_sites: string | null;
+  domains: string | null;
+  tenure: string | null;
+};
+
+/**
+ * The worksheet a researcher actually works from.
+ *
+ * Everything here is already public - it is the filing record, rolled up per
+ * person. The point is the starting context: which boards someone sits on and
+ * what those organizations publish as their own contact details is what makes
+ * the right individual findable, and what makes it obvious when a search has
+ * turned up the wrong one. The index knows a name and a town and nothing else,
+ * so distinguishing two people with the same name is the researcher's job and
+ * this gives them what they need to do it.
+ */
+export async function getResearchRows(marketId: string, limit = 25): Promise<ResearchRow[]> {
+  const sql = await db();
+  return sql<ResearchRow[]>`
+    with latest as (
+      select id from wrtt.score_run
+       where market_id = ${marketId}
+       order by run_at desc limit 1
+    )
+    select
+      p.id as person_id,
+      s.rank_in_market,
+      p.display_name,
+      round(s.wrtt_score::numeric, 0)::float8 as wrtt_score,
+      round(s.confidence::numeric, 2)::float8 as confidence,
+      m.name as market,
+      m.state,
+      (select string_agg(distinct a.role_title || ' – ' || o.name, ' | ')
+         from wrtt.affiliation a join wrtt.organization o on o.id = a.organization_id
+        where a.person_id = p.id) as roles,
+      (select string_agg(distinct o.phone, ' | ')
+         from wrtt.affiliation a join wrtt.organization o on o.id = a.organization_id
+        where a.person_id = p.id and o.phone is not null) as org_phones,
+      (select string_agg(distinct o.website, ' | ')
+         from wrtt.affiliation a join wrtt.organization o on o.id = a.organization_id
+        where a.person_id = p.id and o.website is not null) as org_sites,
+      (select string_agg(distinct o.affiliation_domain, ', ')
+         from wrtt.affiliation a join wrtt.organization o on o.id = a.organization_id
+        where a.person_id = p.id) as domains,
+      to_char(p.first_seen, 'YYYY') || '–' || to_char(p.last_seen, 'YYYY') as tenure
+    from latest l
+    join wrtt.score s on s.score_run_id = l.id
+    join wrtt.person p on p.id = s.person_id
+    join wrtt.market m on m.id = p.market_id
+    where not p.suppressed
+    order by s.rank_in_market
+    limit ${limit}
+  `;
+}

@@ -4,8 +4,10 @@ import {
   getMarket, getSheet, isConfigured,
   type Candidate, type Component, type ComponentKey,
 } from '@/lib/wrtt/db';
+import { cookies } from 'next/headers';
 import { SheetNote } from '../Explainer';
 import { recordHit } from '@/lib/wrtt/hits';
+import { ADMIN_COOKIE } from '../profile/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -220,6 +222,13 @@ export default async function MarketSheet({
 
   const sheet = await getSheet(marketId, 50);
 
+  // The worksheet is a ranked list of named individuals packaged for outreach,
+  // which is a different thing from a page about methodology - so it needs the
+  // admin token, not the console password everyone shown the index receives.
+  const token = process.env.WRTT_ADMIN_TOKEN;
+  const jar = await cookies();
+  const isAdmin = Boolean(token) && jar.get(ADMIN_COOKIE)?.value === token;
+
   return (
     <>
       <Link href="/slt/wrtt" className="wrtt-back">
@@ -247,6 +256,15 @@ export default async function MarketSheet({
               <Row key={c.person_id} c={c} />
             ))}
           </div>
+          {isAdmin ? (
+            <p className="wrtt-sheetnote" style={{ marginTop: 20 }}>
+              Research worksheet:{' '}
+              <a href={`/slt/wrtt/${marketId}/export?n=25`}>top 25 CSV</a>
+              {' · '}
+              <a href={`/slt/wrtt/${marketId}/export?n=50`}>top 50 CSV</a>
+            </p>
+          ) : null}
+
           <div className="wrtt-note" style={{ marginTop: 24 }}>
             <strong>Reach, availability and adjacency have no inputs in this run.</strong> Their
             weight is excluded from the denominator rather than scored as zero, so the composite

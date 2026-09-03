@@ -128,8 +128,10 @@ export default async function Method() {
         that had none.
       </p>
       <p className="wrtt-prose wrtt-prose-dim">
-        That is the whole source list: four federal forms. Everything on a sheet is drawn from one
-        of them.
+        That is the whole source list: four federal forms. Every scored claim – every role,
+        every organization, every date – comes from one of them. Contact details are the one
+        thing that does not, and they are kept apart from the scoring for exactly that reason;
+        there is a section on them below.
       </p>
 
       <h2>How a score is built</h2>
@@ -229,9 +231,23 @@ export default async function Method() {
         So each card shows the organization&apos;s own published phone and site, which is also the
         channel a stranger is supposed to use. A 990-N carries neither, so roles sourced from a
         postcard show the name and the year and no way in – those are leads to research, not
-        leads to call. Personal contact details are not inferred, bought
-        from a data broker, or scraped from social profiles. If they are ever needed they come
-        from the publisher who already knows the person, at the confirm step.
+        leads to call.
+      </p>
+      <p className="wrtt-prose">
+        <strong>Where a personal email, phone or profile is held, it was added separately and
+        it says so.</strong> None of it comes from a filing. Each detail records where it came
+        from and when, whether a person confirmed it belongs to this individual rather than to
+        someone with the same name, and whether the individual has asked not to be contacted –
+        and that last flag outlives every later update. Numbers are withheld until they have
+        been checked against the Do Not Call registry. Nothing appended is treated as evidence:
+        it never touches a score, because how reachable someone is says nothing about whether
+        they lead.
+      </p>
+      <p className="wrtt-prose wrtt-prose-dim">
+        The matching problem is worth naming. The index knows a name and a town, so common names
+        are genuinely ambiguous and a confident-looking match can be the wrong person. That is
+        why an unverified detail is marked as such, and why the recommended path is still a
+        person checking before anyone is contacted.
       </p>
 
       <h2>What it is not</h2>
