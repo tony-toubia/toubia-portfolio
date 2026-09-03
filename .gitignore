@@ -45,6 +45,10 @@ data/*
 # it is what populates a fresh WRTT database, and re-extracting it means
 # ~40 minutes of IRS bundle downloads for a byte-identical result.
 !data/990-full.ndjson.gz
+# Also uncompressed: git zlib-compresses blobs so it costs the repo about the
+# same, and only a plain-text file is fetchable by URL - which is how
+# wrtt.load_from_url pulls the corpus into Postgres directly.
+!data/990-full.ndjson
 !data/990n.ndjson.gz
 # The six target-market corpus is checked in UNCOMPRESSED, unlike the two
 # above. Git zlib-compresses blobs, so it costs the repo the same either way -
