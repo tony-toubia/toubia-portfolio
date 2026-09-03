@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import {
   getMarket, getSheet, isConfigured,
@@ -243,18 +244,21 @@ export default async function MarketSheet({
     );
   }
 
-  const market = await getMarket(marketId);
+  // Market lookup, the hit log's header read and the cookie jar are
+  // independent; none of them should wait on another. The sheet itself is
+  // not awaited here at all - it streams in below, so the title, the note
+  // and the worksheet links paint while a cold hit is still fetching.
+  const [market, jar] = await Promise.all([
+    getMarket(marketId),
+    cookies(),
+    recordHit('sheet', { market: marketId, path: `/slt/wrtt/${marketId}` }),
+  ]);
   if (!market) notFound();
-
-  await recordHit('sheet', { market: marketId, path: `/slt/wrtt/${marketId}` });
-
-  const sheet = await getSheet(marketId, 50);
 
   // The worksheet is a ranked list of named individuals packaged for outreach,
   // which is a different thing from a page about methodology - so it needs the
   // admin token, not the console password everyone shown the index receives.
   const token = process.env.WRTT_ADMIN_TOKEN;
-  const jar = await cookies();
   const isAdmin = Boolean(token) && jar.get(ADMIN_COOKIE)?.value === token;
 
   return (
@@ -269,37 +273,56 @@ export default async function MarketSheet({
       </h1>
       <SheetNote />
 
-      {sheet.length === 0 ? (
-        <div className="wrtt-note">
-          No scored candidates yet. Run the ingest, then{' '}
-          <code>select wrtt.run_scoring(&apos;{marketId}&apos;);</code>
-        </div>
-      ) : (
-        <>
-          <h2>
-            Top {sheet.length} · {market.people} scored in market
-          </h2>
-          <div className="wrtt-rows">
-            {sheet.map((c) => (
-              <Row key={c.person_id} c={c} market={marketId} />
-            ))}
-          </div>
-          {isAdmin ? (
-            <p className="wrtt-sheetnote" style={{ marginTop: 20 }}>
-              Research worksheet:{' '}
-              <a href={`/slt/wrtt/${marketId}/export?n=25`}>top 25 CSV</a>
-              {' · '}
-              <a href={`/slt/wrtt/${marketId}/export?n=50`}>top 50 CSV</a>
-            </p>
-          ) : null}
+      {isAdmin ? (
+        <p className="wrtt-sheetnote wrtt-worksheet">
+          Research worksheet:{' '}
+          <a href={`/slt/wrtt/${marketId}/export?n=25`}>top 25 CSV</a>
+          {' · '}
+          <a href={`/slt/wrtt/${marketId}/export?n=50`}>top 50 CSV</a>
+        </p>
+      ) : null}
 
-          <div className="wrtt-note" style={{ marginTop: 24 }}>
-            <strong>Reach, availability and adjacency have no inputs in this run.</strong> Their
-            weight is excluded from the denominator rather than scored as zero, so the composite
-            reflects only what was measured. <Link href="/slt/wrtt/method">Method →</Link>
-          </div>
-        </>
-      )}
+      <Suspense fallback={<SheetSkeleton />}>
+        <SheetRows marketId={marketId} people={market.people} />
+      </Suspense>
+    </>
+  );
+}
+
+/** Three quiet bars where the rows will land. Never on screen for long. */
+function SheetSkeleton() {
+  return (
+    <div className="wrtt-skeleton" aria-hidden="true">
+      <i /><i /><i />
+    </div>
+  );
+}
+
+async function SheetRows({ marketId, people }: { marketId: string; people: number }) {
+  const sheet = await getSheet(marketId, 50);
+  if (sheet.length === 0) {
+    return (
+      <div className="wrtt-note">
+        No scored candidates yet. Run the ingest, then{' '}
+        <code>select wrtt.run_scoring(&apos;{marketId}&apos;);</code>
+      </div>
+    );
+  }
+  return (
+    <>
+      <h2>
+        Top {sheet.length} · {people} scored in market
+      </h2>
+      <div className="wrtt-rows">
+        {sheet.map((c) => (
+          <Row key={c.person_id} c={c} market={marketId} />
+        ))}
+      </div>
+      <div className="wrtt-note" style={{ marginTop: 24 }}>
+        <strong>Reach, availability and adjacency have no inputs in this run.</strong> Their
+        weight is excluded from the denominator rather than scored as zero, so the composite
+        reflects only what was measured. <Link href="/slt/wrtt/method">Method →</Link>
+      </div>
     </>
   );
 }

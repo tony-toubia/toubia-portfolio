@@ -433,3 +433,16 @@ html.wrtt-root body {
   .wrtt-verdict-btns button { min-height: 32px; }
   .wrtt-verdict-note { flex-direction: column; align-items: stretch; gap: 4px; }
 }
+
+/* Worksheet links sit under the note, before the rows - the admin sees them
+   without scrolling past fifty cards. */
+.wrtt-worksheet { margin-top: -6px; margin-bottom: 18px; }
+
+/* Streaming placeholder: the shell has painted, the rows are on their way. */
+.wrtt-skeleton { display: grid; gap: 12px; margin-top: 18px; }
+.wrtt-skeleton i {
+  display: block; height: 72px; border-radius: 4px;
+  background: var(--panel-2); opacity: 0.6;
+}
+.wrtt-skeleton i:nth-child(2) { opacity: 0.45; }
+.wrtt-skeleton i:nth-child(3) { opacity: 0.3; }
