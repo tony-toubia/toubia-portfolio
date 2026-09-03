@@ -51,5 +51,4 @@ data/*
 # and a plain-text file is fetchable by URL, which is how it gets loaded:
 # Postgres pulls it from raw.githubusercontent.com rather than having 5MB of
 # officer rosters relayed through a tool call.
-!data/990-targets.ndjson
 .cache/
