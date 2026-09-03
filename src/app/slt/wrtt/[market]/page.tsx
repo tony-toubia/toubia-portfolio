@@ -113,6 +113,12 @@ function Row({ c, market }: { c: Candidate; market: string }) {
   const est = (comps as Record<string, unknown>).establishment as
     | { flagged: boolean; seats?: number; orgs?: string[]; penalty?: number }
     | undefined;
+  // Advisory, not a penalty. Every organization tying this person to the
+  // market reaches past it, so where they actually live is unverified - the
+  // index assigns people by the filing organization's ZIP, never by residence.
+  const loc = (comps as Record<string, unknown>).locality as
+    | { regional_only: boolean; orgs?: string[] }
+    | undefined;
   const negative = c.verdict ? NEGATIVE.has(c.verdict as V) : false;
   const confirmed = c.verdict === 'confirm';
   // Person-level employment flag from the scoring run: filings report
@@ -144,6 +150,14 @@ function Row({ c, market }: { c: Candidate; market: string }) {
               ESTABLISHMENT
             </span>
           ) : null}
+          {loc?.regional_only ? (
+            <span
+              className="wrtt-loc"
+              title={`Every organization tying this person to the market reaches beyond it${loc.orgs?.length ? ` – ${loc.orgs.map(titleCase).join(', ')}` : ''}. People are placed in a market by the filing organization's address, not their own, so confirm they live here before contacting. This does not affect the score.`}
+            >
+              CHECK RESIDENCE
+            </span>
+          ) : null}
         </div>
 
         {/* Every claim carries its source. This is what makes the sheet read as
@@ -158,6 +172,11 @@ function Row({ c, market }: { c: Candidate; market: string }) {
                 <span className="role">{titleCase(a.role_title)}</span>
                 {' · '}
                 {titleCase(a.org)}
+                {a.is_regional ? (
+                  <span className="wrtt-regional" title="This organization's reach extends beyond the market.">
+                    regional
+                  </span>
+                ) : null}
                 {/* This is the organization's revenue, not the person's pay.
                     Sitting beside a named individual it reads as a salary
                     unless it says so, so every figure carries the label. */}

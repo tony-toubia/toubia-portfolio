@@ -205,6 +205,25 @@ export default async function Method() {
         institutional board.
       </p>
 
+      <h2>Whether they live there</h2>
+      <p className="wrtt-prose">
+        A filing gives the <em>organization&apos;s</em> address, never the person&apos;s, so
+        everyone here is placed in a market by where the organization they serve is registered.
+        For a booster club or a PTO that is the same thing. It is not the same thing for an
+        organization whose reach exceeds the town: a charity headquartered in one suburb may draw
+        its board from four states, and a director three hundred miles away would land in that
+        suburb&apos;s list looking exactly like a neighbour. We found one doing precisely that.
+      </p>
+      <p className="wrtt-prose">
+        So organizations whose names or scale place them beyond the town are marked{' '}
+        <strong>regional</strong>, and a person whose ties are <em>all</em> regional carries a{' '}
+        <strong>check residence</strong> marker. One genuinely local seat clears it. This changes
+        no score – home addresses are deliberately not collected, so residence cannot be
+        confirmed from the record, and discounting someone on an unverifiable guess would be
+        worse than saying plainly that it is unverified. The research worksheet carries the same
+        flag and a column to record the answer.
+      </p>
+
       <h2>Your verdict is the training data</h2>
       <p className="wrtt-prose">
         Every card carries five buttons: confirm, not the audience, already known, wrong
