@@ -85,6 +85,10 @@ export type Candidate = {
     sources?: number;
   };
   state: string | null;
+  /* Latest human verdict on this card, if any. */
+  verdict: string | null;
+  verdict_note: string | null;
+  verdict_by: string | null;
   affiliations: {
     org: string;
     role_title: string;
@@ -136,6 +140,9 @@ export async function getSheet(marketId: string, limit = 50): Promise<Candidate[
       s.confidence,
       s.components,
       cs.state,
+      fb.verdict,
+      fb.note      as verdict_note,
+      fb.actor_id  as verdict_by,
       coalesce(
         (select jsonb_agg(jsonb_build_object(
                   'org',        t.org,
@@ -181,6 +188,14 @@ export async function getSheet(marketId: string, limit = 50): Promise<Candidate[
     join latest on latest.id = s.score_run_id
     join wrtt.person p on p.id = s.person_id
     left join wrtt.candidate_state cs on cs.person_id = p.id
+    -- Verdicts are append-only; the card shows the most recent one.
+    left join lateral (
+      select f.verdict, f.note, f.actor_id
+        from wrtt.feedback f
+       where f.person_id = p.id
+       order by f.created_at desc
+       limit 1
+    ) fb on true
     where coalesce(cs.state, 'new') not in ('known_to_publisher','not_a_fit','suppressed')
     order by s.rank_in_market
     limit ${limit}

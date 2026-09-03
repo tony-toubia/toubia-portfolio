@@ -170,7 +170,7 @@ export default async function Method() {
         <strong>top of what could actually be measured here</strong>, not a perfect candidate.
       </p>
 
-      <h2>Two things it deliberately discounts</h2>
+      <h2>Three things it deliberately discounts</h2>
       <p className="wrtt-prose">
         <strong>Getting paid for it.</strong> The premise is people who organize things nobody
         pays them to organize, and Form 990 reports what each role paid – a volunteer director
@@ -189,6 +189,35 @@ export default async function Method() {
         Catholic Charities Foundation and Catholic Neighborhood Outreach are one crowd rather
         than three. Breadth counts a family once however many of its boards someone sits on, and
         the second and later seats inside it count at a fraction.
+      </p>
+      <p className="wrtt-prose">
+        <strong>The establishment circuit.</strong> A seat on the college board, the economic
+        development corporation, the hospital board or the chamber of commerce is an honour, and
+        it goes to people who are senior somewhere the filing cannot see – which is close to the
+        opposite of someone whose unpaid organizing is their life in the town. The first version
+        of this index could not tell a university from a PTO or a chamber from a Rotary club, and
+        ranked a college trustee with two business-promotion seats above a booster-club
+        president. Those organizations now sit in their own categories at a fraction of the
+        weight; <em>breadth</em> counts only grassroots worlds, so three establishment seats no
+        longer read as range; and a person with two or more such seats has the whole score
+        discounted and carries an <strong>establishment</strong> marker so the card explains
+        itself. One seat alone does not flag – plenty of genuine organizers sit on one
+        institutional board.
+      </p>
+
+      <h2>Your verdict is the training data</h2>
+      <p className="wrtt-prose">
+        Every card carries five buttons: confirm, not the audience, already known, wrong
+        person, do not contact. They are the confirm step, and they are the only thing that
+        turns this from an expert guess into a model. Each verdict is recorded with a note and
+        who gave it; a card that is ruled out steps back on the sheet rather than vanishing,
+        because the next reviewer needs to see what was decided. Verdicts do not move a score
+        yet – today the weights are hand-set – but every &ldquo;not the audience&rdquo; on a
+        card is a labelled example of the thing the weights got wrong, and the establishment
+        discount above is exactly what that kind of feedback looks like once it has been acted
+        on. Two of the five are worth telling apart: <em>not the audience</em> is the right
+        person and the wrong profile, a scoring lesson; <em>wrong person</em> is the filings
+        belonging to somebody else with this name, an identity lesson.
       </p>
 
       <h2>Confidence is not the score</h2>

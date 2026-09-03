@@ -8,6 +8,8 @@ import { cookies } from 'next/headers';
 import { SheetNote } from '../Explainer';
 import { recordHit } from '@/lib/wrtt/hits';
 import { ADMIN_COOKIE } from '../profile/constants';
+import { Verdict } from './Verdict';
+import { NEGATIVE, type Verdict as V } from './verdicts';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,8 +102,18 @@ function exact(n: number) {
   return `$${Math.round(n).toLocaleString('en-US')}`;
 }
 
-function Row({ c }: { c: Candidate }) {
+function Row({ c, market }: { c: Candidate; market: string }) {
   const comps = c.components ?? {};
+  // Person-level establishment flag from the scoring run: two or more seats
+  // on the college board, the economic development corporation, the hospital
+  // board, a professional association. Those are honours conferred on people
+  // who are senior somewhere the filing cannot see, and the index is looking
+  // for the opposite - so the composite is discounted and the card says why.
+  const est = (comps as Record<string, unknown>).establishment as
+    | { flagged: boolean; seats?: number; orgs?: string[]; penalty?: number }
+    | undefined;
+  const negative = c.verdict ? NEGATIVE.has(c.verdict as V) : false;
+  const confirmed = c.verdict === 'confirm';
   // Person-level employment flag from the scoring run: filings report
   // substantial compensation somewhere, so the whole composite was halved.
   // The chip explains a low-looking score; it is not an accusation.
@@ -109,7 +121,7 @@ function Row({ c }: { c: Candidate }) {
     | { flagged: boolean; max_comp?: number; org?: string; penalty?: number }
     | undefined;
   return (
-    <div className="wrtt-row">
+    <div className={`wrtt-row${negative ? ' is-negative' : ''}${confirmed ? ' is-confirmed' : ''}`}>
       <div className="wrtt-rank">{String(c.rank_in_market).padStart(2, '0')}</div>
 
       <div>
@@ -121,6 +133,14 @@ function Row({ c }: { c: Candidate }) {
               title={`Filings report ${emp.max_comp ? exact(emp.max_comp) : 'substantial'} in compensation${emp.org ? ` at ${titleCase(emp.org)}` : ''}. The index looks for people who organize unpaid, so this score is discounted across the board.`}
             >
               SALARIED
+            </span>
+          ) : null}
+          {est?.flagged ? (
+            <span
+              className="wrtt-est"
+              title={`${est.seats} seats on the establishment circuit${est.orgs?.length ? ` – ${est.orgs.map(titleCase).join(', ')}` : ''}. College boards, economic development bodies, hospital boards and professional associations are honours that go to people senior elsewhere; the index looks for grassroots organizers, so this score is discounted.`}
+            >
+              ESTABLISHMENT
             </span>
           ) : null}
         </div>
@@ -185,6 +205,14 @@ function Row({ c }: { c: Candidate }) {
             );
           })}
         </div>
+
+        <Verdict
+          marketId={market}
+          personId={c.person_id}
+          current={c.verdict}
+          note={c.verdict_note}
+          by={c.verdict_by}
+        />
       </div>
 
       <div className="wrtt-score">
@@ -253,7 +281,7 @@ export default async function MarketSheet({
           </h2>
           <div className="wrtt-rows">
             {sheet.map((c) => (
-              <Row key={c.person_id} c={c} />
+              <Row key={c.person_id} c={c} market={marketId} />
             ))}
           </div>
           {isAdmin ? (
