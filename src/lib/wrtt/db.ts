@@ -1,5 +1,6 @@
 import 'server-only';
 import postgres from 'postgres';
+import { unstable_cache } from 'next/cache';
 
 /**
  * WRTT reads go direct to Postgres rather than through PostgREST, because the
@@ -111,7 +112,19 @@ export type Candidate = {
   }[];
 };
 
-export async function getMarkets(): Promise<Market[]> {
+/* ── Read caching ──────────────────────────────────────────────
+   Measured before touching anything: the sheet query runs in ~50ms and the
+   markets query in ~6ms, but a cold function spends ~300ms opening its
+   Postgres connection before either can start. Caching the reads takes the
+   database off the critical path: a warm load never touches it, and a cold
+   load renders from cache while the connection opens in the background for
+   the hit log. Two minutes of staleness after a rescore is the price;
+   verdicts invalidate their market's sheet immediately. */
+const CACHE_SECONDS = 120;
+export const MARKETS_TAG = 'wrtt:markets';
+export const sheetTag = (marketId: string) => `wrtt:sheet:${marketId}`;
+
+async function queryMarkets(): Promise<Market[]> {
   const sql = await db();
   return sql<Market[]>`
     select m.id, m.name, m.state, m.status, m.role, m.zips,
@@ -123,8 +136,12 @@ export async function getMarkets(): Promise<Market[]> {
   `;
 }
 
+export const getMarkets = unstable_cache(queryMarkets, ['wrtt-markets'], {
+  tags: [MARKETS_TAG], revalidate: CACHE_SECONDS,
+});
+
 /** Latest scored sheet for a market, with the evidence each score rests on. */
-export async function getSheet(marketId: string, limit = 50): Promise<Candidate[]> {
+async function querySheet(marketId: string, limit = 50): Promise<Candidate[]> {
   const sql = await db();
   return sql<Candidate[]>`
     with latest as (
@@ -202,10 +219,44 @@ export async function getSheet(marketId: string, limit = 50): Promise<Candidate[
   `;
 }
 
-export async function getMarket(marketId: string): Promise<Market | null> {
-  const all = await getMarkets();
-  return all.find((m) => m.id === marketId) ?? null;
+/* Tags are fixed when unstable_cache wraps a function, and the sheet needs a
+   tag per market so a verdict on one sheet does not evict the other nine -
+   so the wrap happens per market and is remembered. */
+const sheetReaders = new Map<string, (marketId: string, limit?: number) => Promise<Candidate[]>>();
+export function getSheet(marketId: string, limit = 50): Promise<Candidate[]> {
+  let reader = sheetReaders.get(marketId);
+  if (!reader) {
+    reader = unstable_cache(querySheet, ['wrtt-sheet', marketId], {
+      tags: [MARKETS_TAG, sheetTag(marketId)], revalidate: CACHE_SECONDS,
+    });
+    sheetReaders.set(marketId, reader);
+  }
+  return reader(marketId, limit);
 }
+
+/**
+ * One market by id. This used to fetch every market with three aggregate
+ * subqueries each, then pick one out of the array - thirty aggregates to
+ * learn a name. The row is now read directly, and the counts the index page
+ * needs are not computed here at all.
+ */
+async function queryMarket(marketId: string): Promise<Market | null> {
+  const sql = await db();
+  const [row] = await sql<Market[]>`
+    select m.id, m.name, m.state, m.status, m.role, m.zips,
+           (select count(*)::int from wrtt.person p where p.market_id = m.id and not p.suppressed) as people,
+           0::int as orgs,
+           null::text as last_run
+      from wrtt.market m
+     where m.id = ${marketId}
+     limit 1
+  `;
+  return row ?? null;
+}
+
+export const getMarket = unstable_cache(queryMarket, ['wrtt-market'], {
+  tags: [MARKETS_TAG], revalidate: CACHE_SECONDS,
+}) as typeof queryMarket;
 
 /* ── Scoring profile ───────────────────────────────────────────
    The weights are a row, not a constant, so the shape of candidate the

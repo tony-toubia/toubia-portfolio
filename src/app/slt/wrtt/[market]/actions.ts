@@ -1,8 +1,8 @@
 'use server';
 
 import { cookies } from 'next/headers';
-import { revalidatePath } from 'next/cache';
-import { db, isConfigured } from '@/lib/wrtt/db';
+import { revalidatePath, updateTag } from 'next/cache';
+import { db, isConfigured, sheetTag } from '@/lib/wrtt/db';
 import { ADMIN_COOKIE } from '../profile/constants';
 import { VERDICTS, type Verdict } from './verdicts';
 
@@ -37,6 +37,9 @@ export async function submitVerdict(
     insert into wrtt.feedback (person_id, actor_id, verdict, note)
     values (${personId}, ${actor}, ${verdict}, ${note.trim().slice(0, 500) || null})`;
 
+  // The sheet is served from cache; the verdict has to show on the very next
+  // load, not after a stale-while-revalidate window - updateTag expires now.
+  updateTag(sheetTag(marketId));
   revalidatePath(`/slt/wrtt/${marketId}`);
   return { ok: true, verdict: verdict as Verdict };
 }
