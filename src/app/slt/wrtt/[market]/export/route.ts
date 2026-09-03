@@ -20,8 +20,11 @@ export const dynamic = 'force-dynamic';
 const HEADERS = [
   'person_id', 'rank', 'name', 'score', 'confidence', 'market', 'state',
   'tenure', 'domains', 'roles', 'org_phones', 'org_sites',
+  // Whether every organization tying this person to the market reaches
+  // beyond it. When yes, residence is the first thing to check.
+  'regional_only', 'regional_orgs',
   // ── researcher fills these in ──
-  'email', 'phone', 'linkedin', 'mailing',
+  'lives_in_market', 'email', 'phone', 'linkedin', 'mailing',
   'source', 'source_detail', 'match_confidence', 'verified_by', 'status', 'notes',
 ];
 
@@ -58,7 +61,8 @@ export async function GET(
     ...rows.map((r) => [
       r.person_id, r.rank_in_market, r.display_name, r.wrtt_score, r.confidence,
       r.market, r.state, r.tenure, r.domains, r.roles, r.org_phones, r.org_sites,
-      '', '', '', '', '', '', '', '', '', '',
+      r.regional_only ? 'CHECK RESIDENCE' : '', r.regional_orgs,
+      '', '', '', '', '', '', '', '', '', '', '',
     ].map(csv).join(',')),
   ].join('\r\n');
 

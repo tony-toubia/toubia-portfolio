@@ -95,6 +95,7 @@ export type Candidate = {
     role_title: string;
     role_class: string;
     domain: string | null;
+    is_regional: boolean;
     revenue: number | null;
     snippet: string | null;
     source_key: string | null;
@@ -166,6 +167,7 @@ async function querySheet(marketId: string, limit = 50): Promise<Candidate[]> {
                   'role_title', t.role_title,
                   'role_class', t.role_class,
                   'domain',     t.domain,
+                  'is_regional',t.is_regional,
                   'revenue',    t.revenue,
                   'snippet',    t.snippet,
                   'source_key', t.source_key,
@@ -181,6 +183,7 @@ async function querySheet(marketId: string, limit = 50): Promise<Candidate[]> {
                     a.role_title,
                     a.role_class,
                     o.affiliation_domain   as domain,
+                    o.is_regional,
                     o.scale_revenue        as revenue,
                     o.phone,
                     o.website,
@@ -196,7 +199,7 @@ async function querySheet(marketId: string, limit = 50): Promise<Candidate[]> {
                  on ev.subject_type = 'affiliation' and ev.subject_id = a.id
                left join wrtt.source_document sd on sd.id = ev.source_document_id
               where a.person_id = p.id
-              group by a.id, o.name, a.role_title, a.role_class, o.affiliation_domain,
+              group by a.id, o.name, a.role_title, a.role_class, o.affiliation_domain, o.is_regional,
                        o.scale_revenue, o.phone, o.website, a.start_date, a.end_date
            ) t),
         '[]'::jsonb
@@ -333,6 +336,8 @@ export type ResearchRow = {
   org_sites: string | null;
   domains: string | null;
   tenure: string | null;
+  regional_only: boolean;
+  regional_orgs: string | null;
 };
 
 /**
@@ -374,7 +379,11 @@ export async function getResearchRows(marketId: string, limit = 25): Promise<Res
       (select string_agg(distinct o.affiliation_domain, ', ')
          from wrtt.affiliation a join wrtt.organization o on o.id = a.organization_id
         where a.person_id = p.id) as domains,
-      to_char(p.first_seen, 'YYYY') || '–' || to_char(p.last_seen, 'YYYY') as tenure
+      to_char(p.first_seen, 'YYYY') || '–' || to_char(p.last_seen, 'YYYY') as tenure,
+      coalesce((s.components->'locality'->>'regional_only')::boolean, false) as regional_only,
+      (select string_agg(distinct o.name, ' | ')
+         from wrtt.affiliation a join wrtt.organization o on o.id = a.organization_id
+        where a.person_id = p.id and o.is_regional) as regional_orgs
     from latest l
     join wrtt.score s on s.score_run_id = l.id
     join wrtt.person p on p.id = s.person_id

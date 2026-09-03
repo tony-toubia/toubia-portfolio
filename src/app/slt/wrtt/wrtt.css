@@ -446,3 +446,17 @@ html.wrtt-root body {
 }
 .wrtt-skeleton i:nth-child(2) { opacity: 0.45; }
 .wrtt-skeleton i:nth-child(3) { opacity: 0.3; }
+
+/* ── Locality ────────────────────────────────────────────────
+   A question, not a verdict: nobody's score moves because of this. Muted
+   like the establishment marker; the inline tag is quieter still, because
+   one regional seat among several local ones is unremarkable. */
+.wrtt-loc {
+  font-family: var(--mono); font-size: 10px; color: var(--fg-dim);
+  border: 1px dashed var(--line-2); padding: 0 5px; margin-left: 8px;
+  vertical-align: 2px; letter-spacing: 0.08em; cursor: help; white-space: nowrap;
+}
+.wrtt-regional {
+  font-family: var(--mono); font-size: 10px; color: var(--fg-dim);
+  margin-left: 6px; opacity: 0.75; cursor: help;
+}
