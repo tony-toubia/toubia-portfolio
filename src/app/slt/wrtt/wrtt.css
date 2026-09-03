@@ -384,3 +384,52 @@ html.wrtt-root body {
   border-bottom: 1px solid var(--line); white-space: nowrap;
 }
 .wrtt-hits tr.is-deck td { color: var(--accent); font-weight: 700; }
+
+/* ── Establishment marker ────────────────────────────────────
+   Sits beside SALARIED and reads the same way: an explanation of a
+   discounted score, not an accusation. Muted rather than warning-coloured -
+   a college trusteeship is an honour, just not the one this index is for. */
+.wrtt-est {
+  font-family: var(--mono); font-size: 10px; color: var(--fg-dim);
+  border: 1px solid var(--line-2); padding: 0 5px; margin-left: 8px;
+  vertical-align: 2px; letter-spacing: 0.08em; cursor: help; white-space: nowrap;
+}
+
+/* ── Verdicts ────────────────────────────────────────────────
+   The confirm step, on the card. Five small buttons; the chosen one lights.
+   Tap targets stay at 32px on touch even though the type is small. */
+.wrtt-verdict { margin-top: 12px; }
+.wrtt-verdict-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.wrtt-verdict-btns button {
+  font: inherit; font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+  min-height: 28px; padding: 3px 10px;
+  color: var(--fg-mid); background: transparent;
+  border: 1px solid var(--line-2); border-radius: 3px; cursor: pointer;
+}
+.wrtt-verdict-btns button:hover { color: var(--fg); border-color: var(--fg-dim); }
+.wrtt-verdict-btns button:disabled { opacity: 0.6; cursor: wait; }
+.wrtt-verdict-btns button.is-on { color: var(--bg); background: var(--fg-mid); border-color: var(--fg-mid); }
+.wrtt-verdict-btns button.is-on.is-confirm { background: var(--accent); border-color: var(--accent); }
+.wrtt-verdict-btns button.is-on.is-reject,
+.wrtt-verdict-btns button.is-on.is-wrong_person,
+.wrtt-verdict-btns button.is-on.is-do_not_contact { background: var(--warn); border-color: var(--warn); }
+
+.wrtt-verdict-note { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.wrtt-verdict-note input {
+  flex: 1 1 auto; min-width: 0; font: inherit; font-size: 12.5px;
+  padding: 6px 9px; color: var(--fg); background: var(--panel-2);
+  border: 1px solid var(--line-2); border-radius: 3px;
+}
+.wrtt-verdict-note input:focus { outline: none; border-color: var(--accent); }
+.wrtt-verdict-meta { font-family: var(--mono); font-size: 10.5px; color: var(--fg-dim); white-space: nowrap; }
+
+/* A card someone has ruled out stays on the sheet - the reviewer needs to see
+   what has been decided - but it steps back. A confirmed one steps forward. */
+.wrtt-row.is-negative { opacity: 0.5; }
+.wrtt-row.is-negative:hover, .wrtt-row.is-negative:focus-within { opacity: 1; }
+.wrtt-row.is-confirmed { box-shadow: inset 3px 0 0 var(--accent); }
+
+@media (max-width: 640px) {
+  .wrtt-verdict-btns button { min-height: 32px; }
+  .wrtt-verdict-note { flex-direction: column; align-items: stretch; gap: 4px; }
+}

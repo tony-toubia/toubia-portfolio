@@ -1,0 +1,50 @@
+-- ============================================================
+-- WRTT – scoring v3: the establishment discount.
+--
+-- A Naperville top 25 carried five people whose seats were the
+-- college board, the economic development partnership and the
+-- downtown business alliance. Those are honours conferred on
+-- business and civic elites - people senior somewhere the filing
+-- cannot see - and the thesis is the opposite. The taxonomy could
+-- not tell a university from a PTO or a chamber of commerce from a
+-- Rotary club (the chamber was filed as civic at a 1.2 weight), so it
+-- ranked them the same.
+--
+-- Three domains split out of the grassroots ones they hid in:
+--
+--   higher_ed        universit|college|seminary, unless it is the
+--                    scholarship fund, booster club or prep academy
+--   healthcare_inst  hospital|health system|medical center, unless it
+--                    is the charity run, walk or auxiliary
+--   economic_dev     chamber|economic development|development corp
+--                    |downtown|main street|visitors bureau|tourism
+--
+-- Order matters: each tests just before the domain it used to fall
+-- into, after the ones that must win first - youth_sports before
+-- economic_dev so "Youth Development Council" stays youth; arts
+-- before it so a chamber orchestra is not a chamber of commerce.
+--
+-- Profile: higher_ed 0.30, economic_dev 0.20, healthcare_inst 0.30;
+-- establishment_penalty 0.6 at establishment_min_seats 2;
+-- breadth_min_domain_weight 0.5.
+--
+-- run_scoring: breadth counts only domains at or above
+-- breadth_min_domain_weight - "many worlds" has to mean grassroots
+-- worlds. A person with >= 2 seats across higher_ed / economic_dev /
+-- healthcare_inst / professional / employer is flagged and the
+-- composite multiplied by establishment_penalty; the flag, seats and
+-- organizations are written into components.establishment so the
+-- card can explain itself. One seat does not flag.
+--
+-- Measured on Naperville, old rank -> new:
+--   Kim White, Roehll, Chawla (Rotary / neighbors / heritage)  1,2,3 -> 1,2,3
+--   Kimberly McMahon (booster + soccer president)                  6 -> 4
+--   Mark Fortkamp (swim team treasurer)                           22 -> 16
+--   Rubin, Miers, Kniss, Wright, Setork (college + NDP)   4,5,7,9,23 -> 1416..3340
+--   Dan Jurjovec (one NDP seat + veterans org)                    25 -> 227
+--
+-- Applied to the live database via the Supabase migration API in
+-- three steps (taxonomy + profile; run_scoring; the "downtown <town>
+-- alliance" pattern fix); this file is the record. Function bodies
+-- are the live definitions - see pg_get_functiondef.
+-- ============================================================
