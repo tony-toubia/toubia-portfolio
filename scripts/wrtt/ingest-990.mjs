@@ -50,7 +50,7 @@ for (const f of ['.env.local', '.env']) {
 const exec = promisify(execFile);
 const INDEX_URL = 'https://www.irs.gov/charities-non-profits/form-990-series-downloads';
 const UA = 'SLT-Ventures-WRTT/0.1 (+https://tonytoubia.com/slt/wrtt; research indexing)';
-const EXTRACTOR_VERSION = 'irs990-partvii@0.3';   // adds 990-PF, filters institutional officers by name
+const EXTRACTOR_VERSION = 'irs990-partvii@0.4';   // adds 990-PF, filters institutional officers by name
 
 /** Verbatim title -> the normalized role_class the scoring model weights. */
 const ROLE_RULES = [
@@ -71,6 +71,38 @@ const ROLE_RULES = [
  *  on trusts are routinely filled by a corporate trustee. */
 const INSTITUTION =
   /\b(bank|trust\s+(co|company)|\bn\.?a\.?$|llc|l\.l\.c|llp|pllc|\binc\.?$|incorporated|corp\b|corporation|company\b|associates\b|\bfsb\b|securities|investments?\b|custody|solutions\b|advisors?\b|advisory|management\b)/i;
+
+/**
+ * A person's name as a filer typed it, or null if it is not a person.
+ *
+ * Same job as cleanOfficer in ingest-990n.mjs and the same hazards: filers
+ * append the role ("DANIEL D CHALLENER PRESIDENT"), put the organization in
+ * the slot ("THE ORGANIZATION"), or write "N/A". Trailing titles are peeled,
+ * institutional and placeholder strings are rejected outright.
+ */
+const ROLE_TAIL =
+  /(officer|president|pres|treasurer|treas|secretary|sec|chair(man|person)?|director|dir|ceo|cfo|coo|founder|principal|owner|manager|mgr|trustee|v\.?p\.?|admin(istrator)?|coordinator|board|exec(utive)?|volunteer|bookkeeper|controller)/i;
+const NOT_A_PERSON =
+  /^(the\s+)?(organization|org|company|corporation|above|same|self|none|n\/?a|na|unknown|taxpayer|no one|nobody)\.?$/i;
+
+function cleanPersonName(raw) {
+  let n = String(raw ?? '').replace(/\s+/g, ' ').trim();
+  if (!n || NOT_A_PERSON.test(n)) return null;
+  // Trailing club or chapter identifiers, then trailing role words - but only
+  // while two tokens survive, since a one-word result is not a name.
+  n = n.replace(/\s+\S*\d\S*$/, '').trim();
+  for (;;) {
+    const m = n.match(new RegExp(`^(.*\\S)\\s+${ROLE_TAIL.source}[.,]?$`, 'i'));
+    if (!m || m[1].split(' ').length < 2) break;
+    n = m[1].trim();
+  }
+  if (n.split(' ').length < 2) return null;
+  if (NOT_A_PERSON.test(n)) return null;
+  if (INSTITUTION.test(n)) return null;
+  const roleOnly = new RegExp(`^${ROLE_TAIL.source}[.,]?$`, 'i');
+  if (n.split(' ').every((t) => roleOnly.test(t))) return null;
+  return n;
+}
 
 function classifyRole(title) {
   const t = String(title || '');
@@ -203,6 +235,29 @@ function parseFiling(xml, url) {
   const website =
     siteRaw && !/^(n\/?a|none|no|-+)$/i.test(siteRaw) ? siteRaw.slice(0, 200) : null;
 
+  // "Books are in care of" names a human with a direct phone on 60% of
+  // filings - measured, 10,273 of 17,246 in one bundle. Often the treasurer
+  // or executive director, and on 8% of those the same person appears on the
+  // officer roster we score. It is the only place in the whole form where a
+  // named individual and a dialable number sit together.
+  //
+  // The address in this block is read but NOT kept: it is sometimes a home
+  // address, and the same reasoning that skips 990-PF trustee addresses
+  // applies. Name and phone only.
+  const bic = ret.ReturnHeader?.Filer?.BooksInCareOfDetail
+           ?? ret.ReturnHeader?.BooksInCareOfDetail
+           ?? data.BooksInCareOfDetail
+           ?? body.BooksInCareOfDetail
+           ?? null;
+  let books = null;
+  if (bic) {
+    const rawName = String(bic.PersonNm ?? bic.BusinessName?.BusinessNameLine1Txt ?? '').trim();
+    const rawPhone = String(bic.PhoneNum ?? '').replace(/\D/g, '');
+    const cleaned = cleanPersonName(rawName);
+    // A phone with no human attached is just the switchboard we already have.
+    if (cleaned && rawPhone.length === 10) books = { name: cleaned, phone: rawPhone };
+  }
+
   const groups = [
     ...asArray(body.Form990PartVIISectionAGrp),      // 990
     ...asArray(body.OfficerDirectorTrusteeEmplGrp),  // 990-EZ
@@ -288,6 +343,7 @@ function parseFiling(xml, url) {
     tax_year: ret.ReturnHeader?.TaxYr ? Number(ret.ReturnHeader.TaxYr) : null,
     source_url: url,
     extractor_version: EXTRACTOR_VERSION,
+    books_in_care_of: books,
     people,
   };
 }
