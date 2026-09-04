@@ -68,5 +68,10 @@ data/*
 # the web moves under it), and a plain file is fetchable by URL for loading.
 !data/org-scan.ndjson
 !data/org-scan-targets.json
+# FEC employer directory: 11k people distilled from a 4GB federal download, so
+# the extract is worth keeping even though re-deriving it is only two minutes.
+# Employer and occupation only - no committee, amount, party or memo field is
+# extracted, so this is an employer directory and not a contribution history.
+!data/fec-employers.ndjson
 
 .cache/
