@@ -52,7 +52,7 @@ const ZIP_TO_MARKET = new Map();
 for (const m of MARKETS) for (const z of m.zips) ZIP_TO_MARKET.set(z, m.name);
 
 /** A suite, floor or PO box is plainly not somebody's front door. */
-const CLEARLY_COMMERCIAL = /\b(ste|suite|fl|floor|unit\s*[a-z]?\d|p\.?\s?o\.?\s+box|pob|dept|department|bldg|building|rm|room)\b/i;
+const CLEARLY_COMMERCIAL = /\b(ste|suite|fl|floor|unit\s*[a-z]?\d|p\.?\s?o\.?\s+box|pob|pmb|box|dept|department|bldg|building|rm|room)\b/i;
 /** An apartment is a home, and so is a street address with no premises marker. */
 const CLEARLY_RESIDENTIAL = /\b(apt|apartment|#\s*\d+[a-z]?$)\b/i;
 
