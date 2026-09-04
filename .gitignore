@@ -56,6 +56,10 @@ data/*
 !data/990-full.part2.ndjson
 !data/990-full.part3.ndjson
 !data/990n.ndjson.gz
+# Org-site scan: the findings are the durable artifact (the crawl is slow and
+# the web moves under it), and a plain file is fetchable by URL for loading.
+!data/org-scan.ndjson
+!data/org-scan-targets.json
 # The six target-market corpus is checked in UNCOMPRESSED, unlike the two
 # above. Git zlib-compresses blobs, so it costs the repo the same either way -
 # and a plain-text file is fetchable by URL, which is how it gets loaded:
