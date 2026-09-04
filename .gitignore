@@ -74,5 +74,10 @@ data/*
 # extracted, so this is an employer directory and not a contribution history.
 !data/fec-employers.ndjson
 !data/fec-employers-prior.ndjson
+# Organization street addresses from the IRS Business Master File, joined by
+# EIN. Public org data - but a small nonprofit is often registered at a board
+# member's house, so premises_type flags the ones that look residential rather
+# than flattening them into "org data".
+!data/bmf-org-addresses.ndjson
 
 .cache/
