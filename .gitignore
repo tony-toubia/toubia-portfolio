@@ -73,5 +73,6 @@ data/*
 # Employer and occupation only - no committee, amount, party or memo field is
 # extracted, so this is an employer directory and not a contribution history.
 !data/fec-employers.ndjson
+!data/fec-employers-prior.ndjson
 
 .cache/
