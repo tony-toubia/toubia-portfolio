@@ -338,6 +338,7 @@ export type ResearchRow = {
   tenure: string | null;
   regional_only: boolean;
   regional_orgs: string | null;
+  found_on: string | null;
 };
 
 /**
@@ -383,7 +384,12 @@ export async function getResearchRows(marketId: string, limit = 25): Promise<Res
       coalesce((s.components->'locality'->>'regional_only')::boolean, false) as regional_only,
       (select string_agg(distinct o.name, ' | ')
          from wrtt.affiliation a join wrtt.organization o on o.id = a.organization_id
-        where a.person_id = p.id and o.is_regional) as regional_orgs
+        where a.person_id = p.id and o.is_regional) as regional_orgs,
+      -- Pages where this person is already named on an organization's own
+      -- site. Confirms the role is current and sends the researcher straight
+      -- to the roster instead of hunting for it.
+      (select string_agg(distinct wm.page_url, ' | ')
+         from wrtt.web_mention wm where wm.person_id = p.id) as found_on
     from latest l
     join wrtt.score s on s.score_run_id = l.id
     join wrtt.person p on p.id = s.person_id

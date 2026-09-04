@@ -23,6 +23,8 @@ const HEADERS = [
   // Whether every organization tying this person to the market reaches
   // beyond it. When yes, residence is the first thing to check.
   'regional_only', 'regional_orgs',
+  // Pages that already name this person on an organization's own site.
+  'found_on',
   // ── researcher fills these in ──
   'lives_in_market', 'email', 'phone', 'linkedin', 'mailing',
   'source', 'source_detail', 'match_confidence', 'verified_by', 'status', 'notes',
@@ -61,7 +63,7 @@ export async function GET(
     ...rows.map((r) => [
       r.person_id, r.rank_in_market, r.display_name, r.wrtt_score, r.confidence,
       r.market, r.state, r.tenure, r.domains, r.roles, r.org_phones, r.org_sites,
-      r.regional_only ? 'CHECK RESIDENCE' : '', r.regional_orgs,
+      r.regional_only ? 'CHECK RESIDENCE' : '', r.regional_orgs, r.found_on,
       '', '', '', '', '', '', '', '', '', '', '',
     ].map(csv).join(',')),
   ].join('\r\n');
