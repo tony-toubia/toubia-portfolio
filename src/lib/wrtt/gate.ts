@@ -4,7 +4,6 @@
  * lives here.
  */
 export const GATE_COOKIE = 'wrtt_gate';
-export const GATE_TOKEN = 'ok';
 
 /** Seven days. Long enough that a bookmark keeps working. */
 export const GATE_MAX_AGE = 60 * 60 * 24 * 7;
@@ -29,4 +28,33 @@ export function passwordMatches(given: string | null | undefined) {
   const expected = process.env.WRTT_GATE_PASSWORD?.trim().toLowerCase();
   if (!given || !expected) return false;
   return given.trim().toLowerCase() === expected;
+}
+
+/**
+ * The value of the session cookie, derived from the password rather than
+ * written down.
+ *
+ * This used to be the constant string 'ok', in a public repository, and the
+ * middleware's whole test for an existing session was whether the cookie
+ * equalled it. So the password was never the only way in: anyone who read the
+ * source could set wrtt_gate=ok in their browser and skip the gate entirely.
+ * Rotating that constant to a different published string would have changed
+ * nothing - it would still have been printed in the repository.
+ *
+ * A digest of the password cannot be forged from anything public, and it has
+ * the property we actually want on a rotation: changing WRTT_GATE_PASSWORD
+ * changes every valid cookie, so everyone who signed in with the old one is
+ * signed out at the same moment. There is nothing separate to remember to
+ * rotate.
+ *
+ * Not a signed session, no expiry inside the value, no per-user identity - the
+ * cookie's Max-Age is the only lifetime. Still the shared-password gate it
+ * always was; it just no longer ships with the key in the lock.
+ */
+export async function gateToken(): Promise<string | null> {
+  const secret = process.env.WRTT_GATE_PASSWORD?.trim().toLowerCase();
+  if (!secret) return null;
+  const bytes = new TextEncoder().encode(`wrtt-gate-v1|${secret}`);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 }

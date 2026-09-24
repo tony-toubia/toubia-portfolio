@@ -2,7 +2,7 @@
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { GATE_COOKIE, GATE_TOKEN, GATE_MAX_AGE, passwordMatches } from '@/lib/wrtt/gate';
+import { GATE_COOKIE, GATE_MAX_AGE, gateToken, passwordMatches } from '@/lib/wrtt/gate';
 import { recordHit } from '@/lib/wrtt/hits';
 
 export async function enter(_prev: unknown, form: FormData) {
@@ -12,8 +12,11 @@ export async function enter(_prev: unknown, form: FormData) {
   }
   await recordHit('gate_pass', { path: '/slt/wrtt/enter' });
 
+  const token = await gateToken();
+  if (!token) return { error: 'Not that.' };   // unreachable: the password already matched
+
   const jar = await cookies();
-  jar.set(GATE_COOKIE, GATE_TOKEN, {
+  jar.set(GATE_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
