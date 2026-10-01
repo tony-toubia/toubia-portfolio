@@ -37,6 +37,9 @@
   window.addEventListener('pointerdown', unlock, true);
   window.addEventListener('keydown', unlock, true);
 
+  // Real character models load in the background and swap in when ready.
+  if (PH.Models) PH.Models.load().then(() => render.modelsReady());
+
   const resize = () => render.resize(window.innerWidth, window.innerHeight);
   window.addEventListener('resize', resize);
   window.addEventListener('orientationchange', () => setTimeout(resize, 120));

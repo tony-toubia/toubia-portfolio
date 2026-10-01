@@ -51,7 +51,13 @@ window.PH = window.PH || {};
     return mat;
   };
 
-  Look.toonMaterial = (params) => Look.addRim(new THREE.MeshToonMaterial({ gradientMap: Look.gradientMap(), ...params }));
+  Look.toonMaterial = ({ flatShading, ...params }) => {
+    // r128's toon material has no flatShading option, but honours the flag
+    // when it is set afterwards (it only switches on a shader define).
+    const m = new THREE.MeshToonMaterial({ gradientMap: Look.gradientMap(), ...params });
+    if (flatShading) m.flatShading = true;
+    return Look.addRim(m);
+  };
 
   const OUTLINE = new THREE.MeshBasicMaterial({ color: 0x0b0c14, side: THREE.BackSide });
   const converted = new WeakMap();
@@ -107,7 +113,8 @@ window.PH = window.PH || {};
     if (outline > 0) {
       // Only the biggest parts get a shell: each one is a draw call, and the
       // silhouette is carried by the torso, head and limbs, not the trim.
-      const parts = meshes.filter((o) => o.material && !o.material.transparent && !o.material.isMeshBasicMaterial)
+      // (Skinned meshes get their own outline that bends with the skeleton.)
+      const parts = meshes.filter((o) => !o.isSkinnedMesh && o.material && !o.material.transparent && !o.material.isMeshBasicMaterial)
         .map((o) => { if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere(); return o; })
         .filter((o) => o.geometry.boundingSphere.radius >= 0.07)
         .sort((a, b) => b.geometry.boundingSphere.radius - a.geometry.boundingSphere.radius)

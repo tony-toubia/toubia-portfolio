@@ -1,0 +1,7 @@
+Models in this folder are by Kenney (www.kenney.nl), released under
+Creative Commons Zero (CC0): http://creativecommons.org/publicdomain/zero/1.0/
+
+  officer/character-male-c.glb (+ Textures/colormap.png)   - Mini Characters pack
+  blaster/blaster-n.glb (+ Textures/colormap.png)          - Blaster Kit 2.1
+
+Credit is not required by the licence; it is given here with thanks.

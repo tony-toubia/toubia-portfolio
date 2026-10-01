@@ -661,6 +661,12 @@ window.PH = window.PH || {};
 
     /** A gun flash: a hot star at the muzzle and a splash of light on the ground. */
     muzzle(x, z, dx, dz, vis) {
+      // Shots from the player's position put the model into its firing pose.
+      const pl = this.lastPl;
+      if (pl && this.player && this.player.anim && Math.abs(pl.x - x) + Math.abs(pl.z - z) < 0.8) this.player.shootT = 0.28;
+      for (const v of this.hunterVis.values()) {
+        if (v.anim && v.root.visible && Math.abs(v.root.position.x - x) + Math.abs(v.root.position.z - z) < 0.8) v.shootT = 0.28;
+      }
       if (this.flashes.length >= 40) return;
       const color = vis === 'harpoon' ? [0.8, 2.6, 2.4] : vis === 'pellet' ? [3, 1.6, 0.6] : [3, 2.4, 1.1];
       this.flashes.push({ x: x + dx * 0.55, z: z + dz * 0.55, t: 0, life: 0.06, c: color, s: vis === 'pellet' ? 1.1 : 0.85 });
@@ -904,12 +910,26 @@ window.PH = window.PH || {};
 
     flashPlayer() { if (this.player) this.player.flash = 1; }
 
+    /** Models arrive after the game starts: swap the player in if it now has one. */
+    modelsReady() {
+      if (this.playerClass && PH.Models.has(this.playerClass) && this.player && !this.player.anim && !this.player.isMonster) this.setPlayer(this.playerClass);
+    }
+
     setHunters(list) {
       for (const v of this.hunterVis.values()) this.scene.remove(v.root);
       this.hunterVis.clear();
       for (const h of list) {
+        if (PH.Models && PH.Models.has(h.cls)) {
+          const m = PH.Models.createHunter(h.cls);
+          const root = new THREE.Group();
+          root.add(m.root, this.classRing(h.cls));
+          root.visible = false;
+          this.scene.add(root);
+          this.hunterVis.set(h.id, { root, mesh: m.root, anim: m, shootT: 0 });
+          continue;
+        }
         const mesh = this.chars.createHunterMesh({ hunterClass: h.cls });
-          const box = this.bodyBox(mesh);
+        const box = this.bodyBox(mesh);
         PH.Look.stylize(mesh, 0.06, 6);
         const tilt = new THREE.Group();
         tilt.add(mesh);
@@ -943,11 +963,16 @@ window.PH = window.PH || {};
         if (!on) continue;
         v.root.position.set(h.x, 0, h.z);
         v.root.rotation.y = h.facing;
-        // Downed hunters lie on their backs.
-        const lie = h.state === 'down' ? -1.35 : 0;
-        v.tilt.rotation.x += (lie - v.tilt.rotation.x) * Math.min(1, dt * 10);
-        v.tilt.position.y = h.state === 'down' ? 0.25 : 0;
-        if (h.state === 'up') this.chars.animateHunter(v.mesh, t + h.id, h.moving);
+        if (v.anim) {
+          v.shootT -= dt;
+          v.anim.update(dt, { moving: h.moving, fast: false, shooting: v.shootT > 0, down: h.state === 'down' });
+        } else {
+          // Downed hunters lie on their backs.
+          const lie = h.state === 'down' ? -1.35 : 0;
+          v.tilt.rotation.x += (lie - v.tilt.rotation.x) * Math.min(1, dt * 10);
+          v.tilt.position.y = h.state === 'down' ? 0.25 : 0;
+          if (h.state === 'up') this.chars.animateHunter(v.mesh, t + h.id, h.moving);
+        }
         this.shadows.add(h.x, 0.02, h.z, 0, 0.5, 1, 0.5);
         if (h.shieldT > 0) this.halos.add(h.x, 1, h.z, 0, 2.4, 2.4, 2.4, 0.15, 0.4, 0.9);
         if (h.flash > 0) this.halos.add(h.x, 1, h.z, 0, 1.6, 1.6, 1.6, 0.8, 0.15, 0.1);
@@ -1117,10 +1142,32 @@ window.PH = window.PH || {};
       return box;
     }
 
+    /** The class-coloured ring the hand-built hunters stand in, for the real models. */
+    classRing(cls) {
+      const mats = this.chars.hunterMaterials[cls] || this.chars.hunterMaterials.assault;
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.55, 24),
+        new THREE.MeshBasicMaterial({ color: mats.accent.color, side: THREE.DoubleSide, transparent: true, opacity: 0.7 }));
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.03;
+      return ring;
+    }
+
     setPlayer(hunterClass) {
       // Remove the wrapper that was added to the scene, not the mesh inside it -
       // removing the inner mesh left the menu's hunter standing in every run.
+      const facing = this.player ? this.player.facing : 0;
       if (this.player) this.scene.remove(this.player.root);
+      this.playerClass = hunterClass;
+      // A real animated model where one exists and has loaded.
+      if (PH.Models && PH.Models.has(hunterClass)) {
+        const h = PH.Models.createHunter(hunterClass);
+        const inner = new THREE.Group();
+        inner.add(h.root);
+        inner.add(this.classRing(hunterClass));
+        this.scene.add(inner);
+        this.player = { root: inner, mesh: h.root, anim: h, height: PH.Models.HUNTERS[hunterClass].height, facing, shootT: 0 };
+        return;
+      }
       const mesh = this.chars.createHunterMesh({ hunterClass });
       const box = this.bodyBox(mesh);
       PH.Look.stylize(mesh, 0.06, 6);
@@ -1333,10 +1380,18 @@ window.PH = window.PH || {};
         } else {
           // Hunter mode: you can be downed (lie flat) or dead (gone until redeployed).
           const down = pl.state === 'down';
-          P.root.rotation.x += ((down ? -1.35 : 0) - P.root.rotation.x) * Math.min(1, dt * 10);
-          P.root.position.y = down ? 0.25 : 0;
+          this.lastPl = pl;
+          if (P.anim) {
+            // The model animates its own fall; the procedural one is tipped over.
+            P.shootT = Math.max(0, (P.shootT || 0) - dt);
+            P.anim.update(dt, { moving: pl.moving, fast: pl.dashT > 0, shooting: P.shootT > 0, down,
+              dead: pl.state === 'dead' || (game.mode === 'survival' && game.state === 'over' && !game.victory) });
+          } else {
+            P.root.rotation.x += ((down ? -1.35 : 0) - P.root.rotation.x) * Math.min(1, dt * 10);
+            P.root.position.y = down ? 0.25 : 0;
+          }
           P.root.visible = pl.state !== 'dead' && pl.state !== 'waiting' && !(pl.iframes > 0 && !down && Math.floor(t * 18) % 2 === 0);
-          if (!down) this.chars.animateHunter(P.mesh, t, pl.moving);
+          if (!down && !P.anim) this.chars.animateHunter(P.mesh, t, pl.moving);
           this.shadows.add(pl.x, 0.02, pl.z, 0, 0.55, 1, 0.55);
           if (pl.shieldT > 0) this.halos.add(pl.x, 1, pl.z, 0, 2.4, 2.4, 2.4, 0.15, 0.4, 0.9);
           if (down) this.halos.add(pl.x, 0.4, pl.z, 0, 1.8, 1.8, 1.8, Math.floor(t * 4) % 2 ? 0.8 : 0.3, 0.05, 0.05);
