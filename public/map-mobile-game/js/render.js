@@ -938,7 +938,7 @@ window.PH = window.PH || {};
       // Compile the monster shaders now, not when the first boss lands.
       const tmp = new THREE.Scene();
       tmp.add(new THREE.AmbientLight(0xffffff, 0.5));
-      for (const type of Object.keys(PH.Models.MONSTERS)) if (PH.Models.hasMonster(type)) { tmp.add(PH.Models.createMonster(type, 1).root); break; }
+      for (const type of Object.keys(PH.Models.MONSTERS)) if (PH.Models.hasMonster(type)) tmp.add(PH.Models.createMonster(type, 3).root);   // custom ones use their own shaders
       try { this.renderer.compile(tmp, this.camera); } catch { /* compile is an optimisation only */ }
     }
 
