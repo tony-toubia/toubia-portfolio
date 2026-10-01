@@ -120,6 +120,7 @@ window.PH = window.PH || {};
       if (!v) return;
       v.x = mon.x; v.z = mon.z; v.facing = mon.facing; v.moving = mon.moving || mon.evolveT > 0;
       v.radius = mon.radius; v.lift = mon.lift;
+      v.attackT = mon.attackT; v.leapT = mon.leapT; v.rollT = mon.rollT; v.evolveT = mon.evolveT; v.dashT = mon.dashT;
       v.hidden = !this.monsterVisible();
       if (!v.hidden && !this.revealed) {
         this.revealed = true;

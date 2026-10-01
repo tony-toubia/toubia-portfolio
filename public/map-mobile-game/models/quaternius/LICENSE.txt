@@ -1,0 +1,12 @@
+Models in this folder are by Quaternius (quaternius.com), from the
+"Cute Animated Monsters" pack (Aug 2020), released under Creative Commons
+Zero (CC0): http://creativecommons.org/publicdomain/zero/1.0/
+
+  yeti.glb      - Goliath
+  cthulhu.glb   - Kraken
+  ghost.glb     - Wraith
+  cyclops.glb   - Behemoth
+
+Converted from the pack's FBX files to GLB with three.js (r128) FBXLoader
+and GLTFExporter: textures embedded at 256px, unused clips removed.
+Credit is not required by the licence; it is given here with thanks.

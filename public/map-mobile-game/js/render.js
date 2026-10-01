@@ -885,6 +885,12 @@ window.PH = window.PH || {};
     /** The player as one of the original monsters, at an evolution stage. */
     setPlayerMonster(type, stage) {
       if (this.player) this.scene.remove(this.player.root);
+      const mv = this.monsterModel(type, stage);
+      if (mv) {
+        this.scene.add(mv.root);
+        this.player = { ...mv, isMonster: true, facing: this.player ? this.player.facing : 0, flash: 0 };
+        return { radius: mv.radius, height: mv.height };
+      }
       const key = `${type}:${stage}`;
       let mesh = this.monsterCache && this.monsterCache.get(key);
       if (mesh) this.monsterCache.delete(key);
@@ -908,11 +914,32 @@ window.PH = window.PH || {};
       return { radius: width * 0.38, height: this.player.height };
     }
 
+    /** A real animated monster, when its model has loaded; otherwise null. */
+    monsterModel(type, stage) {
+      if (!PH.Models || !PH.Models.hasMonster(type)) return null;
+      const m = PH.Models.createMonster(type, stage);
+      m.root.userData.primaryMaterial = m.material;
+      return { root: m.root, mesh: m.root, anim: m, height: m.height, radius: m.radius,
+        baseGlow: m.material.emissiveIntensity, attackN: 0, lastAtk: 0 };
+    }
+
+    /** Count bites from a monster's attack timer: it jumps up to the cooldown on each one. */
+    monsterAnimState(v, e, extra) {
+      if ((e.attackT || 0) > v.lastAtk + 0.25) v.attackN++;
+      v.lastAtk = e.attackT || 0;
+      return { moving: e.moving, fast: e.rollT > 0 || e.dashT > 0, leap: e.leapT > 0, evolving: e.evolveT > 0, attack: v.attackN, ...extra };
+    }
+
     flashPlayer() { if (this.player) this.player.flash = 1; }
 
     /** Models arrive after the game starts: swap the player in if it now has one. */
     modelsReady() {
       if (this.playerClass && PH.Models.has(this.playerClass) && this.player && !this.player.anim && !this.player.isMonster) this.setPlayer(this.playerClass);
+      // Compile the monster shaders now, not when the first boss lands.
+      const tmp = new THREE.Scene();
+      tmp.add(new THREE.AmbientLight(0xffffff, 0.5));
+      for (const type of Object.keys(PH.Models.MONSTERS)) if (PH.Models.hasMonster(type)) { tmp.add(PH.Models.createMonster(type, 1).root); break; }
+      try { this.renderer.compile(tmp, this.camera); } catch { /* compile is an optimisation only */ }
     }
 
     setHunters(list) {
@@ -1189,6 +1216,7 @@ window.PH = window.PH || {};
       const tmp = new THREE.Scene();
       tmp.add(new THREE.AmbientLight(0xffffff, 0.5));
       for (const { type, stage } of list) {
+        if (PH.Models && PH.Models.hasMonster(type)) continue;   // real models are cheap to clone
         const mesh = this.chars.createMonsterMesh({ monsterType: type, evolutionStage: stage });
         PH.Look.stylize(mesh, 0.1, 10);
         this.preparedBosses.set(`${type}:${stage}`, mesh);
@@ -1199,6 +1227,12 @@ window.PH = window.PH || {};
     }
 
     addBoss(id, monsterType, stage) {
+      const mv = this.monsterModel(monsterType, stage);
+      if (mv) {
+        this.scene.add(mv.root);
+        this.bosses.set(id, { ...mv, flash: 0 });
+        return { radius: mv.radius, height: mv.height };
+      }
       const key = `${monsterType}:${stage}`;
       const prepared = this.preparedBosses && this.preparedBosses.get(key);
       if (prepared) this.preparedBosses.delete(key);
@@ -1367,7 +1401,8 @@ window.PH = window.PH || {};
         if (P.isMonster) {
           P.root.position.y = pl.lift || 0;
           P.root.visible = true;
-          this.chars.animateMonster(P.mesh, t, pl.moving || pl.evolveT > 0);
+          if (P.anim) P.anim.update(dt, this.monsterAnimState(P, pl, { dead: pl.hp <= 0 }));
+          else this.chars.animateMonster(P.mesh, t, pl.moving || pl.evolveT > 0);
           const pm = P.mesh.userData.primaryMaterial;
           if (pm) {
             P.flash = Math.max(0, P.flash - dt * 12);
@@ -1448,7 +1483,8 @@ window.PH = window.PH || {};
         if (bs.hidden) continue;
         vb.root.position.set(bs.x, bs.lift || 0, bs.z);
         vb.root.rotation.y = bs.facing;
-        this.chars.animateMonster(vb.mesh, t, bs.moving);
+        if (vb.anim) vb.anim.update(dt, this.monsterAnimState(vb, bs, { fast: bs.state === 'dash' || bs.rollT > 0, windup: bs.state === 'tele' }));
+        else this.chars.animateMonster(vb.mesh, t, bs.moving);
         const mats = vb.mesh.userData;
         if (mats.primaryMaterial) {
           // Weapons hit a boss nearly every frame, so a strong flash never
