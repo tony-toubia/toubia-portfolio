@@ -15,13 +15,13 @@ export default function AuraWindow() {
           <img src="/images/aura-logo.png" alt="Aura" className="w-12 h-12 object-contain" />
           <div className="flex-1">
             <h1 className="text-lg font-bold m-0">Aura Platform</h1>
-            <p className="text-sm m-0 italic text-[#00A3AD]">AI Companions that flow with your day</p>
+            <p className="text-sm m-0 italic text-[var(--aura-text)]">AI Companions that flow with your day</p>
           </div>
           <a
             href="https://aura-link.app"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs px-2 py-1 text-white bg-[#00A3AD] hover:opacity-80 no-underline"
+            className="text-xs px-2 py-1 text-white bg-[var(--aura-strong)] hover:opacity-80 no-underline"
           >
             Visit Site
           </a>
@@ -129,11 +129,11 @@ function StoryTab() {
       <div className="group-box">
         <span className="group-box-label">Aura Archetypes (Vessels)</span>
         <div className="text-xs flex flex-wrap gap-2">
-          <span className="px-2 py-1 bg-[#00A3AD20] border border-[#00A3AD]">🤖 Digital - Cyberspace-native AI</span>
-          <span className="px-2 py-1 bg-[#00A3AD20] border border-[#00A3AD]">🌱 Terra - Plant consciousness</span>
-          <span className="px-2 py-1 bg-[#00A3AD20] border border-[#00A3AD]">💕 Companion - Emotional friend</span>
-          <span className="px-2 py-1 bg-[#00A3AD20] border border-[#00A3AD]">📚 Memory - Story connector</span>
-          <span className="px-2 py-1 bg-[#00A3AD20] border border-[#00A3AD]">🦉 Sage - Wisdom guide</span>
+          <span className="px-2 py-1 bg-[var(--aura-tint)] border border-[var(--aura)]">🤖 Digital - Cyberspace-native AI</span>
+          <span className="px-2 py-1 bg-[var(--aura-tint)] border border-[var(--aura)]">🌱 Terra - Plant consciousness</span>
+          <span className="px-2 py-1 bg-[var(--aura-tint)] border border-[var(--aura)]">💕 Companion - Emotional friend</span>
+          <span className="px-2 py-1 bg-[var(--aura-tint)] border border-[var(--aura)]">📚 Memory - Story connector</span>
+          <span className="px-2 py-1 bg-[var(--aura-tint)] border border-[var(--aura)]">🦉 Sage - Wisdom guide</span>
         </div>
       </div>
     </div>
@@ -214,8 +214,8 @@ function FeaturesTab() {
       <div className="group-box">
         <span className="group-box-label">Notification Channels</span>
         <div className="text-xs flex flex-wrap gap-2">
-          <span className="px-2 py-1 bg-[#00A3AD20] border border-[#00A3AD]">📱 In-App</span>
-          <span className="px-2 py-1 bg-[#00A3AD20] border border-[#00A3AD]">🔔 Web Push (VAPID)</span>
+          <span className="px-2 py-1 bg-[var(--aura-tint)] border border-[var(--aura)]">📱 In-App</span>
+          <span className="px-2 py-1 bg-[var(--aura-tint)] border border-[var(--aura)]">🔔 Web Push (VAPID)</span>
           <span className="px-2 py-1 bg-[#FFB81C20] border border-[#FFB81C]">💬 SMS (planned)</span>
           <span className="px-2 py-1 bg-[#FFB81C20] border border-[#FFB81C]">📲 WhatsApp (planned)</span>
           <span className="px-2 py-1 bg-[#FFB81C20] border border-[#FFB81C]">📧 Email (planned)</span>
@@ -312,7 +312,7 @@ function TechTab() {
           <tbody>
             {ruleEngine.map((row) => (
               <tr key={row.type}>
-                <td className="p-2 border border-[var(--button-shadow)] font-mono bg-[#00A3AD20]">{row.type}</td>
+                <td className="p-2 border border-[var(--button-shadow)] font-mono bg-[var(--aura-tint)]">{row.type}</td>
                 <td className="p-2 border border-[var(--button-shadow)]">{row.desc}</td>
               </tr>
             ))}
@@ -331,19 +331,19 @@ function TechTab() {
         <span className="group-box-label">Rule Actions</span>
         <div className="text-xs space-y-1">
           <div className="flex items-start gap-2">
-            <span className="font-mono bg-[#00A3AD20] px-2 py-0.5">notify</span>
+            <span className="font-mono bg-[var(--aura-tint)] px-2 py-0.5">notify</span>
             <span>Send notification with template</span>
           </div>
           <div className="flex items-start gap-2">
-            <span className="font-mono bg-[#00A3AD20] px-2 py-0.5">prompt_respond</span>
+            <span className="font-mono bg-[var(--aura-tint)] px-2 py-0.5">prompt_respond</span>
             <span>AI generates contextual response</span>
           </div>
           <div className="flex items-start gap-2">
-            <span className="font-mono bg-[#00A3AD20] px-2 py-0.5">webhook</span>
+            <span className="font-mono bg-[var(--aura-tint)] px-2 py-0.5">webhook</span>
             <span>Call external URL</span>
           </div>
           <div className="flex items-start gap-2">
-            <span className="font-mono bg-[#00A3AD20] px-2 py-0.5">log</span>
+            <span className="font-mono bg-[var(--aura-tint)] px-2 py-0.5">log</span>
             <span>Record to audit log</span>
           </div>
         </div>
@@ -355,7 +355,7 @@ function TechTab() {
         <div className="text-xs mb-2">Memory Types:</div>
         <div className="flex flex-wrap gap-1 mb-3">
           {['preference', 'fact', 'relationship', 'goal', 'habit', 'context'].map(type => (
-            <span key={type} className="px-2 py-0.5 font-mono text-xs bg-[#00A3AD20] border border-[#00A3AD]">{type}</span>
+            <span key={type} className="px-2 py-0.5 font-mono text-xs bg-[var(--aura-tint)] border border-[var(--aura)]">{type}</span>
           ))}
         </div>
         <div className="text-xs font-mono bg-black text-green-400 p-2 rounded">
