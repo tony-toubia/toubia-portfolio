@@ -1,1997 +1,1054 @@
 /**
- * Main Game Engine for Primal Hunt
- * Handles game loop, entities, combat, and effects
+ * Primal Hunt - game logic.
+ *
+ * Pure simulation: no three.js and no DOM. It reads input from `this.input`,
+ * reports to the UI through `hooks`, and asks for visuals through `fx`
+ * (PH.Render in the browser, PH.NullRender for headless balance runs). That
+ * split is what lets the whole run be simulated at many times real speed to
+ * check pacing, which is how the numbers in config.js were tuned.
  */
+window.PH = window.PH || {};
 
-class Game extends EventEmitter {
-    constructor() {
-        super();
+(() => {
+  const C = PH.CONFIG;
+  const TAU = Math.PI * 2;
+  const dist2 = (ax, az, bx, bz) => (ax - bx) * (ax - bx) + (az - bz) * (az - bz);
 
-        this.canvas = document.getElementById('game-canvas');
-        this.ctx = this.canvas.getContext('2d');
-        this.minimap = document.getElementById('minimap');
-        this.minimapCtx = this.minimap.getContext('2d');
+  /** Small seeded RNG so two balance runs with the same seed are comparable. */
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
 
-        this.running = false;
-        this.paused = false;
-        this.lastTime = 0;
-        this.gameTime = 600; // 10 minutes
-        this.maxGameTime = 600;
+  // Spatial grid: a counting-sort bucket grid centred on the player, rebuilt
+  // every step. Cheap for a few hundred creatures and allocation-free.
+  const CELL = 2.2, GW = 44;
 
-        // Game objects
-        this.map = null;
-        this.camera = null;
-        this.player = null;
-        this.entities = [];
-        this.projectiles = [];
-        this.effects = [];
-        this.traps = [];
-        this.dome = null;
+  class Game {
+    constructor(fx, hooks = {}) {
+      this.fx = fx;
+      this.hooks = hooks;
+      this.input = { x: 0, z: 0 };
+      this.state = 'menu';
+      this.maxEnemies = C.maxEnemies;
 
-        // AI controllers
-        this.aiControllers = [];
+      this.enemies = Array.from({ length: C.maxEnemies }, (_, i) => ({ alive: false, idx: i }));
+      this.projectiles = Array.from({ length: 420 }, () => ({ alive: false, hits: [] }));
+      this.gems = Array.from({ length: C.maxGems }, () => ({ alive: false }));
+      this.pickups = Array.from({ length: 12 }, () => ({ alive: false }));
 
-        // Stats
-        this.stats = {
-            damageDealt: 0,
-            damageTaken: 0,
-            abilitiesUsed: 0,
-            huntersKilled: 0,
-            evolutionStage: 1,
-            time: 0
-        };
-
-        // Input
-        this.input = {
-            moveX: 0,
-            moveY: 0,
-            aimX: 0,
-            aimY: 0,
-            shooting: false
-        };
-
-        this.joystick = {
-            active: false,
-            startX: 0,
-            startY: 0,
-            currentX: 0,
-            currentY: 0
-        };
-
-        // Aim joystick for attack direction
-        this.aimJoystick = {
-            active: false,
-            startX: 0,
-            startY: 0,
-            currentX: 0,
-            currentY: 0,
-            angle: 0
-        };
-
-        this.setupInput();
-        this.resize();
-        window.addEventListener('resize', () => this.resize());
+      this.gStart = new Int32Array(GW * GW + 1);
+      this.gCursor = new Int32Array(GW * GW);
+      this.gItems = new Int32Array(C.maxEnemies);
+      this.gCell = new Int32Array(C.maxEnemies);
     }
 
-    resize() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
+    /* ── Run lifecycle ──────────────────────────────────────── */
 
-        if (this.camera) {
-            this.camera.resize(this.canvas.width, this.canvas.height);
-        }
+    /** The menu backdrop: your hunter standing on the field, nothing else. */
+    attract(classId) {
+      this.state = 'menu';
+      this.time = 0;
+      for (const e of this.enemies) e.alive = false;
+      for (const p of this.projectiles) p.alive = false;
+      for (const g of this.gems) g.alive = false;
+      for (const p of this.pickups) p.alive = false;
+      this.lobs = []; this.mines = []; this.telegraphs = []; this.bosses = []; this.droneHits = [];
+      this.weapons = []; this.passives = [];
+      this.player = { x: 0, z: 0, hp: 1, maxHp: 1, facing: Math.PI * 0.8, moving: false, iframes: 0, radius: 0.42 };
+      this.fx.clearRun();
+      this.fx.setPlayer(classId);
     }
 
-    setupInput() {
-        // Keyboard input
-        document.addEventListener('keydown', (e) => this.handleKeyDown(e));
-        document.addEventListener('keyup', (e) => this.handleKeyUp(e));
+    newRun(classId, seed = (Math.random() * 1e9) | 0) {
+      this.rand = mulberry32(seed);
+      this.classId = classId;
+      this.time = 0;
+      this.kills = 0;
+      this.bossKills = 0;
+      this.level = 1;
+      this.xp = 0;
+      this.xpNeed = C.xpToNext(1);
+      this.pending = [];             // queued level-ups and chests
+      this.spawnAcc = 0;
+      this.eventIdx = 0;
+      this.nextElite = PH.ELITE_EVERY;
+      this.nextId = 1;
+      this.victoryAt = 0;
+      this.timeScale = 1;
+      this.slowmo = 0;
 
-        // Touch input for joystick
-        const joystickContainer = document.getElementById('joystick-container');
-        const joystickKnob = document.getElementById('joystick-knob');
+      for (const e of this.enemies) e.alive = false;
+      for (const p of this.projectiles) p.alive = false;
+      for (const g of this.gems) g.alive = false;
+      for (const p of this.pickups) p.alive = false;
+      this.aliveEnemies = 0;
+      this.lobs = [];
+      this.mines = [];
+      this.telegraphs = [];
+      this.bosses = [];
+      this.droneHits = [];
+      this.dronePool = [];
+      this.droneN = 0;
+      this.gemMerge = 0;
 
-        joystickContainer.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            const touch = e.touches[0];
-            const rect = joystickContainer.getBoundingClientRect();
-            this.joystick.active = true;
-            this.joystick.startX = rect.left + rect.width / 2;
-            this.joystick.startY = rect.top + rect.height / 2;
-            this.updateJoystick(touch.clientX, touch.clientY, joystickKnob);
-        });
+      // Three of the four original monsters, met in rising evolution stages.
+      const pool = Object.keys(PH.BOSSES);
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(this.rand() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+      this.bossOrder = pool.slice(0, 3);
 
-        document.addEventListener('touchmove', (e) => {
-            if (!this.joystick.active) return;
-            const touch = e.touches[0];
-            this.updateJoystick(touch.clientX, touch.clientY, joystickKnob);
-        });
-
-        document.addEventListener('touchend', () => {
-            this.joystick.active = false;
-            this.input.moveX = 0;
-            this.input.moveY = 0;
-            joystickKnob.style.transform = 'translate(0, 0)';
-        });
-
-        // Mouse input (for desktop testing)
-        this.canvas.addEventListener('mousemove', (e) => {
-            this.input.aimX = e.clientX;
-            this.input.aimY = e.clientY;
-        });
-
-        this.canvas.addEventListener('mousedown', () => {
-            this.input.shooting = true;
-        });
-
-        this.canvas.addEventListener('mouseup', () => {
-            this.input.shooting = false;
-        });
-
-        // Touch for aiming
-        this.canvas.addEventListener('touchstart', (e) => {
-            const touch = e.touches[0];
-            this.input.aimX = touch.clientX;
-            this.input.aimY = touch.clientY;
-        });
-
-        this.canvas.addEventListener('touchmove', (e) => {
-            if (e.touches.length > 1) {
-                const touch = e.touches[1];
-                this.input.aimX = touch.clientX;
-                this.input.aimY = touch.clientY;
-            }
-        });
-
-        // Aim joystick for mobile attack direction
-        const aimJoystickContainer = document.getElementById('aim-joystick-container');
-        const aimJoystickKnob = document.getElementById('aim-joystick-knob');
-
-        if (aimJoystickContainer && aimJoystickKnob) {
-            aimJoystickContainer.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const touch = e.touches[0];
-                const rect = aimJoystickContainer.getBoundingClientRect();
-                this.aimJoystick.active = true;
-                this.aimJoystick.startX = rect.left + rect.width / 2;
-                this.aimJoystick.startY = rect.top + rect.height / 2;
-                this.updateAimJoystick(touch.clientX, touch.clientY, aimJoystickKnob);
-            });
-
-            aimJoystickContainer.addEventListener('touchmove', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (!this.aimJoystick.active) return;
-                const touch = e.touches[0];
-                this.updateAimJoystick(touch.clientX, touch.clientY, aimJoystickKnob);
-            });
-
-            aimJoystickContainer.addEventListener('touchend', (e) => {
-                e.preventDefault();
-                // Fire on release if player was aiming
-                if (this.aimJoystick.active && this.player) {
-                    this.useAbility('primary');
-                }
-                this.aimJoystick.active = false;
-                aimJoystickKnob.style.transform = 'translate(0, 0)';
-            });
-        }
+      const P = C.player;
+      this.player = {
+        x: 0, z: 0, hp: P.hp, maxHp: P.hp, speed: P.speed, radius: P.radius, pickup: P.pickup,
+        regen: P.regen, armor: 0, iframes: 0, facing: Math.PI, moving: false, damageTaken: 0,
+      };
+      this.weapons = [];
+      this.passives = [];
+      this.addWeapon(PH.CLASSES[classId].weapon);
+      this.recompute();
+      this.player.hp = this.player.maxHp;
+      this.state = 'playing';
+      this.fx.clearRun();
+      this.fx.setPlayer(classId);
+      // Build this run's three monsters now, while the screen is changing,
+      // rather than mid-fight when each one arrives.
+      this.fx.prepareBosses(this.bossOrder.map((type, i) => ({ type, stage: i + 1 })));
     }
 
-    /**
-     * Update aim joystick position and set aim direction
-     */
-    updateAimJoystick(touchX, touchY, knob) {
-        const dx = touchX - this.aimJoystick.startX;
-        const dy = touchY - this.aimJoystick.startY;
-        const maxDist = 50;
-
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const clampedDist = Math.min(dist, maxDist);
-
-        const angle = Math.atan2(dy, dx);
-        const clampedX = Math.cos(angle) * clampedDist;
-        const clampedY = Math.sin(angle) * clampedDist;
-
-        knob.style.transform = `translate(${clampedX}px, ${clampedY}px)`;
-
-        // Update aim direction if there's significant movement
-        if (dist > 10 && this.player) {
-            this.aimJoystick.angle = angle;
-            this.player.facingAngle = angle;
-        }
+    /** Derived stats: base, class perk, then passives. */
+    recompute() {
+      const m = { damage: 0, cooldown: 0, area: 0, speed: 0, pickup: 0, regen: 0, armor: 0, maxHp: 0, extra: 0 };
+      const perk = PH.CLASSES[this.classId].perk;
+      for (const k in perk) m[k] += perk[k];
+      for (const p of this.passives) {
+        const per = PH.PASSIVES[p.id].per;
+        for (const k in per) m[k] += per[k] * p.level;
+      }
+      const P = C.player, pl = this.player;
+      const oldMax = pl.maxHp;
+      pl.maxHp = P.hp + m.maxHp;
+      if (pl.maxHp > oldMax) pl.hp += pl.maxHp - oldMax;   // new max health arrives filled
+      pl.speed = P.speed * (1 + m.speed);
+      pl.pickup = P.pickup * (1 + m.pickup);
+      pl.regen = P.regen + m.regen;
+      pl.armor = Math.min(0.6, m.armor);
+      this.mods = {
+        dmg: 1 + m.damage,
+        cd: Math.max(0.45, 1 - m.cooldown),
+        area: 1 + m.area,
+        extra: m.extra,
+      };
     }
 
-    updateJoystick(touchX, touchY, knob) {
-        const dx = touchX - this.joystick.startX;
-        const dy = touchY - this.joystick.startY;
-        const maxDist = 50;
-
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const clampedDist = Math.min(dist, maxDist);
-
-        const angle = Math.atan2(dy, dx);
-        const clampedX = Math.cos(angle) * clampedDist;
-        const clampedY = Math.sin(angle) * clampedDist;
-
-        knob.style.transform = `translate(${clampedX}px, ${clampedY}px)`;
-
-        this.input.moveX = clampedX / maxDist;
-        this.input.moveY = clampedY / maxDist;
+    addWeapon(id) {
+      const w = this.weapons.find((x) => x.id === id);
+      if (w) { w.level = Math.min(5, w.level + 1); return; }
+      this.weapons.push({ id, level: 1, timer: 0.4 + this.weapons.length * 0.15, tick: 0 });
     }
 
-    handleKeyDown(e) {
-        switch (e.key.toLowerCase()) {
-            case 'w': case 'arrowup': this.input.moveY = -1; break;
-            case 's': case 'arrowdown': this.input.moveY = 1; break;
-            case 'a': case 'arrowleft': this.input.moveX = -1; break;
-            case 'd': case 'arrowright': this.input.moveX = 1; break;
-            case '1': this.useAbility('primary'); break;
-            case '2': this.useAbility('secondary'); break;
-            case '3': this.useAbility('ability1'); break;
-            case '4': this.useAbility('ability2'); break;
-            case '5': this.useAbility('ability3'); break;
-            case '6': this.useAbility('ability4'); break;
-            case ' ': this.input.shooting = true; break;
-            case 'escape':
-                if (this.running) {
-                    window.ui.togglePause();
-                }
-                break;
-        }
+    addPassive(id) {
+      const p = this.passives.find((x) => x.id === id);
+      if (p) p.level = Math.min(PH.PASSIVES[id].max, p.level + 1);
+      else this.passives.push({ id, level: 1 });
+      this.recompute();
     }
 
-    handleKeyUp(e) {
-        switch (e.key.toLowerCase()) {
-            case 'w': case 'arrowup':
-            case 's': case 'arrowdown':
-                if ((e.key.toLowerCase() === 'w' || e.key === 'ArrowUp') && this.input.moveY < 0) this.input.moveY = 0;
-                if ((e.key.toLowerCase() === 's' || e.key === 'ArrowDown') && this.input.moveY > 0) this.input.moveY = 0;
-                break;
-            case 'a': case 'arrowleft':
-            case 'd': case 'arrowright':
-                if ((e.key.toLowerCase() === 'a' || e.key === 'ArrowLeft') && this.input.moveX < 0) this.input.moveX = 0;
-                if ((e.key.toLowerCase() === 'd' || e.key === 'ArrowRight') && this.input.moveX > 0) this.input.moveX = 0;
-                break;
-            case ' ': this.input.shooting = false; break;
-        }
-    }
+    stats(w) { return PH.WEAPONS[w.id].levels[w.level - 1]; }
 
-    init(role, characterData) {
-        // Create map
-        this.map = new GameMap(2000, 2000);
-
-        // Create camera
-        this.camera = new Camera(this.canvas.width, this.canvas.height);
-        this.camera.setBounds(this.map.width, this.map.height);
-
-        // Reset state
-        this.entities = [];
-        this.projectiles = [];
-        this.effects = [];
-        this.traps = [];
-        this.aiControllers = [];
-        this.dome = null;
-        this.gameTime = this.maxGameTime;
-        this.stats = {
-            damageDealt: 0,
-            damageTaken: 0,
-            abilitiesUsed: 0,
-            huntersKilled: 0,
-            evolutionStage: 1,
-            time: 0
-        };
-
-        const difficulty = GameSettings.difficulty;
-
-        if (role === 'hunter') {
-            // Player is a hunter
-            const spawn = this.map.spawnPoints.hunters[0];
-            this.player = new Hunter(spawn.x, spawn.y, characterData, true);
-            this.entities.push(this.player);
-
-            // Spawn AI hunters
-            for (let i = 1; i < 4; i++) {
-                const spawnPoint = this.map.spawnPoints.hunters[i];
-                const hunterTypes = ['assault', 'trapper', 'medic', 'support'];
-                const hunterData = HunterClasses[hunterTypes[i]];
-                const aiHunter = new Hunter(spawnPoint.x, spawnPoint.y, hunterData, false);
-                this.entities.push(aiHunter);
-                this.aiControllers.push(new HunterAI(aiHunter, difficulty));
-            }
-
-            // Spawn AI monster
-            const monsterSpawn = this.map.spawnPoints.monster;
-            const monsterTypes = ['goliath', 'kraken', 'wraith', 'behemoth'];
-            const monsterData = MonsterTypes[Utils.randomPick(monsterTypes)];
-            const monster = new Monster(monsterSpawn.x, monsterSpawn.y, monsterData, false);
-            this.entities.push(monster);
-            this.aiControllers.push(new MonsterAI(monster, difficulty));
-
-        } else {
-            // Player is a monster
-            const spawn = this.map.spawnPoints.monster;
-            this.player = new Monster(spawn.x, spawn.y, characterData, true);
-            this.entities.push(this.player);
-
-            // Spawn AI hunters
-            for (let i = 0; i < 4; i++) {
-                const spawnPoint = this.map.spawnPoints.hunters[i];
-                const hunterTypes = ['assault', 'trapper', 'medic', 'support'];
-                const hunterData = HunterClasses[hunterTypes[i]];
-                const aiHunter = new Hunter(spawnPoint.x, spawnPoint.y, hunterData, false);
-                this.entities.push(aiHunter);
-                this.aiControllers.push(new HunterAI(aiHunter, difficulty));
-            }
-        }
-
-        // Spawn wildlife
-        for (const spawnPoint of this.map.spawnPoints.wildlife) {
-            const wildlife = new Wildlife(spawnPoint.x, spawnPoint.y, spawnPoint.type);
-            this.entities.push(wildlife);
-        }
-
-        // Initialize player upgrades
-        this.player.upgradePoints = 0;
-        this.player.upgrades = {};
-    }
-
-    start() {
-        this.running = true;
-        this.paused = false;
-        this.lastTime = performance.now();
-        Audio.startMusic();
-        this.loop();
-    }
-
-    stop() {
-        this.running = false;
-        Audio.stopMusic();
-    }
-
-    pause() {
-        this.paused = true;
-    }
-
-    resume() {
-        this.paused = false;
-        this.lastTime = performance.now();
-    }
-
-    loop() {
-        if (!this.running) return;
-
-        const currentTime = performance.now();
-        const dt = Math.min((currentTime - this.lastTime) / 1000, 0.1); // Cap delta time
-        this.lastTime = currentTime;
-
-        if (!this.paused) {
-            this.update(dt);
-        }
-
-        this.render();
-
-        requestAnimationFrame(() => this.loop());
-    }
+    /* ── Main step ──────────────────────────────────────────── */
 
     update(dt) {
-        // Update game timer
-        this.gameTime -= dt;
-        this.stats.time = this.maxGameTime - this.gameTime;
+      if (this.state !== 'playing') return;
+      if (this.slowmo > 0) { this.slowmo -= dt; dt *= 0.35; }
+      this.time += dt;
 
-        // Check win/lose conditions
-        if (this.gameTime <= 0) {
-            this.endGame(this.player instanceof Monster); // Monster wins if time runs out
-            return;
-        }
+      this.updatePlayer(dt);
+      this.buildGrid();
+      this.director(dt);
+      this.updateEnemies(dt);
+      this.updateBosses(dt);
+      this.updateWeapons(dt);
+      this.droneHits.length = this.droneN;
+      for (let i = 0; i < this.droneN; i++) this.droneHits[i] = this.dronePool[i];
+      this.updateProjectiles(dt);
+      this.updateLobs(dt);
+      this.updateMines(dt);
+      this.updateTelegraphs(dt);
+      this.updatePickups(dt);
 
-        // Update player input
-        this.updatePlayerInput(dt);
-
-        // Update AI
-        for (const ai of this.aiControllers) {
-            if (ai.entity.isAlive) {
-                ai.update(dt, this);
-            }
-        }
-
-        // Update all entities
-        for (const entity of this.entities) {
-            entity.update(dt, this);
-            this.constrainEntity(entity);
-        }
-
-        // Handle wildlife fleeing from threats
-        this.updateWildlifeBehavior();
-
-        // Update projectiles
-        this.updateProjectiles(dt);
-
-        // Update effects
-        this.updateEffects(dt);
-
-        // Update traps
-        this.updateTraps(dt);
-
-        // Update dome
-        if (this.dome) {
-            this.dome.remaining -= dt;
-            if (this.dome.remaining <= 0) {
-                this.dome = null;
-            }
-        }
-
-        // Check collisions
-        this.checkCollisions();
-
-        // Update camera
-        this.camera.follow(this.player);
-        this.camera.update(dt);
-
-        // Update UI
-        window.ui.updateHUD(this.player, this.gameTime);
-        window.ui.updateAbilityBar(this.player);
-        window.ui.updateTeamHealthPanel(this);
-
-        // Check game over conditions
-        this.checkGameOver();
-
-        // Update monster evolution stat
-        if (this.player instanceof Monster) {
-            this.stats.evolutionStage = this.player.evolutionStage;
-        }
+      if (this.player.hp <= 0) return this.end(false);
+      if (this.victoryAt && this.time >= this.victoryAt) return this.end(true);
+      if (this.pending.length) this.openChoice();
     }
 
-    updatePlayerInput(dt) {
-        if (!this.player.isAlive) return;
-
-        // Movement
-        const moveSpeed = this.player.speed;
-        this.player.vx = this.input.moveX * moveSpeed;
-        this.player.vy = this.input.moveY * moveSpeed;
-
-        // Aim direction
-        if (this.input.aimX !== 0 || this.input.aimY !== 0) {
-            const worldAim = this.camera.screenToWorld(this.input.aimX, this.input.aimY);
-            this.player.facingAngle = Utils.angle(this.player.x, this.player.y, worldAim.x, worldAim.y);
-        }
-
-        // Auto-attack when shooting
-        if (this.input.shooting && this.player.abilities.primary) {
-            this.useAbility('primary');
-        }
+    updatePlayer(dt) {
+      const pl = this.player, inp = this.input;
+      const mag = Math.min(1, Math.hypot(inp.x, inp.z));
+      pl.moving = mag > 0.08;
+      if (pl.moving) {
+        const k = pl.speed * mag / Math.hypot(inp.x, inp.z);
+        pl.x += inp.x * k * dt;
+        pl.z += inp.z * k * dt;
+        pl.facing = Math.atan2(inp.x, inp.z);
+      } else {
+        const t = this.nearest(pl.x, pl.z, 12);
+        if (t) pl.facing = Math.atan2(t.x - pl.x, t.z - pl.z);
+      }
+      if (pl.iframes > 0) pl.iframes -= dt;
+      if (pl.regen > 0) pl.hp = Math.min(pl.maxHp, pl.hp + pl.regen * dt);
     }
 
-    constrainEntity(entity) {
-        // Keep entity within map bounds
-        const constrained = this.map.constrainToMap(entity.x, entity.y, entity.radius);
-        entity.x = constrained.x;
-        entity.y = constrained.y;
-
-        // Handle obstacle collisions
-        const obstacle = this.map.getObstacleCollision(entity.x, entity.y, entity.radius);
-        if (obstacle) {
-            const angle = Utils.angle(obstacle.x, obstacle.y, entity.x, entity.y);
-            const pushDist = obstacle.radius + entity.radius - Utils.distance(entity.x, entity.y, obstacle.x, obstacle.y);
-            entity.x += Math.cos(angle) * pushDist;
-            entity.y += Math.sin(angle) * pushDist;
-        }
-
-        // Handle dome constraint
-        if (this.dome && entity.team !== 'wildlife') {
-            const distFromDome = Utils.distance(entity.x, entity.y, this.dome.x, this.dome.y);
-            if (distFromDome > this.dome.radius - entity.radius) {
-                const angle = Utils.angle(this.dome.x, this.dome.y, entity.x, entity.y);
-                entity.x = this.dome.x + Math.cos(angle) * (this.dome.radius - entity.radius);
-                entity.y = this.dome.y + Math.sin(angle) * (this.dome.radius - entity.radius);
-            }
-        }
+    damagePlayer(amount) {
+      const pl = this.player;
+      if (pl.iframes > 0 || this.state !== 'playing') return;
+      const d = amount * (1 - pl.armor);
+      pl.hp -= d;
+      pl.damageTaken += d;
+      pl.iframes = C.player.iframes;
+      this.fx.addShake(0.35);
+      this.hooks.onPlayerHit && this.hooks.onPlayerHit(d);
+      this.sfx('damage');
     }
 
-    updateWildlifeBehavior() {
-        for (const entity of this.entities) {
-            if (entity instanceof Wildlife && entity.isAlive) {
-                // Check for nearby threats
-                for (const other of this.entities) {
-                    if (other.team !== 'wildlife' && other.isAlive) {
-                        const dist = Utils.distance(entity.x, entity.y, other.x, other.y);
-                        if (dist < 150) {
-                            entity.flee(other);
-                            break;
-                        }
-                    }
+    sfx(name) { this.hooks.sfx && this.hooks.sfx(name); }
+
+    /* ── Spatial grid ───────────────────────────────────────── */
+
+    buildGrid() {
+      const ox = this.player.x - GW * CELL / 2, oz = this.player.z - GW * CELL / 2;
+      this.gox = ox; this.goz = oz;
+      const start = this.gStart, cellOf = this.gCell, E = this.enemies;
+      start.fill(0);
+      for (let i = 0; i < E.length; i++) {
+        const e = E[i];
+        if (!e.alive) { cellOf[i] = -1; continue; }
+        const cx = Math.floor((e.x - ox) / CELL), cz = Math.floor((e.z - oz) / CELL);
+        if (cx < 0 || cz < 0 || cx >= GW || cz >= GW) { cellOf[i] = -1; continue; }
+        const c = cz * GW + cx;
+        cellOf[i] = c;
+        start[c + 1]++;
+      }
+      for (let c = 1; c <= GW * GW; c++) start[c] += start[c - 1];
+      const cur = this.gCursor;
+      cur.set(start.subarray(0, GW * GW));
+      for (let i = 0; i < E.length; i++) {
+        const c = cellOf[i];
+        if (c >= 0) this.gItems[cur[c]++] = i;
+      }
+    }
+
+    /** Call fn(enemy) for every live creature within r of (x, z). */
+    query(x, z, r, fn) {
+      const ox = this.gox, oz = this.goz;
+      const x0 = Math.max(0, Math.floor((x - r - 1 - ox) / CELL)), x1 = Math.min(GW - 1, Math.floor((x + r + 1 - ox) / CELL));
+      const z0 = Math.max(0, Math.floor((z - r - 1 - oz) / CELL)), z1 = Math.min(GW - 1, Math.floor((z + r + 1 - oz) / CELL));
+      const E = this.enemies, start = this.gStart, items = this.gItems;
+      for (let cz = z0; cz <= z1; cz++) {
+        for (let cx = x0; cx <= x1; cx++) {
+          const c = cz * GW + cx;
+          for (let k = start[c]; k < start[c + 1]; k++) {
+            const e = E[items[k]];
+            if (!e.alive) continue;
+            const rr = r + e.radius;
+            if (dist2(x, z, e.x, e.z) <= rr * rr && fn(e) === false) return;
+          }
+        }
+      }
+    }
+
+    /** Nearest target - a creature or a boss - within range. */
+    nearest(x, z, range, exclude) {
+      let best = null, bd = range * range;
+      for (const e of this.enemies) {
+        if (!e.alive || (exclude && exclude.has(e))) continue;
+        const d = dist2(x, z, e.x, e.z);
+        if (d < bd) { bd = d; best = e; }
+      }
+      for (const b of this.bosses) {
+        if (exclude && exclude.has(b)) continue;
+        const d = dist2(x, z, b.x, b.z) - b.radius * b.radius;
+        if (d < bd) { bd = d; best = b; }
+      }
+      return best;
+    }
+
+    /* ── Spawning ───────────────────────────────────────────── */
+
+    waveAt(t) {
+      const W = PH.WAVES;
+      let i = 0;
+      while (i < W.length - 1 && W[i + 1].t <= t) i++;
+      const a = W[i], b = W[i + 1];
+      if (!b) return { rate: a.rate + (t - a.t) * 0.03, mix: a.mix };
+      const k = (t - a.t) / (b.t - a.t);
+      return { rate: a.rate + (b.rate - a.rate) * k, mix: a.mix };
+    }
+
+    pickType(mix) {
+      let total = 0;
+      for (const k in mix) total += mix[k];
+      let r = this.rand() * total;
+      for (const k in mix) { r -= mix[k]; if (r <= 0) return k; }
+      return Object.keys(mix)[0];
+    }
+
+    /** A point just off screen, so creatures walk in rather than pop in. */
+    spawnPoint(bias = null) {
+      const v = this.fx.view, pl = this.player, m = 1.8;
+      const w = v.maxX - v.minX + m * 2, h = v.maxZ - v.minZ + m * 2;
+      let side = this.rand() * (w * 2 + h * 2);
+      if (bias) {
+        // Prefer the edge the player is heading toward.
+        if (Math.abs(bias.x) > Math.abs(bias.z)) side = bias.x > 0 ? w * 2 + h + this.rand() * h : w * 2 + this.rand() * h;
+        else side = bias.z > 0 ? w + this.rand() * w : this.rand() * w;
+      }
+      let x, z;
+      if (side < w) { x = v.minX - m + side; z = v.minZ - m; }
+      else if (side < w * 2) { x = v.minX - m + (side - w); z = v.maxZ + m; }
+      else if (side < w * 2 + h) { x = v.minX - m; z = v.minZ - m + (side - w * 2); }
+      else { x = v.maxX + m; z = v.minZ - m + (side - w * 2 - h); }
+      return { x: pl.x + x, z: pl.z + z };
+    }
+
+    spawnEnemy(type, x, z, opts = {}) {
+      if (this.aliveEnemies >= this.cap()) return null;
+      const e = this.enemies.find((q) => !q.alive);
+      if (!e) return null;
+      const def = PH.ENEMIES[type];
+      const elite = !!opts.elite;
+      const hp = def.hp * C.hpScale(this.time) * (elite ? 9 : 1);
+      Object.assign(e, {
+        alive: true, type, x, z, kx: 0, kz: 0, hp, maxHp: hp,
+        speed: def.speed * (elite ? 0.9 : 1) * (0.92 + this.rand() * 0.16),
+        dmg: def.dmg * (elite ? 1.6 : 1), radius: def.radius * (elite ? 1.5 : 1),
+        scale: elite ? 1.5 : 1, elite, flash: 0, facing: 0, phase: this.rand() * TAU,
+        spit: def.ranged ? def.ranged.cd * (0.5 + this.rand()) : 0,
+        charge: opts.charge || null, chargeT: opts.chargeT || 0,
+      });
+      // One timestamp per drone. A single shared one meant every drone after
+      // the first bounced off whatever the first had just hit - six drones on
+      // a boss dealt the damage of one.
+      if (!e.droneT) e.droneT = new Float32Array(8);
+      e.droneT.fill(-1);
+      this.aliveEnemies++;
+      return e;
+    }
+
+    cap() { return this.fx.qualityLevel > 0 ? C.maxEnemiesLow : this.maxEnemies; }
+
+    director(dt) {
+      const wave = this.waveAt(this.time);
+      const bossUp = this.bosses.length > 0;
+      this.spawnAcc += wave.rate * (bossUp ? 0.55 : 1) * dt;
+      while (this.spawnAcc >= 1) {
+        this.spawnAcc -= 1;
+        const p = this.spawnPoint();
+        this.spawnEnemy(this.pickType(wave.mix), p.x, p.z);
+      }
+
+      if (this.time >= this.nextElite) {
+        this.nextElite += PH.ELITE_EVERY;
+        const p = this.spawnPoint();
+        this.spawnEnemy(this.pickType(wave.mix), p.x, p.z, { elite: true });
+      }
+
+      while (this.eventIdx < PH.EVENTS.length && this.time >= PH.EVENTS[this.eventIdx].t) {
+        this.runEvent(PH.EVENTS[this.eventIdx++]);
+      }
+    }
+
+    runEvent(ev) {
+      const pl = this.player, v = this.fx.view;
+      const reach = Math.max(v.maxX - v.minX, v.maxZ - v.minZ) * 0.42 + 2;
+      if (ev.type === 'ring') {
+        for (let i = 0; i < ev.count; i++) {
+          const a = (i / ev.count) * TAU;
+          this.spawnEnemy(ev.enemy, pl.x + Math.cos(a) * reach, pl.z + Math.sin(a) * reach);
+        }
+        this.banner(ev.text);
+      } else if (ev.type === 'stampede') {
+        // A herd that runs straight across rather than homing: dodge it or eat it.
+        const a = this.rand() * TAU, dx = Math.cos(a), dz = Math.sin(a);
+        const ox = pl.x - dx * (reach + 6), oz = pl.z - dz * (reach + 6);
+        for (let i = 0; i < ev.count; i++) {
+          const side = (i - ev.count / 2) * 0.55, back = (i % 4) * 0.9;
+          this.spawnEnemy(ev.enemy, ox - dz * side - dx * back, oz + dx * side - dz * back, { charge: { x: dx, z: dz }, chargeT: 7 });
+        }
+        this.banner(ev.text);
+      } else if (ev.type === 'boss') {
+        this.spawnBoss(this.bossOrder[ev.stage - 1], ev.stage, !!ev.final);
+      }
+    }
+
+    banner(text, kind = 'warn') { this.hooks.onBanner && this.hooks.onBanner(text, kind); }
+
+    /* ── Creatures ──────────────────────────────────────────── */
+
+    updateEnemies(dt) {
+      const pl = this.player, E = this.enemies;
+      const despawn2 = C.despawnRadius * C.despawnRadius;
+      for (let i = 0; i < E.length; i++) {
+        const e = E[i];
+        if (!e.alive) continue;
+        const def = PH.ENEMIES[e.type];
+        let dx = pl.x - e.x, dz = pl.z - e.z;
+        const d = Math.hypot(dx, dz) || 0.001;
+        dx /= d; dz /= d;
+
+        let mvx = dx, mvz = dz, spd = e.speed;
+        if (e.charge && e.chargeT > 0) {
+          e.chargeT -= dt;
+          mvx = e.charge.x; mvz = e.charge.z; spd = e.speed * 1.6;
+        } else if (def.ranged) {
+          // Spitters hold at range and lob; they back off if you rush them.
+          const R = def.ranged;
+          if (d < R.range * 0.7) { mvx = -dx; mvz = -dz; spd *= 0.6; }
+          else if (d < R.range) { spd = 0; }
+          e.spit -= dt;
+          if (e.spit <= 0 && d < R.range + 1) {
+            e.spit = R.cd;
+            this.fireHostile(e.x, e.z, dx, dz, R.speed, R.dmg, 0.75, 0.92, 0.25);
+          }
+        }
+
+        e.x += (mvx * spd + e.kx) * dt;
+        e.z += (mvz * spd + e.kz) * dt;
+        const kd = Math.exp(-dt * 9);
+        e.kx *= kd; e.kz *= kd;
+        if (spd > 0) e.facing = Math.atan2(mvx, mvz);
+        if (e.flash > 0) e.flash -= dt;
+
+        // Push apart from neighbours so the swarm reads as a crowd, not one blob.
+        // Written inline rather than through query(): this runs for every
+        // creature every step, and a callback per creature was ~18k short-lived
+        // allocations a second - garbage-collection pauses are what make a
+        // phone game stutter.
+        const c = this.gCell[i];
+        if (c >= 0) {
+          const r = e.radius;
+          const cx = c % GW, cz = (c / GW) | 0;
+          const start = this.gStart, items = this.gItems;
+          for (let gz = Math.max(0, cz - 1); gz <= Math.min(GW - 1, cz + 1); gz++) {
+            for (let gx = Math.max(0, cx - 1); gx <= Math.min(GW - 1, cx + 1); gx++) {
+              const cell = gz * GW + gx;
+              for (let k = start[cell]; k < start[cell + 1]; k++) {
+                const o = E[items[k]];
+                if (o === e || !o.alive) continue;
+                const ox = e.x - o.x, oz = e.z - o.z;
+                const dd = ox * ox + oz * oz, min = r + o.radius;
+                if (dd > 0.0001 && dd < min * min) {
+                  const dl = Math.sqrt(dd), push = (min - dl) * 0.5 / dl;
+                  e.x += ox * push; e.z += oz * push;
                 }
+              }
             }
+          }
         }
+
+        // Contact.
+        const cr = e.radius + pl.radius;
+        if (dist2(e.x, e.z, pl.x, pl.z) < cr * cr) {
+          this.damagePlayer(e.dmg);
+          e.kx -= dx * 5; e.kz -= dz * 5;
+        }
+
+        // Too far behind: recycle ahead of the player rather than delete,
+        // so the density you are fighting stays the density the wave intends.
+        if (dist2(e.x, e.z, pl.x, pl.z) > despawn2 && !e.elite) {
+          const p = this.spawnPoint(this.input);
+          e.x = p.x; e.z = p.z; e.charge = null;
+        }
+      }
     }
+
+    hitEnemy(e, dmg, kx = 0, kz = 0, knock = 0, flash = true) {
+      if (!e.alive) return;
+      dmg *= this.mods.dmg;
+      const crit = this.rand() < 0.08;
+      if (crit) dmg *= 2;
+      if (e.boss) return this.hitBoss(e, dmg, crit);
+      e.hp -= dmg;
+      // Damage over time does not flash: a field ticks four times a second,
+      // and flashing on every tick strobed everything inside it white.
+      if (flash) e.flash = 0.08;
+      if (knock) {
+        const mass = e.elite ? 4 : PH.ENEMIES[e.type].geo === 'large' ? 3 : 1;
+        e.kx += kx * knock / mass; e.kz += kz * knock / mass;
+      }
+      if (crit && this.hooks.onDamage) this.hooks.onDamage(e.x, 1.2, e.z, dmg, true);
+      if (e.hp <= 0) this.killEnemy(e);
+    }
+
+    killEnemy(e) {
+      e.alive = false;
+      this.aliveEnemies--;
+      this.kills++;
+      const def = PH.ENEMIES[e.type];
+      this.fx.burst(e.x, 0.5, e.z, e.elite ? 30 : 9, def.colors.primary, e.elite ? 6 : 3.5, 0.26, 0.45);
+      this.fx.burst(e.x, 0.6, e.z, 3, def.colors.eye, 2.5, 0.2, 0.35);
+      this.dropGem(e.x, e.z, def.xp * (e.elite ? 12 : 1));
+      if (e.elite) {
+        this.dropPickup('chest', e.x, e.z);
+        this.fx.addShake(0.25);
+        this.sfx('evolve');
+      } else {
+        const r = this.rand();
+        if (r < 0.006) this.dropPickup('heart', e.x + 0.4, e.z);
+        else if (r < 0.0085) this.dropPickup('magnet', e.x + 0.4, e.z);
+      }
+      this.sfx('hit');
+    }
+
+    fireHostile(x, z, dx, dz, speed, dmg, r, g, b) {
+      const p = this.projectiles.find((q) => !q.alive);
+      if (!p) return;
+      Object.assign(p, {
+        alive: true, hostile: true, vis: 'orb', x, z, vx: dx * speed, vz: dz * speed,
+        dmg, life: 4, radius: 0.28, pierce: 0, r, g, b, aoe: 0,
+      });
+      p.hits.length = 0;
+    }
+
+    /* ── Bosses ─────────────────────────────────────────────── */
+
+    spawnBoss(type, stage, final) {
+      const def = PH.BOSSES[type];
+      const p = this.spawnPoint();
+      const id = this.nextId++;
+      const vis = this.fx.addBoss(id, type, stage);
+      const hp = def.hp[stage - 1];
+      const b = {
+        id, boss: true, alive: true, type, stage, final, name: def.name, icon: def.icon,
+        x: p.x, z: p.z, hp, maxHp: hp, radius: Math.max(1.1, vis.radius), facing: 0, moving: true,
+        state: 'chase', timer: 2.2, attack: null, dash: null, summonT: PH.BOSS_ATTACKS.summonEvery,
+        speed: def.speed * (1 + (stage - 1) * 0.12), droneT: new Float32Array(8).fill(-1),
+      };
+      this.bosses.push(b);
+      this.fx.bossArrival(b.x, b.z, stage, type);
+      this.fx.addShake(0.6);
+      this.banner(`THE ${def.name.toUpperCase()} HAS EMERGED`, 'boss');
+      this.sfx('roar');
+      this.hooks.onBoss && this.hooks.onBoss(this.bosses);
+    }
+
+    updateBosses(dt) {
+      const pl = this.player, A = PH.BOSS_ATTACKS;
+      for (const b of this.bosses) {
+        const dx = pl.x - b.x, dz = pl.z - b.z, d = Math.hypot(dx, dz) || 0.001;
+        b.timer -= dt;
+        b.moving = false;
+
+        if (b.state === 'chase') {
+          b.moving = true;
+          b.x += dx / d * b.speed * dt; b.z += dz / d * b.speed * dt;
+          b.facing = Math.atan2(dx, dz);
+          b.summonT -= dt;
+          if (b.summonT <= 0) {
+            b.summonT = A.summonEvery;
+            for (let i = 0; i < A.summonCount + b.stage * 2; i++) {
+              const a = (i / (A.summonCount + b.stage * 2)) * TAU;
+              this.spawnEnemy('critter', b.x + Math.cos(a) * 2.5, b.z + Math.sin(a) * 2.5);
+            }
+          }
+          if (b.timer <= 0) this.beginAttack(b, dx / d, dz / d, d);
+        } else if (b.state === 'tele') {
+          if (b.timer <= 0) this.releaseAttack(b);
+        } else if (b.state === 'dash') {
+          b.moving = true;
+          b.x += b.dash.x * A.dash.speed * dt; b.z += b.dash.z * A.dash.speed * dt;
+          if (dist2(b.x, b.z, pl.x, pl.z) < (b.radius + pl.radius) ** 2) this.damagePlayer(A.dash.dmg);
+          if (Math.floor(b.timer * 30) % 2 === 0) this.fx.burst(b.x, 0.3, b.z, 2, 0xc9b38f, 2, 0.35, 0.4, 2, 0.3);
+          if (b.timer <= 0) this.restBoss(b);
+        } else if (b.state === 'rest') {
+          if (b.timer <= 0) { b.state = 'chase'; b.timer = 0.6; }
+        }
+
+        if (b.state !== 'dash' && dist2(b.x, b.z, pl.x, pl.z) < (b.radius + pl.radius) ** 2) {
+          this.damagePlayer(A.contact);
+        }
+        // Bosses never despawn, but they also never lose you.
+        if (d > C.despawnRadius) { const p = this.spawnPoint(this.input); b.x = p.x; b.z = p.z; }
+      }
+    }
+
+    beginAttack(b, dx, dz, d) {
+      const A = PH.BOSS_ATTACKS, def = PH.BOSSES[b.type];
+      const options = def.attacks.slice(0, Math.max(1, b.stage));
+      // Running away is answered with a charge, so kiting buys time, not safety.
+      // A boss that cannot dash yet just keeps walking at you instead.
+      const canDash = options.includes('dash') || b.stage >= 2;
+      b.attack = d > A.closeIn && canDash ? 'dash' : options[Math.floor(this.rand() * options.length)];
+      b.state = 'tele';
+      b.facing = Math.atan2(dx, dz);
+      const spec = A[b.attack];
+      b.timer = spec.telegraph * (b.stage === 3 ? 0.85 : 1);
+      if (b.attack === 'dash') {
+        b.dash = { x: dx, z: dz };
+        this.telegraphs.push({ shape: 'rect', x: b.x, z: b.z, angle: Math.atan2(dx, dz), w: b.radius * 1.8, len: A.dash.length, t: 0, dur: b.timer, owner: b });
+      } else if (b.attack === 'slam') {
+        const r = A.slam.radius * (1 + (b.stage - 1) * 0.18);
+        b.slamR = r;
+        this.telegraphs.push({ shape: 'circle', x: b.x, z: b.z, r, t: 0, dur: b.timer, owner: b });
+      } else {
+        this.telegraphs.push({ shape: 'circle', x: b.x, z: b.z, r: b.radius * 1.6, t: 0, dur: b.timer, owner: b, color: 0xc77dff });
+      }
+      this.sfx('ability');
+    }
+
+    releaseAttack(b) {
+      const A = PH.BOSS_ATTACKS, pl = this.player;
+      this.telegraphs = this.telegraphs.filter((t) => t.owner !== b);
+      if (b.attack === 'dash') {
+        b.state = 'dash';
+        b.timer = A.dash.length / A.dash.speed;
+        this.sfx('roar');
+      } else if (b.attack === 'slam') {
+        this.fx.bossSlam(b.x, b.z, b.slamR);
+        this.fx.addShake(0.9);
+        if (dist2(b.x, b.z, pl.x, pl.z) < (b.slamR + pl.radius) ** 2) this.damagePlayer(A.slam.dmg);
+        // The slam also flattens the bosses' own brood, which is a way to use it.
+        this.query(b.x, b.z, b.slamR, (e) => this.hitEnemy(e, 60, 0, 0, 0));
+        this.restBoss(b);
+      } else {
+        const n = A.burst.count + (b.stage - 1) * 4, rings = b.stage >= 2 ? 2 : 1;
+        for (let k = 0; k < rings; k++) {
+          for (let i = 0; i < n; i++) {
+            const a = (i / n) * TAU + k * (Math.PI / n);
+            this.fireHostile(b.x, b.z, Math.cos(a), Math.sin(a), A.burst.speed * (1 - k * 0.25), A.burst.dmg, 0.8, 0.45, 1);
+          }
+        }
+        this.restBoss(b);
+      }
+    }
+
+    restBoss(b) {
+      const [lo, hi] = PH.BOSS_ATTACKS.restBetween;
+      b.state = 'rest';
+      b.timer = lo + this.rand() * (hi - lo);
+      b.dash = null;
+    }
+
+    hitBoss(b, dmg, crit) {
+      b.hp -= dmg;
+      this.fx.flashBoss(b.id);
+      if (this.hooks.onDamage) this.hooks.onDamage(b.x, 2.2, b.z, dmg, crit);
+      if (b.hp <= 0 && b.alive) this.killBoss(b);
+    }
+
+    killBoss(b) {
+      b.alive = false;
+      this.bosses = this.bosses.filter((x) => x !== b);
+      this.telegraphs = this.telegraphs.filter((t) => t.owner !== b);
+      this.bossKills++;
+      this.fx.bossDeath(b.x, b.z, b.radius * 2, 0xc77dff);
+      this.fx.removeBoss(b.id);
+      this.fx.addShake(1.2);
+      this.slowmo = 0.9;
+      for (let i = 0; i < 14; i++) {
+        const a = (i / 14) * TAU;
+        this.dropGem(b.x + Math.cos(a) * 1.5, b.z + Math.sin(a) * 1.5, 8 * b.stage);
+      }
+      this.dropPickup('chest', b.x, b.z);
+      this.banner(`${b.name.toUpperCase()} SLAIN`, 'win');
+      this.sfx('victory');
+      this.hooks.onBoss && this.hooks.onBoss(this.bosses);
+      if (b.final) this.victoryAt = this.time + 3;
+    }
+
+    /* ── Weapons ────────────────────────────────────────────── */
+
+    updateWeapons(dt) {
+      this.droneN = 0;
+      for (const w of this.weapons) {
+        const def = PH.WEAPONS[w.id], s = this.stats(w);
+        if (def.kind === 'aura') { this.tickAura(w, s, dt); continue; }
+        if (def.kind === 'orbit') { this.tickOrbit(w, s, dt); continue; }
+        w.timer -= dt;
+        if (w.timer > 0) continue;
+        w.timer = s.cd * this.mods.cd;
+        const fired = this[{ bolt: 'fireBolt', spread: 'fireSpread', lob: 'fireLob', mine: 'fireMine', strike: 'fireStrike', chain: 'fireChain' }[def.kind]](w, s);
+        if (fired === false) w.timer = 0.15;   // nothing in range; check again soon
+      }
+    }
+
+    shoot(x, z, dx, dz, s, vis, extra = {}) {
+      const p = this.projectiles.find((q) => !q.alive);
+      if (!p) return;
+      Object.assign(p, {
+        alive: true, hostile: false, vis, x, z, vx: dx * s.speed, vz: dz * s.speed,
+        dmg: s.dmg, pierce: s.pierce || 0, life: (s.range || 15) / s.speed,
+        radius: vis === 'harpoon' ? 0.32 : vis === 'pellet' ? 0.2 : 0.24, aoe: 0, ...extra,
+      });
+      p.hits.length = 0;
+    }
+
+    fireBolt(w, s) {
+      const pl = this.player;
+      const n = s.count + this.mods.extra;
+      const used = new Set();
+      let first = null;
+      for (let i = 0; i < n; i++) {
+        const t = this.nearest(pl.x, pl.z, 15, used);
+        let dx, dz;
+        if (t) { used.add(t); first = first || t; dx = t.x - pl.x; dz = t.z - pl.z; }
+        else if (first) { const a = Math.atan2(first.x - pl.x, first.z - pl.z) + (i - n / 2) * 0.18; dx = Math.sin(a); dz = Math.cos(a); }
+        else return false;
+        const d = Math.hypot(dx, dz) || 1;
+        this.shoot(pl.x, pl.z, dx / d, dz / d, s, w.id === 'harpoon' ? 'harpoon' : 'bolt');
+      }
+      this.sfx('shoot');
+    }
+
+    fireSpread(w, s) {
+      const pl = this.player;
+      const t = this.nearest(pl.x, pl.z, s.range + 1);
+      if (!t) return false;
+      const base = Math.atan2(t.x - pl.x, t.z - pl.z);
+      const n = s.pellets + this.mods.extra * 2;
+      for (let i = 0; i < n; i++) {
+        const a = base + (i / (n - 1) - 0.5) * s.arc + (this.rand() - 0.5) * 0.06;
+        this.shoot(pl.x, pl.z, Math.sin(a), Math.cos(a), s, 'pellet');
+      }
+      this.sfx('shoot');
+    }
+
+    /** Where the crowd is thickest, among a few random candidates near you. */
+    crowdPoint(range) {
+      const pl = this.player;
+      let best = null, bestN = -1;
+      for (let k = 0; k < 7; k++) {
+        const e = this.enemies[Math.floor(this.rand() * this.enemies.length)];
+        if (!e.alive || dist2(e.x, e.z, pl.x, pl.z) > range * range) continue;
+        let n = 0;
+        this.query(e.x, e.z, 2.2, () => { n++; });
+        if (n > bestN) { bestN = n; best = e; }
+      }
+      return best || this.nearest(pl.x, pl.z, range);
+    }
+
+    fireLob(w, s) {
+      const pl = this.player;
+      const n = s.count + this.mods.extra;
+      let any = false;
+      for (let i = 0; i < n; i++) {
+        const t = this.crowdPoint(10);
+        if (!t) break;
+        any = true;
+        const dist = Math.hypot(t.x - pl.x, t.z - pl.z);
+        this.lobs.push({ sx: pl.x, sz: pl.z, tx: t.x + (this.rand() - 0.5), tz: t.z + (this.rand() - 0.5), t: 0, dur: 0.55 + dist * 0.025, dist, dmg: s.dmg, radius: s.radius * this.mods.area });
+      }
+      if (!any) return false;
+    }
+
+    fireMine(w, s) {
+      const pl = this.player;
+      if (this.mines.length >= s.max + this.mods.extra) {
+        // Re-seat the oldest trap where you are now, so traps follow the fight.
+        this.mines.shift();
+      }
+      this.mines.push({ x: pl.x, z: pl.z, arm: 0.35, dmg: s.dmg, radius: s.radius * this.mods.area, life: 30 });
+    }
+
+    fireStrike(w, s) {
+      const pl = this.player;
+      const n = s.count + this.mods.extra;
+      const used = new Set();
+      for (let i = 0; i < n; i++) {
+        let t = null;
+        for (let k = 0; k < 6 && !t; k++) {
+          const e = this.enemies[Math.floor(this.rand() * this.enemies.length)];
+          if (e.alive && !used.has(e) && dist2(e.x, e.z, pl.x, pl.z) < 121) t = e;
+        }
+        if (!t && this.bosses[0] && dist2(this.bosses[0].x, this.bosses[0].z, pl.x, pl.z) < 196) t = this.bosses[0];
+        if (!t) { if (i === 0) return false; break; }
+        used.add(t);
+        // Friendly strikes are teal, never red - red always means "move".
+        this.telegraphs.push({ shape: 'circle', x: t.x, z: t.z, r: s.radius * this.mods.area, t: 0, dur: s.delay, color: 0x4ecdc4, strike: s.dmg });
+      }
+    }
+
+    fireChain(w, s) {
+      const pl = this.player;
+      let t = this.nearest(pl.x, pl.z, s.range);
+      if (!t) return false;
+      const hit = new Set();
+      const pts = [{ x: pl.x, z: pl.z }];
+      let jumps = s.jumps + this.mods.extra;
+      while (t && jumps-- >= 0) {
+        hit.add(t);
+        pts.push({ x: t.x, z: t.z });
+        this.hitEnemy(t, s.dmg);
+        t = this.nearest(t.x, t.z, s.range * 0.6, hit);
+      }
+      this.fx.lightningChain(pts);
+      this.sfx('ability');
+    }
+
+    tickAura(w, s, dt) {
+      w.tick -= dt;
+      if (w.tick > 0) return;
+      w.tick = 0.25;
+      const pl = this.player, r = s.radius * this.mods.area;
+      this.query(pl.x, pl.z, r, (e) => this.hitEnemy(e, s.dps * 0.25, 0, 0, 0, false));
+      for (const b of this.bosses) if (dist2(b.x, b.z, pl.x, pl.z) < (r + b.radius) ** 2) this.hitEnemy(b, s.dps * 0.25);
+      if (s.heal) pl.hp = Math.min(pl.maxHp, pl.hp + s.heal * 0.25);
+    }
+
+    fieldRadius() {
+      const w = this.weapons && this.weapons.find((x) => x.id === 'biofield');
+      return w ? this.stats(w).radius * this.mods.area : 0;
+    }
+
+    tickOrbit(w, s, dt) {
+      const pl = this.player, n = s.count + this.mods.extra, r = s.radius * this.mods.area;
+      w.tick += dt * s.spin;
+      for (let i = 0; i < n; i++) {
+        const a = w.tick + (i / n) * TAU;
+        const x = pl.x + Math.cos(a) * r, z = pl.z + Math.sin(a) * r;
+        const slotObj = this.dronePool[this.droneN] || (this.dronePool[this.droneN] = { x: 0, z: 0 });
+        slotObj.x = x; slotObj.z = z;
+        this.droneN++;
+        const slot = i & 7;
+        this.query(x, z, 0.5, (e) => {
+          if (this.time - e.droneT[slot] < 0.35) return;
+          e.droneT[slot] = this.time;
+          this.hitEnemy(e, s.dmg, e.x - pl.x, e.z - pl.z, 1.5);
+        });
+        for (const b of this.bosses) {
+          if (this.time - b.droneT[slot] < 0.35) continue;
+          if (dist2(b.x, b.z, x, z) < (b.radius + 0.5) ** 2) { b.droneT[slot] = this.time; this.hitEnemy(b, s.dmg); }
+        }
+      }
+    }
+
+    /* ── Things in flight ───────────────────────────────────── */
 
     updateProjectiles(dt) {
-        for (let i = this.projectiles.length - 1; i >= 0; i--) {
-            const proj = this.projectiles[i];
-
-            // Move projectile
-            proj.x += proj.vx * dt;
-            proj.y += proj.vy * dt;
-            proj.life -= dt;
-
-            // Check if out of bounds or expired
-            if (proj.life <= 0 || proj.x < 0 || proj.x > this.map.width || proj.y < 0 || proj.y > this.map.height) {
-                if (proj.explosive) {
-                    this.createExplosion(proj.x, proj.y, {
-                        radius: proj.explosionRadius,
-                        damage: proj.damage,
-                        color: proj.color
-                    });
-                }
-                this.projectiles.splice(i, 1);
-                continue;
-            }
-
-            // Check obstacle collision
-            const obstacle = this.map.getObstacleCollision(proj.x, proj.y, proj.size);
-            if (obstacle) {
-                if (proj.explosive) {
-                    this.createExplosion(proj.x, proj.y, {
-                        radius: proj.explosionRadius,
-                        damage: proj.damage,
-                        color: proj.color
-                    });
-                }
-                this.projectiles.splice(i, 1);
-                continue;
-            }
-
-            // Check entity collision
-            for (const entity of this.entities) {
-                if (entity === proj.owner || !entity.isAlive) continue;
-                if (entity.team === proj.owner.team) continue;
-
-                const dist = Utils.distance(proj.x, proj.y, entity.x, entity.y);
-                if (dist < entity.radius + proj.size) {
-                    // Hit!
-                    const wasAlive = entity.isAlive;
-                    const damage = proj.damage * proj.owner.getDamageMultiplier();
-                    entity.takeDamage(damage, proj.owner);
-
-                    if (proj.owner.isPlayer) {
-                        this.stats.damageDealt += damage;
-                    }
-                    if (entity.isPlayer) {
-                        this.stats.damageTaken += damage;
-                    }
-
-                    // Track kills
-                    if (wasAlive && !entity.isAlive && entity.team === 'hunters') {
-                        this.stats.huntersKilled++;
-                    }
-
-                    // Create hit effect
-                    this.createHitEffect(proj.x, proj.y, proj.color);
-
-                    // Show damage number
-                    const screenPos = this.camera.worldToScreen(entity.x, entity.y);
-                    window.ui.showDamageNumber(screenPos.x, screenPos.y - 20, Math.floor(damage), 'damage');
-
-                    // On hit callback
-                    if (proj.onHit) {
-                        proj.onHit(entity);
-                    }
-
-                    if (proj.explosive) {
-                        this.createExplosion(proj.x, proj.y, {
-                            radius: proj.explosionRadius,
-                            damage: proj.damage,
-                            color: proj.color
-                        });
-                    }
-
-                    // Check if wildlife was killed by monster
-                    if (!entity.isAlive && entity instanceof Wildlife && proj.owner instanceof Monster) {
-                        proj.owner.feed(entity.foodValue);
-                    }
-
-                    this.projectiles.splice(i, 1);
-                    break;
-                }
-            }
+      const pl = this.player;
+      for (const p of this.projectiles) {
+        if (!p.alive) continue;
+        p.x += p.vx * dt; p.z += p.vz * dt;
+        p.life -= dt;
+        if (p.life <= 0) { p.alive = false; continue; }
+        if (p.hostile) {
+          if (dist2(p.x, p.z, pl.x, pl.z) < (p.radius + pl.radius) ** 2) { this.damagePlayer(p.dmg); p.alive = false; }
+          continue;
         }
-    }
-
-    updateEffects(dt) {
-        for (let i = this.effects.length - 1; i >= 0; i--) {
-            const effect = this.effects[i];
-            effect.life -= dt;
-            effect.age = (effect.duration - effect.life) / effect.duration;
-
-            if (effect.update) {
-                effect.update(dt, this);
-            }
-
-            if (effect.life <= 0) {
-                this.effects.splice(i, 1);
-            }
-        }
-    }
-
-    updateTraps(dt) {
-        for (let i = this.traps.length - 1; i >= 0; i--) {
-            const trap = this.traps[i];
-            trap.life -= dt;
-
-            if (trap.life <= 0) {
-                this.traps.splice(i, 1);
-                continue;
-            }
-
-            // Check if monster steps on trap
-            for (const entity of this.entities) {
-                if (entity.team === 'monster' && entity.isAlive && !trap.triggered) {
-                    const dist = Utils.distance(trap.x, trap.y, entity.x, entity.y);
-                    if (dist < trap.radius + entity.radius) {
-                        trap.triggered = true;
-                        entity.takeDamage(trap.damage, trap.owner);
-
-                        if (trap.type === 'immobilize') {
-                            entity.addDebuff({
-                                id: 'trapped',
-                                name: 'Trapped',
-                                duration: trap.duration,
-                                immobilized: true,
-                                speedMultiplier: 0,
-                                color: '#888888'
-                            });
-                        }
-
-                        Audio.play('hit');
-                        this.createHitEffect(trap.x, trap.y, trap.color);
-                        this.traps.splice(i, 1);
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    checkCollisions() {
-        // Entity-to-entity collision
-        for (let i = 0; i < this.entities.length; i++) {
-            for (let j = i + 1; j < this.entities.length; j++) {
-                const a = this.entities[i];
-                const b = this.entities[j];
-
-                if (!a.isAlive || !b.isAlive) continue;
-
-                const dist = Utils.distance(a.x, a.y, b.x, b.y);
-                const minDist = a.radius + b.radius;
-
-                if (dist < minDist) {
-                    // Push apart
-                    const angle = Utils.angle(a.x, a.y, b.x, b.y);
-                    const overlap = minDist - dist;
-                    const pushX = Math.cos(angle) * overlap * 0.5;
-                    const pushY = Math.sin(angle) * overlap * 0.5;
-
-                    a.x -= pushX;
-                    a.y -= pushY;
-                    b.x += pushX;
-                    b.y += pushY;
-                }
-            }
-        }
-    }
-
-    checkGameOver() {
-        const hunters = this.getAliveHunters();
-        const monster = this.getMonster();
-
-        // Hunters win if monster is dead
-        if (monster && !monster.isAlive) {
-            this.endGame(this.player instanceof Hunter);
-            return;
-        }
-
-        // Monster wins if all hunters are dead
-        if (hunters.length === 0) {
-            this.endGame(this.player instanceof Monster);
-            return;
-        }
-
-        // Monster wins if fully evolved and timer runs out (already handled in update)
-    }
-
-    endGame(playerWon) {
-        this.running = false;
-        Audio.stopMusic();
-        window.ui.showGameOver(playerWon, this.stats);
-    }
-
-    render() {
-        const ctx = this.ctx;
-
-        // Clear canvas
-        ctx.fillStyle = '#1a1a2e';
-        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-        // Render map
-        this.map.render(ctx, this.camera, this.canvas.width, this.canvas.height);
-
-        // Render dome
-        if (this.dome) {
-            this.renderDome(ctx);
-        }
-
-        // Render traps
-        for (const trap of this.traps) {
-            this.renderTrap(ctx, trap);
-        }
-
-        // Render effects (below entities)
-        for (const effect of this.effects.filter(e => e.layer === 'below')) {
-            this.renderEffect(ctx, effect);
-        }
-
-        // Sort entities by Y for proper layering
-        const sortedEntities = [...this.entities].sort((a, b) => a.y - b.y);
-
-        // Render entities
-        for (const entity of sortedEntities) {
-            if (this.camera.isOnScreen(entity.x, entity.y)) {
-                entity.render(ctx, this.camera);
-            }
-        }
-
-        // Render projectiles
-        for (const proj of this.projectiles) {
-            this.renderProjectile(ctx, proj);
-        }
-
-        // Render effects (above entities)
-        for (const effect of this.effects.filter(e => e.layer !== 'below')) {
-            this.renderEffect(ctx, effect);
-        }
-
-        // Render minimap
-        this.map.renderMinimap(this.minimapCtx, this.entities, this.player, 120, 120);
-
-        // Render aim reticle and range preview
-        this.renderAimIndicators(ctx);
-
-        // Render FPS if enabled
-        if (GameSettings.showFPS) {
-            this.renderFPS(ctx);
-        }
-    }
-
-    /**
-     * Render aim reticle and ability range preview
-     */
-    renderAimIndicators(ctx) {
-        if (!this.player || !this.player.isAlive) return;
-
-        const playerScreenX = this.player.x - this.camera.x;
-        const playerScreenY = this.player.y - this.camera.y;
-
-        // Get aim direction
-        const aimAngle = this.player.facingAngle || 0;
-
-        // Get current selected ability (for range preview)
-        const currentAbility = this.player.abilities.primary;
-        const abilityRange = currentAbility ? (currentAbility.range || 200) : 200;
-
-        // Calculate aim position based on facing angle
-        const aimDistance = Math.min(abilityRange, 150); // Cap visual distance
-        const aimX = playerScreenX + Math.cos(aimAngle) * aimDistance;
-        const aimY = playerScreenY + Math.sin(aimAngle) * aimDistance;
-
-        // Draw aim line from player to aim point
-        ctx.save();
-        ctx.strokeStyle = 'rgba(255, 107, 53, 0.4)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
-        ctx.beginPath();
-        ctx.moveTo(playerScreenX, playerScreenY);
-        ctx.lineTo(aimX, aimY);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Draw range circle around player
-        ctx.strokeStyle = 'rgba(255, 107, 53, 0.2)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([10, 10]);
-        ctx.beginPath();
-        ctx.arc(playerScreenX, playerScreenY, abilityRange, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Draw aim reticle (crosshair)
-        const reticleSize = 15;
-        ctx.strokeStyle = 'rgba(255, 107, 53, 0.9)';
-        ctx.lineWidth = 2;
-
-        // Horizontal line
-        ctx.beginPath();
-        ctx.moveTo(aimX - reticleSize, aimY);
-        ctx.lineTo(aimX - 5, aimY);
-        ctx.moveTo(aimX + 5, aimY);
-        ctx.lineTo(aimX + reticleSize, aimY);
-        ctx.stroke();
-
-        // Vertical line
-        ctx.beginPath();
-        ctx.moveTo(aimX, aimY - reticleSize);
-        ctx.lineTo(aimX, aimY - 5);
-        ctx.moveTo(aimX, aimY + 5);
-        ctx.lineTo(aimX, aimY + reticleSize);
-        ctx.stroke();
-
-        // Center dot
-        ctx.fillStyle = 'rgba(255, 107, 53, 0.9)';
-        ctx.beginPath();
-        ctx.arc(aimX, aimY, 3, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Draw direction arrow from player
-        this.renderDirectionArrow(ctx, playerScreenX, playerScreenY, aimAngle);
-
-        ctx.restore();
-    }
-
-    /**
-     * Render direction arrow showing which way player is facing
-     */
-    renderDirectionArrow(ctx, x, y, angle) {
-        const arrowLength = 35;
-        const arrowHeadSize = 10;
-
-        const tipX = x + Math.cos(angle) * arrowLength;
-        const tipY = y + Math.sin(angle) * arrowLength;
-
-        // Arrow shaft
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(x + Math.cos(angle) * 20, y + Math.sin(angle) * 20);
-        ctx.lineTo(tipX, tipY);
-        ctx.stroke();
-
-        // Arrow head
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-        ctx.beginPath();
-        ctx.moveTo(tipX, tipY);
-        ctx.lineTo(
-            tipX - Math.cos(angle - 0.5) * arrowHeadSize,
-            tipY - Math.sin(angle - 0.5) * arrowHeadSize
-        );
-        ctx.lineTo(
-            tipX - Math.cos(angle + 0.5) * arrowHeadSize,
-            tipY - Math.sin(angle + 0.5) * arrowHeadSize
-        );
-        ctx.closePath();
-        ctx.fill();
-    }
-
-    renderProjectile(ctx, proj) {
-        const screenX = proj.x - this.camera.x;
-        const screenY = proj.y - this.camera.y;
-
-        // Trail
-        ctx.strokeStyle = proj.color;
-        ctx.lineWidth = proj.size / 2;
-        ctx.globalAlpha = 0.5;
-        ctx.beginPath();
-        ctx.moveTo(screenX, screenY);
-        ctx.lineTo(screenX - proj.vx * 0.02, screenY - proj.vy * 0.02);
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-
-        // Projectile
-        ctx.fillStyle = proj.color;
-        ctx.beginPath();
-        ctx.arc(screenX, screenY, proj.size, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Glow
-        const gradient = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, proj.size * 2);
-        gradient.addColorStop(0, `${proj.color}66`);
-        gradient.addColorStop(1, 'transparent');
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(screenX, screenY, proj.size * 2, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    renderEffect(ctx, effect) {
-        const screenX = effect.x - this.camera.x;
-        const screenY = effect.y - this.camera.y;
-
-        switch (effect.type) {
-            case 'explosion':
-                const radius = effect.radius * Utils.easeOut(effect.age);
-                const alpha = 1 - effect.age;
-
-                ctx.globalAlpha = alpha;
-                const gradient = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, radius);
-                gradient.addColorStop(0, effect.color);
-                gradient.addColorStop(0.5, effect.color + '88');
-                gradient.addColorStop(1, 'transparent');
-                ctx.fillStyle = gradient;
-                ctx.beginPath();
-                ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.globalAlpha = 1;
-                break;
-
-            case 'hit':
-                const hitSize = effect.size * (1 + effect.age);
-                ctx.globalAlpha = 1 - effect.age;
-                ctx.fillStyle = effect.color;
-                ctx.beginPath();
-                ctx.arc(screenX, screenY, hitSize, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.globalAlpha = 1;
-                break;
-
-            case 'heal':
-                ctx.globalAlpha = 0.5 * (1 - effect.age);
-                ctx.strokeStyle = '#00ff00';
-                ctx.lineWidth = 3;
-                ctx.beginPath();
-                ctx.arc(screenX, screenY, effect.radius * effect.age, 0, Math.PI * 2);
-                ctx.stroke();
-                ctx.globalAlpha = 1;
-                break;
-
-            case 'shockwave':
-                ctx.globalAlpha = 0.5 * (1 - effect.age);
-                ctx.strokeStyle = effect.color || '#ffffff';
-                ctx.lineWidth = 5 * (1 - effect.age);
-                ctx.beginPath();
-                ctx.arc(screenX, screenY, effect.radius * effect.age, 0, Math.PI * 2);
-                ctx.stroke();
-                ctx.globalAlpha = 1;
-                break;
-
-            case 'orbital_warning':
-                // Pulsing warning circle
-                ctx.globalAlpha = 0.3 + Math.sin(Date.now() / 100) * 0.2;
-                ctx.fillStyle = '#ff0000';
-                ctx.beginPath();
-                ctx.arc(screenX, screenY, effect.radius, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = '#ff0000';
-                ctx.lineWidth = 3;
-                ctx.stroke();
-                ctx.globalAlpha = 1;
-                break;
-
-            case 'homing_mine':
-                const mineX = effect.x - this.camera.x;
-                const mineY = effect.y - this.camera.y;
-                ctx.fillStyle = effect.color;
-                ctx.beginPath();
-                ctx.arc(mineX, mineY, effect.radius, 0, Math.PI * 2);
-                ctx.fill();
-                // Glow
-                ctx.globalAlpha = 0.5;
-                ctx.beginPath();
-                ctx.arc(mineX, mineY, effect.radius * 1.5, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.globalAlpha = 1;
-                break;
-
-            case 'lightning_storm':
-                ctx.globalAlpha = 0.3;
-                ctx.fillStyle = effect.color;
-                ctx.beginPath();
-                ctx.arc(screenX, screenY, effect.radius, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.globalAlpha = 1;
-                break;
-
-            case 'vortex':
-                ctx.globalAlpha = 0.4 * (1 - effect.age);
-                const vortexGrad = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, effect.radius);
-                vortexGrad.addColorStop(0, effect.color);
-                vortexGrad.addColorStop(1, 'transparent');
-                ctx.fillStyle = vortexGrad;
-                ctx.beginPath();
-                ctx.arc(screenX, screenY, effect.radius, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.globalAlpha = 1;
-                break;
-
-            case 'supernova':
-                ctx.globalAlpha = 0.3;
-                const supernovaGrad = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, effect.radius);
-                supernovaGrad.addColorStop(0, effect.color);
-                supernovaGrad.addColorStop(1, 'transparent');
-                ctx.fillStyle = supernovaGrad;
-                ctx.beginPath();
-                ctx.arc(screenX, screenY, effect.radius, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.globalAlpha = 1;
-                break;
-
-            case 'lava_pool':
-                ctx.globalAlpha = 0.6 * (1 - effect.age * 0.5);
-                const lavaGrad = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, effect.radius);
-                lavaGrad.addColorStop(0, '#ff6600');
-                lavaGrad.addColorStop(0.5, '#ff4400');
-                lavaGrad.addColorStop(1, '#ff220066');
-                ctx.fillStyle = lavaGrad;
-                ctx.beginPath();
-                ctx.arc(screenX, screenY, effect.radius, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.globalAlpha = 1;
-                break;
-
-            case 'decoy':
-                const decoyX = effect.x - this.camera.x;
-                const decoyY = effect.y - this.camera.y;
-                ctx.globalAlpha = 0.7 * (1 - effect.age);
-                ctx.fillStyle = effect.color;
-                ctx.beginPath();
-                ctx.arc(decoyX, decoyY, effect.radius, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.fillStyle = '#ffffff';
-                ctx.font = `${effect.radius}px Arial`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(effect.icon, decoyX, decoyY);
-                ctx.globalAlpha = 1;
-                break;
-
-            case 'slash':
-                ctx.globalAlpha = 1 - effect.age;
-                ctx.strokeStyle = effect.color;
-                ctx.lineWidth = 4;
-                ctx.beginPath();
-                ctx.arc(screenX, screenY, effect.range, effect.startAngle, effect.endAngle);
-                ctx.stroke();
-                ctx.globalAlpha = 1;
-                break;
-
-            case 'shield':
-                if (effect.entity) {
-                    const shieldX = effect.entity.x - this.camera.x;
-                    const shieldY = effect.entity.y - this.camera.y;
-                    ctx.globalAlpha = 0.5 * (1 - effect.age);
-                    ctx.strokeStyle = effect.color;
-                    ctx.lineWidth = 3;
-                    ctx.beginPath();
-                    ctx.arc(shieldX, shieldY, effect.radius, 0, Math.PI * 2);
-                    ctx.stroke();
-                    ctx.globalAlpha = 1;
-                }
-                break;
-
-            case 'cone':
-                ctx.globalAlpha = 0.5 * (1 - effect.age);
-                ctx.fillStyle = effect.color;
-                ctx.beginPath();
-                ctx.moveTo(screenX, screenY);
-                ctx.arc(screenX, screenY, effect.range, effect.angle - effect.halfAngle, effect.angle + effect.halfAngle);
-                ctx.closePath();
-                ctx.fill();
-                ctx.globalAlpha = 1;
-                break;
-
-            case 'beam':
-                const fromX = effect.from.x - this.camera.x;
-                const fromY = effect.from.y - this.camera.y;
-                const toX = effect.to.x - this.camera.x;
-                const toY = effect.to.y - this.camera.y;
-                ctx.globalAlpha = 1 - effect.age;
-                ctx.strokeStyle = effect.color;
-                ctx.lineWidth = 4;
-                ctx.beginPath();
-                ctx.moveTo(fromX, fromY);
-                ctx.lineTo(toX, toY);
-                ctx.stroke();
-                ctx.globalAlpha = 1;
-                break;
-        }
-    }
-
-    renderTrap(ctx, trap) {
-        const screenX = trap.x - this.camera.x;
-        const screenY = trap.y - this.camera.y;
-
-        // Trap circle
-        ctx.fillStyle = trap.color + '44';
-        ctx.beginPath();
-        ctx.arc(screenX, screenY, trap.radius, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.strokeStyle = trap.color;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        // Teeth/spikes
-        const spikes = 8;
-        for (let i = 0; i < spikes; i++) {
-            const angle = (i / spikes) * Math.PI * 2;
-            ctx.beginPath();
-            ctx.moveTo(
-                screenX + Math.cos(angle) * trap.radius * 0.5,
-                screenY + Math.sin(angle) * trap.radius * 0.5
-            );
-            ctx.lineTo(
-                screenX + Math.cos(angle) * trap.radius,
-                screenY + Math.sin(angle) * trap.radius
-            );
-            ctx.stroke();
-        }
-    }
-
-    renderDome(ctx) {
-        const screenX = this.dome.x - this.camera.x;
-        const screenY = this.dome.y - this.camera.y;
-
-        // Dome effect
-        ctx.strokeStyle = this.dome.color;
-        ctx.lineWidth = 5;
-        ctx.globalAlpha = 0.5 + Math.sin(Date.now() / 200) * 0.2;
-        ctx.beginPath();
-        ctx.arc(screenX, screenY, this.dome.radius, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-
-        // Fill
-        const gradient = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, this.dome.radius);
-        gradient.addColorStop(0, 'transparent');
-        gradient.addColorStop(0.8, 'transparent');
-        gradient.addColorStop(1, this.dome.color);
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(screenX, screenY, this.dome.radius, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    renderFPS(ctx) {
-        const fps = Math.round(1000 / (performance.now() - this.lastTime + 1));
-        ctx.fillStyle = '#00ff00';
-        ctx.font = '14px monospace';
-        ctx.textAlign = 'right';
-        ctx.fillText(`${fps} FPS`, this.canvas.width - 10, 80);
-    }
-
-    // ==================== ABILITY EFFECTS ====================
-
-    useAbility(abilityKey) {
-        if (!this.player.isAlive) return;
-
-        const ability = this.player.abilities[abilityKey];
-        if (!ability) return;
-
-        // Get target position
-        const target = this.camera.screenToWorld(this.input.aimX || this.canvas.width / 2, this.input.aimY || this.canvas.height / 2);
-
-        if (ability.use(this.player, target, this)) {
-            this.stats.abilitiesUsed++;
-        }
-    }
-
-    createProjectile(owner, target, options) {
-        const angle = Utils.angle(owner.x, owner.y, target.x, target.y);
-        const spread = options.spread || 0;
-        const finalAngle = angle + spread;
-
-        const projectile = {
-            x: owner.x + Math.cos(finalAngle) * owner.radius,
-            y: owner.y + Math.sin(finalAngle) * owner.radius,
-            vx: Math.cos(finalAngle) * options.speed,
-            vy: Math.sin(finalAngle) * options.speed,
-            damage: options.damage,
-            size: options.size || 5,
-            color: options.color || '#ffffff',
-            owner: owner,
-            life: 3,
-            explosive: options.explosive || false,
-            explosionRadius: options.explosionRadius || 50,
-            onHit: options.onHit || null
-        };
-
-        this.projectiles.push(projectile);
-        Audio.play('shoot');
-    }
-
-    createExplosion(x, y, options) {
-        // Visual effect
-        this.effects.push({
-            type: 'explosion',
-            x, y,
-            radius: options.radius,
-            color: options.color || '#ff6600',
-            life: 0.5,
-            duration: 0.5,
-            age: 0
+        const speed = Math.hypot(p.vx, p.vz) || 1;
+        const kx = p.vx / speed, kz = p.vz / speed;
+        this.query(p.x, p.z, p.radius, (e) => {
+          if (p.hits.includes(e)) return;
+          p.hits.push(e);
+          this.hitEnemy(e, p.dmg, kx, kz, 3);
+          this.fx.burst(p.x, 0.7, p.z, 2, 0xfff1a8, 2.5, 0.16, 0.18, 0, 0.2);
+          if (p.pierce-- <= 0) { p.alive = false; return false; }
         });
-
-        // Damage entities in range
-        for (const entity of this.entities) {
-            if (!entity.isAlive) continue;
-
-            const dist = Utils.distance(x, y, entity.x, entity.y);
-            if (dist < options.radius) {
-                const wasAlive = entity.isAlive;
-                const falloff = 1 - (dist / options.radius);
-                const damage = options.damage * falloff;
-                entity.takeDamage(damage, options.owner || null);
-
-                // Track kills
-                if (wasAlive && !entity.isAlive && entity.team === 'hunters') {
-                    this.stats.huntersKilled++;
-                }
-
-                // Knockback
-                const angle = Utils.angle(x, y, entity.x, entity.y);
-                entity.x += Math.cos(angle) * 20 * falloff;
-                entity.y += Math.sin(angle) * 20 * falloff;
-            }
+        if (!p.alive) continue;
+        for (const b of this.bosses) {
+          if (p.hits.includes(b)) continue;
+          if (dist2(p.x, p.z, b.x, b.z) < (p.radius + b.radius) ** 2) {
+            p.hits.push(b);
+            this.hitEnemy(b, p.dmg);
+            if (p.pierce-- <= 0) { p.alive = false; break; }
+          }
         }
-
-        Audio.play('hit');
-        Utils.vibrate(100);
+      }
     }
 
-    createHitEffect(x, y, color) {
-        this.effects.push({
-            type: 'hit',
-            x, y,
-            color: color || '#ffffff',
-            size: 10,
-            life: 0.2,
-            duration: 0.2,
-            age: 0
-        });
+    blast(x, z, r, dmg, color) {
+      this.query(x, z, r, (e) => {
+        const dx = e.x - x, dz = e.z - z, d = Math.hypot(dx, dz) || 1;
+        this.hitEnemy(e, dmg, dx / d, dz / d, 6);
+      });
+      for (const b of this.bosses) if (dist2(b.x, b.z, x, z) < (r + b.radius) ** 2) this.hitEnemy(b, dmg);
+      this.fx.explosion(x, z, r, color);
+      this.fx.addShake(0.12);
+      this.sfx('hit');
     }
 
-    createHealEffect(x, y, radius) {
-        this.effects.push({
-            type: 'heal',
-            x, y,
-            radius: radius,
-            life: 0.5,
-            duration: 0.5,
-            age: 0,
-            layer: 'below'
-        });
+    updateLobs(dt) {
+      for (let i = this.lobs.length - 1; i >= 0; i--) {
+        const n = this.lobs[i];
+        n.t += dt;
+        if (n.t >= n.dur) { this.blast(n.tx, n.tz, n.radius, n.dmg, 0xff8a3d); this.lobs.splice(i, 1); }
+      }
     }
 
-    createShockwave(entity, radius) {
-        this.effects.push({
-            type: 'shockwave',
-            x: entity.x,
-            y: entity.y,
-            radius: radius,
-            color: entity.color,
-            life: 0.3,
-            duration: 0.3,
-            age: 0
-        });
-    }
-
-    createMeleeEffect(entity, range) {
-        // Arc slash effect - visual only, damage is handled by the ability
-        const startAngle = entity.facingAngle - Math.PI / 4;
-        const endAngle = entity.facingAngle + Math.PI / 4;
-
-        this.effects.push({
-            type: 'slash',
-            entity: entity,
-            startAngle,
-            endAngle,
-            range,
-            life: 0.2,
-            duration: 0.2,
-            age: 0,
-            color: entity.color,
-            update: (dt, game) => {
-                // Visual effect follows entity
-            }
-        });
-
-        Audio.play('hit');
-    }
-
-    createTrap(x, y, options) {
-        this.traps.push({
-            x, y,
-            radius: options.radius,
-            damage: options.damage,
-            duration: options.duration,
-            type: options.type,
-            color: options.color,
-            life: 30, // Trap lasts 30 seconds
-            triggered: false,
-            owner: this.player
-        });
-    }
-
-    createDome(x, y, options) {
-        this.dome = {
-            x, y,
-            radius: options.radius,
-            remaining: options.duration,
-            color: options.color
-        };
-
-        window.ui.showToast('Mobile Arena deployed!');
-    }
-
-    createBeam(from, to, color) {
-        // Simple beam effect (could be enhanced with particles)
-        this.effects.push({
-            type: 'beam',
-            from: { x: from.x, y: from.y },
-            to: { x: to.x, y: to.y },
-            color: color,
-            life: 0.1,
-            duration: 0.1,
-            age: 0
-        });
-    }
-
-    healAlliesInRange(user, range, amount) {
-        for (const entity of this.entities) {
-            if (entity.team === user.team && entity !== user && entity.isAlive) {
-                const dist = Utils.distance(user.x, user.y, entity.x, entity.y);
-                if (dist < range) {
-                    entity.heal(amount);
-                    this.createHealEffect(entity.x, entity.y, 30);
-                }
-            }
+    updateMines(dt) {
+      for (let i = this.mines.length - 1; i >= 0; i--) {
+        const m = this.mines[i];
+        m.life -= dt;
+        if (m.arm > 0) { m.arm -= dt; continue; }
+        let trig = false;
+        this.query(m.x, m.z, 1.1, () => { trig = true; return false; });
+        for (const b of this.bosses) if (dist2(b.x, b.z, m.x, m.z) < (b.radius + 1.1) ** 2) trig = true;
+        if (trig || m.life <= 0) {
+          if (trig) this.blast(m.x, m.z, m.radius, m.dmg, 0xffc145);
+          this.mines.splice(i, 1);
         }
+      }
     }
 
-    getEnemiesInRange(entity, range) {
-        return this.entities.filter(e =>
-            e !== entity &&
-            e.isAlive &&
-            e.team !== entity.team &&
-            e.team !== 'wildlife' &&
-            Utils.distance(entity.x, entity.y, e.x, e.y) < range
-        );
-    }
-
-    /**
-     * Deal damage to an entity and track kills
-     * @param {Entity} target - The entity taking damage
-     * @param {number} amount - Amount of damage
-     * @param {Entity|null} attacker - The entity dealing damage (for kill tracking)
-     */
-    dealDamage(target, amount, attacker = null) {
-        if (!target || !target.isAlive) return 0;
-
-        const wasAlive = target.isAlive;
-        const actualDamage = target.takeDamage(amount, attacker);
-
-        // Track kills
-        if (wasAlive && !target.isAlive && target.team === 'hunters') {
-            this.stats.huntersKilled++;
+    updateTelegraphs(dt) {
+      for (let i = this.telegraphs.length - 1; i >= 0; i--) {
+        const t = this.telegraphs[i];
+        t.t += dt;
+        // Boss telegraphs follow the boss until they fire.
+        if (t.owner) { t.x = t.owner.x; t.z = t.owner.z; }
+        if (t.strike && t.t >= t.dur) {
+          this.blast(t.x, t.z, t.r, t.strike, 0x4ecdc4);
+          this.fx.burst(t.x, 3, t.z, 12, 0xbff8ff, 1, 0.5, 0.35, -8, -2);
+          this.telegraphs.splice(i, 1);
         }
-
-        return actualDamage;
+      }
     }
 
-    getAliveHunters() {
-        return this.entities.filter(e => e instanceof Hunter && e.isAlive);
+    /* ── Pickups and progression ────────────────────────────── */
+
+    dropGem(x, z, value) {
+      let g = this.gems.find((q) => !q.alive);
+      if (!g) {
+        // Too many on the floor: fold the XP into an existing gem instead.
+        const host = this.gems[this.gemMerge++ % this.gems.length];
+        host.value += value;
+        return;
+      }
+      Object.assign(g, { alive: true, x, z, value, pull: false, vel: 0 });
     }
 
-    getAliveWildlife() {
-        return this.entities.filter(e => e instanceof Wildlife && e.isAlive);
+    dropPickup(kind, x, z) {
+      const p = this.pickups.find((q) => !q.alive);
+      if (!p) return;
+      const icon = { heart: '❤️', magnet: '🧲', chest: '🎁' }[kind];
+      Object.assign(p, { alive: true, kind, icon, x, z });
     }
 
-    getMonster() {
-        return this.entities.find(e => e instanceof Monster);
-    }
-
-    leapTo(entity, x, y, callback) {
-        // Simple teleport with effect
-        entity.x = x;
-        entity.y = y;
-        this.createShockwave(entity, 80);
-        if (callback) callback();
-    }
-
-    teleportTo(entity, x, y, callback) {
-        entity.x = x;
-        entity.y = y;
-        if (callback) callback();
-    }
-
-    createConeAttack(user, target, options) {
-        const angle = Utils.angle(user.x, user.y, target.x, target.y);
-        const halfAngle = Utils.degToRad(options.angle / 2);
-
-        // Hit enemies in cone
-        for (const entity of this.entities) {
-            if (entity === user || !entity.isAlive || entity.team === user.team) continue;
-
-            const dist = Utils.distance(user.x, user.y, entity.x, entity.y);
-            if (dist > options.range) continue;
-
-            const toEntity = Utils.angle(user.x, user.y, entity.x, entity.y);
-            const angleDiff = Math.abs(Utils.wrap(toEntity - angle, -Math.PI, Math.PI));
-
-            if (angleDiff < halfAngle) {
-                const wasAlive = entity.isAlive;
-                entity.takeDamage(options.damage, user);
-                this.createHitEffect(entity.x, entity.y, options.color);
-
-                // Track kills
-                if (wasAlive && !entity.isAlive && entity.team === 'hunters') {
-                    this.stats.huntersKilled++;
-                }
-            }
+    updatePickups(dt) {
+      const pl = this.player, pr2 = pl.pickup * pl.pickup;
+      for (const g of this.gems) {
+        if (!g.alive) continue;
+        const d2 = dist2(g.x, g.z, pl.x, pl.z);
+        if (!g.pull && d2 < pr2) g.pull = true;
+        if (g.pull) {
+          g.vel = Math.min(22, g.vel + dt * 40);
+          const d = Math.sqrt(d2) || 0.001;
+          g.x += (pl.x - g.x) / d * g.vel * dt; g.z += (pl.z - g.z) / d * g.vel * dt;
+          if (d < 0.5) {
+            g.alive = false;
+            this.addXp(g.value);
+            this.sfx('gem');
+          }
         }
-
-        // Visual effect
-        this.effects.push({
-            type: 'cone',
-            x: user.x,
-            y: user.y,
-            angle,
-            halfAngle,
-            range: options.range,
-            color: options.color,
-            life: options.duration,
-            duration: options.duration,
-            age: 0
-        });
-    }
-
-    charge(user, target, options) {
-        const angle = Utils.angle(user.x, user.y, target.x, target.y);
-        const dist = Utils.distance(user.x, user.y, target.x, target.y);
-        const chargeTime = Math.min(dist / options.speed, 0.5);
-
-        // Instant charge (simplified)
-        user.x += Math.cos(angle) * dist * 0.8;
-        user.y += Math.sin(angle) * dist * 0.8;
-
-        // Damage and knockback enemies in path
-        for (const entity of this.entities) {
-            if (entity === user || !entity.isAlive || entity.team === user.team) continue;
-
-            const entityDist = Utils.distance(user.x, user.y, entity.x, entity.y);
-            if (entityDist < user.radius + entity.radius + 30) {
-                const wasAlive = entity.isAlive;
-                entity.takeDamage(options.damage, user);
-
-                // Track kills
-                if (wasAlive && !entity.isAlive && entity.team === 'hunters') {
-                    this.stats.huntersKilled++;
-                }
-
-                // Knockback
-                const knockAngle = Utils.angle(user.x, user.y, entity.x, entity.y);
-                entity.x += Math.cos(knockAngle) * options.knockback;
-                entity.y += Math.sin(knockAngle) * options.knockback;
-            }
+      }
+      for (const p of this.pickups) {
+        if (!p.alive || dist2(p.x, p.z, pl.x, pl.z) > 1.0) continue;
+        p.alive = false;
+        if (p.kind === 'heart') {
+          pl.hp = Math.min(pl.maxHp, pl.hp + 35);
+          this.fx.burst(pl.x, 1, pl.z, 16, 0xff6b81, 3, 0.3, 0.6, -2, 0.6);
+          this.sfx('heal');
+        } else if (p.kind === 'magnet') {
+          for (const g of this.gems) if (g.alive) g.pull = true;
+          this.sfx('ability');
+        } else {
+          this.pending.push('chest');
+          this.sfx('evolve');
         }
-
-        this.createShockwave(user, 50);
+      }
     }
 
-    // ==================== MISSING ABILITY FUNCTIONS ====================
+    addXp(v) {
+      this.xp += v;
+      while (this.xp >= this.xpNeed) {
+        this.xp -= this.xpNeed;
+        this.level++;
+        this.xpNeed = C.xpToNext(this.level);
+        this.pending.push('level');
+      }
+    }
 
-    getDownedAllyInRange(user, range) {
-        for (const entity of this.entities) {
-            if (entity.team === user.team && entity !== user && entity.isDowned) {
-                const dist = Utils.distance(user.x, user.y, entity.x, entity.y);
-                if (dist < range) {
-                    return entity;
-                }
-            }
+    openChoice() {
+      const kind = this.pending.shift();
+      const choices = this.rollChoices(kind === 'chest');
+      this.state = 'choice';
+      this.choiceKind = kind;
+      this.currentChoices = choices;
+      if (kind === 'level') {
+        this.fx.ring(this.player.x, this.player.z, 3, 40, 0xffd700, 0.35, 0.55);
+        this.sfx('levelup');
+      }
+      this.hooks.onChoice && this.hooks.onChoice(choices, kind);
+    }
+
+    rollChoices(chest) {
+      const pool = [];
+      const S = C.slots;
+      for (const w of this.weapons) if (w.level < 5) pool.push({ type: 'weapon', id: w.id, level: w.level + 1, weight: 3 });
+      for (const p of this.passives) if (p.level < PH.PASSIVES[p.id].max) pool.push({ type: 'passive', id: p.id, level: p.level + 1, weight: 2 });
+      if (this.weapons.length < S.weapons) {
+        for (const id in PH.WEAPONS) {
+          if (!this.weapons.some((w) => w.id === id)) pool.push({ type: 'weapon', id, level: 1, weight: this.level <= 4 ? 3.6 : 1.8 });
         }
-        return null;
-    }
-
-    createShieldEffect(target) {
-        this.effects.push({
-            type: 'shield',
-            x: target.x,
-            y: target.y,
-            entity: target,
-            radius: target.radius + 10,
-            color: '#00aaff',
-            life: 0.5,
-            duration: 0.5,
-            age: 0
-        });
-    }
-
-    cloakAlliesInRange(user, range, duration) {
-        for (const entity of this.entities) {
-            if (entity.team === user.team && entity.isAlive) {
-                const dist = Utils.distance(user.x, user.y, entity.x, entity.y);
-                if (dist < range) {
-                    entity.addBuff({
-                        id: 'invisible',
-                        name: 'Cloaked',
-                        duration: duration,
-                        invisible: true,
-                        color: 'rgba(100, 100, 255, 0.5)'
-                    });
-                }
-            }
+      }
+      if (this.passives.length < S.passives) {
+        for (const id in PH.PASSIVES) {
+          if (!this.passives.some((p) => p.id === id)) pool.push({ type: 'passive', id, level: 1, weight: 1.3 });
         }
-        this.effects.push({
-            type: 'shockwave',
-            x: user.x,
-            y: user.y,
-            radius: range,
-            color: 'rgba(100, 100, 255, 0.5)',
-            life: 0.3,
-            duration: 0.3,
-            age: 0
-        });
+      }
+      const out = [];
+      // A chest always offers an upgrade to something you already own if it can.
+      if (chest) {
+        const owned = pool.filter((c) => c.level > 1);
+        if (owned.length) out.push(owned[Math.floor(this.rand() * owned.length)]);
+      }
+      while (out.length < 3 && pool.length) {
+        const avail = pool.filter((c) => !out.some((o) => o.id === c.id));
+        if (!avail.length) break;
+        let total = 0;
+        for (const c of avail) total += c.weight;
+        let r = this.rand() * total;
+        let pick = avail[avail.length - 1];
+        for (const c of avail) { r -= c.weight; if (r <= 0) { pick = c; break; } }
+        out.push(pick);
+      }
+      if (!out.length) out.push({ type: 'heal', id: 'heal', level: 0 }, { type: 'score', id: 'score', level: 0 });
+      return out;
     }
 
-    createOrbitalStrike(x, y, options) {
-        // Warning indicator
-        this.effects.push({
-            type: 'orbital_warning',
-            x: x,
-            y: y,
-            radius: options.radius,
-            delay: options.delay,
-            damage: options.damage,
-            life: options.delay,
-            duration: options.delay,
-            age: 0,
-            update: (dt, game) => {
-                // When delay is over, create explosion
-                if (this.life <= dt) {
-                    game.createExplosion(x, y, {
-                        radius: options.radius,
-                        damage: options.damage,
-                        color: '#ff4400',
-                        owner: null
-                    });
-                    Audio.play('hit');
-                }
-            }
-        });
+    choose(choice) {
+      if (this.state !== 'choice') return;
+      if (choice.type === 'weapon') this.addWeapon(choice.id);
+      else if (choice.type === 'passive') this.addPassive(choice.id);
+      else if (choice.type === 'heal') this.player.hp = this.player.maxHp;
+      else if (choice.type === 'score') this.bonusScore = (this.bonusScore || 0) + 250;
+      this.state = 'playing';
+      this.hooks.onLoadout && this.hooks.onLoadout(this.weapons, this.passives);
     }
 
-    createSlashEffect(user) {
-        this.effects.push({
-            type: 'slash',
-            x: user.x,
-            y: user.y,
-            entity: user,
-            startAngle: user.facingAngle - Math.PI / 4,
-            endAngle: user.facingAngle + Math.PI / 4,
-            range: 50,
-            color: '#ff00ff',
-            life: 0.2,
-            duration: 0.2,
-            age: 0
-        });
+    score() {
+      const S = C.score;
+      return Math.round(this.kills * S.kill + this.time * S.second + this.bossKills * S.boss
+        + (this.victory ? S.victory : 0) + (this.bonusScore || 0));
     }
 
-    createHomingMine(x, y, options) {
-        const mine = {
-            x: x + Utils.random(-30, 30),
-            y: y + Utils.random(-30, 30),
-            vx: 0,
-            vy: 0,
-            damage: options.damage,
-            speed: options.speed,
-            life: options.lifespan,
-            radius: 10,
-            color: '#00ffff',
-            target: null
-        };
-
-        this.effects.push({
-            type: 'homing_mine',
-            ...mine,
-            duration: options.lifespan,
-            age: 0,
-            update: (dt, game) => {
-                // Find nearest hunter
-                let nearest = null;
-                let nearestDist = Infinity;
-                for (const entity of game.entities) {
-                    if (entity.team === 'hunters' && entity.isAlive) {
-                        const dist = Utils.distance(mine.x, mine.y, entity.x, entity.y);
-                        if (dist < nearestDist) {
-                            nearestDist = dist;
-                            nearest = entity;
-                        }
-                    }
-                }
-
-                if (nearest) {
-                    const angle = Utils.angle(mine.x, mine.y, nearest.x, nearest.y);
-                    mine.vx = Math.cos(angle) * mine.speed;
-                    mine.vy = Math.sin(angle) * mine.speed;
-                    mine.x += mine.vx * dt;
-                    mine.y += mine.vy * dt;
-
-                    // Check collision
-                    if (nearestDist < nearest.radius + mine.radius) {
-                        const wasAlive = nearest.isAlive;
-                        nearest.takeDamage(mine.damage, null);
-                        game.createHitEffect(mine.x, mine.y, mine.color);
-                        mine.life = 0;
-
-                        // Track kills
-                        if (wasAlive && !nearest.isAlive && nearest.team === 'hunters') {
-                            game.stats.huntersKilled++;
-                        }
-                    }
-                }
-            }
-        });
+    end(victory) {
+      this.state = 'over';
+      this.victory = victory;
+      this.hooks.onEnd && this.hooks.onEnd({
+        victory, time: this.time, kills: this.kills, level: this.level,
+        bossKills: this.bossKills, score: this.score(), classId: this.classId,
+      });
     }
+  }
 
-    createLightningStorm(x, y, options) {
-        const strikesRemaining = options.strikes;
-        const strikeInterval = options.duration / options.strikes;
-
-        this.effects.push({
-            type: 'lightning_storm',
-            x: x,
-            y: y,
-            radius: options.radius,
-            damage: options.damage,
-            strikesRemaining: strikesRemaining,
-            strikeTimer: 0,
-            strikeInterval: strikeInterval,
-            life: options.duration,
-            duration: options.duration,
-            age: 0,
-            color: '#00ffff',
-            update: (dt, game) => {
-                this.strikeTimer += dt;
-                if (this.strikeTimer >= this.strikeInterval && this.strikesRemaining > 0) {
-                    this.strikeTimer = 0;
-                    this.strikesRemaining--;
-
-                    // Random strike within radius
-                    const strikeX = x + Utils.random(-options.radius, options.radius);
-                    const strikeY = y + Utils.random(-options.radius, options.radius);
-
-                    game.createExplosion(strikeX, strikeY, {
-                        radius: 30,
-                        damage: options.damage / options.strikes,
-                        color: '#00ffff'
-                    });
-                }
-            }
-        });
-    }
-
-    createVortex(x, y, options) {
-        this.effects.push({
-            type: 'vortex',
-            x: x,
-            y: y,
-            radius: options.radius,
-            pullStrength: options.pullStrength,
-            life: options.duration,
-            duration: options.duration,
-            age: 0,
-            color: '#9900ff',
-            layer: 'below',
-            update: (dt, game) => {
-                // Pull hunters towards center
-                for (const entity of game.entities) {
-                    if (entity.team === 'hunters' && entity.isAlive) {
-                        const dist = Utils.distance(x, y, entity.x, entity.y);
-                        if (dist < options.radius && dist > 10) {
-                            const angle = Utils.angle(entity.x, entity.y, x, y);
-                            const pull = (options.pullStrength / dist) * dt;
-                            entity.x += Math.cos(angle) * pull;
-                            entity.y += Math.sin(angle) * pull;
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    createAbduction(user, target, options) {
-        // Find nearest hunter in range
-        let nearestHunter = null;
-        let nearestDist = options.range;
-
-        for (const entity of this.entities) {
-            if (entity.team === 'hunters' && entity.isAlive) {
-                const dist = Utils.distance(user.x, user.y, entity.x, entity.y);
-                if (dist < nearestDist) {
-                    nearestDist = dist;
-                    nearestHunter = entity;
-                }
-            }
-        }
-
-        if (nearestHunter) {
-            // Teleport to hunter, grab them, teleport back
-            const startX = user.x;
-            const startY = user.y;
-
-            // Dash to hunter
-            user.x = nearestHunter.x;
-            user.y = nearestHunter.y;
-
-            // Deal damage
-            const wasAlive = nearestHunter.isAlive;
-            nearestHunter.takeDamage(options.damage, user);
-
-            // Track kills
-            if (wasAlive && !nearestHunter.isAlive) {
-                this.stats.huntersKilled++;
-            }
-
-            // Bring hunter back
-            nearestHunter.x = startX;
-            nearestHunter.y = startY;
-            user.x = startX;
-            user.y = startY;
-
-            this.createHitEffect(nearestHunter.x, nearestHunter.y, '#ff00ff');
-        }
-    }
-
-    createSupernova(user, duration) {
-        this.effects.push({
-            type: 'supernova',
-            x: user.x,
-            y: user.y,
-            entity: user,
-            radius: 100,
-            life: duration,
-            duration: duration,
-            age: 0,
-            color: '#ff00ff',
-            layer: 'below',
-            damageTimer: 0,
-            update: (dt, game) => {
-                // Update position to follow user
-                this.x = user.x;
-                this.y = user.y;
-
-                // Damage enemies in range periodically
-                this.damageTimer += dt;
-                if (this.damageTimer >= 0.5) {
-                    this.damageTimer = 0;
-                    for (const entity of game.entities) {
-                        if (entity.team === 'hunters' && entity.isAlive) {
-                            const dist = Utils.distance(user.x, user.y, entity.x, entity.y);
-                            if (dist < this.radius) {
-                                const wasAlive = entity.isAlive;
-                                entity.takeDamage(10, user);
-
-                                // Track kills
-                                if (wasAlive && !entity.isAlive) {
-                                    game.stats.huntersKilled++;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    createDecoy(user, duration) {
-        // Create a fake entity that looks like the monster
-        const decoy = {
-            x: user.x,
-            y: user.y,
-            radius: user.radius,
-            color: user.color,
-            icon: user.icon,
-            facingAngle: user.facingAngle,
-            vx: Math.cos(user.facingAngle) * 100,
-            vy: Math.sin(user.facingAngle) * 100
-        };
-
-        this.effects.push({
-            type: 'decoy',
-            ...decoy,
-            life: duration,
-            duration: duration,
-            age: 0,
-            update: (dt, game) => {
-                // Move decoy forward
-                decoy.x += decoy.vx * dt;
-                decoy.y += decoy.vy * dt;
-
-                // Constrain to map
-                const constrained = game.map.constrainToMap(decoy.x, decoy.y, decoy.radius);
-                decoy.x = constrained.x;
-                decoy.y = constrained.y;
-            }
-        });
-    }
-
-    createLavaBomb(user, target, options) {
-        // Create projectile
-        this.createProjectile(user, target, {
-            speed: 300,
-            damage: options.damage,
-            color: '#ff4400',
-            size: 15,
-            explosive: true,
-            explosionRadius: 60
-        });
-
-        // Create lava pool at target after delay
-        setTimeout(() => {
-            this.effects.push({
-                type: 'lava_pool',
-                x: target.x,
-                y: target.y,
-                radius: 50,
-                damage: options.poolDamage,
-                life: options.poolDuration,
-                duration: options.poolDuration,
-                age: 0,
-                color: '#ff4400',
-                layer: 'below',
-                damageTimer: 0,
-                update: (dt, game) => {
-                    this.damageTimer += dt;
-                    if (this.damageTimer >= 0.5) {
-                        this.damageTimer = 0;
-                        for (const entity of game.entities) {
-                            if (entity.team === 'hunters' && entity.isAlive) {
-                                const dist = Utils.distance(this.x, this.y, entity.x, entity.y);
-                                if (dist < this.radius) {
-                                    const wasAlive = entity.isAlive;
-                                    entity.takeDamage(this.damage, null);
-
-                                    // Track kills
-                                    if (wasAlive && !entity.isAlive) {
-                                        game.stats.huntersKilled++;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        }, 500);
-    }
-
-    createRockWall(user, target, options) {
-        const angle = Utils.angle(user.x, user.y, target.x, target.y);
-        const perpAngle = angle + Math.PI / 2;
-
-        // Create wall segments
-        const segments = 5;
-        const segmentWidth = options.width / segments;
-
-        for (let i = 0; i < segments; i++) {
-            const offset = (i - segments / 2) * segmentWidth;
-            const wallX = target.x + Math.cos(perpAngle) * offset;
-            const wallY = target.y + Math.sin(perpAngle) * offset;
-
-            // Add temporary obstacle
-            const wall = {
-                type: 'rock',
-                x: wallX,
-                y: wallY,
-                radius: 25,
-                color: '#654321',
-                temporary: true
-            };
-            this.map.obstacles.push(wall);
-
-            // Remove after duration
-            setTimeout(() => {
-                const index = this.map.obstacles.indexOf(wall);
-                if (index !== -1) {
-                    this.map.obstacles.splice(index, 1);
-                }
-            }, options.duration * 1000);
-        }
-
-        Audio.play('hit');
-    }
-
-    createTongueGrab(user, target, options) {
-        // Find nearest hunter in direction
-        const angle = Utils.angle(user.x, user.y, target.x, target.y);
-        let nearestHunter = null;
-        let nearestDist = options.range || 300;
-
-        for (const entity of this.entities) {
-            if (entity.team === 'hunters' && entity.isAlive) {
-                const dist = Utils.distance(user.x, user.y, entity.x, entity.y);
-                const toEntity = Utils.angle(user.x, user.y, entity.x, entity.y);
-                const angleDiff = Math.abs(Utils.wrap(toEntity - angle, -Math.PI, Math.PI));
-
-                if (dist < nearestDist && angleDiff < Math.PI / 4) {
-                    nearestDist = dist;
-                    nearestHunter = entity;
-                }
-            }
-        }
-
-        if (nearestHunter) {
-            // Create beam effect
-            this.createBeam(user, nearestHunter, '#8B4513');
-
-            // Pull hunter towards monster
-            const pullAngle = Utils.angle(nearestHunter.x, nearestHunter.y, user.x, user.y);
-            nearestHunter.x += Math.cos(pullAngle) * (nearestDist * 0.7);
-            nearestHunter.y += Math.sin(pullAngle) * (nearestDist * 0.7);
-
-            // Deal damage
-            const wasAlive = nearestHunter.isAlive;
-            nearestHunter.takeDamage(options.damage, user);
-            this.createHitEffect(nearestHunter.x, nearestHunter.y, '#8B4513');
-
-            // Track kills
-            if (wasAlive && !nearestHunter.isAlive) {
-                this.stats.huntersKilled++;
-            }
-        }
-    }
-
-    startRoll(user, target, options) {
-        const angle = Utils.angle(user.x, user.y, target.x, target.y);
-
-        user.addBuff({
-            id: 'rolling',
-            name: 'Rolling',
-            duration: options.duration,
-            speedMultiplier: 2,
-            color: '#654321'
-        });
-
-        // Set velocity in direction
-        user.vx = Math.cos(angle) * options.speed;
-        user.vy = Math.sin(angle) * options.speed;
-
-        // Create rolling effect
-        this.effects.push({
-            type: 'roll',
-            entity: user,
-            damage: options.damage,
-            life: options.duration,
-            duration: options.duration,
-            age: 0,
-            damageTimer: 0,
-            update: (dt, game) => {
-                this.damageTimer += dt;
-                if (this.damageTimer >= 0.2) {
-                    this.damageTimer = 0;
-                    // Damage hunters on contact
-                    for (const entity of game.entities) {
-                        if (entity.team === 'hunters' && entity.isAlive) {
-                            const dist = Utils.distance(user.x, user.y, entity.x, entity.y);
-                            if (dist < user.radius + entity.radius) {
-                                const wasAlive = entity.isAlive;
-                                entity.takeDamage(this.damage, user);
-                                game.createHitEffect(entity.x, entity.y, '#654321');
-
-                                // Track kills
-                                if (wasAlive && !entity.isAlive) {
-                                    game.stats.huntersKilled++;
-                                }
-
-                                // Knockback
-                                const knockAngle = Utils.angle(user.x, user.y, entity.x, entity.y);
-                                entity.x += Math.cos(knockAngle) * 50;
-                                entity.y += Math.sin(knockAngle) * 50;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
-}
-
-// Export
-window.Game = Game;
+  PH.Game = Game;
+})();
