@@ -30,12 +30,7 @@ const icons = {
     </svg>
   ),
   aura: (
-    <svg viewBox="0 0 48 48" className="w-12 h-12">
-      <rect x="4" y="4" width="40" height="40" rx="8" fill="#00A3AD" />
-      <circle cx="24" cy="24" r="12" fill="none" stroke="#fff" strokeWidth="2" />
-      <circle cx="24" cy="24" r="6" fill="#fff" />
-      <path d="M24 8v4M24 36v4M8 24h4M36 24h4" stroke="#fff" strokeWidth="2" />
-    </svg>
+    <img src="/images/aura-logo.png" alt="Aura" className="w-12 h-12 object-contain" />
   ),
   amzTools: (
     <svg viewBox="0 0 48 48" className="w-12 h-12">
@@ -46,12 +41,7 @@ const icons = {
     </svg>
   ),
   duet: (
-    <svg viewBox="0 0 48 48" className="w-12 h-12">
-      <rect x="4" y="4" width="40" height="40" rx="8" fill="#E31837" />
-      <circle cx="18" cy="24" r="8" fill="#fff" opacity="0.9" />
-      <circle cx="30" cy="24" r="8" fill="#fff" opacity="0.9" />
-      <path d="M18 20v8M30 20v8" stroke="#E31837" strokeWidth="2" strokeLinecap="round" />
-    </svg>
+    <img src="/images/duet-logo.png" alt="Duet" className="w-12 h-12 object-contain" />
   ),
   speaking: (
     <svg viewBox="0 0 48 48" className="w-12 h-12">

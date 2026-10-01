@@ -12,13 +12,7 @@ export default function AuraWindow() {
       {/* Header */}
       <div className="p-3 border-b border-[var(--button-shadow)]">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded flex items-center justify-center text-white text-xl bg-[#00A3AD]">
-            <svg viewBox="0 0 48 48" className="w-8 h-8">
-              <circle cx="24" cy="24" r="12" fill="none" stroke="#fff" strokeWidth="2" />
-              <circle cx="24" cy="24" r="6" fill="#fff" />
-              <path d="M24 8v4M24 36v4M8 24h4M36 24h4" stroke="#fff" strokeWidth="2" />
-            </svg>
-          </div>
+          <img src="/images/aura-logo.png" alt="Aura" className="w-12 h-12 object-contain" />
           <div className="flex-1">
             <h1 className="text-lg font-bold m-0">Aura Platform</h1>
             <p className="text-sm m-0 italic text-[#00A3AD]">AI Companions that flow with your day</p>

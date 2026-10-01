@@ -12,13 +12,7 @@ export default function DuetWindow() {
       {/* Header */}
       <div className="p-3 border-b border-[var(--button-shadow)]">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded flex items-center justify-center text-white text-xl bg-[#E31837]">
-            <svg viewBox="0 0 48 48" className="w-8 h-8">
-              <circle cx="18" cy="24" r="8" fill="#fff" opacity="0.9" />
-              <circle cx="30" cy="24" r="8" fill="#fff" opacity="0.9" />
-              <path d="M18 20v8M30 20v8" stroke="#E31837" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </div>
+          <img src="/images/duet-logo.png" alt="Duet" className="w-12 h-12 object-contain" />
           <div className="flex-1">
             <h1 className="text-lg font-bold m-0">Duet</h1>
             <p className="text-sm m-0 italic text-[#E31837]">Stay connected without the interruption</p>
