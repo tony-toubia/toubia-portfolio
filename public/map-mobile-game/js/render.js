@@ -111,9 +111,9 @@ window.PH = window.PH || {};
    * r128 treats these as linear colours, so they are darker than they look.
    */
   const BIOMES = [
-    { bg: 0x14182a, amb: 0x404060, ambI: 0.40, sky: 0x87ceeb, gnd: 0x2d5016, hemiI: 0.30, sun: 0xfff5e0, sunI: 1.00, tint: [1, 1, 1],       tuft: 0x1c4417, mote: 0xd8ff6a, mist: 0xd8ecff, mistA: 0.08 },
-    { bg: 0x22132e, amb: 0x4a3560, ambI: 0.40, sky: 0xc07aa0, gnd: 0x2a2016, hemiI: 0.30, sun: 0xffa070, sunI: 0.72, tint: [1.12, 0.7, 1.3],  tuft: 0x2a2a26, mote: 0xffb35c, mist: 0xd6b8ff, mistA: 0.12 },
-    { bg: 0x12050a, amb: 0x3a1a2a, ambI: 0.42, sky: 0x9a2a3a, gnd: 0x200808, hemiI: 0.30, sun: 0xff5040, sunI: 0.52, tint: [1.08, 0.55, 0.62], tuft: 0x341216, mote: 0xff4a2a, mist: 0xff8a7a, mistA: 0.14 },
+    { bg: 0x14182a, amb: 0x404060, ambI: 0.40, sky: 0x87ceeb, gnd: 0x2d5016, hemiI: 0.30, sun: 0xfff5e0, sunI: 1.00, tint: [1, 1, 1],       tuft: 0x1c4417, mote: 0xd8ff6a, mist: 0xd8ecff, mistA: 0.08, sunDir: [-0.45, 1, 0.55] },
+    { bg: 0x22132e, amb: 0x4a3560, ambI: 0.40, sky: 0xc07aa0, gnd: 0x2a2016, hemiI: 0.30, sun: 0xffa070, sunI: 0.72, tint: [1.12, 0.7, 1.3],  tuft: 0x2a2a26, mote: 0xffb35c, mist: 0xd6b8ff, mistA: 0.12, sunDir: [-1, 0.42, 0.3] },
+    { bg: 0x12050a, amb: 0x3a1a2a, ambI: 0.42, sky: 0x9a2a3a, gnd: 0x200808, hemiI: 0.30, sun: 0xff5040, sunI: 0.52, tint: [1.08, 0.55, 0.62], tuft: 0x341216, mote: 0xff4a2a, mist: 0xff8a7a, mistA: 0.14, sunDir: [0.85, 0.62, -0.35] },
   ];
   const _ca = new THREE.Color(), _cb = new THREE.Color();
   const mixHex = (out, a, b, k) => out.copy(_ca.setHex(a)).lerp(_cb.setHex(b), k);
@@ -135,6 +135,10 @@ window.PH = window.PH || {};
       r.outputEncoding = THREE.sRGBEncoding;
       r.toneMapping = THREE.ACESFilmicToneMapping;
       r.toneMappingExposure = 1.2;
+      // Real shadows from the sun. Only big character parts and solid scenery
+      // cast; creatures keep their cheap blob shadows.
+      r.shadowMap.enabled = true;
+      r.shadowMap.type = THREE.PCFShadowMap;
 
       const scene = this.scene = new THREE.Scene();
       scene.background = new THREE.Color(0x14182a);
@@ -153,9 +157,18 @@ window.PH = window.PH || {};
       this.zoom = 0;            // 0 = normal framing; boss arrivals push in briefly
       const sun = new THREE.DirectionalLight(0xfff5e0, 1.0);
       sun.position.set(-6, 14, 8);
+      sun.castShadow = true;
+      const sm = this.maxDpr >= 2 ? 1024 : 2048;
+      sun.shadow.mapSize.set(sm, sm);
+      sun.shadow.bias = -0.0006;
+      sun.shadow.normalBias = 0.03;
+      sun.shadow.camera.near = 1;
+      sun.shadow.camera.far = 90;
       scene.add(sun);
       scene.add(sun.target);
       this.sun = sun;
+      this.sunDir = new THREE.Vector3(-0.45, 1, 0.55).normalize();
+      this.shadowSpan = 0;
 
       // The two reused modules only ever ask the renderer for these.
       this.shim = {
@@ -192,6 +205,7 @@ window.PH = window.PH || {};
       // The colour grade: render into a texture, then one full-screen pass.
       // If the device cannot do it, the game simply renders straight to screen.
       try { this.grade = PH.Look.createGrade(r); } catch (e) { console.warn('grade off', e); this.grade = null; }
+      if (this.grade) this.halos.mesh.material.opacity = this.grade.hdr ? 0.55 : 0.8;
     }
 
     /* ── Scene construction ─────────────────────────────────── */
@@ -216,6 +230,7 @@ window.PH = window.PH || {};
       geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(geo.attributes.position.count * 3), 3));
       const mat = new THREE.MeshLambertMaterial({ map: tex, vertexColors: true });
       this.ground = new THREE.Mesh(geo, mat);
+      this.ground.receiveShadow = true;
       this.scene.add(this.ground);
 
       // Decor: tufts and rocks, placed from a hash of world cells so the
@@ -262,6 +277,7 @@ window.PH = window.PH || {};
       // Rocks get the same toon look.
       this.rocks.material = L.toonMaterial({ color: 0x262931, flatShading: true });
       this.rockOutline = inst(this.rocks.geometry, L.outlineMaterial, this.rocks.count);
+      for (const m of [this.rocks, this.bushes, this.ruins]) { m.castShadow = true; m.receiveShadow = true; }
 
       // Ground decals: blood where things died, scorch where things blew up.
       const splat = canvasTexture(128, (g, s) => {
@@ -302,6 +318,7 @@ window.PH = window.PH || {};
       this.crownMat = L.windify(L.toonMaterial({ color: 0xffffff, flatShading: true }), 0.03);
       this.crowns = inst(crown, this.crownMat, 220, true);
       this.crownOutline = inst(crown, L.windify(new THREE.MeshBasicMaterial({ color: 0x0b0c14, side: THREE.BackSide }), 0.03), 220);
+      for (const m of [this.trunks, this.crowns]) { m.castShadow = true; m.receiveShadow = true; }
     }
 
     /** Place an instance in a decor mesh and, optionally, its outline shell. */
@@ -501,7 +518,7 @@ window.PH = window.PH || {};
       const pelletGeo = new THREE.SphereGeometry(0.1, 6, 4);
       this.pellets = new Batch(S, pelletGeo, glow(0xffffff), 300, true);
       const harpoonGeo = new THREE.CylinderGeometry(0.045, 0.045, 1.3, 5); harpoonGeo.rotateX(Math.PI / 2);
-      this.harpoons = new Batch(S, harpoonGeo, glow(0x7ff5ea), 60);
+      this.harpoons = new Batch(S, harpoonGeo, glow(0xffffff), 60, true);
       const orbGeo = new THREE.SphereGeometry(0.24, 10, 8);
       this.orbs = new Batch(S, orbGeo, glow(0xffffff), 200, true);
       const nadeGeo = new THREE.SphereGeometry(0.17, 8, 6);
@@ -513,7 +530,7 @@ window.PH = window.PH || {};
       // Spheres, not diamonds: the XP gems are diamonds, and a weapon that looks
       // like a pickup reads as clutter rather than as something you own.
       const droneGeo = new THREE.SphereGeometry(0.24, 12, 8);
-      this.drones = new Batch(S, droneGeo, glow(0xbfe3ff), 16);
+      this.drones = new Batch(S, droneGeo, glow(0xffffff), 16, true);
 
       const trapGeo = new THREE.CylinderGeometry(0.42, 0.48, 0.1, 10);
       this.traps = new Batch(S, trapGeo, new THREE.MeshLambertMaterial({ color: 0x8a8f99 }), 24);
@@ -684,6 +701,7 @@ window.PH = window.PH || {};
         this.wallMesh = new THREE.InstancedMesh(geo, PH.Look.toonMaterial({ color: 0x23262d, flatShading: true }), N);
         this.wallOutline = new THREE.InstancedMesh(geo, PH.Look.outlineMaterial, N);
         for (const m of [this.wallMesh, this.wallOutline]) { m.frustumCulled = false; this.scene.add(m); }
+        this.wallMesh.castShadow = this.wallMesh.receiveShadow = true;
       }
       const N = this.wallMesh.count;
       for (let i = 0; i < N; i++) {
@@ -732,7 +750,6 @@ window.PH = window.PH || {};
       let mesh = this.monsterCache && this.monsterCache.get(key);
       if (mesh) this.monsterCache.delete(key);
       else mesh = this.chars.createMonsterMesh({ monsterType: type, evolutionStage: stage });
-      mesh.traverse((o) => { if (o.isMesh) o.castShadow = false; });
       const box = this.bodyBox(mesh);
       PH.Look.stylize(mesh, 0.1, 10);
       const root = new THREE.Group();
@@ -759,8 +776,7 @@ window.PH = window.PH || {};
       this.hunterVis.clear();
       for (const h of list) {
         const mesh = this.chars.createHunterMesh({ hunterClass: h.cls });
-        mesh.traverse((o) => { if (o.isMesh) o.castShadow = false; });
-        const box = this.bodyBox(mesh);
+          const box = this.bodyBox(mesh);
         PH.Look.stylize(mesh, 0.06, 6);
         const tilt = new THREE.Group();
         tilt.add(mesh);
@@ -973,7 +989,6 @@ window.PH = window.PH || {};
       // removing the inner mesh left the menu's hunter standing in every run.
       if (this.player) this.scene.remove(this.player.root);
       const mesh = this.chars.createHunterMesh({ hunterClass });
-      mesh.traverse((o) => { if (o.isMesh) o.castShadow = false; });
       const box = this.bodyBox(mesh);
       PH.Look.stylize(mesh, 0.06, 6);
       const inner = new THREE.Group();
@@ -1008,7 +1023,6 @@ window.PH = window.PH || {};
       const prepared = this.preparedBosses && this.preparedBosses.get(key);
       if (prepared) this.preparedBosses.delete(key);
       const mesh = prepared || this.chars.createMonsterMesh({ monsterType, evolutionStage: stage });
-      mesh.traverse((o) => { if (o.isMesh) o.castShadow = false; });
       const box = this.bodyBox(mesh);
       PH.Look.stylize(mesh, 0.1, 10);
       const root = new THREE.Group();
@@ -1141,8 +1155,7 @@ window.PH = window.PH || {};
       this.zoom *= Math.exp(-dt * 1.6);
       this.placeCamera(cx, cz, false);
       this.updateBiome(game, dt);
-      this.sun.position.set(cx - 6, 14, cz + 8);
-      this.sun.target.position.set(cx, 0, cz);
+      this.updateSun(cx, cz);
       this.snapGround(cx, cz);
 
       this.shadows.begin();
@@ -1254,8 +1267,8 @@ window.PH = window.PH || {};
         const yaw = Math.atan2(p.vx, p.vz);
         if (p.vis === 'bolt') { this.bolts.add(p.x, 0.75, p.z, yaw, 1, 1, 1, 1.6, 1.35, 0.5); this.halos.add(p.x, 0.75, p.z, 0, 0.9, 0.9, 0.9, 0.55, 0.4, 0.12); }
         else if (p.vis === 'pellet') { this.pellets.add(p.x, 0.7, p.z, 0, 1, 1, 1, 1.6, 0.9, 0.35); if (glowAll) this.halos.add(p.x, 0.7, p.z, 0, 0.7, 0.7, 0.7, 0.55, 0.25, 0.06); }
-        else if (p.vis === 'harpoon') { this.harpoons.add(p.x, 0.8, p.z, yaw, 1, 1, 1); this.halos.add(p.x, 0.8, p.z, 0, 1.3, 1.3, 1.3, 0.15, 0.5, 0.5); }
-        else if (p.vis === 'orb') { this.orbs.add(p.x, 0.7, p.z, 0, 1, 1, 1, p.r, p.g, p.b); this.halos.add(p.x, 0.7, p.z, 0, 1.5, 1.5, 1.5, p.r * 0.6, p.g * 0.6, p.b * 0.6); }
+        else if (p.vis === 'harpoon') { this.harpoons.add(p.x, 0.8, p.z, yaw, 1, 1, 1, 0.9, 2.6, 2.4); this.halos.add(p.x, 0.8, p.z, 0, 1.3, 1.3, 1.3, 0.15, 0.5, 0.5); }
+        else if (p.vis === 'orb') { this.orbs.add(p.x, 0.7, p.z, 0, 1, 1, 1, p.r * 1.8, p.g * 1.8, p.b * 1.8); this.halos.add(p.x, 0.7, p.z, 0, 1.5, 1.5, 1.5, p.r * 0.6, p.g * 0.6, p.b * 0.6); }
       }
       for (const n of game.lobs) {
         const k2 = n.t / n.dur, y = 0.6 + Math.sin(k2 * Math.PI) * (2.2 + n.dist * 0.15);
@@ -1267,7 +1280,8 @@ window.PH = window.PH || {};
       this.gems.begin();
       for (const gm of game.gems) {
         if (!gm.alive) continue;
-        const tier = gm.value >= 25 ? [2.2, 0.6, 2.0] : gm.value >= 10 ? [2.4, 1.9, 0.4] : gm.value >= 3 ? [0.6, 2.2, 0.8] : [0.4, 1.7, 2.2];
+        // Gems sit just past white, so they glow softly without drowning the field.
+        const tier = gm.value >= 25 ? [1.8, 0.5, 1.6] : gm.value >= 10 ? [1.9, 1.5, 0.35] : gm.value >= 3 ? [0.5, 1.7, 0.65] : [0.32, 1.25, 1.6];
         const s = gm.value >= 10 ? 1.5 : gm.value >= 3 ? 1.2 : 1;
         const gy = 0.35 + Math.sin(t * 4 + gm.x) * 0.08;
         this.gems.add(gm.x, gy, gm.z, t * 2.5 + gm.z, s, s * 1.3, s, tier[0], tier[1], tier[2]);
@@ -1278,7 +1292,7 @@ window.PH = window.PH || {};
       // Weapons that live in the world
       this.drones.begin();
       for (const d of game.droneHits) {
-        this.drones.add(d.x, 0.9, d.z, 0, 1, 1, 1);
+        this.drones.add(d.x, 0.9, d.z, 0, 1, 1, 1, 1.4, 2.0, 2.8);
         this.halos.add(d.x, 0.9, d.z, 0, 1.4, 1.4, 1.4, 0.2, 0.42, 0.75);
         if (dt > 0 && Math.random() < 0.5) this.burst(d.x, 0.9, d.z, 1, 0x5aa9ff, 0.3, 0.32, 0.22, 0, 0);
       }
@@ -1396,6 +1410,30 @@ window.PH = window.PH || {};
       else LU.push2.value.w = 0;
       if (this.grade) { this.grade.setStage(this.biome); this.grade.render(this.scene, this.camera, this.time); }
       else this.renderer.render(this.scene, this.camera);
+    }
+
+    /**
+     * The sun follows the camera, so its shadow map only covers what is on
+     * screen. Its direction moves with the stage: high at midday, low and long
+     * at dusk, a red moon from the other side for the final night.
+     */
+    updateSun(cx, cz) {
+      const i = Math.min(1, Math.floor(this.biome)), k = this.biome - i;
+      const A = BIOMES[i].sunDir, B = BIOMES[i + 1].sunDir;
+      this.sunDir.set(A[0] + (B[0] - A[0]) * k, A[1] + (B[1] - A[1]) * k, A[2] + (B[2] - A[2]) * k).normalize();
+      // Cover the visible ground, with margin for long dusk shadows.
+      const v = this.view, span = Math.ceil(Math.max(v.maxX - v.minX, v.maxZ - v.minZ) * 0.62 + 4);
+      const cam = this.sun.shadow.camera;
+      if (span !== this.shadowSpan) {
+        this.shadowSpan = span;
+        cam.left = -span; cam.right = span; cam.top = span; cam.bottom = -span;
+        cam.updateProjectionMatrix();
+      }
+      // Snap to the shadow map's texel grid so edges do not crawl as you walk.
+      const texel = (2 * span) / this.sun.shadow.mapSize.x;
+      const tx = Math.round(cx / texel) * texel, tz = Math.round((cz - 2) / texel) * texel;
+      this.sun.target.position.set(tx, 0, tz);
+      this.sun.position.set(tx + this.sunDir.x * 40, this.sunDir.y * 40, tz + this.sunDir.z * 40);
     }
 
     /** Ease the light, sky and ground toward the current evolution stage. */
@@ -1517,7 +1555,12 @@ window.PH = window.PH || {};
       this.lastQualityCheck = this.time;
       const avg = ft.reduce((a, b) => a + b, 0) / ft.length;
       if (avg > 1 / 42) {
-        if (this.dpr > 1) {
+        // Cheapest loss first: real shadows (the blob shadows stay), then
+        // resolution, then outlines and the enemy cap.
+        if (this.sun.castShadow) {
+          this.sun.castShadow = false;
+          ft.length = 0;
+        } else if (this.dpr > 1) {
           this.dpr = Math.max(1, this.dpr - 0.25);
           this.renderer.setPixelRatio(this.dpr);
           this.resize(this.w, this.h);
