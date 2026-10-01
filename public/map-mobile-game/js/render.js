@@ -1165,7 +1165,7 @@ window.PH = window.PH || {};
         inner.add(h.root);
         inner.add(this.classRing(hunterClass));
         this.scene.add(inner);
-        this.player = { root: inner, mesh: h.root, anim: h, height: PH.Models.HUNTERS[hunterClass].height, facing, shootT: 0 };
+        this.player = { root: inner, mesh: h.root, anim: h, height: PH.Models.HEIGHT, facing, shootT: 0 };
         return;
       }
       const mesh = this.chars.createHunterMesh({ hunterClass });

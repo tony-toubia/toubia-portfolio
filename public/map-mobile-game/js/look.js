@@ -194,7 +194,10 @@ window.PH = window.PH || {};
     const size = renderer.getDrawingBufferSize(new THREE.Vector2());
     const base = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat,
       type: hdr ? THREE.HalfFloatType : THREE.UnsignedByteType };
-    const sceneOpts = { ...base, encoding: hdr ? THREE.LinearEncoding : THREE.sRGBEncoding };
+    // stencilBuffer only to get a 24-bit depth buffer: without it three r128
+    // allocates 16 bits, too coarse at this camera distance, and close layers
+    // (a cap on hair, a beard on a face) flicker through each other in stripes.
+    const sceneOpts = { ...base, encoding: hdr ? THREE.LinearEncoding : THREE.sRGBEncoding, stencilBuffer: true };
     let rt;
     if (gl2 && THREE.WebGLMultisampleRenderTarget && renderer.getPixelRatio() < 2) {
       rt = new THREE.WebGLMultisampleRenderTarget(size.x, size.y, sceneOpts);
