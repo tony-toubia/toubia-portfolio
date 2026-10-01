@@ -237,6 +237,14 @@ PH.ENEMIES = {
                ranged: { range: 7.5, cd: 2.6, speed: 5.5, dmg: 8 } },
   brute:     { geo: 'large',  scale: 2.0, hp: 120, speed: 1.45, dmg: 16, xp: 10, radius: 0.85,
                colors: { primary: 0x3f4a6b, secondary: 0x1e2436, eye: 0xff4d4d } },
+
+  // Monster mode's prey. `food` fills the evolution meter, `armor` refills armour.
+  deer:      { geo: 'small',  scale: 2.4, hp: 14,  speed: 3.7, dmg: 0,  xp: 0, radius: 0.38, food: 9,  armor: 14,
+               colors: { primary: 0x8b5a2b, secondary: 0x4a2e14, eye: 0x111111 } },
+  hog:       { geo: 'medium', scale: 1.9, hp: 45, speed: 2.7, dmg: 0,  xp: 0, radius: 0.5,  food: 17, armor: 28,
+               colors: { primary: 0x5e4436, secondary: 0x2e2018, eye: 0x221111 } },
+  megabeast: { geo: 'large',  scale: 2.5, hp: 170, speed: 2.0, dmg: 10, xp: 0, radius: 0.85, food: 36, armor: 60,
+               colors: { primary: 0x56634a, secondary: 0x2a3122, eye: 0xffb347 } },
 };
 
 /* Spawn director. `rate` is creatures per second and is interpolated
@@ -282,4 +290,59 @@ PH.BOSS_ATTACKS = {
   closeIn: 11,              // beyond this distance a boss's next attack is always a dash at you
   restBetween: [1.6, 2.6],
   summonEvery: 9, summonCount: 8,
+};
+
+/* ── Monster mode ───────────────────────────────────────────────
+   You are the monster. Eat to fill the evolution meter, evolve twice, and
+   either wipe out the four AI hunters or outlast their dropship's clock. */
+PH.MONSTER_MODE = {
+  arena: 34,                // radius of the playable area
+  duration: 360,            // seconds until the hunters' dropship leaves
+  hunterArrival: 6,         // the squad lands a few seconds in
+  hunterRespawn: 75,        // dead hunters are redeployed together after this
+  sight: 8.5,               // how far a hunter sees you in the open...
+  sightHidden: 2.6,         // ...and in tall grass, standing still
+  sightRustle: 4.2,         // ...and in tall grass while moving
+  trackEvery: 1.4,          // a footprint every this many units walked in the open
+  trackLife: 40,
+  birds: { feed: 0.5, feedHidden: 0.1, pounce: 0.55, noise: 3 },
+  wildlife: { max: 26, respawn: 0.6, mix: { deer: 6, hog: 3, megabeast: 1 } },
+  grass: { patches: 24, minR: 2.6, maxR: 5.4, density: 2.6 },
+  attackCd: 0.55,
+  armorRegenHidden: 9,      // armour per second while hidden and out of combat
+  outOfCombat: 4,
+  evolveTime: 3,
+  pounce: { cd: 3.5, dist: 5, dur: 0.22, iframes: 0.25 },
+  stages: [
+    { hp: 640,  armor: 300, dmg: 16, reach: 2.0, speed: 4.7, food: 220, view: 1.4 },
+    { hp: 1000, armor: 460, dmg: 25, reach: 2.4, speed: 4.85, food: 360, view: 1.6 },
+    { hp: 1350, armor: 560, dmg: 32, reach: 2.9, speed: 5.0, food: 0,   view: 1.85 },
+  ],
+};
+
+/* The four monsters from the original game, each with one signature attack.
+   Ability damage grows 35% per evolution stage. */
+PH.MONSTERS = {
+  goliath:  { name: 'Goliath',  icon: '🦍', role: 'Brawler',  blurb: 'Leaps into the fight.', hp: 1.08, speed: 0.97,
+              ability: { id: 'leap', name: 'Leap Smash', icon: '💥', cd: 8, dist: 7, r: 3.2, dmg: 40, air: 0.45 } },
+  kraken:   { name: 'Kraken',   icon: '🐙', role: 'Caster',   blurb: 'Calls lightning from range.', hp: 0.95, speed: 1.0,
+              ability: { id: 'lightning', name: 'Lightning Strike', icon: '⚡', cd: 5.5, range: 12, r: 2.6, dmg: 38, delay: 0.5 } },
+  wraith:   { name: 'Wraith',   icon: '👻', role: 'Assassin', blurb: 'Warps in and explodes.', hp: 0.8, speed: 1.05,
+              ability: { id: 'warp', name: 'Warp Blast', icon: '🌀', cd: 6.5, dist: 7, r: 3.0, dmg: 34 } },
+  behemoth: { name: 'Behemoth', icon: '🦖', role: 'Tank',     blurb: 'Rolls through everything.', hp: 1.35, speed: 0.93,
+              ability: { id: 'roll', name: 'Rolling Charge', icon: '🪨', cd: 7, dur: 1.1, speed: 13, dmg: 32, knock: 9 } },
+};
+
+/* The AI squad. Ranges are where each one prefers to stand while fighting. */
+PH.HUNTER_AI = {
+  speed: 4.0, jet: { cd: 6, dist: 4, chance: 0.5, chase: 5 },   // `chase`: jet cooldown when closing on a fleeing monster
+  // Sound spikes: if the squad has lost you for a while, the trapper gets a rough fix.
+  scan: { every: 25, late: 10, range: 26, noise: 4 },   // `late`: the interval by the final minute
+  sweep: { time: 9, r: 5 },  // how long they comb an area where the trail went cold bleedOut: 20, reviveTime: 3, reviveHp: 0.4,
+  assault: { hp: 160, range: 5, shot: { vis: 'bolt',    dmg: 5, cd: 0.3, speed: 17 } },
+  trapper: { hp: 140, range: 7, shot: { vis: 'harpoon', dmg: 9, cd: 3.2, speed: 20, slow: 0.35, slowT: 1.1 },
+             arena: { cd: 40, first: 40, r: 13, dur: 16 } },
+  medic:   { hp: 125, range: 8, shot: { vis: 'pellet',  dmg: 4, cd: 0.9, speed: 15 }, heal: { hps: 10, range: 9 } },
+  support: { hp: 150, range: 7, shot: { vis: 'bolt',    dmg: 6, cd: 0.6, speed: 16 },
+             shield: { cd: 9, dur: 3, guard: 0.7 }, strike: { cd: 13, delay: 1.6, r: 3, dmg: 45 } },
 };

@@ -175,6 +175,9 @@ window.PH = window.PH || {};
       this.sprites = [];
 
       this.player = null;
+      this.hunterVis = new Map();
+      this.viewScale = 1;
+      this.buildMonsterMode();
       this.bosses = new Map();
       this.lightning = [];
 
@@ -451,6 +454,192 @@ window.PH = window.PH || {};
       this.moteAcc = 0;
     }
 
+    /* ── Monster mode ───────────────────────────────────────── */
+
+    buildMonsterMode() {
+      const S = this.scene;
+      // Footprints the hunters follow - and so can you.
+      const trackGeo = new THREE.CircleGeometry(0.22, 10); trackGeo.rotateX(-Math.PI / 2); trackGeo.scale(1, 1, 1.5);
+      this.trackBatch = new Batch(S, trackGeo, new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45, depthWrite: false }), 170);
+      // Birds: a flat V, so they read as birds from above.
+      const bird = new THREE.BufferGeometry();
+      bird.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0.12, -0.32, 0.06, -0.08, 0, 0, -0.05, 0, 0, 0.12, 0, 0, -0.05, 0.32, 0.06, -0.08], 3));
+      bird.computeVertexNormals();
+      this.birdBatch = new Batch(S, bird, new THREE.MeshBasicMaterial({ color: 0x15131a, side: THREE.DoubleSide }), 96);
+      this.flocks = [];
+      this.grassMesh = null;
+      this.wallMesh = null;
+      this.monsterMode = false;
+    }
+
+    setMonsterMode(on, grass = [], arena = 34) {
+      this.monsterMode = on;
+      if (this.grassMesh) { this.scene.remove(this.grassMesh); this.grassMesh.geometry.dispose(); this.grassMesh = null; }
+      for (const v of this.hunterVis.values()) this.scene.remove(v.root);
+      this.hunterVis.clear();
+      this.flocks.length = 0;
+      if (!on) { if (this.wallMesh) this.wallMesh.visible = false; this.setViewScale(1); return; }
+
+      // Tall grass: open three-sided blades, one instanced draw call.
+      const D = PH.MONSTER_MODE.grass.density;
+      let total = 0;
+      for (const g of grass) total += Math.round(Math.PI * g.r * g.r * D);
+      const blade = new THREE.ConeGeometry(0.1, 1.3, 3, 1, true); blade.translate(0, 0.65, 0);
+      if (!this.grassMat) this.grassMat = new THREE.MeshLambertMaterial({ color: 0x2a5c1f, side: THREE.DoubleSide });
+      const mesh = new THREE.InstancedMesh(blade, this.grassMat, Math.max(1, total));
+      let n = 0;
+      for (const g of grass) {
+        const count = Math.round(Math.PI * g.r * g.r * D);
+        for (let i = 0; i < count; i++) {
+          const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * g.r;
+          const s = 0.75 + Math.random() * 0.55, lean = (Math.random() - 0.5) * 0.35;
+          _p.set(g.x + Math.cos(a) * d, 0, g.z + Math.sin(a) * d);
+          _q.setFromEuler(new THREE.Euler(lean, Math.random() * 6.3, lean * 0.6));
+          _s.set(s, s * (0.8 + Math.random() * 0.5), s);
+          _m.compose(_p, _q, _s);
+          mesh.setMatrixAt(n, _m);
+          const v = 0.75 + Math.random() * 0.5;
+          _c.setRGB(v, v * (0.9 + Math.random() * 0.2), v);
+          mesh.setColorAt(n, _c);
+          n++;
+        }
+      }
+      mesh.count = n;
+      mesh.frustumCulled = false;
+      this.scene.add(mesh);
+      this.grassMesh = mesh;
+
+      // A ring of boulders marks the edge of the hunting ground.
+      if (!this.wallMesh) {
+        const N = 120;
+        this.wallMesh = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1, 0),
+          new THREE.MeshStandardMaterial({ color: 0x3a3e48, flatShading: true, roughness: 1 }), N);
+        this.wallMesh.frustumCulled = false;
+        this.scene.add(this.wallMesh);
+      }
+      const N = this.wallMesh.count;
+      for (let i = 0; i < N; i++) {
+        const a = (i / N) * Math.PI * 2, r = arena + 0.8 + hash2(i, 3) * 1.6, sc = 1.1 + hash2(i, 9) * 1.5;
+        _p.set(Math.cos(a) * r, sc * 0.35, Math.sin(a) * r);
+        _q.setFromAxisAngle(_up, hash2(i, 5) * 6); _s.set(sc, sc * (0.8 + hash2(i, 1) * 0.6), sc);
+        _m.compose(_p, _q, _s); this.wallMesh.setMatrixAt(i, _m);
+      }
+      this.wallMesh.instanceMatrix.needsUpdate = true;
+      this.wallMesh.visible = true;
+    }
+
+    setViewScale(k) {
+      if (this.viewScale === k) return;
+      this.viewScale = k;
+      if (this.w) this.resize(this.w, this.h);
+    }
+
+    /** The player as one of the original monsters, at an evolution stage. */
+    setPlayerMonster(type, stage) {
+      if (this.player) this.scene.remove(this.player.root);
+      const key = `${type}:${stage}`;
+      let mesh = this.monsterCache && this.monsterCache.get(key);
+      if (mesh) this.monsterCache.delete(key);
+      else mesh = this.chars.createMonsterMesh({ monsterType: type, evolutionStage: stage });
+      mesh.traverse((o) => { if (o.isMesh) o.castShadow = false; });
+      const box = this.bodyBox(mesh);
+      const root = new THREE.Group();
+      root.add(mesh);
+      mesh.position.y = -box.min.y;
+      this.scene.add(root);
+      const pm = mesh.userData.primaryMaterial;
+      this.player = { root, mesh, isMonster: true, facing: this.player ? this.player.facing : 0, flash: 0,
+        baseGlow: pm ? pm.emissiveIntensity : 0, height: box.max.y - box.min.y };
+      // Build the later stages now, so evolving does not hitch.
+      if (stage === 1) {
+        this.prepareBosses([{ type, stage: 2 }, { type, stage: 3 }]);
+        this.monsterCache = this.preparedBosses;
+        this.preparedBosses = new Map();
+      }
+      const width = Math.max(box.max.x - box.min.x, box.max.z - box.min.z);
+      return { radius: width * 0.38, height: this.player.height };
+    }
+
+    flashPlayer() { if (this.player) this.player.flash = 1; }
+
+    setHunters(list) {
+      for (const v of this.hunterVis.values()) this.scene.remove(v.root);
+      this.hunterVis.clear();
+      for (const h of list) {
+        const mesh = this.chars.createHunterMesh({ hunterClass: h.cls });
+        mesh.traverse((o) => { if (o.isMesh) o.castShadow = false; });
+        const box = this.bodyBox(mesh);
+        const tilt = new THREE.Group();
+        tilt.add(mesh);
+        mesh.position.y = -box.min.y;
+        const root = new THREE.Group();
+        root.add(tilt);
+        root.visible = false;
+        this.scene.add(root);
+        this.hunterVis.set(h.id, { root, tilt, mesh, height: box.max.y - box.min.y });
+      }
+    }
+
+    birds(x, z) {
+      const flock = { t: 0, list: [] };
+      for (let i = 0; i < 9; i++) {
+        const a = Math.random() * Math.PI * 2, s = 2 + Math.random() * 2.5;
+        flock.list.push({ x: x + (Math.random() - 0.5) * 2, y: 0.8 + Math.random(), z: z + (Math.random() - 0.5) * 2,
+          vx: Math.cos(a) * s, vz: Math.sin(a) * s, vy: 2.5 + Math.random() * 1.5, ph: Math.random() * 6 });
+      }
+      if (this.flocks.length > 8) this.flocks.shift();
+      this.flocks.push(flock);
+    }
+
+    drawMonsterMode(game, dt, t) {
+      // Hunters
+      for (const h of game.hunters) {
+        const v = this.hunterVis.get(h.id);
+        if (!v) continue;
+        const on = h.state === 'up' || h.state === 'down';
+        v.root.visible = on;
+        if (!on) continue;
+        v.root.position.set(h.x, 0, h.z);
+        v.root.rotation.y = h.facing;
+        // Downed hunters lie on their backs.
+        const lie = h.state === 'down' ? -1.35 : 0;
+        v.tilt.rotation.x += (lie - v.tilt.rotation.x) * Math.min(1, dt * 10);
+        v.tilt.position.y = h.state === 'down' ? 0.25 : 0;
+        if (h.state === 'up') this.chars.animateHunter(v.mesh, t + h.id, h.moving);
+        this.shadows.add(h.x, 0.02, h.z, 0, 0.5, 1, 0.5);
+        if (h.shieldT > 0) this.halos.add(h.x, 1, h.z, 0, 2.4, 2.4, 2.4, 0.15, 0.4, 0.9);
+        if (h.flash > 0) this.halos.add(h.x, 1, h.z, 0, 1.6, 1.6, 1.6, 0.8, 0.15, 0.1);
+        if (h.state === 'down') {
+          const blink = Math.floor(t * 4) % 2 ? 0.8 : 0.3;
+          this.halos.add(h.x, 0.4, h.z, 0, 1.8, 1.8, 1.8, blink, 0.05, 0.05);
+        }
+      }
+      // Footprints, fading as they age.
+      this.trackBatch.begin();
+      const life = PH.MONSTER_MODE.trackLife;
+      for (const k of game.tracks) {
+        const a = 1 - (game.time - k.t) / life;
+        if (a <= 0) continue;
+        const side = (Math.floor(k.t * 7) % 2 ? 0.25 : -0.25);
+        const s = (0.6 + game.stage * 0.25) * (0.4 + a * 0.6);
+        this.trackBatch.add(k.x + Math.cos(k.angle) * side, 0.025, k.z - Math.sin(k.angle) * side, k.angle, s, 1, s);
+      }
+      this.trackBatch.end();
+      // Birds
+      this.birdBatch.begin();
+      for (let i = this.flocks.length - 1; i >= 0; i--) {
+        const f = this.flocks[i];
+        f.t += dt;
+        if (f.t > 3) { this.flocks.splice(i, 1); continue; }
+        for (const b of f.list) {
+          b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
+          const flap = 0.5 + Math.abs(Math.sin(t * 18 + b.ph)) * 0.8;
+          this.birdBatch.add(b.x, b.y, b.z, Math.atan2(b.vx, b.vz), 1.4, flap, 1.4);
+        }
+      }
+      this.birdBatch.end();
+    }
+
     buildParticles() {
       const N = this.pMax = 1400;
       this.p = {
@@ -520,7 +709,7 @@ window.PH = window.PH || {};
       const t = Math.tan(this.camera.fov * Math.PI / 360);
       // Keep the same amount of world on the shorter screen axis in either
       // orientation, so a phone held either way plays the same game.
-      const portraitR = 6.6, landscapeR = PH.CONFIG.viewHalf;
+      const portraitR = 6.6 * this.viewScale, landscapeR = PH.CONFIG.viewHalf * this.viewScale;
       this.camDist = aspect < 1 ? portraitR / (t * aspect) : landscapeR * Math.sin(this.pitch) / t;
       this.camera.far = this.camDist + 60;
       this.camera.updateProjectionMatrix();
@@ -768,9 +957,24 @@ window.PH = window.PH || {};
         while (d < -Math.PI) d += Math.PI * 2;
         P.facing += d * Math.min(1, dt * 14);
         P.root.rotation.y = P.facing;
-        P.root.visible = !(pl.iframes > 0 && Math.floor(t * 18) % 2 === 0);
-        this.chars.animateHunter(P.mesh, t, pl.moving);
-        this.shadows.add(pl.x, 0.02, pl.z, 0, 0.55, 1, 0.55);
+        if (P.isMonster) {
+          P.root.position.y = pl.lift || 0;
+          P.root.visible = true;
+          this.chars.animateMonster(P.mesh, t, pl.moving || pl.evolveT > 0);
+          const pm = P.mesh.userData.primaryMaterial;
+          if (pm) {
+            P.flash = Math.max(0, P.flash - dt * 12);
+            const evo = pl.evolveT > 0 ? 0.6 + Math.sin(t * 20) * 0.4 : 0;
+            pm.emissiveIntensity = P.baseGlow + P.flash * 0.35 + evo;
+          }
+          const sr = pl.radius * 1.15;
+          this.shadows.add(pl.x, 0.02, pl.z, 0, sr, 1, sr);
+          if (pl.evolveT > 0) this.halos.add(pl.x, 1.2, pl.z, 0, 6, 6, 6, 0.6, 0.45, 0.05);
+        } else {
+          P.root.visible = !(pl.iframes > 0 && Math.floor(t * 18) % 2 === 0);
+          this.chars.animateHunter(P.mesh, t, pl.moving);
+          this.shadows.add(pl.x, 0.02, pl.z, 0, 0.55, 1, 0.55);
+        }
         if (game.overdrive > 0) {
           const k = 0.75 + Math.sin(t * 22) * 0.25;
           this.halos.add(pl.x, 1.0, pl.z, 0, 3.2 * k, 3.2 * k, 3.2 * k, 0.9, 0.38, 0.08);
@@ -933,6 +1137,13 @@ window.PH = window.PH || {};
           }
         }
       }
+      // Medic healing beams.
+      if (game.beams) {
+        for (const b of game.beams) {
+          const w = 0.06 + Math.abs(Math.sin(t * 14)) * 0.05;
+          this.segments.addSegment(b.ax, 1.1, b.az, b.bx, 1.1, b.bz, w, 0.25, 1.4, 0.55);
+        }
+      }
       this.segments.end();
 
       // Pickups as emoji sprites: few on screen, and they read instantly.
@@ -951,6 +1162,7 @@ window.PH = window.PH || {};
       }
       for (; si < this.sprites.length; si++) this.sprites[si].visible = false;
 
+      if (this.monsterMode && game.hunters) this.drawMonsterMode(game, dt, t);
       this.drawZones(game, dt);
       this.drawWaves(dt);
       this.ambientMotes(game, dt);
@@ -977,6 +1189,7 @@ window.PH = window.PH || {};
       this.ground.material.color.setRGB(
         A.tint[0] + (B.tint[0] - A.tint[0]) * k, A.tint[1] + (B.tint[1] - A.tint[1]) * k, A.tint[2] + (B.tint[2] - A.tint[2]) * k);
       mixHex(this.tuftMat.color, A.tuft, B.tuft, k);
+      if (this.grassMat) this.grassMat.color.copy(this.tuftMat.color).multiplyScalar(1.5);
       this.moteColor = k < 0.5 ? A.mote : B.mote;
     }
 
@@ -1012,8 +1225,10 @@ window.PH = window.PH || {};
           m.scale.set(z.r, 1, z.r);
           m.rotation.y = z.t * 0.4;
           m.material.opacity = 0.75 * fade;
-        } else if (z.kind === 'dome') {
-          const d = this.dome, pulse = 1 + Math.sin(this.time * 6) * 0.015;
+        } else if (z.kind === 'dome' || z.kind === 'arena') {
+          const d = this.dome, pulse = 1 + Math.sin(this.time * 6) * 0.015, arena = z.kind === 'arena';
+          d.children[0].material.color.setHex(arena ? 0xd6801f : 0x3f8fd6);
+          d.children[1].material.color.setHex(arena ? 0xffc37a : 0x9fdcff);
           d.visible = true;
           d.position.set(z.x, 0, z.z);
           d.scale.set(z.r * pulse, z.r * 0.8 * pulse, z.r * pulse);
@@ -1089,6 +1304,9 @@ window.PH = window.PH || {};
       this.p.n = 0;
       this.pops.length = 0;
       for (const w of this.waves) { w.on = false; w.mesh.visible = false; }
+      this.flocks.length = 0;
+      this.trackBatch.begin(); this.trackBatch.end();
+      this.birdBatch.begin(); this.birdBatch.end();
       this.fx.clear();
     }
   }
@@ -1098,6 +1316,8 @@ window.PH = window.PH || {};
     constructor() { this.view = { minX: -8, maxX: 8, minZ: -14, maxZ: 6 }; this.qualityLevel = 0; }
     burst() {} ring() {} explosion() {} lightningChain() {} addShake() {}
     shockwave() {} enemyDeath() {} zoomPunch() {} dashTrail() {}
+    setMonsterMode() {} setHunters() {} setViewScale() {} flashPlayer() {} birds() {}
+    setPlayerMonster(type, stage) { return { radius: 1.1 + stage * 0.25, height: 3 }; }
     bossArrival() {} bossSlam() {} bossDeath() {} flashBoss() {} removeBoss() {} clearRun() {} setPlayer() {} prepareBosses() {}
     addBoss() { return { radius: 1.4, height: 3 }; }
   }

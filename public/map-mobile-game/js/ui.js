@@ -21,10 +21,14 @@ window.PH = window.PH || {};
   const fmtTime = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
   class UI {
-    constructor(game, render) {
-      this.game = game;
+    constructor(game, render, monster) {
+      this.game = game;              // whichever mode is running; main.js steps this one
+      this.survival = game;
+      this.monster = monster;
       this.render = render;
-      this.screens = ['menu', 'classes', 'choice', 'pause', 'over', 'nogl'];
+      this.screens = ['menu', 'modes', 'classes', 'monsters', 'choice', 'pause', 'over', 'nogl'];
+      this.selectedMonster = store.get('monster', null);
+      this.bestMonster = store.get('bestMonster', null);
       this.selectedClass = store.get('class', null);
       this.muted = store.get('muted', false);
       this.best = store.get('best', null);
@@ -43,7 +47,18 @@ window.PH = window.PH || {};
         banner: $('banner'), numbers: $('numbers'), hurt: $('hurt'), loadout: $('loadout'),
         joy: $('joy'), knob: $('joy-knob'), touch: $('touch'),
         ability: $('btn-ability'), abilityIcon: $('ability-icon'), dodge: $('btn-dodge'),
+        mstage: $('mstage'), marmor: $('marmorfill'), mhp: $('mhpfill'), mfood: $('mfood'), mfoodfill: $('mfoodfill'),
+        mfoodlabel: $('mfoodlabel'), mstatus: $('mstatus'), squad: $('squad'), radar: $('radar'), hbars: $('hbars'),
+        evolve: $('btn-evolve'), toast: $('toast'),
       };
+      this.radarCtx = this.el.radar.getContext('2d');
+      this.hbars = [];
+      for (let i = 0; i < 4; i++) {
+        const b = document.createElement('div');
+        b.className = 'hb'; b.innerHTML = '<i></i>';
+        this.el.hbars.appendChild(b);
+        this.hbars.push(b);
+      }
       this.taught = store.get('taughtAbility', false);
       this.nums = [];
       for (let i = 0; i < 24; i++) {
@@ -69,13 +84,18 @@ window.PH = window.PH || {};
 
     bindScreens() {
       const tap = (id, fn) => $(id).addEventListener('click', (e) => { e.preventDefault(); this.sfx('click'); fn(); });
-      tap('btn-play', () => { this.buildClassGrid(); this.show('classes'); });
-      tap('btn-classes-back', () => this.show('menu'));
+      tap('btn-play', () => this.show('modes'));
+      tap('btn-modes-back', () => this.show('menu'));
+      tap('mode-survival', () => { this.buildClassGrid(); this.show('classes'); });
+      tap('mode-monster', () => { this.buildMonsterGrid(); this.show('monsters'); });
+      tap('btn-classes-back', () => this.show('modes'));
+      tap('btn-monsters-back', () => this.show('modes'));
+      tap('btn-monster-go', () => this.startMonsterRun(this.selectedMonster));
       tap('btn-hunt', () => this.startRun(this.selectedClass));
       tap('btn-pause', () => this.pause());
       tap('btn-resume', () => this.resume());
       tap('btn-quit', () => this.toMenu());
-      tap('btn-again', () => this.startRun(this.game.classId));
+      tap('btn-again', () => (this.game.mode === 'monster' ? this.startMonsterRun(this.game.monsterType) : this.startRun(this.game.classId)));
       tap('btn-menu', () => this.toMenu());
       tap('btn-mute', () => this.toggleMute());
       tap('btn-pause-mute', () => this.toggleMute());
@@ -105,8 +125,69 @@ window.PH = window.PH || {};
       $('btn-hunt').disabled = !this.selectedClass;
     }
 
+    buildMonsterGrid() {
+      const grid = $('monster-grid');
+      grid.innerHTML = '';
+      const colors = { goliath: '#ff6b35', kraken: '#4ecdc4', wraith: '#b06cff', behemoth: '#c9a227' };
+      for (const [id, m] of Object.entries(PH.MONSTERS)) {
+        const card = document.createElement('button');
+        card.className = 'class-card' + (id === this.selectedMonster ? ' selected' : '');
+        card.style.setProperty('--accent', colors[id]);
+        card.innerHTML = `<div class="ci">${m.icon}</div><div class="cn">${m.name.toUpperCase()}</div>
+          <div class="cr">${m.role}</div><div class="ca">${m.ability.icon} ${m.ability.name}</div><div class="cp">${m.blurb}</div>`;
+        card.addEventListener('click', () => {
+          this.sfx('click');
+          this.selectedMonster = id;
+          for (const el of grid.children) el.classList.remove('selected');
+          card.classList.add('selected');
+          $('btn-monster-go').disabled = false;
+        });
+        grid.appendChild(card);
+      }
+      $('btn-monster-go').disabled = !this.selectedMonster;
+    }
+
+    /** Shared by both modes: point the UI and main loop at a game, reset the HUD. */
+    enterMode(game) {
+      this.game = game;
+      document.body.classList.toggle('mode-monster', game.mode === 'monster');
+      this.releaseStick();
+      this.cache = {};
+      this.hintsShown = 0;
+    }
+
+    startMonsterRun(type) {
+      if (!type) return;
+      store.set('monster', type);
+      this.selectedMonster = type;
+      this.enterMode(this.monster);
+      this.monster.newRun(type);
+      this.hideScreens();
+      this.el.hud.hidden = false;
+      this.el.bossbar.hidden = true;
+      this.el.hud.classList.remove('has-boss');
+      const m = PH.MONSTERS[type];
+      this.el.ability.style.setProperty('--accent', '#b06cff');
+      this.el.abilityIcon.textContent = m.ability.icon;
+      this.el.ability.setAttribute('aria-label', m.ability.name);
+      this.el.dodge.querySelector('.ai').textContent = '🐾';
+      this.el.dodge.setAttribute('aria-label', 'Pounce');
+      this.buildSquad();
+    }
+
+    buildSquad() {
+      const icons = { assault: '🔫', trapper: '🪤', medic: '💉', support: '🛡️' };
+      this.el.squad.innerHTML = this.monster.hunters.map((h) =>
+        `<div class="sq" style="--c:${PH.CLASSES[h.cls].color}"><span>${icons[h.cls]}</span><span class="sb"><i></i></span><span class="st"></span></div>`).join('');
+      this.squadEls = [...this.el.squad.children];
+      this.hbars.forEach((b, i) => { const h = this.monster.hunters[i]; if (h) b.style.setProperty('--c', PH.CLASSES[h.cls].color); });
+    }
+
     startRun(classId) {
       if (!classId) return;
+      this.enterMode(this.survival);
+      this.el.dodge.querySelector('.ai').textContent = '💨';
+      this.el.dodge.setAttribute('aria-label', 'Dodge roll');
       store.set('class', classId);
       this.selectedClass = classId;
       this.releaseStick();
@@ -125,11 +206,11 @@ window.PH = window.PH || {};
 
     toMenu() {
       this.game.state = 'menu';
-      this.releaseStick();
+      this.enterMode(this.survival);
       this.el.hud.hidden = true;
       this.refreshBest();
       this.show('menu');
-      this.game.attract();
+      this.survival.attract(this.selectedClass || 'assault');
     }
 
     pause() {
@@ -137,7 +218,12 @@ window.PH = window.PH || {};
       this.game.state = 'paused';
       this.releaseStick();
       const pl = $('pause-loadout');
-      pl.innerHTML = this.loadoutHTML();
+      if (this.game.mode === 'monster') {
+        // The monster has no loadout; show what it is and how the run is going.
+        const g = this.game, m = PH.MONSTERS[g.monsterType];
+        pl.innerHTML = `<div class="lo">${m.icon}<i>${g.stage}</i></div><div class="lo">${m.ability.icon}</div>`
+          + `<div class="lo">💀<i>${g.huntersKilled}</i></div><div class="lo">🍖<i>${g.eaten}</i></div>`;
+      } else pl.innerHTML = this.loadoutHTML();
       this.show('pause');
     }
 
@@ -161,8 +247,11 @@ window.PH = window.PH || {};
     }
 
     refreshBest() {
-      const b = this.best;
-      $('best-line').textContent = b ? `Best: ${b.score.toLocaleString()}${b.victory ? '  ·  👑 victory' : `  ·  ${fmtTime(b.time)}`}` : '';
+      const b = this.best, m = this.bestMonster;
+      const parts = [];
+      if (b) parts.push(`Survival best ${b.score.toLocaleString()}${b.victory ? ' 👑' : ''}`);
+      if (m) parts.push(`Monster best ${m.score.toLocaleString()}${m.victory ? ' 👑' : ''}`);
+      $('best-line').textContent = parts.join('  ·  ');
     }
 
     sfx(name) { if (window.Sfx && !this.muted) window.Sfx.play(name); }
@@ -186,8 +275,37 @@ window.PH = window.PH || {};
         },
         onChoice: (choices, kind) => this.openChoice(choices, kind),
         onLoadout: () => this.buildLoadout(),
-        onEnd: (r) => this.gameOver(r),
+        onEnd: (r) => (r.mode === 'monster' ? this.monsterOver(r) : this.gameOver(r)),
+        onToast: (text) => this.toast(text),
+        onEvolveReady: () => { if (navigator.vibrate) { try { navigator.vibrate([40, 60, 40]); } catch { /* iframe */ } } },
       };
+    }
+
+    toast(text) {
+      const t = this.el.toast;
+      t.textContent = text;
+      t.classList.add('show');
+      clearTimeout(this.toastTimer);
+      this.toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+    }
+
+    monsterOver(r) {
+      this.releaseStick();
+      const m = PH.MONSTERS[r.monsterType];
+      const title = $('over-title');
+      title.textContent = r.victory ? (r.how === 'apex' ? 'APEX PREDATOR' : 'YOU SURVIVED') : 'YOU WERE HUNTED';
+      title.className = r.victory ? 'win' : 'lose';
+      $('over-sub').textContent = r.victory
+        ? (r.how === 'apex' ? `The ${m.name} wiped out the whole squad.` : 'The dropship left without its prey.')
+        : `The hunters brought down the ${m.name} at stage ${r.stage}.`;
+      $('over-stats').innerHTML = [
+        [fmtTime(r.time), 'TIME'], [`${r.stage}/3`, 'STAGE'], [r.huntersKilled, 'HUNTERS KILLED'], [r.eaten, 'PREY EATEN'],
+      ].map(([v, l]) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('');
+      const isBest = !this.bestMonster || r.score > this.bestMonster.score;
+      if (isBest) { this.bestMonster = { score: r.score, victory: r.victory }; store.set('bestMonster', this.bestMonster); }
+      $('over-score').innerHTML = `Score ${r.score.toLocaleString()}` + (isBest ? ' <span class="newbest">· NEW BEST</span>' : '');
+      this.sfx(r.victory ? 'victory' : 'defeat');
+      setTimeout(() => this.show('over'), r.victory ? 700 : 900);
     }
 
     banner(text, kind = 'warn') {
@@ -333,6 +451,7 @@ window.PH = window.PH || {};
       });
       press(this.el.ability, () => this.useAbility());
       press(this.el.dodge, () => this.game.dodge());
+      press(this.el.evolve, () => { if (this.game.evolve && this.game.evolve()) this.el.evolve.hidden = true; });
 
       const KEYS = { KeyW: [0, -1], ArrowUp: [0, -1], KeyS: [0, 1], ArrowDown: [0, 1], KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0] };
       this.KEYS = KEYS;
@@ -342,6 +461,7 @@ window.PH = window.PH || {};
         if (this.game.state === 'playing' && !e.repeat) {
           if (e.code === 'Space' || e.code === 'KeyE') { e.preventDefault(); this.useAbility(); }
           if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyQ') { e.preventDefault(); this.game.dodge(); }
+          if (e.code === 'KeyF' && this.game.evolve) { e.preventDefault(); this.game.evolve(); }
         }
         if (e.code === 'Escape' || e.code === 'KeyP') { if (this.game.state === 'playing') this.pause(); else if (this.game.state === 'paused') this.resume(); }
       });
@@ -382,6 +502,7 @@ window.PH = window.PH || {};
     frame() {
       const g = this.game;
       if (g.state === 'menu' || !g.player) return;
+      if (g.mode === 'monster') return this.frameMonster();
       const pl = g.player, E = this.el;
       this.set('xp', Math.round((g.xp / g.xpNeed) * 200), (v) => { E.xpfill.style.width = (v / 2) + '%'; });
       this.set('lvl', g.level, (v) => { E.lvl.textContent = `LV ${v}`; });
@@ -410,6 +531,92 @@ window.PH = window.PH || {};
       }
     }
   }
+
+  const SQUAD_STATE = { up: '', down: 'DOWN', dead: '', waiting: '' };
+
+  UI.prototype.frameMonster = function frameMonster() {
+    const g = this.game, pl = g.player, E = this.el, M = PH.MONSTER_MODE, m = PH.MONSTERS[g.monsterType];
+    const S = g.stageDef();
+    this.set('mstage', `${g.stage}`, () => { E.mstage.textContent = `${m.icon} ${m.name.toUpperCase()}  ·  STAGE ${g.stage}`; });
+    this.set('mhp', Math.max(0, Math.round((pl.hp / pl.maxHp) * 200)), (v) => { E.mhp.style.width = (v / 2) + '%'; });
+    this.set('marmor', Math.round((pl.armor / pl.maxArmor) * 200), (v) => { E.marmor.style.width = (v / 2) + '%'; });
+    const food = g.stage >= 3 ? 1 : g.food / S.food;
+    this.set('mfood', Math.round(food * 200), (v) => { E.mfoodfill.style.width = (v / 2) + '%'; });
+    const ready = g.canEvolve();
+    this.set('mfoodfull', g.stage < 3 && food >= 1, (v) => { E.mfood.classList.toggle('full', v); });
+    this.set('mfoodlabel', g.stage >= 3 ? 'APEX' : food >= 1 ? 'READY TO EVOLVE' : 'EVOLUTION', (v) => { E.mfoodlabel.textContent = v; });
+    this.set('evolve', ready, (v) => { E.evolve.hidden = !v; });
+    const left = Math.max(0, M.duration - g.time);
+    this.set('t', Math.ceil(left), (v) => { E.timer.textContent = fmtTime(v); });
+    const status = pl.evolveT > 0 ? 'evolving' : g.spotted ? 'spotted' : pl.hidden ? 'hidden' : 'unseen';
+    this.set('mstatus', status, (v) => { E.mstatus.className = v; E.mstatus.textContent = v.toUpperCase(); });
+
+    // Specials and pounce share the survival buttons.
+    const ac = g.abilityMax ? g.abilityCd / g.abilityMax : 0;
+    this.set('acd', Math.ceil(ac * 60), (v) => { E.ability.style.setProperty('--cd', v / 60); });
+    this.set('aready', ac <= 0, (v) => { E.ability.classList.toggle('ready', v); });
+    this.set('dcd', Math.ceil((g.dodgeCd / M.pounce.cd) * 30), (v) => { E.dodge.style.setProperty('--cd', v / 30); });
+
+    // Squad roster.
+    g.hunters.forEach((h, i) => {
+      const el = this.squadEls && this.squadEls[i];
+      if (!el) return;
+      const respawn = h.state === 'dead' && g.team.respawnAt ? Math.ceil(g.team.respawnAt - g.time) : 0;
+      this.set('sqs' + i, h.state + respawn, () => {
+        el.className = 'sq ' + h.state;
+        el.querySelector('.st').textContent = h.state === 'dead' ? (respawn ? `${respawn}s` : '💀') : SQUAD_STATE[h.state];
+      });
+      this.set('sqh' + i, Math.round((h.hp / h.maxHp) * 50), (v) => { el.querySelector('.sb i').style.width = (v * 2) + '%'; });
+    });
+
+    // Health bars over the hunters' heads.
+    g.hunters.forEach((h, i) => {
+      const b = this.hbars[i];
+      if (h.state !== 'up') { b.style.display = 'none'; return; }
+      const p = this.render.project(h.x, 2.3, h.z, this.tmp);
+      if (!p.on) { b.style.display = 'none'; return; }
+      b.style.display = 'block';
+      b.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
+      b.firstChild.style.width = Math.round((h.hp / h.maxHp) * 100) + '%';
+      b.classList.toggle('shield', h.shieldT > 0);
+    });
+
+    // First-run pointers.
+    if (!this.hintsShown && g.time > 0.6) { this.hintsShown = 1; this.toast('Eat wildlife to evolve. Tall grass hides you.'); }
+
+    const now = performance.now();
+    if (!this.radarAt || now - this.radarAt > 80) { this.radarAt = now; this.drawRadar(g); }
+  };
+
+  /** A small map: the arena, grass, the trapper's dome, you, and the squad (a monster can smell them). */
+  UI.prototype.drawRadar = function drawRadar(g) {
+    const c = this.radarCtx, W = 180, R = 84, A = PH.MONSTER_MODE.arena, k = R / A, cx = W / 2, cz = W / 2;
+    c.clearRect(0, 0, W, W);
+    c.save();
+    c.beginPath(); c.arc(cx, cz, R, 0, Math.PI * 2); c.clip();
+    c.fillStyle = 'rgba(70, 150, 70, 0.35)';
+    for (const p of g.grass) { c.beginPath(); c.arc(cx + p.x * k, cz + p.z * k, p.r * k, 0, Math.PI * 2); c.fill(); }
+    for (const z of g.zones) {
+      if (z.kind !== 'arena') continue;
+      c.strokeStyle = 'rgba(255, 170, 60, 0.9)'; c.lineWidth = 3;
+      c.beginPath(); c.arc(cx + z.x * k, cz + z.z * k, z.r * k, 0, Math.PI * 2); c.stroke();
+    }
+    const blink = Math.floor(performance.now() / 300) % 2;
+    for (const h of g.hunters) {
+      if (h.state !== 'up' && h.state !== 'down') continue;
+      c.fillStyle = PH.CLASSES[h.cls].color;
+      c.beginPath(); c.arc(cx + h.x * k, cz + h.z * k, h.state === 'down' ? (blink ? 7 : 4) : 6, 0, Math.PI * 2);
+      if (h.state === 'down') { c.strokeStyle = c.fillStyle; c.lineWidth = 2; c.stroke(); } else c.fill();
+    }
+    const pl = g.player;
+    c.translate(cx + pl.x * k, cz + pl.z * k);
+    c.rotate(-pl.facing + Math.PI);
+    c.fillStyle = '#ffffff';
+    c.beginPath(); c.moveTo(0, -11); c.lineTo(8, 8); c.lineTo(-8, 8); c.closePath(); c.fill();
+    c.restore();
+    c.strokeStyle = 'rgba(255, 255, 255, 0.25)'; c.lineWidth = 2;
+    c.beginPath(); c.arc(cx, cz, R, 0, Math.PI * 2); c.stroke();
+  };
 
   PH.UI = UI;
 })();
