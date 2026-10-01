@@ -34,6 +34,7 @@ window.PH = window.PH || {};
     constructor(fx, hooks = {}) {
       this.fx = fx;
       this.hooks = hooks;
+      this.mode = 'survival';
       this.input = { x: 0, z: 0 };
       this.state = 'menu';
       this.maxEnemies = C.maxEnemies;
@@ -64,6 +65,7 @@ window.PH = window.PH || {};
       this.overdrive = 0; this.hitstop = 0; this.bossKills = 0;
       this.player = { x: 0, z: 0, hp: 1, maxHp: 1, facing: Math.PI * 0.8, moving: false, iframes: 0, radius: 0.42 };
       this.fx.clearRun();
+      this.fx.setMonsterMode(false);
       this.fx.setPlayer(classId);
     }
 
@@ -130,6 +132,7 @@ window.PH = window.PH || {};
       this.player.hp = this.player.maxHp;
       this.state = 'playing';
       this.fx.clearRun();
+      this.fx.setMonsterMode(false);
       this.fx.setPlayer(classId);
       // Build this run's three monsters now, while the screen is changing,
       // rather than mid-fight when each one arrives.
