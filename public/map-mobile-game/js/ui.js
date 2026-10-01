@@ -42,7 +42,9 @@ window.PH = window.PH || {};
         hpbar: $('hpbar'), hpfill: $('hpfill'), bossbar: $('bossbar'), bossname: $('bossname'), bossfill: $('bossfill'),
         banner: $('banner'), numbers: $('numbers'), hurt: $('hurt'), loadout: $('loadout'),
         joy: $('joy'), knob: $('joy-knob'), touch: $('touch'),
+        ability: $('btn-ability'), abilityIcon: $('ability-icon'), dodge: $('btn-dodge'),
       };
+      this.taught = store.get('taughtAbility', false);
       this.nums = [];
       for (let i = 0; i < 24; i++) {
         const n = document.createElement('div');
@@ -87,8 +89,10 @@ window.PH = window.PH || {};
         const card = document.createElement('button');
         card.className = 'class-card' + (id === this.selectedClass ? ' selected' : '');
         card.style.setProperty('--accent', c.color);
+        const ab = PH.ABILITIES[c.ability];
         card.innerHTML = `<div class="ci">${c.icon}</div><div class="cn">${c.name.toUpperCase()}</div>
-          <div class="cr">${c.role}</div><div class="cw">${w.icon} ${w.name}</div><div class="cp">${c.perkText}</div>`;
+          <div class="cr">${c.role}</div><div class="cw">${w.icon} ${w.name}</div><div class="ca">${ab.icon} ${ab.name}</div><div class="cp">${c.perkText}</div>`;
+        card.title = ab.desc;
         card.addEventListener('click', () => {
           this.sfx('click');
           this.selectedClass = id;
@@ -112,6 +116,10 @@ window.PH = window.PH || {};
       this.el.hud.hidden = false;
       this.el.bossbar.hidden = true;
       this.el.hud.classList.remove('has-boss');
+      const cls = PH.CLASSES[classId];
+      this.el.ability.style.setProperty('--accent', cls.color);
+      this.el.abilityIcon.textContent = PH.ABILITIES[cls.ability].icon;
+      this.el.ability.setAttribute('aria-label', PH.ABILITIES[cls.ability].name);
       this.buildLoadout();
     }
 
@@ -218,7 +226,12 @@ window.PH = window.PH || {};
         const card = document.createElement('button');
         card.className = 'card' + (chest ? ' chest' : '');
         let icon, name, desc, tag;
-        if (c.type === 'weapon') {
+        if (c.type === 'evolve') {
+          const ev = PH.EVOLUTIONS[c.id];
+          icon = ev.icon; name = ev.name; desc = `${PH.WEAPONS[c.id].name} evolves. ${ev.desc}`;
+          tag = '<span class="kt evo">EVOLVE</span>';
+          card.classList.add('evo');
+        } else if (c.type === 'weapon') {
           const w = PH.WEAPONS[c.id];
           icon = w.icon; name = w.name; desc = w.levels[c.level - 1].desc;
           tag = c.level === 1 ? '<span class="kt new">NEW</span>' : `<span class="kt lv">LV ${c.level}</span>`;
@@ -246,7 +259,9 @@ window.PH = window.PH || {};
 
     loadoutHTML() {
       const g = this.game;
-      const w = g.weapons.map((x) => `<div class="lo">${PH.WEAPONS[x.id].icon}<i>${x.level}</i></div>`).join('');
+      const w = g.weapons.map((x) => (x.level > 5
+        ? `<div class="lo evo">${PH.EVOLUTIONS[x.id].icon}<i>★</i></div>`
+        : `<div class="lo">${PH.WEAPONS[x.id].icon}<i>${x.level}</i></div>`)).join('');
       const p = g.passives.map((x) => `<div class="lo p">${PH.PASSIVES[x.id].icon}<i>${x.level}</i></div>`).join('');
       return `<div class="lrow">${w}</div><div class="lrow">${p}</div>`;
     }
@@ -312,15 +327,34 @@ window.PH = window.PH || {};
       t.addEventListener('lostpointercapture', end);
       t.addEventListener('contextmenu', (e) => e.preventDefault());
 
+      const press = (el, fn) => el.addEventListener('pointerdown', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        fn();
+      });
+      press(this.el.ability, () => this.useAbility());
+      press(this.el.dodge, () => this.game.dodge());
+
       const KEYS = { KeyW: [0, -1], ArrowUp: [0, -1], KeyS: [0, 1], ArrowDown: [0, 1], KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0] };
       this.KEYS = KEYS;
       window.addEventListener('keydown', (e) => {
         if (KEYS[e.code]) { this.keys.add(e.code); e.preventDefault(); }
+        // Only claim Space and Shift in play, so they still work on the menus.
+        if (this.game.state === 'playing' && !e.repeat) {
+          if (e.code === 'Space' || e.code === 'KeyE') { e.preventDefault(); this.useAbility(); }
+          if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyQ') { e.preventDefault(); this.game.dodge(); }
+        }
         if (e.code === 'Escape' || e.code === 'KeyP') { if (this.game.state === 'playing') this.pause(); else if (this.game.state === 'paused') this.resume(); }
       });
       window.addEventListener('keyup', (e) => this.keys.delete(e.code));
       window.addEventListener('blur', () => { this.keys.clear(); this.pause(); });
       document.addEventListener('visibilitychange', () => { if (document.hidden) this.pause(); });
+    }
+
+    useAbility() {
+      if (this.game.useAbility()) {
+        const b = this.el.ability;
+        b.classList.remove('ping'); void b.offsetWidth; b.classList.add('ping');
+      }
     }
 
     releaseStick() {
@@ -355,6 +389,18 @@ window.PH = window.PH || {};
       this.set('k', g.kills, (v) => { E.kills.textContent = v.toLocaleString(); });
       const hp = Math.max(0, Math.round((pl.hp / pl.maxHp) * 100));
       this.set('hp', hp, (v) => { E.hpfill.style.width = v + '%'; E.hpfill.classList.toggle('low', v < 30); });
+      const ac = g.abilityMax ? g.abilityCd / g.abilityMax : 0;
+      this.set('acd', Math.ceil(ac * 60), (v) => { E.ability.style.setProperty('--cd', v / 60); });
+      this.set('aready', ac <= 0, (v) => {
+        E.ability.classList.toggle('ready', v);
+        // The first time a new player's special charges, tell them about it.
+        if (v && !this.taught && g.state === 'playing') {
+          this.taught = true; store.set('taughtAbility', true);
+          const desktop = window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches;
+          this.banner(desktop ? 'SPECIAL READY - PRESS SPACE' : 'SPECIAL READY - TAP THE BUTTON', 'win');
+        }
+      });
+      this.set('dcd', Math.ceil((g.dodgeCd / PH.DODGE.cd) * 30), (v) => { E.dodge.style.setProperty('--cd', v / 30); });
       const p = this.render.project(pl.x, 0, pl.z, this.tmp);
       E.hpbar.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y + 14)}px)`;
       if (g.bosses.length) {

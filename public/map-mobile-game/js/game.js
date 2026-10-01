@@ -59,8 +59,9 @@ window.PH = window.PH || {};
       for (const p of this.projectiles) p.alive = false;
       for (const g of this.gems) g.alive = false;
       for (const p of this.pickups) p.alive = false;
-      this.lobs = []; this.mines = []; this.telegraphs = []; this.bosses = []; this.droneHits = [];
+      this.lobs = []; this.mines = []; this.telegraphs = []; this.bosses = []; this.droneHits = []; this.zones = [];
       this.weapons = []; this.passives = [];
+      this.overdrive = 0; this.hitstop = 0; this.bossKills = 0;
       this.player = { x: 0, z: 0, hp: 1, maxHp: 1, facing: Math.PI * 0.8, moving: false, iframes: 0, radius: 0.42 };
       this.fx.clearRun();
       this.fx.setPlayer(classId);
@@ -83,6 +84,16 @@ window.PH = window.PH || {};
       this.victoryAt = 0;
       this.timeScale = 1;
       this.slowmo = 0;
+      this.hitstop = 0;
+      // Signature ability and dodge. The ability starts part-charged so a new
+      // player watches the button fill and learns what it is for.
+      this.abilityId = PH.CLASSES[classId].ability;
+      this.abilityMax = PH.ABILITIES[this.abilityId].cd;
+      this.abilityCd = this.abilityMax * 0.4;
+      this.dodgeCd = 0;
+      this.overdrive = 0;
+      this.zones = [];
+      this.abilityUses = 0; this.dodges = 0;
 
       for (const e of this.enemies) e.alive = false;
       for (const p of this.projectiles) p.alive = false;
@@ -110,6 +121,7 @@ window.PH = window.PH || {};
       this.player = {
         x: 0, z: 0, hp: P.hp, maxHp: P.hp, speed: P.speed, radius: P.radius, pickup: P.pickup,
         regen: P.regen, armor: 0, iframes: 0, facing: Math.PI, moving: false, damageTaken: 0,
+        dashT: 0, dashX: 0, dashZ: 0,
       };
       this.weapons = [];
       this.passives = [];
@@ -162,16 +174,40 @@ window.PH = window.PH || {};
       this.recompute();
     }
 
-    stats(w) { return PH.WEAPONS[w.id].levels[w.level - 1]; }
+    stats(w) { return w.level > 5 ? PH.EVOLUTIONS[w.id].stats : PH.WEAPONS[w.id].levels[w.level - 1]; }
+
+    /** Level 5 weapon + its paired passive -> the evolved form (level 6). */
+    canEvolve(w) {
+      const evo = PH.EVOLUTIONS[w.id];
+      return !!evo && w.level === 5 && this.passives.some((p) => p.id === evo.needs);
+    }
+
+    evolve(id) {
+      const w = this.weapons.find((x) => x.id === id);
+      if (!w || !this.canEvolve(w)) return;
+      w.level = 6;
+      const pl = this.player;
+      this.fx.shockwave(pl.x, pl.z, 4.5, 0xffd700, 0.6);
+      this.fx.burst(pl.x, 1, pl.z, 40, 0xffd700, 6, 0.4, 0.8, 3, 1);
+      this.banner(`${PH.EVOLUTIONS[id].name.toUpperCase()} UNLOCKED`, 'win');
+      this.sfx('evolve');
+    }
 
     /* ── Main step ──────────────────────────────────────────── */
 
     update(dt) {
       if (this.state !== 'playing') return;
+      // Hit-stop: a few frames of total stillness when something big lands.
+      // It is what makes a hit feel like it connected.
+      if (this.hitstop > 0) { this.hitstop -= dt; return; }
       if (this.slowmo > 0) { this.slowmo -= dt; dt *= 0.35; }
       this.time += dt;
 
+      this.abilityCd = Math.max(0, this.abilityCd - dt);
+      this.dodgeCd = Math.max(0, this.dodgeCd - dt);
+      if (this.overdrive > 0) this.overdrive -= dt;
       this.updatePlayer(dt);
+      this.updateZones(dt);
       this.buildGrid();
       this.director(dt);
       this.updateEnemies(dt);
@@ -194,7 +230,13 @@ window.PH = window.PH || {};
       const pl = this.player, inp = this.input;
       const mag = Math.min(1, Math.hypot(inp.x, inp.z));
       pl.moving = mag > 0.08;
-      if (pl.moving) {
+      if (pl.dashT > 0) {
+        // Mid-roll: the dodge owns movement until it ends.
+        const D = PH.DODGE, v = D.dist / D.dur;
+        pl.dashT -= dt;
+        pl.x += pl.dashX * v * dt; pl.z += pl.dashZ * v * dt;
+        pl.moving = true;
+      } else if (pl.moving) {
         const k = pl.speed * mag / Math.hypot(inp.x, inp.z);
         pl.x += inp.x * k * dt;
         pl.z += inp.z * k * dt;
@@ -210,7 +252,9 @@ window.PH = window.PH || {};
     damagePlayer(amount) {
       const pl = this.player;
       if (pl.iframes > 0 || this.state !== 'playing') return;
-      const d = amount * (1 - pl.armor);
+      let d = amount * (1 - pl.armor);
+      if (this.zones.some((z) => z.kind === 'dome')) d *= 1 - PH.ABILITIES.dome.guard;
+      if (amount >= 20) this.hitstop = Math.max(this.hitstop, 0.07);   // boss attacks land hard
       pl.hp -= d;
       pl.damageTaken += d;
       pl.iframes = C.player.iframes;
@@ -220,6 +264,76 @@ window.PH = window.PH || {};
     }
 
     sfx(name) { this.hooks.sfx && this.hooks.sfx(name); }
+
+    /* ── Abilities and dodge ────────────────────────────────── */
+
+    abilityReady() { return this.abilityCd <= 0; }
+
+    useAbility() {
+      if (this.state !== 'playing' || this.abilityCd > 0) return false;
+      const id = this.abilityId, A = PH.ABILITIES[id], pl = this.player;
+      this.abilityMax = A.cd * this.mods.cd;
+      this.abilityCd = this.abilityMax;
+      this.abilityUses++;
+      this.hitstop = Math.max(this.hitstop, 0.05);
+      if (id === 'overdrive') {
+        this.overdrive = A.dur;
+        this.fx.shockwave(pl.x, pl.z, 3, 0xff8a3d, 0.4);
+        this.fx.burst(pl.x, 1, pl.z, 30, 0xffb347, 5, 0.35, 0.6, 2, 1);
+        this.banner('OVERDRIVE', 'warn');
+      } else if (id === 'snare') {
+        const r = A.radius * this.mods.area;
+        this.query(pl.x, pl.z, r, (e) => { e.rootT = A.dur; this.hitEnemy(e, A.dmg, 0, 0, 0); });
+        for (const b of this.bosses) if (dist2(b.x, b.z, pl.x, pl.z) < (r + b.radius) ** 2) b.slowT = A.dur;
+        this.zones.push({ kind: 'snare', x: pl.x, z: pl.z, r, t: 0, dur: A.dur });
+        this.fx.shockwave(pl.x, pl.z, r, 0x4ecdc4, 0.35);
+      } else if (id === 'pulse') {
+        const r = A.radius * this.mods.area;
+        pl.hp = Math.min(pl.maxHp, pl.hp + A.heal);
+        this.query(pl.x, pl.z, r, (e) => {
+          const dx = e.x - pl.x, dz = e.z - pl.z, d = Math.hypot(dx, dz) || 1;
+          this.hitEnemy(e, A.dmg, dx / d, dz / d, A.knock);
+        });
+        for (const b of this.bosses) if (dist2(b.x, b.z, pl.x, pl.z) < (r + b.radius) ** 2) this.hitEnemy(b, A.dmg);
+        this.fx.shockwave(pl.x, pl.z, r, 0xff6b9d, 0.45);
+        this.fx.burst(pl.x, 1, pl.z, 26, 0x7dffb0, 4, 0.35, 0.7, -1, 0.8);
+        this.sfx('heal');
+      } else if (id === 'dome') {
+        this.zones = this.zones.filter((z) => z.kind !== 'dome');
+        this.zones.push({ kind: 'dome', x: pl.x, z: pl.z, r: A.radius * this.mods.area, t: 0, dur: A.dur });
+        this.fx.shockwave(pl.x, pl.z, A.radius, 0x6fc3ff, 0.35);
+      }
+      this.fx.addShake(0.25);
+      this.sfx('ability');
+      return true;
+    }
+
+    dodge() {
+      if (this.state !== 'playing' || this.dodgeCd > 0) return false;
+      const pl = this.player, inp = this.input, D = PH.DODGE;
+      let dx = inp.x, dz = inp.z, m = Math.hypot(dx, dz);
+      if (m < 0.08) { dx = Math.sin(pl.facing); dz = Math.cos(pl.facing); m = 1; }
+      pl.dashX = dx / m; pl.dashZ = dz / m;
+      pl.dashT = D.dur;
+      pl.facing = Math.atan2(pl.dashX, pl.dashZ);
+      pl.iframes = Math.max(pl.iframes, D.iframes);
+      this.dodgeCd = D.cd;
+      this.dodges++;
+      this.fx.dashTrail(pl.x, pl.z, pl.dashX, pl.dashZ, D.dist);
+      this.sfx('dash');
+      return true;
+    }
+
+    /** Snare webs sit where they were cast; the dome travels with you. */
+    updateZones(dt) {
+      const pl = this.player;
+      for (let i = this.zones.length - 1; i >= 0; i--) {
+        const z = this.zones[i];
+        z.t += dt;
+        if (z.kind === 'dome') { z.x = pl.x; z.z = pl.z; }
+        if (z.t >= z.dur) this.zones.splice(i, 1);
+      }
+    }
 
     /* ── Spatial grid ───────────────────────────────────────── */
 
@@ -332,7 +446,7 @@ window.PH = window.PH || {};
         dmg: def.dmg * (elite ? 1.6 : 1), radius: def.radius * (elite ? 1.5 : 1),
         scale: elite ? 1.5 : 1, elite, flash: 0, facing: 0, phase: this.rand() * TAU,
         spit: def.ranged ? def.ranged.cd * (0.5 + this.rand()) : 0,
-        charge: opts.charge || null, chargeT: opts.chargeT || 0,
+        charge: opts.charge || null, chargeT: opts.chargeT || 0, rootT: 0,
       });
       // One timestamp per drone. A single shared one meant every drone after
       // the first bounced off whatever the first had just hit - six drones on
@@ -405,7 +519,10 @@ window.PH = window.PH || {};
         dx /= d; dz /= d;
 
         let mvx = dx, mvz = dz, spd = e.speed;
-        if (e.charge && e.chargeT > 0) {
+        if (e.rootT > 0) {
+          e.rootT -= dt;
+          spd = 0;
+        } else if (e.charge && e.chargeT > 0) {
           e.chargeT -= dt;
           mvx = e.charge.x; mvz = e.charge.z; spd = e.speed * 1.6;
         } else if (def.ranged) {
@@ -454,6 +571,18 @@ window.PH = window.PH || {};
           }
         }
 
+        // Shield dome: creatures cannot step inside it.
+        for (let zi = 0; zi < this.zones.length; zi++) {
+          const zn = this.zones[zi];
+          if (zn.kind !== 'dome') continue;
+          const ox = e.x - zn.x, oz = e.z - zn.z, rr = zn.r + e.radius, dd = ox * ox + oz * oz;
+          if (dd < rr * rr) {
+            const dl = Math.sqrt(dd) || 0.001;
+            e.x = zn.x + ox / dl * rr; e.z = zn.z + oz / dl * rr;
+            e.kx += ox / dl * 2; e.kz += oz / dl * 2;
+          }
+        }
+
         // Contact.
         const cr = e.radius + pl.radius;
         if (dist2(e.x, e.z, pl.x, pl.z) < cr * cr) {
@@ -472,7 +601,7 @@ window.PH = window.PH || {};
 
     hitEnemy(e, dmg, kx = 0, kz = 0, knock = 0, flash = true) {
       if (!e.alive) return;
-      dmg *= this.mods.dmg;
+      dmg *= this.mods.dmg * (this.overdrive > 0 ? 1 + PH.ABILITIES.overdrive.dmg : 1);
       const crit = this.rand() < 0.08;
       if (crit) dmg *= 2;
       if (e.boss) return this.hitBoss(e, dmg, crit);
@@ -493,12 +622,15 @@ window.PH = window.PH || {};
       this.aliveEnemies--;
       this.kills++;
       const def = PH.ENEMIES[e.type];
+      this.fx.enemyDeath(e);
       this.fx.burst(e.x, 0.5, e.z, e.elite ? 30 : 9, def.colors.primary, e.elite ? 6 : 3.5, 0.26, 0.45);
       this.fx.burst(e.x, 0.6, e.z, 3, def.colors.eye, 2.5, 0.2, 0.35);
       this.dropGem(e.x, e.z, def.xp * (e.elite ? 12 : 1));
       if (e.elite) {
         this.dropPickup('chest', e.x, e.z);
         this.fx.addShake(0.25);
+        this.fx.shockwave(e.x, e.z, 2.5, 0xffc83d, 0.35);
+        this.hitstop = Math.max(this.hitstop, 0.06);
         this.sfx('evolve');
       } else {
         const r = this.rand();
@@ -530,10 +662,11 @@ window.PH = window.PH || {};
         id, boss: true, alive: true, type, stage, final, name: def.name, icon: def.icon,
         x: p.x, z: p.z, hp, maxHp: hp, radius: Math.max(1.1, vis.radius), facing: 0, moving: true,
         state: 'chase', timer: 2.2, attack: null, dash: null, summonT: PH.BOSS_ATTACKS.summonEvery,
-        speed: def.speed * (1 + (stage - 1) * 0.12), droneT: new Float32Array(8).fill(-1),
+        speed: def.speed * (1 + (stage - 1) * 0.12), droneT: new Float32Array(8).fill(-1), slowT: 0,
       };
       this.bosses.push(b);
       this.fx.bossArrival(b.x, b.z, stage, type);
+      this.fx.zoomPunch(0.18);
       this.fx.addShake(0.6);
       this.banner(`THE ${def.name.toUpperCase()} HAS EMERGED`, 'boss');
       this.sfx('roar');
@@ -546,10 +679,12 @@ window.PH = window.PH || {};
         const dx = pl.x - b.x, dz = pl.z - b.z, d = Math.hypot(dx, dz) || 0.001;
         b.timer -= dt;
         b.moving = false;
+        let slow = 1;
+        if (b.slowT > 0) { b.slowT -= dt; slow = PH.ABILITIES.snare.bossSlow; }
 
         if (b.state === 'chase') {
           b.moving = true;
-          b.x += dx / d * b.speed * dt; b.z += dz / d * b.speed * dt;
+          b.x += dx / d * b.speed * slow * dt; b.z += dz / d * b.speed * slow * dt;
           b.facing = Math.atan2(dx, dz);
           b.summonT -= dt;
           if (b.summonT <= 0) {
@@ -564,7 +699,7 @@ window.PH = window.PH || {};
           if (b.timer <= 0) this.releaseAttack(b);
         } else if (b.state === 'dash') {
           b.moving = true;
-          b.x += b.dash.x * A.dash.speed * dt; b.z += b.dash.z * A.dash.speed * dt;
+          b.x += b.dash.x * A.dash.speed * slow * dt; b.z += b.dash.z * A.dash.speed * slow * dt;
           if (dist2(b.x, b.z, pl.x, pl.z) < (b.radius + pl.radius) ** 2) this.damagePlayer(A.dash.dmg);
           if (Math.floor(b.timer * 30) % 2 === 0) this.fx.burst(b.x, 0.3, b.z, 2, 0xc9b38f, 2, 0.35, 0.4, 2, 0.3);
           if (b.timer <= 0) this.restBoss(b);
@@ -613,6 +748,7 @@ window.PH = window.PH || {};
         this.sfx('roar');
       } else if (b.attack === 'slam') {
         this.fx.bossSlam(b.x, b.z, b.slamR);
+        this.fx.shockwave(b.x, b.z, b.slamR, 0xff5544, 0.4);
         this.fx.addShake(0.9);
         if (dist2(b.x, b.z, pl.x, pl.z) < (b.slamR + pl.radius) ** 2) this.damagePlayer(A.slam.dmg);
         // The slam also flattens the bosses' own brood, which is a way to use it.
@@ -652,6 +788,8 @@ window.PH = window.PH || {};
       this.fx.bossDeath(b.x, b.z, b.radius * 2, 0xc77dff);
       this.fx.removeBoss(b.id);
       this.fx.addShake(1.2);
+      this.fx.shockwave(b.x, b.z, 7, 0xffd700, 0.7);
+      this.hitstop = Math.max(this.hitstop, 0.14);
       this.slowmo = 0.9;
       for (let i = 0; i < 14; i++) {
         const a = (i / 14) * TAU;
@@ -668,11 +806,12 @@ window.PH = window.PH || {};
 
     updateWeapons(dt) {
       this.droneN = 0;
+      const rate = this.overdrive > 0 ? PH.ABILITIES.overdrive.rate : 1;
       for (const w of this.weapons) {
         const def = PH.WEAPONS[w.id], s = this.stats(w);
-        if (def.kind === 'aura') { this.tickAura(w, s, dt); continue; }
-        if (def.kind === 'orbit') { this.tickOrbit(w, s, dt); continue; }
-        w.timer -= dt;
+        if (def.kind === 'aura') { this.tickAura(w, s, dt * rate); continue; }
+        if (def.kind === 'orbit') { this.tickOrbit(w, s, dt * (rate > 1 ? 1.5 : 1)); continue; }
+        w.timer -= dt * rate;
         if (w.timer > 0) continue;
         w.timer = s.cd * this.mods.cd;
         const fired = this[{ bolt: 'fireBolt', spread: 'fireSpread', lob: 'fireLob', mine: 'fireMine', strike: 'fireStrike', chain: 'fireChain' }[def.kind]](w, s);
@@ -744,7 +883,7 @@ window.PH = window.PH || {};
         if (!t) break;
         any = true;
         const dist = Math.hypot(t.x - pl.x, t.z - pl.z);
-        this.lobs.push({ sx: pl.x, sz: pl.z, tx: t.x + (this.rand() - 0.5), tz: t.z + (this.rand() - 0.5), t: 0, dur: 0.55 + dist * 0.025, dist, dmg: s.dmg, radius: s.radius * this.mods.area });
+        this.lobs.push({ sx: pl.x, sz: pl.z, tx: t.x + (this.rand() - 0.5), tz: t.z + (this.rand() - 0.5), t: 0, dur: 0.55 + dist * 0.025, dist, dmg: s.dmg, radius: s.radius * this.mods.area, cluster: s.cluster || 0 });
       }
       if (!any) return false;
     }
@@ -840,6 +979,12 @@ window.PH = window.PH || {};
         p.life -= dt;
         if (p.life <= 0) { p.alive = false; continue; }
         if (p.hostile) {
+          const dome = this.zones.find((z) => z.kind === 'dome');
+          if (dome && dist2(p.x, p.z, dome.x, dome.z) < dome.r * dome.r) {
+            p.alive = false;
+            this.fx.burst(p.x, 0.7, p.z, 5, 0x9fdcff, 2.5, 0.2, 0.25, 0, 0.3);
+            continue;
+          }
           if (dist2(p.x, p.z, pl.x, pl.z) < (p.radius + pl.radius) ** 2) { this.damagePlayer(p.dmg); p.alive = false; }
           continue;
         }
@@ -879,7 +1024,15 @@ window.PH = window.PH || {};
       for (let i = this.lobs.length - 1; i >= 0; i--) {
         const n = this.lobs[i];
         n.t += dt;
-        if (n.t >= n.dur) { this.blast(n.tx, n.tz, n.radius, n.dmg, 0xff8a3d); this.lobs.splice(i, 1); }
+        if (n.t >= n.dur) {
+          this.blast(n.tx, n.tz, n.radius, n.dmg, 0xff8a3d);
+          this.lobs.splice(i, 1);
+          // Cluster Bomb: each blast throws smaller bomblets around itself.
+          for (let k = 0; k < n.cluster; k++) {
+            const a = (k / n.cluster) * TAU + this.rand(), r = n.radius * (0.9 + this.rand() * 0.5);
+            this.lobs.push({ sx: n.tx, sz: n.tz, tx: n.tx + Math.cos(a) * r, tz: n.tz + Math.sin(a) * r, t: 0, dur: 0.32, dist: r * 0.4, dmg: n.dmg * 0.5, radius: n.radius * 0.55, cluster: 0 });
+          }
+        }
       }
     }
 
@@ -1005,6 +1158,10 @@ window.PH = window.PH || {};
         }
       }
       const out = [];
+      const evos = this.weapons.filter((w) => this.canEvolve(w)).map((w) => ({ type: 'evolve', id: w.id, level: 6 }));
+      // A supply drop always offers an evolution when one is ready; a level-up
+      // offers it often, but not always, so it still feels like a find.
+      if (evos.length && (chest || this.rand() < 0.6)) out.push(evos[Math.floor(this.rand() * evos.length)]);
       // A chest always offers an upgrade to something you already own if it can.
       if (chest) {
         const owned = pool.filter((c) => c.level > 1);
@@ -1020,13 +1177,14 @@ window.PH = window.PH || {};
         for (const c of avail) { r -= c.weight; if (r <= 0) { pick = c; break; } }
         out.push(pick);
       }
-      if (!out.length) out.push({ type: 'heal', id: 'heal', level: 0 }, { type: 'score', id: 'score', level: 0 });
+      if (!out.length || (out.length === 1 && out[0].type === 'evolve')) out.push({ type: 'heal', id: 'heal', level: 0 }, { type: 'score', id: 'score', level: 0 });
       return out;
     }
 
     choose(choice) {
       if (this.state !== 'choice') return;
-      if (choice.type === 'weapon') this.addWeapon(choice.id);
+      if (choice.type === 'evolve') this.evolve(choice.id);
+      else if (choice.type === 'weapon') this.addWeapon(choice.id);
       else if (choice.type === 'passive') this.addPassive(choice.id);
       else if (choice.type === 'heal') this.player.hp = this.player.maxHp;
       else if (choice.type === 'score') this.bonusScore = (this.bonusScore || 0) + 250;

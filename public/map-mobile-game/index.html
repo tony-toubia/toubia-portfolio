@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#14182a">
   <title>Primal Hunt</title>
   <meta name="description" content="Survive the swarm. Hunt the monster. A one-thumb arena game by Tony Toubia.">
-  <link rel="stylesheet" href="/map-mobile-game/css/game.css?v=2">
+  <link rel="stylesheet" href="/map-mobile-game/css/game.css?v=3">
 </head>
 <body>
   <!--
@@ -35,6 +35,10 @@
       <div id="bosstrack"><div id="bossfill"></div></div>
     </div>
     <button id="btn-pause" aria-label="Pause">❚❚</button>
+    <div id="actions">
+      <button id="btn-dodge" aria-label="Dodge roll"><span class="ai">💨</span><span class="key">SHIFT</span></button>
+      <button id="btn-ability" aria-label="Special ability"><span class="sweep"></span><span class="ai" id="ability-icon">⚡</span><span class="key">SPACE</span></button>
+    </div>
     <div id="hpbar"><div id="hpfill"></div></div>
     <div id="banner"></div>
     <div id="numbers"></div>
@@ -47,7 +51,7 @@
       <p class="tagline">Survive the swarm. Hunt the monster.</p>
       <button class="btn primary" id="btn-play">PLAY</button>
       <p class="best" id="best-line"></p>
-      <p class="hint">Drag anywhere to move. Your weapons fire on their own.<br>Level up, pick upgrades, outlast three evolving monsters.</p>
+      <p class="hint">Drag anywhere to move. Your weapons fire on their own.<br>Tap the big button for your special, the small one to dodge<span class="kb-only"> (Space / Shift)</span>.<br>Max a weapon and pair it to evolve it.</p>
       <div class="menu-foot">
         <button class="link" id="btn-mute">🔊 Sound on</button>
         <a class="link" id="back-home" href="/">← tonytoubia.com</a>
@@ -104,13 +108,13 @@
   </section>
 
   <script src="/map-mobile-game/vendor/three.min.js?v=r128"></script>
-  <script src="/map-mobile-game/js/config.js?v=2"></script>
-  <script src="/map-mobile-game/js/audio.js?v=2"></script>
-  <script src="/map-mobile-game/js/engine3d/Characters3D.js?v=2"></script>
-  <script src="/map-mobile-game/js/engine3d/Effects3D.js?v=2"></script>
-  <script src="/map-mobile-game/js/render.js?v=2"></script>
-  <script src="/map-mobile-game/js/game.js?v=2"></script>
-  <script src="/map-mobile-game/js/ui.js?v=2"></script>
-  <script src="/map-mobile-game/js/main.js?v=2"></script>
+  <script src="/map-mobile-game/js/config.js?v=3"></script>
+  <script src="/map-mobile-game/js/audio.js?v=3"></script>
+  <script src="/map-mobile-game/js/engine3d/Characters3D.js?v=3"></script>
+  <script src="/map-mobile-game/js/engine3d/Effects3D.js?v=3"></script>
+  <script src="/map-mobile-game/js/render.js?v=3"></script>
+  <script src="/map-mobile-game/js/game.js?v=3"></script>
+  <script src="/map-mobile-game/js/ui.js?v=3"></script>
+  <script src="/map-mobile-game/js/main.js?v=3"></script>
 </body>
 </html>

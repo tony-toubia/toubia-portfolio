@@ -104,6 +104,20 @@ window.PH = window.PH || {};
     return t;
   }
 
+  /*
+   * The world darkens as the monster evolves: green day, then dusk, then a
+   * blood-red night for the final fight, so every run has a visible arc.
+   * r128 treats these as linear colours, so they are darker than they look.
+   */
+  const BIOMES = [
+    { bg: 0x14182a, amb: 0x404060, ambI: 0.40, sky: 0x87ceeb, gnd: 0x2d5016, hemiI: 0.30, sun: 0xfff5e0, sunI: 1.00, tint: [1, 1, 1],       tuft: 0x1c4417, mote: 0xd8ff6a },
+    { bg: 0x22132e, amb: 0x4a3560, ambI: 0.40, sky: 0xc07aa0, gnd: 0x2a2016, hemiI: 0.30, sun: 0xffa070, sunI: 0.72, tint: [1.12, 0.7, 1.3],  tuft: 0x2a2a26, mote: 0xffb35c },
+    { bg: 0x12050a, amb: 0x3a1a2a, ambI: 0.42, sky: 0x9a2a3a, gnd: 0x200808, hemiI: 0.30, sun: 0xff5040, sunI: 0.52, tint: [1.08, 0.55, 0.62], tuft: 0x341216, mote: 0xff4a2a },
+  ];
+  const _ca = new THREE.Color(), _cb = new THREE.Color();
+  const mixHex = (out, a, b, k) => out.copy(_ca.setHex(a)).lerp(_cb.setHex(b), k);
+  const easeOut = (k) => 1 - Math.pow(1 - k, 3);
+
   class Render {
     constructor(canvas) {
       this.canvas = canvas;
@@ -131,8 +145,11 @@ window.PH = window.PH || {};
       this.camDist = 20;
 
       // The original renderer's rig and levels, so the reused models read as tuned.
-      scene.add(new THREE.AmbientLight(0x404060, 0.4));
-      scene.add(new THREE.HemisphereLight(0x87ceeb, 0x2d5016, 0.3));
+      this.ambient = new THREE.AmbientLight(0x404060, 0.4);
+      this.hemi = new THREE.HemisphereLight(0x87ceeb, 0x2d5016, 0.3);
+      scene.add(this.ambient, this.hemi);
+      this.biome = 0;
+      this.zoom = 0;            // 0 = normal framing; boss arrivals push in briefly
       const sun = new THREE.DirectionalLight(0xfff5e0, 1.0);
       sun.position.set(-6, 14, 8);
       scene.add(sun);
@@ -153,6 +170,7 @@ window.PH = window.PH || {};
       this.buildBatches();
       this.buildParticles();
       this.buildTelegraphs();
+      this.buildEffects();
       this.emojiCache = new Map();
       this.sprites = [];
 
@@ -196,6 +214,7 @@ window.PH = window.PH || {};
       const tuft = new THREE.ConeGeometry(0.09, 0.42, 4);
       tuft.translate(0, 0.21, 0);
       this.tufts = new THREE.InstancedMesh(tuft, new THREE.MeshLambertMaterial({ color: 0x1c4417 }), 700);
+      this.tuftMat = this.tufts.material;
       const rock = new THREE.DodecahedronGeometry(0.5, 0);
       this.rocks = new THREE.InstancedMesh(rock, new THREE.MeshStandardMaterial({ color: 0x3a3e48, flatShading: true, roughness: 1 }), 80);
       for (const m of [this.tufts, this.rocks]) { m.frustumCulled = false; this.scene.add(m); }
@@ -359,6 +378,79 @@ window.PH = window.PH || {};
       this.ringGeo = new THREE.RingGeometry(0.96, 1, 48); this.ringGeo.rotateX(-Math.PI / 2);
     }
 
+    /**
+     * Glow without post-processing. A bloom pass costs a phone several
+     * full-screen blurs a frame; a soft additive halo behind each bright
+     * thing gives most of the look for a few hundred tiny quads.
+     */
+    buildEffects() {
+      const S = this.scene;
+      const radial = (stops) => canvasTexture(64, (g, s) => {
+        const grd = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+        for (const [k, c] of stops) grd.addColorStop(k, c);
+        g.fillStyle = grd; g.fillRect(0, 0, s, s);
+      });
+      const haloTex = radial([[0, 'rgba(255,255,255,1)'], [0.22, 'rgba(255,255,255,0.5)'], [0.55, 'rgba(255,255,255,0.12)'], [1, 'rgba(255,255,255,0)']]);
+      const haloGeo = new THREE.PlaneGeometry(1, 1);
+      haloGeo.rotateX(-this.pitch);              // the camera never turns, so this faces it
+      // Through the constructor, not Object.assign: assigning `color: 0x...`
+      // replaces the material's Color object with a bare number.
+      const additive = (extra) => new THREE.MeshBasicMaterial({
+        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, ...extra,
+      });
+      this.halos = new Batch(S, haloGeo, additive({ map: haloTex }), 900, true);
+      this.halos.mesh.renderOrder = 2;
+
+      // Shockwave rings for abilities, slams, elite and boss kills.
+      const waveGeo = new THREE.RingGeometry(0.72, 1, 56); waveGeo.rotateX(-Math.PI / 2);
+      this.waves = [];
+      for (let i = 0; i < 12; i++) {
+        // Normal blending: additive turned every ring tan against the green ground.
+        const m = new THREE.Mesh(waveGeo, additive({ color: 0xffffff, opacity: 0, blending: THREE.NormalBlending }));
+        m.visible = false; m.position.y = 0.06; m.renderOrder = 1;
+        S.add(m);
+        this.waves.push({ mesh: m, t: 0, dur: 1, r: 1, on: false });
+      }
+
+      // Snare webs: a drawn web on the ground.
+      const webTex = canvasTexture(256, (g, s) => {
+        const c = s / 2;
+        g.strokeStyle = 'rgba(190,255,250,0.9)'; g.lineWidth = 3;
+        for (let i = 0; i < 12; i++) {
+          const a = (i / 12) * Math.PI * 2;
+          g.beginPath(); g.moveTo(c, c); g.lineTo(c + Math.cos(a) * c * 0.98, c + Math.sin(a) * c * 0.98); g.stroke();
+        }
+        g.lineWidth = 2;
+        for (let r = 0.18; r < 1; r += 0.16) {
+          g.beginPath();
+          for (let i = 0; i <= 12; i++) {
+            const a = (i / 12) * Math.PI * 2, rr = c * r * (i % 2 ? 0.94 : 1);
+            if (i === 0) g.moveTo(c + Math.cos(a) * rr, c + Math.sin(a) * rr); else g.lineTo(c + Math.cos(a) * rr, c + Math.sin(a) * rr);
+          }
+          g.stroke();
+        }
+      });
+      const discGeo = new THREE.CircleGeometry(1, 40); discGeo.rotateX(-Math.PI / 2);
+      this.webs = [];
+      for (let i = 0; i < 4; i++) {
+        const m = new THREE.Mesh(discGeo, additive({ map: webTex, color: 0x4ecdc4, opacity: 0.8 }));
+        m.visible = false; m.position.y = 0.05; S.add(m);
+        this.webs.push(m);
+      }
+
+      // Shield dome: a soft shell plus a low-poly wire frame.
+      const shell = new THREE.SphereGeometry(1, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2);
+      const wire = new THREE.SphereGeometry(1.01, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+      this.dome = new THREE.Group();
+      this.dome.add(new THREE.Mesh(shell, additive({ color: 0x3f8fd6, opacity: 0.16, side: THREE.DoubleSide })));
+      this.dome.add(new THREE.Mesh(wire, additive({ color: 0x9fdcff, opacity: 0.35, wireframe: true })));
+      this.dome.visible = false;
+      S.add(this.dome);
+
+      this.pops = [];           // creatures in their death frames
+      this.moteAcc = 0;
+    }
+
     buildParticles() {
       const N = this.pMax = 1400;
       this.p = {
@@ -463,7 +555,8 @@ window.PH = window.PH || {};
       if (this.shake > 0.001 && !immediate) {
         sx = (Math.random() - 0.5) * this.shake; sz = (Math.random() - 0.5) * this.shake;
       }
-      this.camera.position.set(x + sx, up, z + back + sz);
+      const zk = immediate ? 1 : 1 - this.zoom;
+      this.camera.position.set(x + sx, up * zk, z + back * zk + sz);
       this.camera.lookAt(x + sx * 0.5, 0, z + sz * 0.5);
       this.camera.updateMatrixWorld();
       return k;
@@ -589,6 +682,32 @@ window.PH = window.PH || {};
       this.ring(x, z, radius, 22, color, 0.32, 0.35);
     }
 
+    shockwave(x, z, r, color = 0xffffff, dur = 0.45) {
+      let w = this.waves.find((q) => !q.on);
+      if (!w) w = this.waves.reduce((a, b) => (a.t / a.dur > b.t / b.dur ? a : b));
+      w.on = true; w.t = 0; w.dur = dur; w.r = r;
+      w.mesh.visible = true;
+      w.mesh.position.x = x; w.mesh.position.z = z;
+      // Authored as on-screen colours; r128 would otherwise read them as linear and wash them out.
+      w.mesh.material.color.setHex(color).convertSRGBToLinear();
+    }
+
+    /** A creature's last frames: a white flash as it squashes into the ground. */
+    enemyDeath(e) {
+      if (this.pops.length >= 60) this.pops.shift();
+      this.pops.push({ type: e.type, x: e.x, z: e.z, facing: e.facing, s: PH.ENEMIES[e.type].scale * e.scale, t: 0 });
+    }
+
+    zoomPunch(a) { this.zoom = Math.max(this.zoom, a); }
+
+    dashTrail(x, z, dx, dz, dist) {
+      for (let i = 0; i <= 6; i++) {
+        const f = i / 6;
+        this.burst(x + dx * dist * f, 0.6, z + dz * dist * f, 3, 0xbfe3ff, 1.2, 0.3, 0.3, 0, 0.2);
+      }
+      this.shockwave(x, z, 1.2, 0xbfe3ff, 0.25);
+    }
+
     lightningChain(points, color = 0x9be7ff) {
       this.lightning.push({ points, life: 0.16, max: 0.16, color, seed: Math.random() * 100 });
     }
@@ -628,12 +747,16 @@ window.PH = window.PH || {};
       const cx = this.camTarget.x + (pl.x - this.camTarget.x) * k;
       const cz = this.camTarget.z + (pl.z - this.camTarget.z) * k;
       this.shake *= Math.exp(-dt * 7);
+      this.zoom *= Math.exp(-dt * 1.6);
       this.placeCamera(cx, cz, false);
+      this.updateBiome(game, dt);
       this.sun.position.set(cx - 6, 14, cz + 8);
       this.sun.target.position.set(cx, 0, cz);
       this.snapGround(cx, cz);
 
       this.shadows.begin();
+      this.halos.begin();
+      const glowAll = this.qualityLevel === 0;    // weak devices skip the small halos
 
       // Player
       if (this.player) {
@@ -648,6 +771,12 @@ window.PH = window.PH || {};
         P.root.visible = !(pl.iframes > 0 && Math.floor(t * 18) % 2 === 0);
         this.chars.animateHunter(P.mesh, t, pl.moving);
         this.shadows.add(pl.x, 0.02, pl.z, 0, 0.55, 1, 0.55);
+        if (game.overdrive > 0) {
+          const k = 0.75 + Math.sin(t * 22) * 0.25;
+          this.halos.add(pl.x, 1.0, pl.z, 0, 3.2 * k, 3.2 * k, 3.2 * k, 0.9, 0.38, 0.08);
+          if (dt > 0) this.burst(pl.x, 0.4, pl.z, 2, 0xff8a3d, 1.6, 0.22, 0.35, -3, 0.6);
+        }
+        if (pl.dashT > 0) this.halos.add(pl.x, 0.9, pl.z, 0, 2.4, 2.4, 2.4, 0.35, 0.55, 0.8);
       }
 
       // Swarm
@@ -670,6 +799,15 @@ window.PH = window.PH || {};
         if (e.flash > 0) { r = g = b = 4; }
         this.swarm[e.type].add(e.x, bob, e.z, e.facing, s, s * squash, s, r, g, b);
         this.shadows.add(e.x, 0.02, e.z, 0, def.radius * e.scale * 1.15, 1, def.radius * e.scale * 1.15);
+      }
+      // Death pops: a flash and a squash, drawn in the same instanced batches.
+      for (let i = this.pops.length - 1; i >= 0; i--) {
+        const d = this.pops[i];
+        d.t += dt;
+        const k = d.t / 0.14;
+        if (k >= 1) { this.pops.splice(i, 1); continue; }
+        const w = d.s * (1 + k * 0.45), f = 3.2 - k * 2.2;
+        this.swarm[d.type].add(d.x, 0, d.z, d.facing, w, d.s * (1 - k * 0.85), w, f, f, f);
       }
       for (const type in this.swarm) this.swarm[type].end();
       this.eliteRings.end();
@@ -697,10 +835,10 @@ window.PH = window.PH || {};
       for (const p of game.projectiles) {
         if (!p.alive) continue;
         const yaw = Math.atan2(p.vx, p.vz);
-        if (p.vis === 'bolt') this.bolts.add(p.x, 0.75, p.z, yaw, 1, 1, 1, 1.6, 1.35, 0.5);
-        else if (p.vis === 'pellet') this.pellets.add(p.x, 0.7, p.z, 0, 1, 1, 1, 1.6, 0.9, 0.35);
-        else if (p.vis === 'harpoon') this.harpoons.add(p.x, 0.8, p.z, yaw, 1, 1, 1);
-        else if (p.vis === 'orb') this.orbs.add(p.x, 0.7, p.z, 0, 1, 1, 1, p.r, p.g, p.b);
+        if (p.vis === 'bolt') { this.bolts.add(p.x, 0.75, p.z, yaw, 1, 1, 1, 1.6, 1.35, 0.5); this.halos.add(p.x, 0.75, p.z, 0, 0.9, 0.9, 0.9, 0.55, 0.4, 0.12); }
+        else if (p.vis === 'pellet') { this.pellets.add(p.x, 0.7, p.z, 0, 1, 1, 1, 1.6, 0.9, 0.35); if (glowAll) this.halos.add(p.x, 0.7, p.z, 0, 0.7, 0.7, 0.7, 0.55, 0.25, 0.06); }
+        else if (p.vis === 'harpoon') { this.harpoons.add(p.x, 0.8, p.z, yaw, 1, 1, 1); this.halos.add(p.x, 0.8, p.z, 0, 1.3, 1.3, 1.3, 0.15, 0.5, 0.5); }
+        else if (p.vis === 'orb') { this.orbs.add(p.x, 0.7, p.z, 0, 1, 1, 1, p.r, p.g, p.b); this.halos.add(p.x, 0.7, p.z, 0, 1.5, 1.5, 1.5, p.r * 0.6, p.g * 0.6, p.b * 0.6); }
       }
       for (const n of game.lobs) {
         const k2 = n.t / n.dur, y = 0.6 + Math.sin(k2 * Math.PI) * (2.2 + n.dist * 0.15);
@@ -714,7 +852,9 @@ window.PH = window.PH || {};
         if (!gm.alive) continue;
         const tier = gm.value >= 25 ? [2.2, 0.6, 2.0] : gm.value >= 10 ? [2.4, 1.9, 0.4] : gm.value >= 3 ? [0.6, 2.2, 0.8] : [0.4, 1.7, 2.2];
         const s = gm.value >= 10 ? 1.5 : gm.value >= 3 ? 1.2 : 1;
-        this.gems.add(gm.x, 0.35 + Math.sin(t * 4 + gm.x) * 0.08, gm.z, t * 2.5 + gm.z, s, s * 1.3, s, tier[0], tier[1], tier[2]);
+        const gy = 0.35 + Math.sin(t * 4 + gm.x) * 0.08;
+        this.gems.add(gm.x, gy, gm.z, t * 2.5 + gm.z, s, s * 1.3, s, tier[0], tier[1], tier[2]);
+        if (glowAll) this.halos.add(gm.x, gy, gm.z, 0, 0.75 * s, 0.75 * s, 0.75 * s, tier[0] * 0.14, tier[1] * 0.14, tier[2] * 0.14);
       }
       this.gems.end();
 
@@ -722,6 +862,7 @@ window.PH = window.PH || {};
       this.drones.begin();
       for (const d of game.droneHits) {
         this.drones.add(d.x, 0.9, d.z, 0, 1, 1, 1);
+        this.halos.add(d.x, 0.9, d.z, 0, 1.4, 1.4, 1.4, 0.2, 0.42, 0.75);
         if (dt > 0 && Math.random() < 0.5) this.burst(d.x, 0.9, d.z, 1, 0x5aa9ff, 0.3, 0.32, 0.22, 0, 0);
       }
       this.drones.end();
@@ -731,6 +872,7 @@ window.PH = window.PH || {};
         const blink = Math.sin(t * 10 + m.x) > 0 ? 2.5 : 0.6;
         this.traps.add(m.x, 0.05, m.z, 0, 1, 1, 1);
         this.trapLights.add(m.x, 0.16, m.z, 0, 1, 1, 1, blink, 0.2, 0.15);
+        if (blink > 1) this.halos.add(m.x, 0.2, m.z, 0, 0.8, 0.8, 0.8, 0.6, 0.06, 0.04);
       }
       this.traps.end(); this.trapLights.end();
 
@@ -809,10 +951,90 @@ window.PH = window.PH || {};
       }
       for (; si < this.sprites.length; si++) this.sprites[si].visible = false;
 
+      this.drawZones(game, dt);
+      this.drawWaves(dt);
+      this.ambientMotes(game, dt);
+
       this.shadows.end();
+      this.halos.end();
       this.updateParticles(dt);
       this.fx.update(dt);
       this.renderer.render(this.scene, this.camera);
+    }
+
+    /** Ease the light, sky and ground toward the current evolution stage. */
+    updateBiome(game, dt) {
+      const target = game.state === 'menu' ? 0 : Math.min(2, game.bossKills || 0);
+      this.biome += (target - this.biome) * Math.min(1, dt * 0.6);
+      const i = Math.min(1, Math.floor(this.biome)), k = this.biome - i;
+      const A = BIOMES[i], B = BIOMES[i + 1];
+      mixHex(this.scene.background, A.bg, B.bg, k);
+      this.scene.fog.color.copy(this.scene.background);
+      mixHex(this.ambient.color, A.amb, B.amb, k); this.ambient.intensity = A.ambI + (B.ambI - A.ambI) * k;
+      mixHex(this.hemi.color, A.sky, B.sky, k); mixHex(this.hemi.groundColor, A.gnd, B.gnd, k);
+      this.hemi.intensity = A.hemiI + (B.hemiI - A.hemiI) * k;
+      mixHex(this.sun.color, A.sun, B.sun, k); this.sun.intensity = A.sunI + (B.sunI - A.sunI) * k;
+      this.ground.material.color.setRGB(
+        A.tint[0] + (B.tint[0] - A.tint[0]) * k, A.tint[1] + (B.tint[1] - A.tint[1]) * k, A.tint[2] + (B.tint[2] - A.tint[2]) * k);
+      mixHex(this.tuftMat.color, A.tuft, B.tuft, k);
+      this.moteColor = k < 0.5 ? A.mote : B.mote;
+    }
+
+    /** Fireflies by day, drifting dust at dusk, embers in the final night. */
+    ambientMotes(game, dt) {
+      if (dt <= 0 || this.qualityLevel > 0) return;
+      this.moteAcc += dt * 14;
+      const v = this.view, P = this.p, ember = this.biome > 1.5;
+      const cr = ((this.moteColor >> 16) & 255) / 255, cg = ((this.moteColor >> 8) & 255) / 255, cb = (this.moteColor & 255) / 255;
+      while (this.moteAcc >= 1 && P.n < this.pMax) {
+        this.moteAcc -= 1;
+        const k = P.n++;
+        P.x[k] = this.camTarget.x + v.minX + Math.random() * (v.maxX - v.minX);
+        P.z[k] = this.camTarget.z + v.minZ + Math.random() * (v.maxZ - v.minZ);
+        P.y[k] = 0.3 + Math.random() * 1.6;
+        P.vx[k] = (Math.random() - 0.5) * 0.5; P.vz[k] = (Math.random() - 0.5) * 0.5;
+        P.vy[k] = ember ? 0.9 + Math.random() * 0.8 : 0.1 + Math.random() * 0.25;
+        P.max[k] = P.life[k] = 2 + Math.random() * 1.5;
+        P.size[k] = 0.09 + Math.random() * 0.08;
+        P.r[k] = cr; P.g[k] = cg; P.b[k] = cb; P.grav[k] = 0;
+      }
+    }
+
+    drawZones(game, dt) {
+      let wi = 0;
+      this.dome.visible = false;
+      for (const z of game.zones || []) {
+        const left = z.dur - z.t, fade = Math.min(1, left / 0.4) * Math.min(1, z.t / 0.12);
+        if (z.kind === 'snare' && wi < this.webs.length) {
+          const m = this.webs[wi++];
+          m.visible = true;
+          m.position.x = z.x; m.position.z = z.z;
+          m.scale.set(z.r, 1, z.r);
+          m.rotation.y = z.t * 0.4;
+          m.material.opacity = 0.75 * fade;
+        } else if (z.kind === 'dome') {
+          const d = this.dome, pulse = 1 + Math.sin(this.time * 6) * 0.015;
+          d.visible = true;
+          d.position.set(z.x, 0, z.z);
+          d.scale.set(z.r * pulse, z.r * 0.8 * pulse, z.r * pulse);
+          d.rotation.y = this.time * 0.5;
+          d.children[0].material.opacity = 0.16 * fade;
+          d.children[1].material.opacity = 0.35 * fade * (left < 1 && Math.floor(this.time * 10) % 2 ? 0.3 : 1);
+        }
+      }
+      for (; wi < this.webs.length; wi++) this.webs[wi].visible = false;
+    }
+
+    drawWaves(dt) {
+      for (const w of this.waves) {
+        if (!w.on) continue;
+        w.t += dt;
+        const k = w.t / w.dur;
+        if (k >= 1) { w.on = false; w.mesh.visible = false; continue; }
+        const r = Math.max(0.05, w.r * easeOut(k));
+        w.mesh.scale.set(r, 1, r);
+        w.mesh.material.opacity = (1 - k) * 0.75;
+      }
     }
 
     updateParticles(dt) {
@@ -865,6 +1087,8 @@ window.PH = window.PH || {};
       for (const id of [...this.bosses.keys()]) this.removeBoss(id);
       this.lightning.length = 0;
       this.p.n = 0;
+      this.pops.length = 0;
+      for (const w of this.waves) { w.on = false; w.mesh.visible = false; }
       this.fx.clear();
     }
   }
@@ -873,6 +1097,7 @@ window.PH = window.PH || {};
   class NullRender {
     constructor() { this.view = { minX: -8, maxX: 8, minZ: -14, maxZ: 6 }; this.qualityLevel = 0; }
     burst() {} ring() {} explosion() {} lightningChain() {} addShake() {}
+    shockwave() {} enemyDeath() {} zoomPunch() {} dashTrail() {}
     bossArrival() {} bossSlam() {} bossDeath() {} flashBoss() {} removeBoss() {} clearRun() {} setPlayer() {} prepareBosses() {}
     addBoss() { return { radius: 1.4, height: 3 }; }
   }
