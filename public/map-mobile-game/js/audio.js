@@ -202,8 +202,30 @@ class AudioManager {
             return { noise, gain };
         }, 0.2);
 
+        // Thunder for the final night's storm: a crack, then a low rumble.
+        this.sounds.thunder = this.createSound((ctx, duration) => {
+            const noise = ctx.createBufferSource();
+            const buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * duration), ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            let last = 0;
+            for (let i = 0; i < data.length; i++) { last = last * 0.96 + (Math.random() * 2 - 1) * 0.04; data[i] = last * 6; }
+            noise.buffer = buffer;
+            const filter = ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(900, ctx.currentTime);
+            filter.frequency.exponentialRampToValueAtTime(120, ctx.currentTime + duration * 0.6);
+            const gain = ctx.createGain();
+            gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.5, ctx.currentTime + 0.04);
+            gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + duration * 0.35);
+            gain.gain.exponentialRampToValueAtTime(0.004, ctx.currentTime + duration);
+            noise.connect(filter);
+            filter.connect(gain);
+            return { noise, gain };
+        }, 1.6);
+
         // Click sound
-        this.sounds.click =this.createSound((ctx, duration) => {
+        this.sounds.click = this.createSound((ctx, duration) => {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = 'sine';
@@ -301,7 +323,7 @@ class AudioManager {
      * into a clipping buzz rather than feedback.
      */
     play(soundName) {
-        const gaps = { hit: 45, shoot: 70, gem: 35, damage: 120, ability: 90, dash: 120 };
+        const gaps = { hit: 45, shoot: 70, gem: 35, damage: 120, ability: 90, dash: 120, thunder: 1500 };
         const now = performance.now();
         this.lastPlayed = this.lastPlayed || {};
         if (now - (this.lastPlayed[soundName] || 0) < (gaps[soundName] || 0)) return;

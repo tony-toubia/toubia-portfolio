@@ -831,6 +831,7 @@ window.PH = window.PH || {};
         radius: vis === 'harpoon' ? 0.32 : vis === 'pellet' ? 0.2 : 0.24, aoe: 0, ...extra,
       });
       p.hits.length = 0;
+      this.fx.muzzle(x, z, dx, dz, vis);
     }
 
     fireBolt(w, s) {
@@ -998,6 +999,7 @@ window.PH = window.PH || {};
           p.hits.push(e);
           this.hitEnemy(e, p.dmg, kx, kz, 3);
           this.fx.burst(p.x, 0.7, p.z, 2, 0xfff1a8, 2.5, 0.16, 0.18, 0, 0.2);
+          this.fx.impact(p.x, p.z, 0xffd27a);
           if (p.pierce-- <= 0) { p.alive = false; return false; }
         });
         if (!p.alive) continue;

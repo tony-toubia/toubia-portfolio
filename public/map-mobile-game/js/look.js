@@ -228,14 +228,29 @@ window.PH = window.PH || {};
     const mat = pass(`
       uniform sampler2D tDiffuse, tBloom1, tBloom2;
       uniform vec3 uShadow, uHigh;
-      uniform float uSat, uContrast, uVignette, uTime, uHurt, uBloom;
+      uniform float uSat, uContrast, uVignette, uTime, uHurt, uBloom, uFlash;
+      uniform vec4 uRipple[4];
       uniform vec2 uRes;
       varying vec2 vUv;
       vec3 toSRGB( vec3 c ) {
         return mix( c * 12.92, 1.055 * pow( c, vec3( 0.41666 ) ) - 0.055, step( 0.0031308, c ) );
       }
       void main() {
-        vec3 c = texture2D( tDiffuse, vUv ).rgb;
+        // Heat shimmer: each ripple is a thin ring that bends the image outward.
+        vec2 uv = vUv;
+        float aspect = uRes.x / uRes.y;
+        for ( int i = 0; i < 4; i++ ) {
+          vec4 r = uRipple[ i ];
+          if ( r.w <= 0.0 ) continue;
+          vec2 d = uv - r.xy;
+          d.x *= aspect;
+          float dist = length( d );
+          float k = smoothstep( 0.06, 0.0, abs( dist - r.z ) ) * r.w;
+          vec2 dir = d / max( dist, 0.0001 );
+          dir.x /= aspect;
+          uv -= dir * k * 0.016;
+        }
+        vec3 c = texture2D( tDiffuse, uv ).rgb;
         vec3 glow = ( texture2D( tBloom1, vUv ).rgb * 0.8 + texture2D( tBloom2, vUv ).rgb * 1.2 ) * uBloom;
         #ifdef HDR
           // Over-bright cores roll off instead of clipping, then glow is added and it all goes to display space.
@@ -253,6 +268,7 @@ window.PH = window.PH || {};
         float v = smoothstep( 0.95, 0.25, length( d ) );
         c *= mix( 1.0 - uVignette, 1.0, v );
         c = mix( c, c * vec3( 1.2, 0.55, 0.55 ), uHurt * ( 1.0 - v ) );
+        c += vec3( 0.55, 0.65, 1.0 ) * uFlash * 0.38;      // the storm's lightning lights the whole sky
         float n = fract( sin( dot( gl_FragCoord.xy + uTime, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
         c += ( n - 0.5 ) / 255.0;
         gl_FragColor = vec4( clamp( c, 0.0, 1.0 ), 1.0 );
@@ -261,6 +277,7 @@ window.PH = window.PH || {};
       uShadow: { value: new THREE.Vector3(1, 1, 1) }, uHigh: { value: new THREE.Vector3(1, 1, 1) },
       uSat: { value: 1 }, uContrast: { value: 1 }, uVignette: { value: 0.3 }, uBloom: { value: 0.8 },
       uRes: { value: new THREE.Vector2(size.x, size.y) }, uTime: { value: 0 }, uHurt: { value: 0 },
+      uFlash: { value: 0 }, uRipple: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, 0, 0, 0)) },
     });
 
     const scene = new THREE.Scene();
@@ -296,6 +313,11 @@ window.PH = window.PH || {};
         u.uVignette.value = mix(A.vignette, B.vignette);
         u.uBloom.value = this.bloomOn ? mix(A.bloom, B.bloom) : 0;
       },
+      setRipples(list) {
+        const r = mat.uniforms.uRipple.value;
+        for (let i = 0; i < 4; i++) { const q = list[i]; if (q) r[i].set(q[0], q[1], q[2], q[3]); else r[i].w = 0; }
+      },
+      setFlash(f) { mat.uniforms.uFlash.value = f; },
       render(sceneIn, cameraIn, time) {
         mat.uniforms.uTime.value = (time * 60) % 1000;
         renderer.setRenderTarget(rt);

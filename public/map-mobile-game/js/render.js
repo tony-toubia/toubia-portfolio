@@ -634,6 +634,139 @@ window.PH = window.PH || {};
 
       this.pops = [];           // creatures in their death frames
       this.moteAcc = 0;
+
+      // Light on the ground: an additive glow laid flat, drawn past white so the
+      // bloom spreads it. Cheaper than real lights, and it never recompiles shaders.
+      const flat = new THREE.PlaneGeometry(1, 1); flat.rotateX(-Math.PI / 2);
+      this.groundGlow = new Batch(S, flat, additive({ map: haloTex }), 120, true);
+      this.groundGlow.mesh.renderOrder = 1;
+      this.glows = [];
+      this.flashes = [];        // muzzle flashes
+      this.ripples = [];        // heat shimmer, drawn by the grade pass
+      this.skyBolts = [];       // the final night's lightning
+      this.stormT = 3;
+      this.flash = 0;
+      // Rain for the final night.
+      const drop = new THREE.BoxGeometry(0.018, 0.75, 0.018);
+      this.rain = new Batch(S, drop, new THREE.MeshBasicMaterial({ color: 0xa8c4ff, transparent: true, opacity: 0.4, depthWrite: false, toneMapped: false }), 240);
+      this.drops = [];
+      for (let i = 0; i < 240; i++) this.drops.push({ x: (Math.random() - 0.5) * 30, y: Math.random() * 14, z: (Math.random() - 0.5) * 34, v: 18 + Math.random() * 8 });
+    }
+
+    glow(x, z, size, color, life, k = 2) {
+      if (this.glows.length >= 120) this.glows.shift();
+      this.glows.push({ x, z, size, life, t: 0,
+        r: ((color >> 16) & 255) / 255 * k, g: ((color >> 8) & 255) / 255 * k, b: (color & 255) / 255 * k });
+    }
+
+    /** A gun flash: a hot star at the muzzle and a splash of light on the ground. */
+    muzzle(x, z, dx, dz, vis) {
+      if (this.flashes.length >= 40) return;
+      const color = vis === 'harpoon' ? [0.8, 2.6, 2.4] : vis === 'pellet' ? [3, 1.6, 0.6] : [3, 2.4, 1.1];
+      this.flashes.push({ x: x + dx * 0.55, z: z + dz * 0.55, t: 0, life: 0.06, c: color, s: vis === 'pellet' ? 1.1 : 0.85 });
+      this.glow(x + dx * 0.6, z + dz * 0.6, 1.2, vis === 'harpoon' ? 0x6ff0e0 : 0xffc06a, 0.07, 1.2);
+    }
+
+    impact(x, z, color) { if (this.glows.length < 90) this.glow(x, z, 0.8, color, 0.09, 1.3); }
+
+    /** Heat shimmer: a ring that ripples the screen outward from a point. */
+    ripple(x, z, radius, strength = 1, dur = 0.55) {
+      if (this.ripples.length >= 4) this.ripples.shift();
+      this.ripples.push({ x, z, radius, strength, dur, t: 0 });
+    }
+
+    /** One lightning strike from the storm: a bolt, a flash of the sky, light on the ground. */
+    strike(at) {
+      const v = this.view;
+      // Somewhere on screen, away from the edges.
+      const x = at ? at.x : this.camTarget.x + v.minX * 0.7 + Math.random() * (v.maxX - v.minX) * 0.7;
+      const z = at ? at.z : this.camTarget.z + v.minZ * 0.6 + Math.random() * (v.maxZ - v.minZ) * 0.6;
+      this.skyBolts.push({ x, z, t: 0, life: 0.28, seed: Math.random() * 100 });
+      this.glow(x, z, 7, 0xbfd4ff, 0.4, 2.2);
+      this.burst(x, 0.2, z, 18, 0xcfe0ff, 5, 0.25, 0.4, 6, 0.5, 2);
+      this.ripple(x, z, 4, 0.6, 0.4);
+      this.flash = 1;
+      this.addShake(0.15);
+      if (this.sfx) this.sfx('thunder');
+    }
+
+    /** The storm's bolts share the lightning batch, so they draw while it is open. */
+    drawSkyBolts(dt) {
+      for (let i = this.skyBolts.length - 1; i >= 0; i--) {
+        const b = this.skyBolts[i];
+        b.t += dt;
+        if (b.t >= b.life) { this.skyBolts.splice(i, 1); continue; }
+        if (Math.floor(b.t * 30) % 3 === 2) continue;           // flicker
+        const a = 1 - b.t / b.life;
+        let px = b.x + Math.sin(b.seed) * 1.5, py = 18, pz = b.z - 3;
+        for (let k = 1; k <= 9; k++) {
+          const f = k / 9, last = k === 9;
+          const nx = b.x + (1 - f) * Math.sin(b.seed) * 1.5 + (last ? 0 : (Math.random() - 0.5) * 1.4);
+          const nz = b.z - (1 - f) * 3 + (last ? 0 : (Math.random() - 0.5) * 1.4);
+          const ny = 18 * (1 - f);
+          this.segments.addSegment(px, py, pz, nx, ny, nz, 0.14, 1.6 * a + 0.4, 1.9 * a + 0.4, 2.8 * a + 0.6);
+          px = nx; py = ny; pz = nz;
+        }
+      }
+    }
+
+    updateEffects(dt, t) {
+      // Ground light
+      const G = this.groundGlow;
+      G.begin();
+      for (let i = this.glows.length - 1; i >= 0; i--) {
+        const g = this.glows[i];
+        g.t += dt;
+        if (g.t >= g.life) { this.glows.splice(i, 1); continue; }
+        const a = 1 - g.t / g.life, s = g.size * (0.7 + 0.3 * (1 - a));
+        G.add(g.x, 0.05, g.z, 0, s, 1, s, g.r * a, g.g * a, g.b * a);
+      }
+      G.end();
+      // Muzzle flashes ride the halo batch, drawn hot.
+      for (let i = this.flashes.length - 1; i >= 0; i--) {
+        const f = this.flashes[i];
+        f.t += dt;
+        if (f.t >= f.life) { this.flashes.splice(i, 1); continue; }
+        const a = 1 - f.t / f.life;
+        this.halos.add(f.x, 0.8, f.z, 0, f.s * (0.6 + a * 0.6), f.s * (0.6 + a * 0.6), f.s, f.c[0] * a, f.c[1] * a, f.c[2] * a);
+      }
+      // Storm and rain once the final night has fallen.
+      const night = Math.max(0, Math.min(1, (this.biome - 1.5) / 0.5));
+      if (night > 0.5 && dt > 0) {
+        this.stormT -= dt;
+        if (this.stormT <= 0) { this.stormT = 2.5 + Math.random() * 5; this.strike(); }
+      }
+      this.flash = Math.max(0, this.flash - dt * 5);
+      this.rain.begin();
+      if (night > 0 && this.view) {
+        this.rain.mesh.material.opacity = 0.42 * night;
+        const v = this.view, cx = this.camTarget.x, cz = this.camTarget.z;
+        for (const d of this.drops) {
+          if (dt > 0) { d.y -= d.v * dt; d.x -= 1.5 * dt; }
+          if (d.y < 0) {
+            d.y = 10 + Math.random() * 5;
+            d.x = v.minX + Math.random() * (v.maxX - v.minX + 4);
+            d.z = v.minZ - 2 + Math.random() * (v.maxZ - v.minZ + 4);
+          }
+          this.rain.add(cx + d.x, d.y, cz + d.z, 0, 1, 1, 1);
+        }
+      }
+      this.rain.end();
+      // Ripples for the grade pass, in screen space.
+      if (this.grade) {
+        const list = [];
+        for (let i = this.ripples.length - 1; i >= 0; i--) {
+          const r = this.ripples[i];
+          r.t += dt;
+          if (r.t >= r.dur) { this.ripples.splice(i, 1); continue; }
+          const k = r.t / r.dur, rad = r.radius * (0.25 + 0.75 * easeOut(k));
+          const c = this.project(r.x, 0.5, r.z, { x: 0, y: 0, on: true });
+          const e = this.project(r.x + rad, 0.5, r.z, { x: 0, y: 0, on: true });
+          list.push([c.x / this.w, 1 - c.y / this.h, Math.abs(e.x - c.x) / this.h, r.strength * (1 - k)]);
+        }
+        this.grade.setRipples(list);
+        this.grade.setFlash(this.flash * night);
+      }
     }
 
     /* ── Monster mode ───────────────────────────────────────── */
@@ -1048,9 +1181,9 @@ window.PH = window.PH || {};
 
     /* ── Particles & one-off effects ────────────────────────── */
 
-    burst(x, y, z, count, color, speed = 4, size = 0.25, life = 0.5, grav = 6, up = 0.5) {
+    burst(x, y, z, count, color, speed = 4, size = 0.25, life = 0.5, grav = 6, up = 0.5, boost = 1) {
       const P = this.p;
-      const cr = ((color >> 16) & 255) / 255, cg = ((color >> 8) & 255) / 255, cb = (color & 255) / 255;
+      const cr = ((color >> 16) & 255) / 255 * boost, cg = ((color >> 8) & 255) / 255 * boost, cb = (color & 255) / 255 * boost;
       for (let i = 0; i < count; i++) {
         if (P.n >= this.pMax) return;
         const k = P.n++;
@@ -1078,6 +1211,8 @@ window.PH = window.PH || {};
 
     explosion(x, z, radius, color = 0xff8a3d) {
       this.decal(x, z, radius * 1.5, 0x141010, 20);
+      this.glow(x, z, radius * 2.1, color, 0.3, 2.2);
+      if (radius >= 1.8) this.ripple(x, z, radius * 1.3, 0.45, 0.4);
       this.burst(x, 0.4, z, Math.min(40, 14 + radius * 8), color, radius * 3.2, 0.42, 0.5, 4, 0.6);
       this.burst(x, 0.4, z, 10, 0xfff2b3, radius * 1.6, 0.6, 0.25, 0, 0.3);
       this.ring(x, z, radius, 22, color, 0.32, 0.35);
@@ -1099,6 +1234,8 @@ window.PH = window.PH || {};
       // A dark stain in the creature's own colour.
       const dark = (((c >> 16) & 255) * 0.35 << 16) | (((c >> 8) & 255) * 0.25 << 8) | ((c & 255) * 0.3);
       this.decal(e.x, e.z, def.radius * e.scale * 2.6, dark, e.elite ? 40 : 18);
+      this.burst(e.x, 0.4, e.z, e.elite ? 22 : 7, 0xff8a3d, 1.2, 0.13, 0.9, -1.4, 0.6, 2.4);
+      if (e.elite) this.ripple(e.x, e.z, 2.5, 0.5, 0.4);
       if (this.pops.length >= 60) this.pops.shift();
       this.pops.push({ type: e.type, x: e.x, z: e.z, facing: e.facing, s: PH.ENEMIES[e.type].scale * e.scale, t: 0 });
     }
@@ -1114,14 +1251,22 @@ window.PH = window.PH || {};
     }
 
     lightningChain(points, color = 0x9be7ff) {
+      for (let i = 1; i < points.length; i++) this.glow(points[i].x, points[i].z, 1.6, color, 0.16, 1.8);
       this.lightning.push({ points, life: 0.16, max: 0.16, color, seed: Math.random() * 100 });
     }
 
     // Effects3D set pieces. It maps game coords with (v - 1000) * 0.05.
     fxCoords(x, z) { return [x * 20 + 1000, z * 20 + 1000]; }
-    bossArrival(x, z, stage, type) { const [a, b] = this.fxCoords(x, z); this.fx.createEvolutionEffect(a, b, stage, type); }
-    bossSlam(x, z, r) { const [a, b] = this.fxCoords(x, z); this.fx.createGroundSlam(a, b, r * 20); this.decal(x, z, r * 1.8, 0x1a1410, 30); }
+    bossArrival(x, z, stage, type) { const [a, b] = this.fxCoords(x, z); this.fx.createEvolutionEffect(a, b, stage, type); this.ripple(x, z, 8, 1, 0.8); this.glow(x, z, 8, 0xffb347, 0.6, 2); }
+    bossSlam(x, z, r) {
+      const [a, b] = this.fxCoords(x, z); this.fx.createGroundSlam(a, b, r * 20);
+      this.decal(x, z, r * 1.8, 0x1a1410, 30);
+      this.ripple(x, z, r * 1.8, 1, 0.6);
+      this.glow(x, z, r * 2.4, 0xffa060, 0.3, 1.8);
+      this.burst(x, 0.3, z, 26, 0xc9a070, r * 2.2, 0.32, 0.6, 7, 0.7);   // dust and grit
+    }
     bossDeath(x, z, r, color) {
+      this.ripple(x, z, r * 4, 1.2, 0.9);
       const [a, b] = this.fxCoords(x, z);
       this.fx.createExplosion(a, b, { radius: r * 20, color });
       this.explosion(x, z, r * 1.5, color);
@@ -1371,6 +1516,7 @@ window.PH = window.PH || {};
           this.segments.addSegment(b.ax, 1.1, b.az, b.bx, 1.1, b.bz, w, 0.25, 1.4, 0.55);
         }
       }
+      this.drawSkyBolts(dt);
       this.segments.end();
 
       // Pickups as emoji sprites: few on screen, and they read instantly.
@@ -1389,6 +1535,7 @@ window.PH = window.PH || {};
       }
       for (; si < this.sprites.length; si++) this.sprites[si].visible = false;
 
+      this.updateEffects(dt, t);
       if (this.monsterMode && game.hunters) this.drawMonsterMode(game, dt, t);
       this.drawZones(game, dt);
       this.drawWaves(dt);
@@ -1580,6 +1727,8 @@ window.PH = window.PH || {};
       for (const w of this.waves) { w.on = false; w.mesh.visible = false; }
       this.flocks.length = 0;
       this.decals.length = 0;
+      this.glows.length = 0; this.flashes.length = 0; this.ripples.length = 0; this.skyBolts.length = 0;
+      this.flash = 0; this.stormT = 3;
       this.trackBatch.begin(); this.trackBatch.end();
       this.birdBatch.begin(); this.birdBatch.end();
       this.fx.clear();
@@ -1590,7 +1739,7 @@ window.PH = window.PH || {};
   class NullRender {
     constructor() { this.view = { minX: -8, maxX: 8, minZ: -14, maxZ: 6 }; this.qualityLevel = 0; }
     burst() {} ring() {} explosion() {} lightningChain() {} addShake() {}
-    shockwave() {} enemyDeath() {} zoomPunch() {} dashTrail() {}
+    shockwave() {} enemyDeath() {} zoomPunch() {} dashTrail() {} muzzle() {} impact() {}
     setMonsterMode() {} setHunters() {} setViewScale() {} flashPlayer() {} birds() {}
     setPlayerMonster(type, stage) { return { radius: 1.1 + stage * 0.25, height: 3 }; }
     bossArrival() {} bossSlam() {} bossDeath() {} flashBoss() {} removeBoss() {} clearRun() {} setPlayer() {} prepareBosses() {}
