@@ -1,10 +1,9 @@
 /**
  * Primal Hunt - animated character models (CC0, by Kenney).
  *
- * The first proper model replaces one hand-built character: the Assault
- * hunter becomes Kenney's Mini Characters officer holding a Blaster Kit rifle.
- * Everything else still uses the original procedural models until each one
- * gets the same treatment.
+ * Each hunter class is one of Kenney's Mini Characters holding a Blaster Kit
+ * gun. The monsters and the swarm still use the original procedural models
+ * until they get the same treatment.
  *
  * Loading is asynchronous and optional: the game starts with the procedural
  * model and swaps in the real one when it arrives. If a file fails to load,
@@ -15,10 +14,15 @@ window.PH = window.PH || {};
 (() => {
   const BASE = '/map-mobile-game/models/kenney/';
 
-  // Which hunters have a real model, and what they hold.
+  // Which hunters have a real model, what they hold, and how long the gun is
+  // in the model's own units (the characters are about 0.8 tall).
   const HUNTERS = {
-    assault: { file: 'officer/character-male-c.glb', gun: 'blaster/blaster-n.glb', height: 1.65 },
+    assault: { file: 'characters/character-male-c.glb', gun: 'blasters/blaster-n.glb', gunLen: 0.51 },   // officer, rifle
+    trapper: { file: 'characters/character-male-b.glb', gun: 'blasters/blaster-g.glb', gunLen: 0.56 },   // bearded trapper, harpoon launcher
+    medic:   { file: 'characters/character-female-e.glb', gun: 'blasters/blaster-q.glb', gunLen: 0.42 }, // doctor, dart sprayer
+    support: { file: 'characters/character-female-a.glb', gun: 'blasters/blaster-l.glb', gunLen: 0.48 }, // engineer, heavy blaster
   };
+  const HEIGHT = 1.65;         // in-game height of every hunter
 
   const cache = new Map();     // file -> loaded gltf
   let loading = null;
@@ -33,13 +37,16 @@ window.PH = window.PH || {};
   // skinned normals. Lambert only for its normals; it is drawn flat black.
   const skinnedOutline = new THREE.MeshLambertMaterial({ color: 0x000000, emissive: 0x0b0c14, side: THREE.BackSide, skinning: true });
   skinnedOutline.onBeforeCompile = (sh) => {
-    sh.vertexShader = sh.vertexShader.replace('#include <skinning_vertex>',
-      '#include <skinning_vertex>\n  transformed += normalize( objectNormal ) * 0.035;');
+    // Pushed out along the normals, then back from the camera a little, so the
+    // shell only shows at the silhouette and not through a beard or a cap.
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <skinning_vertex>', '#include <skinning_vertex>\n  transformed += normalize( objectNormal ) * 0.035;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\n  mvPosition.z -= 0.12;\n  gl_Position = projectionMatrix * mvPosition;');
   };
   skinnedOutline.customProgramCacheKey = () => 'ph-skin-outline';
 
   const Models = {
-    HUNTERS,
+    HUNTERS, HEIGHT,
     has(cls) { const h = HUNTERS[cls]; return !!h && cache.has(h.file) && (!h.gun || cache.has(h.gun)); },
 
     load() {
@@ -64,22 +71,28 @@ window.PH = window.PH || {};
       const model = THREE.SkeletonUtils.clone(src.scene);
       // Scale to the game's hunter height.
       const box = new THREE.Box3().setFromObject(model);
-      const k = def.height / Math.max(0.01, box.max.y - box.min.y);
+      const k = HEIGHT / Math.max(0.01, box.max.y - box.min.y);
       model.scale.setScalar(k);
       model.position.y = -box.min.y * k;
 
-      // The rifle goes in the right hand.
-      let gun = null;
+      // The gun goes in the right hand. The holder was fitted in the aiming
+      // pose (grip in the fist, barrel along +z); each gun is centred in it
+      // and scaled to its length, so any blaster sits the same way.
       if (def.gun && cache.has(def.gun)) {
-        gun = cache.get(def.gun).scene.clone(true);
+        const gun = cache.get(def.gun).scene.clone(true);
         let hand = null;
         model.traverse((o) => { if (o.isBone && o.name === 'arm-right') hand = o; });
         if (hand) {
-          // Fitted in the aiming pose: grip in the fist, barrel along +z.
-          gun.scale.setScalar(0.8);
-          gun.position.set(-0.303, -0.048, 0.096);
-          gun.quaternion.set(-0.104, 0.857, 0.1158, 0.4912).normalize();
-          hand.add(gun);
+          const gb = new THREE.Box3().setFromObject(gun);
+          const size = gb.getSize(new THREE.Vector3()), mid = gb.getCenter(new THREE.Vector3());
+          const g = def.gunLen / Math.max(0.01, size.z);
+          gun.scale.setScalar(g);
+          gun.position.copy(mid).multiplyScalar(-g);
+          const holder = new THREE.Group();
+          holder.position.set(-0.303, -0.048, 0.096);
+          holder.quaternion.set(-0.104, 0.857, 0.1158, 0.4912).normalize();
+          holder.add(gun);
+          hand.add(holder);
         }
       }
 
