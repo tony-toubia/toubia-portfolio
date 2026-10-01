@@ -21,10 +21,13 @@ window.PH = window.PH || {};
   const fmtTime = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
   class UI {
-    constructor(game, render, monster) {
+    constructor(game, render, monster, hunt) {
       this.game = game;              // whichever mode is running; main.js steps this one
       this.survival = game;
       this.monster = monster;
+      this.hunt = hunt;
+      this.pickFor = 'survival';
+      this.bestHunt = store.get('bestHunt', null);
       this.render = render;
       this.screens = ['menu', 'modes', 'classes', 'monsters', 'choice', 'pause', 'over', 'nogl'];
       this.selectedMonster = store.get('monster', null);
@@ -86,16 +89,22 @@ window.PH = window.PH || {};
       const tap = (id, fn) => $(id).addEventListener('click', (e) => { e.preventDefault(); this.sfx('click'); fn(); });
       tap('btn-play', () => this.show('modes'));
       tap('btn-modes-back', () => this.show('menu'));
-      tap('mode-survival', () => { this.buildClassGrid(); this.show('classes'); });
+      tap('mode-survival', () => { this.pickFor = 'survival'; this.buildClassGrid(); this.show('classes'); });
+      tap('mode-hunt', () => { this.pickFor = 'hunt'; this.buildClassGrid(); this.show('classes'); });
       tap('mode-monster', () => { this.buildMonsterGrid(); this.show('monsters'); });
       tap('btn-classes-back', () => this.show('modes'));
       tap('btn-monsters-back', () => this.show('modes'));
       tap('btn-monster-go', () => this.startMonsterRun(this.selectedMonster));
-      tap('btn-hunt', () => this.startRun(this.selectedClass));
+      tap('btn-hunt', () => (this.pickFor === 'hunt' ? this.startHuntRun(this.selectedClass) : this.startRun(this.selectedClass)));
       tap('btn-pause', () => this.pause());
       tap('btn-resume', () => this.resume());
       tap('btn-quit', () => this.toMenu());
-      tap('btn-again', () => (this.game.mode === 'monster' ? this.startMonsterRun(this.game.monsterType) : this.startRun(this.game.classId)));
+      tap('btn-again', () => {
+        const g = this.game;
+        if (g.mode === 'monster') this.startMonsterRun(g.monsterType);
+        else if (g.mode === 'hunt') this.startHuntRun(g.myClass);
+        else this.startRun(g.classId);
+      });
       tap('btn-menu', () => this.toMenu());
       tap('btn-mute', () => this.toggleMute());
       tap('btn-pause-mute', () => this.toggleMute());
@@ -106,11 +115,15 @@ window.PH = window.PH || {};
       grid.innerHTML = '';
       for (const [id, c] of Object.entries(PH.CLASSES)) {
         const w = PH.WEAPONS[c.weapon];
+        const hunt = this.pickFor === 'hunt';
         const card = document.createElement('button');
         card.className = 'class-card' + (id === this.selectedClass ? ' selected' : '');
         card.style.setProperty('--accent', c.color);
-        const ab = PH.ABILITIES[c.ability];
-        card.innerHTML = `<div class="ci">${c.icon}</div><div class="cn">${c.name.toUpperCase()}</div>
+        const ab = hunt ? PH.HUNT_MODE.abilities[id] : PH.ABILITIES[c.ability];
+        card.innerHTML = hunt
+          ? `<div class="ci">${c.icon}</div><div class="cn">${c.name.toUpperCase()}</div><div class="cr">${c.role}</div>
+             <div class="ca">${ab.icon} ${ab.name}</div><div class="cp">${ab.desc}</div>`
+          : `<div class="ci">${c.icon}</div><div class="cn">${c.name.toUpperCase()}</div>
           <div class="cr">${c.role}</div><div class="cw">${w.icon} ${w.name}</div><div class="ca">${ab.icon} ${ab.name}</div><div class="cp">${c.perkText}</div>`;
         card.title = ab.desc;
         card.addEventListener('click', () => {
@@ -123,6 +136,7 @@ window.PH = window.PH || {};
         grid.appendChild(card);
       }
       $('btn-hunt').disabled = !this.selectedClass;
+      $('hunt-hint').hidden = this.pickFor !== 'hunt';
     }
 
     buildMonsterGrid() {
@@ -151,9 +165,11 @@ window.PH = window.PH || {};
     enterMode(game) {
       this.game = game;
       document.body.classList.toggle('mode-monster', game.mode === 'monster');
+      document.body.classList.toggle('mode-hunt', game.mode === 'hunt');
       this.releaseStick();
       this.cache = {};
       this.hintsShown = 0;
+      this.el.hpbar.style.display = '';   // hunter mode hides it while you are down
     }
 
     startMonsterRun(type) {
@@ -177,10 +193,30 @@ window.PH = window.PH || {};
 
     buildSquad() {
       const icons = { assault: '🔫', trapper: '🪤', medic: '💉', support: '🛡️' };
-      this.el.squad.innerHTML = this.monster.hunters.map((h) =>
-        `<div class="sq" style="--c:${PH.CLASSES[h.cls].color}"><span>${icons[h.cls]}</span><span class="sb"><i></i></span><span class="st"></span></div>`).join('');
+      const hs = this.game.hunters;
+      this.el.squad.innerHTML = hs.map((h) =>
+        `<div class="sq${h.controlled ? ' you' : ''}" style="--c:${PH.CLASSES[h.cls].color}"><span>${icons[h.cls]}</span><span class="sb"><i></i></span><span class="st"></span></div>`).join('');
       this.squadEls = [...this.el.squad.children];
-      this.hbars.forEach((b, i) => { const h = this.monster.hunters[i]; if (h) b.style.setProperty('--c', PH.CLASSES[h.cls].color); });
+      this.hbars.forEach((b, i) => { const h = hs[i]; if (h) b.style.setProperty('--c', PH.CLASSES[h.cls].color); });
+    }
+
+    startHuntRun(cls) {
+      if (!cls) return;
+      store.set('class', cls);
+      this.selectedClass = cls;
+      this.enterMode(this.hunt);
+      this.hunt.newRun(cls);
+      this.hideScreens();
+      this.el.hud.hidden = false;
+      this.el.bossbar.hidden = true;
+      this.el.hud.classList.remove('has-boss');
+      const ab = PH.HUNT_MODE.abilities[cls];
+      this.el.ability.style.setProperty('--accent', PH.CLASSES[cls].color);
+      this.el.abilityIcon.textContent = ab.icon;
+      this.el.ability.setAttribute('aria-label', ab.name);
+      this.el.dodge.querySelector('.ai').textContent = '💨';
+      this.el.dodge.setAttribute('aria-label', 'Jetpack');
+      this.buildSquad();
     }
 
     startRun(classId) {
@@ -218,7 +254,11 @@ window.PH = window.PH || {};
       this.game.state = 'paused';
       this.releaseStick();
       const pl = $('pause-loadout');
-      if (this.game.mode === 'monster') {
+      if (this.game.mode === 'hunt') {
+        const g = this.game, ab = PH.HUNT_MODE.abilities[g.myClass];
+        pl.innerHTML = `<div class="lo">${PH.CLASSES[g.myClass].icon}</div><div class="lo">${ab.icon}</div>`
+          + `<div class="lo">${g.revealed ? PH.MONSTERS[g.monsterType].icon : '❓'}<i>${g.stage}</i></div>`;
+      } else if (this.game.mode === 'monster') {
         // The monster has no loadout; show what it is and how the run is going.
         const g = this.game, m = PH.MONSTERS[g.monsterType];
         pl.innerHTML = `<div class="lo">${m.icon}<i>${g.stage}</i></div><div class="lo">${m.ability.icon}</div>`
@@ -250,6 +290,7 @@ window.PH = window.PH || {};
       const b = this.best, m = this.bestMonster;
       const parts = [];
       if (b) parts.push(`Survival best ${b.score.toLocaleString()}${b.victory ? ' 👑' : ''}`);
+      if (this.bestHunt) parts.push(`Squad best ${this.bestHunt.score.toLocaleString()}${this.bestHunt.victory ? ' 👑' : ''}`);
       if (m) parts.push(`Monster best ${m.score.toLocaleString()}${m.victory ? ' 👑' : ''}`);
       $('best-line').textContent = parts.join('  ·  ');
     }
@@ -275,7 +316,7 @@ window.PH = window.PH || {};
         },
         onChoice: (choices, kind) => this.openChoice(choices, kind),
         onLoadout: () => this.buildLoadout(),
-        onEnd: (r) => (r.mode === 'monster' ? this.monsterOver(r) : this.gameOver(r)),
+        onEnd: (r) => (r.mode === 'monster' ? this.monsterOver(r) : r.mode === 'hunt' ? this.huntOver(r) : this.gameOver(r)),
         onToast: (text) => this.toast(text),
         onEvolveReady: () => { if (navigator.vibrate) { try { navigator.vibrate([40, 60, 40]); } catch { /* iframe */ } } },
       };
@@ -287,6 +328,25 @@ window.PH = window.PH || {};
       t.classList.add('show');
       clearTimeout(this.toastTimer);
       this.toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+    }
+
+    huntOver(r) {
+      this.releaseStick();
+      const m = PH.MONSTERS[r.monsterType];
+      const title = $('over-title');
+      title.textContent = r.victory ? 'MONSTER SLAIN' : r.how === 'apex' ? 'SQUAD WIPED OUT' : 'IT GOT AWAY';
+      title.className = r.victory ? 'win' : 'lose';
+      $('over-sub').textContent = r.victory
+        ? `The squad brought down the ${m.name} at stage ${r.stage}.`
+        : r.how === 'apex' ? `The ${m.name} reached stage ${r.stage} and took down the whole squad.` : `The ${m.name} outlasted the dropship's clock.`;
+      $('over-stats').innerHTML = [
+        [fmtTime(r.time), 'TIME'], [`${r.stage}/3`, 'MONSTER STAGE'], [r.downs, 'TIMES DOWNED'], [r.huntersLost, 'HUNTERS LOST'],
+      ].map(([v, l]) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('');
+      const isBest = !this.bestHunt || r.score > this.bestHunt.score;
+      if (isBest) { this.bestHunt = { score: r.score, victory: r.victory }; store.set('bestHunt', this.bestHunt); }
+      $('over-score').innerHTML = `Score ${r.score.toLocaleString()}` + (isBest ? ' <span class="newbest">· NEW BEST</span>' : '');
+      this.sfx(r.victory ? 'victory' : 'defeat');
+      setTimeout(() => this.show('over'), r.victory ? 700 : 900);
     }
 
     monsterOver(r) {
@@ -503,6 +563,7 @@ window.PH = window.PH || {};
       const g = this.game;
       if (g.state === 'menu' || !g.player) return;
       if (g.mode === 'monster') return this.frameMonster();
+      if (g.mode === 'hunt') return this.frameHunt();
       const pl = g.player, E = this.el;
       this.set('xp', Math.round((g.xp / g.xpNeed) * 200), (v) => { E.xpfill.style.width = (v / 2) + '%'; });
       this.set('lvl', g.level, (v) => { E.lvl.textContent = `LV ${v}`; });
@@ -588,6 +649,73 @@ window.PH = window.PH || {};
     if (!this.radarAt || now - this.radarAt > 80) { this.radarAt = now; this.drawRadar(g); }
   };
 
+  const HUNT_STATUS = { spotted: 'MONSTER SPOTTED', tracking: 'TRACKING', searching: 'SEARCHING', evolving: 'IT IS EVOLVING' };
+
+  UI.prototype.frameHunt = function frameHunt() {
+    const g = this.game, me = g.me, mon = g.mon, E = this.el, M = PH.MONSTER_MODE, md = PH.MONSTERS[g.monsterType];
+    const S = g.stageDef();
+    // The bars are the monster's: what the squad knows about it.
+    this.set('mstage', `${g.stage}${g.revealed}`, () => {
+      E.mstage.textContent = g.revealed ? `${md.icon} ${md.name.toUpperCase()}  ·  STAGE ${g.stage}` : `❓ UNKNOWN MONSTER  ·  STAGE ${g.stage}`;
+    });
+    this.set('mhp', Math.max(0, Math.round((mon.hp / mon.maxHp) * 200)), (v) => { E.mhp.style.width = (v / 2) + '%'; });
+    this.set('marmor', Math.round((mon.armor / mon.maxArmor) * 200), (v) => { E.marmor.style.width = (v / 2) + '%'; });
+    const food = g.stage >= 3 ? 1 : g.food / S.food;
+    this.set('mfood', Math.round(food * 200), (v) => { E.mfoodfill.style.width = (v / 2) + '%'; });
+    this.set('mfoodfull', g.stage < 3 && food >= 1, (v) => { E.mfood.classList.toggle('full', v); });
+    this.set('mfoodlabel', g.stage >= 3 ? 'FULLY EVOLVED' : 'MONSTER EVOLUTION', (v) => { E.mfoodlabel.textContent = v; });
+    this.set('evolve', false, (v) => { E.evolve.hidden = !v; });
+    this.set('t', Math.ceil(Math.max(0, M.duration - g.time)), (v) => { E.timer.textContent = fmtTime(v); });
+    const status = mon.evolveT > 0 ? 'evolving' : !g.monView.hidden ? 'spotted' : g.team.known ? 'tracking' : 'searching';
+    this.set('mstatus', status, (v) => { E.mstatus.className = v; E.mstatus.textContent = HUNT_STATUS[v]; });
+
+    const ac = g.abilityMax ? g.abilityCd / g.abilityMax : 0;
+    this.set('acd', Math.ceil(ac * 60), (v) => { E.ability.style.setProperty('--cd', v / 60); });
+    this.set('aready', ac <= 0 && me.state === 'up', (v) => {
+      E.ability.classList.toggle('ready', v);
+      if (v && !this.taught && g.state === 'playing') {
+        this.taught = true; store.set('taughtAbility', true);
+        const desktop = window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches;
+        this.banner(desktop ? 'SPECIAL READY - PRESS SPACE' : 'SPECIAL READY - TAP THE BUTTON', 'win');
+      }
+    });
+    this.set('dcd', Math.ceil((g.dodgeCd / PH.HUNT_MODE.dodge.cd) * 30), (v) => { E.dodge.style.setProperty('--cd', v / 30); });
+
+    // Your health under your hunter.
+    const hp = Math.max(0, Math.round((me.hp / me.maxHp) * 100));
+    this.set('hp', hp, (v) => { E.hpfill.style.width = v + '%'; E.hpfill.classList.toggle('low', v < 30); });
+    const p = this.render.project(me.x, 0, me.z, this.tmp);
+    E.hpbar.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y + 14)}px)`;
+    E.hpbar.style.display = me.state === 'up' ? 'block' : 'none';
+
+    // Squad roster, with you outlined.
+    g.hunters.forEach((h, i) => {
+      const el = this.squadEls && this.squadEls[i];
+      if (!el) return;
+      const respawn = h.state === 'dead' && g.team.respawnAt ? Math.ceil(g.team.respawnAt - g.time) : 0;
+      this.set('sqs' + i, h.state + respawn, () => {
+        el.className = 'sq ' + h.state + (h.controlled ? ' you' : '');
+        el.querySelector('.st').textContent = h.state === 'dead' ? (respawn ? `${respawn}s` : '💀') : h.state === 'down' ? 'DOWN' : h.controlled ? 'YOU' : '';
+      });
+      this.set('sqh' + i, Math.round((h.hp / h.maxHp) * 50), (v) => { el.querySelector('.sb i').style.width = (v * 2) + '%'; });
+    });
+    // Health bars over your teammates.
+    g.hunters.forEach((h, i) => {
+      const b = this.hbars[i];
+      if (h.controlled || h.state !== 'up') { b.style.display = 'none'; return; }
+      const q = this.render.project(h.x, 2.3, h.z, this.tmp);
+      if (!q.on) { b.style.display = 'none'; return; }
+      b.style.display = 'block';
+      b.style.transform = `translate(${Math.round(q.x)}px, ${Math.round(q.y)}px)`;
+      b.firstChild.style.width = Math.round((h.hp / h.maxHp) * 100) + '%';
+      b.classList.toggle('shield', h.shieldT > 0);
+    });
+
+    if (!this.hintsShown && g.time > 0.6) { this.hintsShown = 1; this.toast('Find it: follow the footprints, watch for birds.'); }
+    const now = performance.now();
+    if (!this.radarAt || now - this.radarAt > 80) { this.radarAt = now; this.drawRadar(g); }
+  };
+
   /** A small map: the arena, grass, the trapper's dome, you, and the squad (a monster can smell them). */
   UI.prototype.drawRadar = function drawRadar(g) {
     const c = this.radarCtx, W = 180, R = 84, A = PH.MONSTER_MODE.arena, k = R / A, cx = W / 2, cz = W / 2;
@@ -603,10 +731,21 @@ window.PH = window.PH || {};
     }
     const blink = Math.floor(performance.now() / 300) % 2;
     for (const h of g.hunters) {
-      if (h.state !== 'up' && h.state !== 'down') continue;
+      if ((h.state !== 'up' && h.state !== 'down') || h.controlled) continue;
       c.fillStyle = PH.CLASSES[h.cls].color;
       c.beginPath(); c.arc(cx + h.x * k, cz + h.z * k, h.state === 'down' ? (blink ? 7 : 4) : 6, 0, Math.PI * 2);
       if (h.state === 'down') { c.strokeStyle = c.fillStyle; c.lineWidth = 2; c.stroke(); } else c.fill();
+    }
+    if (g.mode === 'hunt') {
+      // The monster: a red dot while seen, else a ring where it was last known.
+      const mon = g.mon, kn = g.team.known;
+      if (!g.monView.hidden) {
+        c.fillStyle = '#ff3b3b';
+        c.beginPath(); c.arc(cx + mon.x * k, cz + mon.z * k, 9, 0, Math.PI * 2); c.fill();
+      } else if (kn) {
+        c.strokeStyle = blink ? 'rgba(255, 80, 80, 0.95)' : 'rgba(255, 80, 80, 0.45)'; c.lineWidth = 3;
+        c.beginPath(); c.arc(cx + kn.x * k, cz + kn.z * k, 10, 0, Math.PI * 2); c.stroke();
+      }
     }
     const pl = g.player;
     c.translate(cx + pl.x * k, cz + pl.z * k);

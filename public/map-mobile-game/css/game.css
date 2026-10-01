@@ -317,3 +317,12 @@ body.mode-monster #btn-evolve:not([hidden]) { display: block; }
   font-size: 0.8rem; text-align: center; opacity: 0; transition: opacity 0.25s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #toast.show { opacity: 1; }
 @media (hover: hover) and (pointer: fine) { body.mode-monster #btn-evolve { bottom: calc(126px + var(--safe-b)); } }
+
+/* ── Hunter mode HUD: the monster-mode layout, with the bars showing the monster ── */
+body.mode-hunt #mbars, body.mode-hunt #mstatus, body.mode-hunt #squad,
+body.mode-hunt #radar, body.mode-hunt #hbars { display: block; }
+body.mode-hunt #xpbar, body.mode-hunt #loadout, body.mode-hunt #kills { display: none; }
+body.mode-hunt #topline { top: calc(64px + var(--safe-t)); }
+#mstatus.tracking { color: #ffb347; border-color: rgba(255, 179, 71, 0.6); }
+#mstatus.searching { color: var(--muted); }
+.sq.you { box-shadow: 0 0 0 1px #fff inset; }

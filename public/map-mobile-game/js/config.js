@@ -338,11 +338,33 @@ PH.HUNTER_AI = {
   speed: 4.0, jet: { cd: 6, dist: 4, chance: 0.5, chase: 5 },   // `chase`: jet cooldown when closing on a fleeing monster
   // Sound spikes: if the squad has lost you for a while, the trapper gets a rough fix.
   scan: { every: 25, late: 10, range: 26, noise: 4 },   // `late`: the interval by the final minute
-  sweep: { time: 9, r: 5 },  // how long they comb an area where the trail went cold bleedOut: 20, reviveTime: 3, reviveHp: 0.4,
+  sweep: { time: 9, r: 5 },  // how long they comb an area where the trail went cold
+  bleedOut: 20, reviveTime: 3, reviveHp: 0.4,
   assault: { hp: 160, range: 5, shot: { vis: 'bolt',    dmg: 5, cd: 0.3, speed: 17 } },
   trapper: { hp: 140, range: 7, shot: { vis: 'harpoon', dmg: 9, cd: 3.2, speed: 20, slow: 0.35, slowT: 1.1 },
              arena: { cd: 40, first: 40, r: 13, dur: 16 } },
   medic:   { hp: 125, range: 8, shot: { vis: 'pellet',  dmg: 4, cd: 0.9, speed: 15 }, heal: { hps: 10, range: 9 } },
   support: { hp: 150, range: 7, shot: { vis: 'bolt',    dmg: 6, cd: 0.6, speed: 16 },
              shield: { cd: 9, dur: 3, guard: 0.7 }, strike: { cd: 13, delay: 1.6, r: 3, dmg: 45 } },
+};
+
+/* ── Hunter mode ────────────────────────────────────────────────
+   Monster mode turned around: you are one of the four hunters, the other
+   three are the AI squad, and the monster is played by its AI. Kill it
+   before it wipes out the squad or outlasts the dropship's clock. Your
+   weapon fires on its own; each class has one special for this mode. */
+PH.HUNT_MODE = {
+  speed: 4.3,               // a little quicker than the AI squad, so you can lead
+  dodge: { cd: 2.6, dist: 4.2, dur: 0.2, iframes: 0.3 },   // jetpack burst
+  seeClose: 5,              // you always see the monster this close, grass or not
+  abilities: {
+    assault: { name: 'Overdrive', icon: '🔥', cd: 16, dur: 5, rate: 2, dmg: 0.25,
+               desc: 'Fire twice as fast and 25% harder for 5s.' },
+    trapper: { name: 'Mobile Arena', icon: '🔶', cd: 40, r: 13, dur: 14,
+               desc: 'Drop a dome around you. A monster inside cannot get out.' },
+    medic:   { name: 'Healing Burst', icon: '💖', cd: 16, heal: 60, r: 10,
+               desc: 'Heal everyone nearby by 60 and revive the downed close to you.' },
+    support: { name: 'Orbital Strike', icon: '☄️', cd: 10, r: 3.4, dmg: 90, delay: 1.2,
+               desc: 'Call a strike on the monster - or where it was last seen.' },
+  },
 };
