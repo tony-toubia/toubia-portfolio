@@ -78,6 +78,7 @@ window.PH = window.PH || {};
     }
     end() {
       this.mesh.count = this.n;
+      this.mesh.visible = this.n > 0;
       this.mesh.instanceMatrix.needsUpdate = true;
       if (this.colors && this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
     }
@@ -110,9 +111,9 @@ window.PH = window.PH || {};
    * r128 treats these as linear colours, so they are darker than they look.
    */
   const BIOMES = [
-    { bg: 0x14182a, amb: 0x404060, ambI: 0.40, sky: 0x87ceeb, gnd: 0x2d5016, hemiI: 0.30, sun: 0xfff5e0, sunI: 1.00, tint: [1, 1, 1],       tuft: 0x1c4417, mote: 0xd8ff6a },
-    { bg: 0x22132e, amb: 0x4a3560, ambI: 0.40, sky: 0xc07aa0, gnd: 0x2a2016, hemiI: 0.30, sun: 0xffa070, sunI: 0.72, tint: [1.12, 0.7, 1.3],  tuft: 0x2a2a26, mote: 0xffb35c },
-    { bg: 0x12050a, amb: 0x3a1a2a, ambI: 0.42, sky: 0x9a2a3a, gnd: 0x200808, hemiI: 0.30, sun: 0xff5040, sunI: 0.52, tint: [1.08, 0.55, 0.62], tuft: 0x341216, mote: 0xff4a2a },
+    { bg: 0x14182a, amb: 0x404060, ambI: 0.40, sky: 0x87ceeb, gnd: 0x2d5016, hemiI: 0.30, sun: 0xfff5e0, sunI: 1.00, tint: [1, 1, 1],       tuft: 0x1c4417, mote: 0xd8ff6a, mist: 0xd8ecff, mistA: 0.08 },
+    { bg: 0x22132e, amb: 0x4a3560, ambI: 0.40, sky: 0xc07aa0, gnd: 0x2a2016, hemiI: 0.30, sun: 0xffa070, sunI: 0.72, tint: [1.12, 0.7, 1.3],  tuft: 0x2a2a26, mote: 0xffb35c, mist: 0xd6b8ff, mistA: 0.12 },
+    { bg: 0x12050a, amb: 0x3a1a2a, ambI: 0.42, sky: 0x9a2a3a, gnd: 0x200808, hemiI: 0.30, sun: 0xff5040, sunI: 0.52, tint: [1.08, 0.55, 0.62], tuft: 0x341216, mote: 0xff4a2a, mist: 0xff8a7a, mistA: 0.14 },
   ];
   const _ca = new THREE.Color(), _cb = new THREE.Color();
   const mixHex = (out, a, b, k) => out.copy(_ca.setHex(a)).lerp(_cb.setHex(b), k);
@@ -166,6 +167,7 @@ window.PH = window.PH || {};
       this.fx = new Effects3D(this.shim);
 
       this.buildGround();
+      this.buildDecor();
       this.buildSwarm();
       this.buildBatches();
       this.buildParticles();
@@ -186,6 +188,10 @@ window.PH = window.PH || {};
       this.frameTimes = [];
       this.lastQualityCheck = 0;
       this.qualityLevel = 0;      // the game reads this to lower the enemy cap
+
+      // The colour grade: render into a texture, then one full-screen pass.
+      // If the device cannot do it, the game simply renders straight to screen.
+      try { this.grade = PH.Look.createGrade(r); } catch (e) { console.warn('grade off', e); this.grade = null; }
     }
 
     /* ── Scene construction ─────────────────────────────────── */
@@ -216,12 +222,128 @@ window.PH = window.PH || {};
       // world is stable as you walk, and only rebuilt when the ground snaps.
       const tuft = new THREE.ConeGeometry(0.09, 0.42, 4);
       tuft.translate(0, 0.21, 0);
-      this.tufts = new THREE.InstancedMesh(tuft, new THREE.MeshLambertMaterial({ color: 0x1c4417 }), 700);
+      this.tufts = new THREE.InstancedMesh(tuft, PH.Look.windify(new THREE.MeshLambertMaterial({ color: 0x1c4417 }), 0.16), 700);
       this.tuftMat = this.tufts.material;
       const rock = new THREE.DodecahedronGeometry(0.5, 0);
       this.rocks = new THREE.InstancedMesh(rock, new THREE.MeshStandardMaterial({ color: 0x3a3e48, flatShading: true, roughness: 1 }), 80);
       for (const m of [this.tufts, this.rocks]) { m.frustumCulled = false; this.scene.add(m); }
+      this.rockCap = this.rocks.count;
       this.groundKey = null;
+    }
+
+    /**
+     * Scenery placed from a hash of world cells, like the rocks: flowers,
+     * bushes and the odd ruin. All instanced, all swaying where it makes sense.
+     */
+    buildDecor() {
+      const S = this.scene, L = PH.Look;
+      const inst = (geo, mat, n, colors) => {
+        const m = new THREE.InstancedMesh(geo, mat, n);
+        if (colors) { _c.setRGB(1, 1, 1); for (let i = 0; i < n; i++) m.setColorAt(i, _c); }
+        m.count = 0; m.frustumCulled = false; S.add(m);
+        return m;
+      };
+      // Flowers: a stem and a head, swaying together.
+      const stem = new THREE.CylinderGeometry(0.012, 0.016, 0.32, 3); stem.translate(0, 0.16, 0);
+      const head = new THREE.OctahedronGeometry(0.075, 0); head.translate(0, 0.34, 0);
+      this.stems = inst(stem, L.windify(new THREE.MeshLambertMaterial({ color: 0x2c6b22 }), 0.2), 700);
+      this.flowerMat = L.windify(L.toonMaterial({ color: 0xffffff, emissive: 0x111111 }), 0.2);
+      this.flowers = inst(head, this.flowerMat, 700, true);
+      // Bushes: chunky low-poly balls with an outline shell.
+      const bush = new THREE.IcosahedronGeometry(0.55, 0); bush.translate(0, 0.38, 0);
+      this.bushMat = L.windify(L.toonMaterial({ color: 0xffffff, flatShading: true }), 0.04);
+      this.bushes = inst(bush, this.bushMat, 260, true);
+      this.bushOutline = inst(bush, L.windify(new THREE.MeshBasicMaterial({ color: 0x0b0c14, side: THREE.BackSide }), 0.04), 260);
+      // Ruins: broken stone pillars.
+      const pillar = new THREE.BoxGeometry(0.55, 1, 0.55); pillar.translate(0, 0.5, 0);
+      this.ruinMat = L.toonMaterial({ color: 0x2c2f37, flatShading: true });
+      this.ruins = inst(pillar, this.ruinMat, 60);
+      this.ruinOutline = inst(pillar, L.outlineMaterial, 60);
+      // Rocks get the same toon look.
+      this.rocks.material = L.toonMaterial({ color: 0x262931, flatShading: true });
+      this.rockOutline = inst(this.rocks.geometry, L.outlineMaterial, this.rocks.count);
+
+      // Ground decals: blood where things died, scorch where things blew up.
+      const splat = canvasTexture(128, (g, s) => {
+        g.fillStyle = '#fff';
+        for (let i = 0; i < 11; i++) {
+          const a = Math.random() * Math.PI * 2, d = i === 0 ? 0 : s * (0.12 + Math.random() * 0.24), r = s * (i === 0 ? 0.28 : 0.05 + Math.random() * 0.09);
+          g.beginPath(); g.arc(s / 2 + Math.cos(a) * d, s / 2 + Math.sin(a) * d, r, 0, Math.PI * 2); g.fill();
+        }
+      });
+      const decalGeo = new THREE.PlaneGeometry(1, 1); decalGeo.rotateX(-Math.PI / 2);
+      this.decalBatch = new Batch(S, decalGeo, new THREE.MeshBasicMaterial({ map: splat, transparent: true, opacity: 0.6, depthWrite: false,
+        polygonOffset: true, polygonOffsetFactor: -1 }), 140, true);
+      this.decalBatch.mesh.renderOrder = -2;
+      this.decals = [];
+
+      // Low mist: a few big soft cards drifting near the ground.
+      const mistTex = canvasTexture(128, (g, s) => {
+        const grd = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+        grd.addColorStop(0, 'rgba(255,255,255,0.9)'); grd.addColorStop(0.5, 'rgba(255,255,255,0.35)'); grd.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = grd; g.fillRect(0, 0, s, s);
+      });
+      const mistGeo = new THREE.PlaneGeometry(1, 1); mistGeo.rotateX(-Math.PI / 2);
+      this.mistMat = new THREE.MeshBasicMaterial({ map: mistTex, transparent: true, opacity: 0.1, depthWrite: false, color: 0xd8ecff });
+      this.mist = [];
+      for (let i = 0; i < 9; i++) {
+        const m = new THREE.Mesh(mistGeo, this.mistMat);
+        m.renderOrder = 3;
+        m.userData = { ox: (Math.random() - 0.5) * 30, oz: (Math.random() - 0.5) * 30, sp: 0.2 + Math.random() * 0.3, ph: Math.random() * 6 };
+        const sc = 9 + Math.random() * 8; m.scale.set(sc, 1, sc * 0.7);
+        m.position.y = 0.35 + Math.random() * 0.6;
+        S.add(m); this.mist.push(m);
+      }
+
+      // The forest that rings the monster arenas (built when one starts).
+      const trunk = new THREE.CylinderGeometry(0.16, 0.24, 1.6, 6); trunk.translate(0, 0.8, 0);
+      const crown = new THREE.ConeGeometry(1.15, 2.6, 7); crown.translate(0, 2.7, 0);
+      this.trunks = inst(trunk, L.toonMaterial({ color: 0x1e120a, flatShading: true }), 220);
+      this.crownMat = L.windify(L.toonMaterial({ color: 0xffffff, flatShading: true }), 0.03);
+      this.crowns = inst(crown, this.crownMat, 220, true);
+      this.crownOutline = inst(crown, L.windify(new THREE.MeshBasicMaterial({ color: 0x0b0c14, side: THREE.BackSide }), 0.03), 220);
+    }
+
+    /** Place an instance in a decor mesh and, optionally, its outline shell. */
+    placeDecor(mesh, outline, i, x, y, z, rot, sx, sy, sz, color) {
+      _p.set(x, y, z); _q.setFromAxisAngle(_up, rot); _s.set(sx, sy, sz);
+      _m.compose(_p, _q, _s); mesh.setMatrixAt(i, _m);
+      if (color) mesh.setColorAt(i, color);
+      if (outline) {
+        _s.set(sx * 1.1, sy * 1.06, sz * 1.1); _p.y = y - 0.02;
+        _m.compose(_p, _q, _s); outline.setMatrixAt(i, _m);
+      }
+    }
+
+    decal(x, z, size, color, life = 24) {
+      if (this.decals.length >= 140) this.decals.shift();
+      this.decals.push({ x, z, size, rot: Math.random() * 6.3, t: 0, life,
+        r: ((color >> 16) & 255) / 255, g: ((color >> 8) & 255) / 255, b: (color & 255) / 255 });
+    }
+
+    updateDecals(dt) {
+      const B = this.decalBatch;
+      B.begin();
+      for (let i = this.decals.length - 1; i >= 0; i--) {
+        const d = this.decals[i];
+        d.t += dt;
+        if (d.t >= d.life) { this.decals.splice(i, 1); continue; }
+        // Spread in quickly, shrink away over the last quarter of its life.
+        const grow = Math.min(1, d.t / 0.15), fade = Math.min(1, (d.life - d.t) / (d.life * 0.25));
+        const s = d.size * grow * (0.4 + 0.6 * fade);
+        B.add(d.x, 0.022, d.z, d.rot, s, 1, s, d.r, d.g, d.b);
+      }
+      B.end();
+    }
+
+    updateMist(dt) {
+      const cx = this.camTarget.x, cz = this.camTarget.z;
+      for (const m of this.mist) {
+        const u = m.userData;
+        u.ox += u.sp * dt; u.oz += Math.sin(this.time * 0.1 + u.ph) * 0.1 * dt;
+        if (u.ox > 18) u.ox -= 36;
+        m.position.x = cx + u.ox; m.position.z = cz + u.oz;
+      }
     }
 
     snapGround(px, pz) {
@@ -241,21 +363,41 @@ window.PH = window.PH || {};
         const dry = noise2(wx * 0.025 + 40, wz * 0.025 - 13);
         // r128 treats colours as linear and sRGB-encodes them on output, so these
         // read far brighter on screen than they look here.
-        const r = 0.018 + n * 0.022 + dry * 0.03, g = 0.05 + n * 0.045 + dry * 0.015, b = 0.016 + n * 0.012;
+        let r = 0.018 + n * 0.022 + dry * 0.03, g = 0.05 + n * 0.045 + dry * 0.015, b = 0.016 + n * 0.012;
+        // Worn dirt paths along ridges of a slow noise, and darker moss in hollows.
+        const path = 1 - Math.abs(noise2(wx * 0.028 + 7, wz * 0.028 - 3) * 2 - 1);
+        const p = Math.max(0, (path - 0.86) / 0.14);
+        r += (0.075 - r) * p; g += (0.05 - g) * p; b += (0.025 - b) * p;
+        const moss = Math.max(0, noise2(wx * 0.11 - 20, wz * 0.11 + 5) - 0.62) * 2.2;
+        r *= 1 - moss * 0.35; g *= 1 - moss * 0.12; b *= 1 - moss * 0.3;
         col.setXYZ(i, r, g, b);
       }
       col.needsUpdate = true;
 
-      let nt = 0, nr = 0;
+      let nt = 0, nr = 0, nf = 0, nb = 0, nu = 0;
       const half = this.groundSize / 2, cell = 2.5;
+      const arena = this.monsterMode ? this.arenaR : Infinity;
       for (let gx = cx - half; gx < cx + half; gx += cell) {
         for (let gz = cz - half; gz < cz + half; gz += cell) {
           const h = hash2(gx * 0.37, gz * 0.53);
           const ox = gx + hash2(gx, gz + 7) * cell, oz = gz + hash2(gx + 3, gz) * cell;
-          if (h < 0.035 && nr < this.rocks.count) {
+          if (Math.hypot(ox, oz) > arena) continue;     // outside a monster arena is forest
+          if (h < 0.035 && nr < this.rockCap) {
             const s = 0.5 + hash2(gx + 11, gz) * 0.9;
-            _p.set(ox, s * 0.25, oz); _q.setFromAxisAngle(_up, h * 40); _s.set(s, s * 0.7, s);
-            _m.compose(_p, _q, _s); this.rocks.setMatrixAt(nr++, _m);
+            this.placeDecor(this.rocks, this.rockOutline, nr++, ox, s * 0.25, oz, h * 40, s, s * 0.7, s);
+          } else if (h < 0.05 && nb < 258) {
+            // A small cluster of bushes.
+            for (let k = 0; k < 3 && nb < 260; k++) {
+              const s = 0.7 + hash2(gx + k * 3, gz + 1) * 0.7;
+              _c.setHSL(0.27 + hash2(gx, gz + k) * 0.08, 0.6, 0.05 + hash2(gx + k, gz) * 0.035);
+              this.placeDecor(this.bushes, this.bushOutline, nb++, ox + (k - 1) * 0.55, 0, oz + hash2(k, gz) * 0.6, h * 30 + k, s, s * 0.85, s, _c);
+            }
+          } else if (h < 0.054 && nu < 56) {
+            // A broken colonnade: a few pillars of uneven height.
+            for (let k = 0; k < 3 && nu < 60; k++) {
+              const ht = 0.5 + hash2(gx + k, gz - k) * 1.8;
+              this.placeDecor(this.ruins, this.ruinOutline, nu++, ox + k * 1.1, 0, oz + (k % 2) * 0.4, h * 9 + k * 0.2, 1, ht, 1);
+            }
           } else if (h > 0.45 && nt < this.tufts.count) {
             for (let k = 0; k < 3 && nt < this.tufts.count; k++) {
               const s = 0.7 + hash2(gx + k, gz - k) * 0.8;
@@ -266,9 +408,28 @@ window.PH = window.PH || {};
           }
         }
       }
-      this.tufts.count = nt; this.rocks.count = nr;
-      this.tufts.instanceMatrix.needsUpdate = true;
-      this.rocks.instanceMatrix.needsUpdate = true;
+      // Flower clumps on their own hash, so they mix with everything else.
+      for (let gx = cx - half; gx < cx + half; gx += 1.7) {
+        for (let gz = cz - half; gz < cz + half; gz += 1.7) {
+          if (hash2(gx * 0.71 + 5, gz * 0.29 - 9) > 0.1 || Math.hypot(gx, gz) > arena) continue;
+          const hue = [0.13, 0.95, 0.8, 0.58, 0.0][Math.floor(hash2(gx, gz * 3) * 5)];
+          for (let k = 0; k < 5 && nf < 700; k++) {
+            const fx = gx + (hash2(gx + k, gz) - 0.5) * 1.2, fz = gz + (hash2(gx, gz + k) - 0.5) * 1.2, s = 0.8 + hash2(k, gx) * 0.5;
+            _c.setHSL(hue, 0.85, k === 0 ? 0.42 : 0.3);
+            this.placeDecor(this.flowers, null, nf, fx, 0, fz, k, s, s, s, _c);
+            this.placeDecor(this.stems, null, nf, fx, 0, fz, k, s, s, s);
+            nf++;
+          }
+        }
+      }
+      this.tufts.count = nt; this.rocks.count = nr; this.rockOutline.count = nr;
+      this.flowers.count = this.stems.count = nf;
+      this.bushes.count = this.bushOutline.count = nb;
+      this.ruins.count = this.ruinOutline.count = nu;
+      for (const m of [this.tufts, this.rocks, this.rockOutline, this.flowers, this.stems, this.bushes, this.bushOutline, this.ruins, this.ruinOutline]) {
+        m.instanceMatrix.needsUpdate = true;
+        if (m.instanceColor) m.instanceColor.needsUpdate = true;
+      }
     }
 
     /** Bake one of the original wildlife models into a single coloured geometry. */
@@ -307,9 +468,13 @@ window.PH = window.PH || {};
 
     buildSwarm() {
       this.swarm = {};
-      const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+      this.swarmOutline = {};
+      const mat = PH.Look.toonMaterial({ vertexColors: true });
       for (const [type, def] of Object.entries(PH.ENEMIES)) {
-        this.swarm[type] = new Batch(this.scene, this.bakeWildlife(def.geo, def.colors), mat, PH.CONFIG.maxEnemies, true);
+        const geo = this.bakeWildlife(def.geo, def.colors);
+        this.swarm[type] = new Batch(this.scene, geo, mat, PH.CONFIG.maxEnemies, true);
+        // Outlines as a second instanced draw: the same shape, slightly larger, back faces only.
+        this.swarmOutline[type] = new Batch(this.scene, geo, PH.Look.outlineMaterial, PH.CONFIG.maxEnemies);
       }
     }
 
@@ -474,18 +639,21 @@ window.PH = window.PH || {};
 
     setMonsterMode(on, grass = [], arena = 34) {
       this.monsterMode = on;
+      this.arenaR = arena + 0.5;
+      this.groundKey = null;            // re-place scenery: none inside the boulders' line, forest outside
+      this.placeForest(on ? arena : 0);
       if (this.grassMesh) { this.scene.remove(this.grassMesh); this.grassMesh.geometry.dispose(); this.grassMesh = null; }
       for (const v of this.hunterVis.values()) this.scene.remove(v.root);
       this.hunterVis.clear();
       this.flocks.length = 0;
-      if (!on) { if (this.wallMesh) this.wallMesh.visible = false; this.setViewScale(1); return; }
+      if (!on) { if (this.wallMesh) this.wallMesh.visible = this.wallOutline.visible = false; this.setViewScale(1); return; }
 
       // Tall grass: open three-sided blades, one instanced draw call.
       const D = PH.MONSTER_MODE.grass.density;
       let total = 0;
       for (const g of grass) total += Math.round(Math.PI * g.r * g.r * D);
       const blade = new THREE.ConeGeometry(0.1, 1.3, 3, 1, true); blade.translate(0, 0.65, 0);
-      if (!this.grassMat) this.grassMat = new THREE.MeshLambertMaterial({ color: 0x2a5c1f, side: THREE.DoubleSide });
+      if (!this.grassMat) this.grassMat = PH.Look.windify(new THREE.MeshLambertMaterial({ color: 0x2a5c1f, side: THREE.DoubleSide }), 0.13);
       const mesh = new THREE.InstancedMesh(blade, this.grassMat, Math.max(1, total));
       let n = 0;
       for (const g of grass) {
@@ -512,10 +680,10 @@ window.PH = window.PH || {};
       // A ring of boulders marks the edge of the hunting ground.
       if (!this.wallMesh) {
         const N = 120;
-        this.wallMesh = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1, 0),
-          new THREE.MeshStandardMaterial({ color: 0x3a3e48, flatShading: true, roughness: 1 }), N);
-        this.wallMesh.frustumCulled = false;
-        this.scene.add(this.wallMesh);
+        const geo = new THREE.DodecahedronGeometry(1, 0);
+        this.wallMesh = new THREE.InstancedMesh(geo, PH.Look.toonMaterial({ color: 0x23262d, flatShading: true }), N);
+        this.wallOutline = new THREE.InstancedMesh(geo, PH.Look.outlineMaterial, N);
+        for (const m of [this.wallMesh, this.wallOutline]) { m.frustumCulled = false; this.scene.add(m); }
       }
       const N = this.wallMesh.count;
       for (let i = 0; i < N; i++) {
@@ -523,9 +691,32 @@ window.PH = window.PH || {};
         _p.set(Math.cos(a) * r, sc * 0.35, Math.sin(a) * r);
         _q.setFromAxisAngle(_up, hash2(i, 5) * 6); _s.set(sc, sc * (0.8 + hash2(i, 1) * 0.6), sc);
         _m.compose(_p, _q, _s); this.wallMesh.setMatrixAt(i, _m);
+        _s.multiplyScalar(1.08); _m.compose(_p, _q, _s); this.wallOutline.setMatrixAt(i, _m);
       }
       this.wallMesh.instanceMatrix.needsUpdate = true;
-      this.wallMesh.visible = true;
+      this.wallOutline.instanceMatrix.needsUpdate = true;
+      this.wallMesh.visible = this.wallOutline.visible = true;
+    }
+
+    /** A ring of trees beyond the arena's boulders, so the hunting ground sits in a forest. */
+    placeForest(arena) {
+      let n = 0;
+      if (arena > 0) {
+        for (let i = 0; i < 220; i++) {
+          const a = (i / 220) * Math.PI * 2 + hash2(i, 1) * 0.05;
+          const r = arena + 3 + hash2(i, 2) * 11, s = 0.85 + hash2(i, 3) * 0.6;
+          const x = Math.cos(a) * r, z = Math.sin(a) * r;
+          _c.setHSL(0.28 + hash2(i, 4) * 0.08, 0.55, 0.04 + hash2(i, 5) * 0.03);
+          this.placeDecor(this.trunks, null, n, x, 0, z, hash2(i, 6) * 6, s, s, s);
+          this.placeDecor(this.crowns, this.crownOutline, n, x, 0, z, hash2(i, 7) * 6, s, s * (0.9 + hash2(i, 8) * 0.4), s, _c);
+          n++;
+        }
+      }
+      this.trunks.count = this.crowns.count = this.crownOutline.count = n;
+      for (const m of [this.trunks, this.crowns, this.crownOutline]) {
+        m.instanceMatrix.needsUpdate = true;
+        if (m.instanceColor) m.instanceColor.needsUpdate = true;
+      }
     }
 
     setViewScale(k) {
@@ -543,6 +734,7 @@ window.PH = window.PH || {};
       else mesh = this.chars.createMonsterMesh({ monsterType: type, evolutionStage: stage });
       mesh.traverse((o) => { if (o.isMesh) o.castShadow = false; });
       const box = this.bodyBox(mesh);
+      PH.Look.stylize(mesh, 0.1, 10);
       const root = new THREE.Group();
       root.add(mesh);
       mesh.position.y = -box.min.y;
@@ -569,6 +761,7 @@ window.PH = window.PH || {};
         const mesh = this.chars.createHunterMesh({ hunterClass: h.cls });
         mesh.traverse((o) => { if (o.isMesh) o.castShadow = false; });
         const box = this.bodyBox(mesh);
+        PH.Look.stylize(mesh, 0.06, 6);
         const tilt = new THREE.Group();
         tilt.add(mesh);
         mesh.position.y = -box.min.y;
@@ -717,6 +910,7 @@ window.PH = window.PH || {};
       this.scene.fog.near = this.camDist + 4;
       this.scene.fog.far = this.camDist + 34;
       this.computeViewBounds();
+      if (this.grade) this.grade.setSize();
     }
 
     /** The patch of ground actually on screen, found by casting the screen corners onto it. */
@@ -781,6 +975,7 @@ window.PH = window.PH || {};
       const mesh = this.chars.createHunterMesh({ hunterClass });
       mesh.traverse((o) => { if (o.isMesh) o.castShadow = false; });
       const box = this.bodyBox(mesh);
+      PH.Look.stylize(mesh, 0.06, 6);
       const inner = new THREE.Group();
       inner.add(mesh);
       mesh.position.y = -box.min.y;
@@ -800,6 +995,7 @@ window.PH = window.PH || {};
       tmp.add(new THREE.AmbientLight(0xffffff, 0.5));
       for (const { type, stage } of list) {
         const mesh = this.chars.createMonsterMesh({ monsterType: type, evolutionStage: stage });
+        PH.Look.stylize(mesh, 0.1, 10);
         this.preparedBosses.set(`${type}:${stage}`, mesh);
         tmp.add(mesh);
       }
@@ -814,6 +1010,7 @@ window.PH = window.PH || {};
       const mesh = prepared || this.chars.createMonsterMesh({ monsterType, evolutionStage: stage });
       mesh.traverse((o) => { if (o.isMesh) o.castShadow = false; });
       const box = this.bodyBox(mesh);
+      PH.Look.stylize(mesh, 0.1, 10);
       const root = new THREE.Group();
       root.add(mesh);
       mesh.position.y = -box.min.y;
@@ -866,6 +1063,7 @@ window.PH = window.PH || {};
     }
 
     explosion(x, z, radius, color = 0xff8a3d) {
+      this.decal(x, z, radius * 1.5, 0x141010, 20);
       this.burst(x, 0.4, z, Math.min(40, 14 + radius * 8), color, radius * 3.2, 0.42, 0.5, 4, 0.6);
       this.burst(x, 0.4, z, 10, 0xfff2b3, radius * 1.6, 0.6, 0.25, 0, 0.3);
       this.ring(x, z, radius, 22, color, 0.32, 0.35);
@@ -883,6 +1081,10 @@ window.PH = window.PH || {};
 
     /** A creature's last frames: a white flash as it squashes into the ground. */
     enemyDeath(e) {
+      const def = PH.ENEMIES[e.type], c = def.colors.primary;
+      // A dark stain in the creature's own colour.
+      const dark = (((c >> 16) & 255) * 0.35 << 16) | (((c >> 8) & 255) * 0.25 << 8) | ((c & 255) * 0.3);
+      this.decal(e.x, e.z, def.radius * e.scale * 2.6, dark, e.elite ? 40 : 18);
       if (this.pops.length >= 60) this.pops.shift();
       this.pops.push({ type: e.type, x: e.x, z: e.z, facing: e.facing, s: PH.ENEMIES[e.type].scale * e.scale, t: 0 });
     }
@@ -904,7 +1106,7 @@ window.PH = window.PH || {};
     // Effects3D set pieces. It maps game coords with (v - 1000) * 0.05.
     fxCoords(x, z) { return [x * 20 + 1000, z * 20 + 1000]; }
     bossArrival(x, z, stage, type) { const [a, b] = this.fxCoords(x, z); this.fx.createEvolutionEffect(a, b, stage, type); }
-    bossSlam(x, z, r) { const [a, b] = this.fxCoords(x, z); this.fx.createGroundSlam(a, b, r * 20); }
+    bossSlam(x, z, r) { const [a, b] = this.fxCoords(x, z); this.fx.createGroundSlam(a, b, r * 20); this.decal(x, z, r * 1.8, 0x1a1410, 30); }
     bossDeath(x, z, r, color) {
       const [a, b] = this.fxCoords(x, z);
       this.fx.createExplosion(a, b, { radius: r * 20, color });
@@ -990,7 +1192,7 @@ window.PH = window.PH || {};
       }
 
       // Swarm
-      for (const type in this.swarm) this.swarm[type].begin();
+      for (const type in this.swarm) { this.swarm[type].begin(); this.swarmOutline[type].begin(); }
       this.eliteRings.begin();
       const E = game.enemies;
       for (let i = 0; i < E.length; i++) {
@@ -1008,6 +1210,8 @@ window.PH = window.PH || {};
         }
         if (e.flash > 0) { r = g = b = 4; }
         this.swarm[e.type].add(e.x, bob, e.z, e.facing, s, s * squash, s, r, g, b);
+        const os = s * 1.13;
+        this.swarmOutline[e.type].add(e.x, bob - 0.03, e.z, e.facing, os, s * squash * 1.08, os);
         this.shadows.add(e.x, 0.02, e.z, 0, def.radius * e.scale * 1.15, 1, def.radius * e.scale * 1.15);
       }
       // Death pops: a flash and a squash, drawn in the same instanced batches.
@@ -1019,7 +1223,7 @@ window.PH = window.PH || {};
         const w = d.s * (1 + k * 0.45), f = 3.2 - k * 2.2;
         this.swarm[d.type].add(d.x, 0, d.z, d.facing, w, d.s * (1 - k * 0.85), w, f, f, f);
       }
-      for (const type in this.swarm) this.swarm[type].end();
+      for (const type in this.swarm) { this.swarm[type].end(); this.swarmOutline[type].end(); }
       this.eliteRings.end();
 
       // Bosses
@@ -1178,9 +1382,20 @@ window.PH = window.PH || {};
 
       this.shadows.end();
       this.halos.end();
+      this.updateDecals(dt);
+      this.updateMist(dt);
       this.updateParticles(dt);
       this.fx.update(dt);
-      this.renderer.render(this.scene, this.camera);
+
+      // Wind, and the grass parting around you and around the monster.
+      const LU = PH.Look.uniforms;
+      LU.time.value = this.time;
+      LU.push.value.set(pl.x, pl.z, 1.5, pl.moving ? 1 : 0.6);
+      const mon = game.mode === 'monster' ? game.player : game.mode === 'hunt' ? game.mon : game.bosses[0];
+      if (mon) LU.push2.value.set(mon.x, mon.z, (mon.radius || 1) * 1.8, 1);
+      else LU.push2.value.w = 0;
+      if (this.grade) { this.grade.setStage(this.biome); this.grade.render(this.scene, this.camera, this.time); }
+      else this.renderer.render(this.scene, this.camera);
     }
 
     /** Ease the light, sky and ground toward the current evolution stage. */
@@ -1199,6 +1414,12 @@ window.PH = window.PH || {};
         A.tint[0] + (B.tint[0] - A.tint[0]) * k, A.tint[1] + (B.tint[1] - A.tint[1]) * k, A.tint[2] + (B.tint[2] - A.tint[2]) * k);
       mixHex(this.tuftMat.color, A.tuft, B.tuft, k);
       if (this.grassMat) this.grassMat.color.copy(this.tuftMat.color).multiplyScalar(1.5);
+      // Scenery takes the ground's tint; the mist takes the stage's colour.
+      const gt = this.ground.material.color;
+      this.bushMat.color.copy(gt); this.crownMat.color.copy(gt);
+      this.flowerMat.color.setRGB(Math.min(1, gt.r), Math.min(1, gt.g), Math.min(1, gt.b));
+      mixHex(this.mistMat.color, A.mist, B.mist, k);
+      this.mistMat.opacity = A.mistA + (B.mistA - A.mistA) * k;
       this.moteColor = k < 0.5 ? A.mote : B.mote;
     }
 
@@ -1303,6 +1524,7 @@ window.PH = window.PH || {};
           ft.length = 0;
         } else if (this.qualityLevel === 0) {
           this.qualityLevel = 1;          // game lowers the enemy cap
+          PH.Look.setOutlines(false);     // and outlines go
         }
       }
     }
@@ -1314,6 +1536,7 @@ window.PH = window.PH || {};
       this.pops.length = 0;
       for (const w of this.waves) { w.on = false; w.mesh.visible = false; }
       this.flocks.length = 0;
+      this.decals.length = 0;
       this.trackBatch.begin(); this.trackBatch.end();
       this.birdBatch.begin(); this.birdBatch.end();
       this.fx.clear();
