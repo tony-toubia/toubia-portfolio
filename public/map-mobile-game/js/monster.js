@@ -849,6 +849,7 @@ window.PH = window.PH || {};
         alive: true, hostile: true, vis: shot.vis, x: h.x, z: h.z, vx: ux * shot.speed, vz: uz * shot.speed,
         dmg: shot.dmg, life: 1.4, radius: 0.25, slow: shot.slow || 0, slowT: shot.slowT || 0, r: 1, g: 1, b: 1,
       });
+      this.fx.muzzle(h.x, h.z, ux, uz, shot.vis);
       this.sfx('shoot');
     }
 
@@ -896,6 +897,7 @@ window.PH = window.PH || {};
           this.damageMonster(p.dmg);
           if (p.slow) { pl.slowT = p.slowT; pl.slowK = p.slow; }
           this.fx.burst(p.x, 0.9, p.z, 3, 0xfff1a8, 2, 0.16, 0.18, 0, 0.2);
+          this.fx.impact(p.x, p.z, 0xffd27a);
         }
       }
     }
