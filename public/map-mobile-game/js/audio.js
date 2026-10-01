@@ -181,8 +181,29 @@ class AudioManager {
             return { oscillators: oscs, gain };
         }, 0.45);
 
+        // Dodge roll: a short filtered-noise whoosh that sweeps upward.
+        this.sounds.dash = this.createSound((ctx, duration) => {
+            const noise = ctx.createBufferSource();
+            const buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * duration), ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+            noise.buffer = buffer;
+            const filter = ctx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.Q.value = 1.4;
+            filter.frequency.setValueAtTime(500, ctx.currentTime);
+            filter.frequency.exponentialRampToValueAtTime(2600, ctx.currentTime + duration);
+            const gain = ctx.createGain();
+            gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.22, ctx.currentTime + duration * 0.3);
+            gain.gain.exponentialRampToValueAtTime(0.005, ctx.currentTime + duration);
+            noise.connect(filter);
+            filter.connect(gain);
+            return { noise, gain };
+        }, 0.2);
+
         // Click sound
-        this.sounds.click = this.createSound((ctx, duration) => {
+        this.sounds.click =this.createSound((ctx, duration) => {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = 'sine';
@@ -280,7 +301,7 @@ class AudioManager {
      * into a clipping buzz rather than feedback.
      */
     play(soundName) {
-        const gaps = { hit: 45, shoot: 70, gem: 35, damage: 120, ability: 90 };
+        const gaps = { hit: 45, shoot: 70, gem: 35, damage: 120, ability: 90, dash: 120 };
         const now = performance.now();
         this.lastPlayed = this.lastPlayed || {};
         if (now - (this.lastPlayed[soundName] || 0) < (gaps[soundName] || 0)) return;

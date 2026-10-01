@@ -44,7 +44,7 @@ export default function PrimalHuntWindow() {
 
       {/* Status bar */}
       <div className="flex items-center justify-between px-2 py-1 border-t border-[var(--button-highlight)] bg-[var(--button-face)]">
-        <span className="text-xs text-[var(--window-text)]">Drag or WASD to move - weapons fire on their own</span>
+        <span className="text-xs text-[var(--window-text)]">Drag or WASD to move · Space for your special · Shift to dodge</span>
         <span className="text-xs text-[var(--window-text)]">🎯 vs 👹</span>
       </div>
     </div>

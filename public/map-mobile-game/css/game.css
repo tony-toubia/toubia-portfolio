@@ -143,6 +143,38 @@ body.in-iframe .menu-foot { justify-content: center; }
 #btn-pause { position: absolute; top: calc(26px + var(--safe-t)); right: calc(10px + var(--safe-r)); width: 40px; height: 40px;
   border-radius: 12px; background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.15); font-size: 0.8rem;
   letter-spacing: -2px; pointer-events: auto; }
+/* Ability and dodge: bottom-right, within thumb reach, above the touch layer. */
+#actions { position: absolute; right: calc(16px + var(--safe-r)); bottom: calc(22px + var(--safe-b));
+  display: flex; align-items: flex-end; gap: 12px; }
+#actions button { pointer-events: auto; position: relative; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.55); touch-action: none; }
+#btn-ability { width: 78px; height: 78px; border: 3px solid var(--accent, var(--orange)); font-size: 2rem; overflow: hidden; }
+#btn-dodge { width: 56px; height: 56px; border: 2px solid rgba(191, 227, 255, 0.6); font-size: 1.4rem; margin-bottom: 4px; overflow: hidden; }
+#actions .ai { position: relative; z-index: 1; line-height: 1; }
+/* Cooldown: a dark wedge that shrinks clockwise as the ability recharges. */
+#actions button::after { content: ''; position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(rgba(0, 0, 0, 0.72) calc(var(--cd, 0) * 360deg), transparent 0); z-index: 2; pointer-events: none; }
+#btn-ability.ready { box-shadow: 0 0 18px var(--accent, var(--orange)), inset 0 0 14px rgba(255, 255, 255, 0.15); }
+#btn-ability.ready .ai { animation: ready-bob 1.4s ease-in-out infinite; }
+#btn-ability.ping { animation: ping 0.5s ease-out; }
+#btn-ability:active, #btn-dodge:active { transform: scale(0.93); }
+@keyframes ready-bob { 50% { transform: scale(1.12); } }
+@keyframes ping { 0% { transform: scale(1.25); } 100% { transform: scale(1); } }
+#actions .key { display: none; position: absolute; bottom: -17px; left: 50%; transform: translateX(-50%); font-size: 0.56rem;
+  font-weight: 800; letter-spacing: 0.1em; color: var(--muted); white-space: nowrap; }
+.kb-only { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  #actions .key { display: block; }
+  #actions { bottom: calc(30px + var(--safe-b)); }
+  .kb-only { display: inline; }
+}
+.class-card .ca { font-size: 0.76rem; margin-top: 2px; color: var(--text); opacity: 0.85; }
+.card .kt.evo { background: var(--gold); color: #3a2a00; }
+.card.evo { border-color: rgba(255, 215, 0, 0.7); background: linear-gradient(135deg, rgba(255, 215, 0, 0.16), rgba(255, 255, 255, 0.04));
+  box-shadow: 0 0 22px rgba(255, 215, 0, 0.22); }
+.lo.evo { border-color: var(--gold); box-shadow: 0 0 8px rgba(255, 215, 0, 0.5); }
+.lo.evo i { background: var(--gold); }
+
 #hpbar { position: absolute; left: 0; top: 0; width: 46px; height: 6px; margin-left: -23px; border-radius: 4px;
   background: rgba(0, 0, 0, 0.6); overflow: hidden; will-change: transform; }
 #hpfill { height: 100%; width: 100%; background: var(--green); transition: width 0.1s; }

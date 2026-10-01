@@ -33,7 +33,7 @@ PH.CONFIG = {
   xpToNext: (level) => Math.round(4 + 4.5 * level + 0.55 * level * level),
 
   // Enemy health grows with run time so late waves stay a threat.
-  hpScale: (t) => 1 + t / 120 + Math.pow(t / 240, 2),
+  hpScale: (t) => 1 + t / 110 + Math.pow(t / 220, 2),
 
   score: { kill: 1, second: 2, boss: 500, victory: 2000 },
 };
@@ -44,22 +44,39 @@ PH.CONFIG = {
 PH.CLASSES = {
   assault: {
     name: 'Assault', icon: '🔫', color: '#ff4757', role: 'Damage dealer',
-    weapon: 'rifle', perk: { damage: 0.20 }, perkText: '+20% damage',
+    weapon: 'rifle', ability: 'overdrive', perk: { damage: 0.20 }, perkText: '+20% damage',
   },
   trapper: {
     name: 'Trapper', icon: '🪤', color: '#ffa502', role: 'Area control',
-    weapon: 'traps', perk: { area: 0.15 }, perkText: '+15% blast area',
+    weapon: 'traps', ability: 'snare', perk: { area: 0.15 }, perkText: '+15% blast area',
   },
   medic: {
     name: 'Medic', icon: '💉', color: '#2ed573', role: 'Sustain',
-    weapon: 'biofield', perk: { maxHp: 30, regen: 0.45 }, perkText: '+30 HP and regeneration',
+    weapon: 'biofield', ability: 'pulse', perk: { maxHp: 30, regen: 0.3 }, perkText: '+30 HP and regeneration',
   },
   support: {
     name: 'Support', icon: '🛡️', color: '#1e90ff', role: 'Utility',
     // Drones have no cooldown, so a cooldown perk did nothing for this class.
-    weapon: 'drones', perk: { extra: 1 }, perkText: '+1 projectile on every weapon',
+    weapon: 'drones', ability: 'dome', perk: { extra: 1 }, perkText: '+1 projectile on every weapon',
   },
 };
+
+/* ── Signature abilities ────────────────────────────────────────
+   One per class, fired with Space or the round button. Cooldowns shrink
+   with the Overclock passive, like weapon cooldowns. */
+PH.ABILITIES = {
+  overdrive: { name: 'Overdrive', icon: '🔥', cd: 20, dur: 5, rate: 1.75, dmg: 0.15,
+               desc: 'Weapons fire 75% faster and hit 15% harder for 5s.' },
+  snare:     { name: 'Snare Net', icon: '🕸️', cd: 14, dur: 3.5, radius: 4.6, dmg: 35, bossSlow: 0.5,
+               desc: 'Roots every creature nearby for 3.5s; slows monsters.' },
+  pulse:     { name: 'Life Pulse', icon: '💖', cd: 18, heal: 18, radius: 4.2, dmg: 32, knock: 10,
+               desc: 'Heals 18 and blasts creatures away from you.' },
+  dome:      { name: 'Shield Dome', icon: '🔰', cd: 18, dur: 4.5, radius: 3.4, guard: 0.5,
+               desc: 'A dome that stops shots, repels creatures and halves damage taken.' },
+};
+
+/* Dodge roll, on Shift or the small button: a short burst with invulnerability. */
+PH.DODGE = { cd: 2.4, dist: 3.8, dur: 0.2, iframes: 0.32 };
 
 /* ── Weapons ────────────────────────────────────────────────────
    Everything fires on its own; the player only steers. Names and icons come
@@ -126,10 +143,10 @@ PH.WEAPONS = {
     blurb: 'A field around you that burns creatures and mends you.',
     levels: [
       { dps: 17, radius: 2.4,  heal: 0,    desc: 'Burns creatures close to you.' },
-      { dps: 21, radius: 2.65, heal: 0.45, desc: 'Wider, and starts healing you.' },
-      { dps: 24, radius: 2.8,  heal: 0.7,  desc: '+3 burn, more healing.' },
-      { dps: 29, radius: 3.1,  heal: 1.0,  desc: 'Wider still.' },
-      { dps: 39, radius: 3.5,  heal: 1.35, desc: 'A healing storm.' },
+      { dps: 21, radius: 2.65, heal: 0.35, desc: 'Wider, and starts healing you.' },
+      { dps: 24, radius: 2.8,  heal: 0.55, desc: '+3 burn, more healing.' },
+      { dps: 29, radius: 3.1,  heal: 0.8,  desc: 'Wider still.' },
+      { dps: 39, radius: 3.5,  heal: 1.1,  desc: 'A healing storm.' },
     ],
   },
   drones: {
@@ -165,6 +182,31 @@ PH.WEAPONS = {
       { dmg: 38, cd: 0.7, jumps: 10, range: 8.0, desc: 'A storm of 11 leaps.' },
     ],
   },
+};
+
+/* ── Evolutions ─────────────────────────────────────────────────
+   A level 5 weapon plus the paired passive (any level) can evolve into a
+   stronger form, offered as an upgrade card - always on a supply drop. The
+   stats replace level 5's; extra keys switch on behaviour in game.js. */
+PH.EVOLUTIONS = {
+  rifle:    { needs: 'haste',     name: 'Minigun',         icon: '🌪️',
+              stats: { dmg: 19, cd: 0.13, count: 2, pierce: 2, speed: 23 }, desc: 'A torrent of piercing rounds.' },
+  shotgun:  { needs: 'vitality',  name: "Dragon's Breath", icon: '🐉',
+              stats: { dmg: 17, cd: 0.55, pellets: 14, arc: 1.15, speed: 15, range: 9, pierce: 2 }, desc: 'A wide cone of piercing fire.' },
+  grenade:  { needs: 'area',      name: 'Cluster Bomb',    icon: '🎆',
+              stats: { dmg: 60, cd: 1.4, count: 3, radius: 3.1, cluster: 4 }, desc: 'Each blast scatters four more.' },
+  traps:    { needs: 'armor',     name: 'Claymore Field',  icon: '💣',
+              stats: { dmg: 115, cd: 0.45, radius: 3.6, max: 12 }, desc: 'Twelve traps, huge blasts.' },
+  harpoon:  { needs: 'boots',     name: 'Leviathan Lance', icon: '🔱',
+              stats: { dmg: 72, cd: 0.85, count: 4, pierce: 99, speed: 28 }, desc: 'Four lances that pierce everything.' },
+  biofield: { needs: 'regen',     name: 'Life Bloom',      icon: '🌸',
+              stats: { dps: 56, radius: 4.3, heal: 1.6 }, desc: 'A vast field that burns and heals.' },
+  drones:   { needs: 'multishot', name: 'Drone Swarm',     icon: '🛸',
+              stats: { dmg: 36, count: 8, radius: 3.7, spin: 4.6 }, desc: 'Eight drones in a wide ring.' },
+  orbital:  { needs: 'magnet',    name: 'Meteor Storm',    icon: '🌠',
+              stats: { dmg: 130, cd: 1.5, count: 8, radius: 2.9, delay: 0.45 }, desc: 'Eight meteors at a time.' },
+  arc:      { needs: 'power',     name: 'Storm Caller',    icon: '🌩️',
+              stats: { dmg: 48, cd: 0.55, jumps: 14, range: 9 }, desc: 'Lightning that never stops leaping.' },
 };
 
 /* ── Passives ───────────────────────────────────────────────── */
@@ -227,10 +269,10 @@ PH.ELITE_EVERY = 40;      // seconds between elite creatures, which drop a chest
    `attacks` is ordered: a boss knows one attack per evolution stage, so the
    first encounter is learnable and the last one uses everything. */
 PH.BOSSES = {
-  wraith:   { name: 'Wraith',   icon: '👻', hp: [850, 2500, 6000],  speed: 3.9, attacks: ['dash', 'burst'] },
-  kraken:   { name: 'Kraken',   icon: '🐙', hp: [1000, 2900, 6800], speed: 3.3, attacks: ['slam', 'burst'] },
-  behemoth: { name: 'Behemoth', icon: '🦖', hp: [1250, 3400, 7800], speed: 3.2, attacks: ['slam', 'dash'] },
-  goliath:  { name: 'Goliath',  icon: '🦍', hp: [1100, 3100, 7200], speed: 3.5, attacks: ['dash', 'slam', 'burst'] },
+  wraith:   { name: 'Wraith',   icon: '👻', hp: [980, 2900, 6900],  speed: 3.9, attacks: ['dash', 'burst'] },
+  kraken:   { name: 'Kraken',   icon: '🐙', hp: [1150, 3350, 7800], speed: 3.3, attacks: ['slam', 'burst'] },
+  behemoth: { name: 'Behemoth', icon: '🦖', hp: [1440, 3900, 9000], speed: 3.2, attacks: ['slam', 'dash'] },
+  goliath:  { name: 'Goliath',  icon: '🦍', hp: [1260, 3550, 8300], speed: 3.5, attacks: ['dash', 'slam', 'burst'] },
 };
 PH.BOSS_ATTACKS = {
   dash:  { telegraph: 0.85, length: 10, speed: 15, dmg: 26 },
