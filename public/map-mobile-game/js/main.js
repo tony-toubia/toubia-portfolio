@@ -21,9 +21,11 @@
 
   const game = new PH.Game(render);
   const monster = new PH.MonsterGame(render);
-  const ui = new PH.UI(game, render, monster);
+  const hunt = new PH.HuntGame(render);
+  const ui = new PH.UI(game, render, monster, hunt);
   game.hooks = ui.hooks();
   monster.hooks = ui.hooks();
+  hunt.hooks = ui.hooks();
 
   // Browsers only allow audio after a user gesture.
   const unlock = () => {
@@ -65,5 +67,5 @@
   requestAnimationFrame(frame);
 
   // Handle for automated playtests; harmless otherwise.
-  window.__ph = { get game() { return ui.game; }, survival: game, monster, render, ui };
+  window.__ph = { get game() { return ui.game; }, survival: game, monster, hunt, render, ui };
 })();

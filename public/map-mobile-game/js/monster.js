@@ -38,6 +38,7 @@ window.PH = window.PH || {};
       this.fx = fx;
       this.hooks = hooks;
       this.input = { x: 0, z: 0 };
+      this.monInput = this.input;   // the monster is steered by the player here; hunter mode gives it its own
       this.state = 'menu';
       const M = PH.MONSTER_MODE;
       this.enemies = Array.from({ length: M.wildlife.max }, (_, i) => ({ alive: false, idx: i }));
@@ -48,6 +49,18 @@ window.PH = window.PH || {};
       this.telegraphs = []; this.zones = []; this.hunters = []; this.tracks = []; this.grass = []; this.beams = [];
       this.stage = 1;
     }
+
+    // In monster mode the player is the monster: these are what the UI and
+    // renderer read and call. Hunter mode overrides them for your hunter.
+    get player() { return this.mon; }
+    get abilityCd() { return this.monAbilityCd; }
+    set abilityCd(v) { this.monAbilityCd = v; }
+    get abilityMax() { return this.monAbilityMax; }
+    get dodgeCd() { return this.monDodgeCd; }
+    abilityReady() { return this.monsterReady(); }
+    useAbility() { return this.monsterAbility(); }
+    dodge() { return this.monsterPounce(); }
+    evolve() { return this.monsterEvolve(); }
 
     /** The renderer darkens the world by monsters slain; here, by evolution. */
     get bossKills() { return this.state === 'menu' ? 0 : this.stage - 1; }
@@ -79,15 +92,15 @@ window.PH = window.PH || {};
       this.evolveNotified = false;
 
       const def = this.def();
-      this.abilityMax = def.ability.cd;
-      this.abilityCd = 2;
-      this.dodgeCd = 0;
+      this.monAbilityMax = def.ability.cd;
+      this.monAbilityCd = 2;
+      this.monDodgeCd = 0;
       this.abilityUses = 0; this.dodges = 0;
 
       this.grass = this.makeGrass();
       const a = this.rand() * TAU, r = M.arena * 0.55;
       const S = this.stageDef();
-      this.player = {
+      this.mon = {
         x: Math.cos(a) * r, z: Math.sin(a) * r, facing: a + Math.PI, moving: false, iframes: 0, radius: 1,
         hp: S.hp * def.hp, maxHp: S.hp * def.hp, armor: S.armor * def.hp, maxArmor: S.armor * def.hp,
         dashT: 0, dashX: 0, dashZ: 0, lift: 0, slowT: 0, slowK: 0, rollT: 0, rollX: 0, rollZ: 0, leap: null, leapT: 0,
@@ -105,11 +118,24 @@ window.PH = window.PH || {};
       this.state = 'playing';
       this.fx.clearRun();
       this.fx.setMonsterMode(true, this.grass, M.arena);
-      const vis = this.fx.setPlayerMonster(type, 1);
-      this.player.radius = Math.min(1.5, Math.max(0.8, vis.radius * 0.85));
-      this.fx.setHunters(this.hunters);
-      this.fx.setViewScale(S.view);
+      this.setupRender();
     }
+
+    /** Monster mode: you are the monster, and the camera widens as it grows. */
+    setupRender() {
+      const vis = this.fx.setPlayerMonster(this.monsterType, 1);
+      this.mon.radius = Math.min(1.5, Math.max(0.8, vis.radius * 0.85));
+      this.fx.setHunters(this.hunters);
+      this.fx.setViewScale(this.stageDef().view);
+    }
+
+    onMonsterStage() {
+      const vis = this.fx.setPlayerMonster(this.monsterType, this.stage);
+      this.mon.radius = Math.min(1.7, Math.max(0.8, vis.radius * 0.85));
+      this.fx.setViewScale(this.stageDef().view);
+    }
+
+    flashMonster() { this.fx.flashPlayer && this.fx.flashPlayer(); }
 
     makeGrass() {
       const M = PH.MONSTER_MODE, G = M.grass, out = [];
@@ -140,8 +166,9 @@ window.PH = window.PH || {};
       if (this.hitstop > 0) { this.hitstop -= dt; return; }
       if (this.slowmo > 0) { this.slowmo -= dt; dt *= 0.35; }
       this.time += dt;
-      this.abilityCd = Math.max(0, this.abilityCd - dt);
-      this.dodgeCd = Math.max(0, this.dodgeCd - dt);
+      this.monAbilityCd = Math.max(0, this.monAbilityCd - dt);
+      this.monDodgeCd = Math.max(0, this.monDodgeCd - dt);
+      if (this.aiMonster) this.aiControl();
 
       this.updateMonster(dt);
       if (this.state !== 'playing') return;
@@ -161,7 +188,7 @@ window.PH = window.PH || {};
     /* ── The monster ────────────────────────────────────────── */
 
     updateMonster(dt) {
-      const M = PH.MONSTER_MODE, pl = this.player, S = this.stageDef(), def = this.def(), inp = this.input;
+      const M = PH.MONSTER_MODE, pl = this.mon, S = this.stageDef(), def = this.def(), inp = this.monInput;
       const ox = pl.x, oz = pl.z;
       if (pl.iframes > 0) pl.iframes -= dt;
       if (pl.slowT > 0) pl.slowT -= dt;
@@ -251,7 +278,7 @@ window.PH = window.PH || {};
     }
 
     clawTarget() {
-      const pl = this.player, reach = this.stageDef().reach + pl.radius;
+      const pl = this.mon, reach = this.stageDef().reach + pl.radius;
       let best = null, bd = Infinity;
       for (const pass of ['up', 'down']) {
         for (const h of this.hunters) {
@@ -270,7 +297,7 @@ window.PH = window.PH || {};
     }
 
     claw(t) {
-      const pl = this.player, dmg = this.stageDef().dmg;
+      const pl = this.mon, dmg = this.stageDef().dmg;
       if (!pl.moving) pl.facing = Math.atan2(t.x - pl.x, t.z - pl.z);
       if (t.cls) this.damageHunter(t, dmg); else this.damagePrey(t, dmg);
       // A little splash, so a swipe into a huddle hits more than one.
@@ -282,17 +309,17 @@ window.PH = window.PH || {};
     }
 
     abilityMult() { return 1 + 0.35 * (this.stage - 1); }
-    abilityReady() { return this.abilityCd <= 0; }
+    monsterReady() { return this.monAbilityCd <= 0; }
 
     aimDir() {
-      const pl = this.player, inp = this.input;
+      const pl = this.mon, inp = this.monInput;
       const m = Math.hypot(inp.x, inp.z);
       return m > 0.08 ? { x: inp.x / m, z: inp.z / m } : { x: Math.sin(pl.facing), z: Math.cos(pl.facing) };
     }
 
-    useAbility() {
-      const pl = this.player;
-      if (this.state !== 'playing' || this.abilityCd > 0 || pl.evolveT > 0 || pl.leapT > 0 || pl.rollT > 0) return false;
+    monsterAbility() {
+      const pl = this.mon;
+      if (this.state !== 'playing' || this.monAbilityCd > 0 || pl.evolveT > 0 || pl.leapT > 0 || pl.rollT > 0) return false;
       const A = this.def().ability, d = this.aimDir(), mult = this.abilityMult();
       if (A.id === 'leap') {
         const t = { x: pl.x + d.x * A.dist, z: pl.z + d.z * A.dist };
@@ -321,8 +348,8 @@ window.PH = window.PH || {};
         pl.rollT = A.dur; pl.rollX = d.x; pl.rollZ = d.z; pl.rollHit = new Set();
         pl.facing = Math.atan2(d.x, d.z);
       }
-      this.abilityMax = A.cd;
-      this.abilityCd = A.cd;
+      this.monAbilityMax = A.cd;
+      this.monAbilityCd = A.cd;
       this.abilityUses++;
       this.fx.addShake(0.2);
       this.sfx('ability');
@@ -330,14 +357,14 @@ window.PH = window.PH || {};
     }
 
     /** Pounce: a quick lunge. Out in the open, it can send birds up. */
-    dodge() {
-      const pl = this.player, P = PH.MONSTER_MODE.pounce;
-      if (this.state !== 'playing' || this.dodgeCd > 0 || pl.evolveT > 0 || pl.leapT > 0 || pl.rollT > 0) return false;
+    monsterPounce() {
+      const pl = this.mon, P = PH.MONSTER_MODE.pounce;
+      if (this.state !== 'playing' || this.monDodgeCd > 0 || pl.evolveT > 0 || pl.leapT > 0 || pl.rollT > 0) return false;
       const d = this.aimDir();
       pl.dashX = d.x; pl.dashZ = d.z; pl.dashT = P.dur;
       pl.facing = Math.atan2(d.x, d.z);
       pl.iframes = Math.max(pl.iframes, P.iframes);
-      this.dodgeCd = P.cd;
+      this.monDodgeCd = P.cd;
       this.dodges++;
       this.fx.dashTrail(pl.x, pl.z, d.x, d.z, P.dist);
       this.sfx('dash');
@@ -346,13 +373,13 @@ window.PH = window.PH || {};
     }
 
     canEvolve() {
-      const pl = this.player;
+      const pl = this.mon;
       return this.state === 'playing' && this.stage < 3 && this.food >= this.stageDef().food && pl.evolveT <= 0 && pl.leapT <= 0 && pl.rollT <= 0;
     }
 
-    evolve() {
+    monsterEvolve() {
       if (!this.canEvolve()) return false;
-      const pl = this.player;
+      const pl = this.mon;
       pl.evolveT = PH.MONSTER_MODE.evolveTime;
       // Evolving is loud: every hunter learns where you are.
       this.team.known = { x: pl.x, z: pl.z, t: this.time };
@@ -364,7 +391,7 @@ window.PH = window.PH || {};
     }
 
     finishEvolve() {
-      const pl = this.player, def = this.def();
+      const pl = this.mon, def = this.def();
       const old = this.stageDef();
       this.stage++;
       const S = this.stageDef();
@@ -374,9 +401,7 @@ window.PH = window.PH || {};
       pl.hp = Math.min(pl.maxHp, pl.hp + (S.hp - old.hp) * def.hp);
       pl.maxArmor = S.armor * def.hp;
       pl.armor = pl.maxArmor;
-      const vis = this.fx.setPlayerMonster(this.monsterType, this.stage);
-      pl.radius = Math.min(1.7, Math.max(0.8, vis.radius * 0.85));
-      this.fx.setViewScale(S.view);
+      this.onMonsterStage();
       this.fx.bossArrival(pl.x, pl.z, this.stage, this.monsterType);
       this.fx.zoomPunch(0.15);
       this.fx.addShake(0.8);
@@ -386,7 +411,7 @@ window.PH = window.PH || {};
     }
 
     damageMonster(dmg) {
-      const pl = this.player;
+      const pl = this.mon;
       if (pl.iframes > 0 || this.state !== 'playing') return;
       if (pl.evolveT > 0) dmg *= 1.25;           // caught mid-evolution
       pl.lastHit = this.time;
@@ -394,7 +419,7 @@ window.PH = window.PH || {};
       pl.armor -= absorbed;
       pl.hp -= dmg - absorbed;
       pl.damageTaken += dmg;
-      this.fx.flashPlayer && this.fx.flashPlayer();
+      this.flashMonster();
       if (dmg - absorbed > 0 && this.time - pl.lastHurtFx > 0.4) {
         pl.lastHurtFx = this.time;
         this.hooks.onPlayerHit && this.hooks.onPlayerHit(dmg - absorbed);
@@ -415,6 +440,57 @@ window.PH = window.PH || {};
       this.sfx('hit');
     }
 
+    /**
+     * The monster's brain, for hunter mode and the balance sim. It can smell
+     * the squad (like the radar in monster mode): it eats and lies low while
+     * weak, flees toward grass away from hunters, evolves when nobody is near,
+     * and turns on the squad once it is strong.
+     */
+    aiControl() {
+      const pl = this.mon, inp = this.monInput;
+      const d = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+      const ups = this.hunters.filter((h) => h.state === 'up');
+      const downs = this.hunters.filter((h) => h.state === 'down');
+      const near = ups.filter((h) => d(h, pl) < 11);
+      const strong = this.stage === 3 || (this.stage === 2 && pl.hp > pl.maxHp * 0.55 && near.length <= 2);
+      let ix = 0, iz = 0;
+      if (this.canEvolve() && near.length === 0) this.monsterEvolve();
+      if (strong && (ups.length || downs.length)) {
+        const targets = downs.length && downs.some((h) => d(h, pl) < 8) ? downs : ups.length ? ups : downs;
+        let t = targets[0];
+        for (const h of targets) if (d(h, pl) < d(t, pl)) t = h;
+        ix = t.x - pl.x; iz = t.z - pl.z;
+        if (d(t, pl) < 7) this.monsterAbility();
+      } else if (near.length) {
+        // Run for the grass patch that is furthest from the squad, relative to us.
+        const away = { x: 0, z: 0 };
+        for (const h of near) { const dd = d(h, pl) || 1; away.x -= (h.x - pl.x) / dd; away.z -= (h.z - pl.z) / dd; }
+        let best = null, bs = -Infinity;
+        for (const gr of this.grass) {
+          const dd = d(gr, pl) || 1, dir = ((gr.x - pl.x) * away.x + (gr.z - pl.z) * away.z) / dd;
+          const score = dir * 2 - dd * 0.15;
+          if (score > bs) { bs = score; best = gr; }
+        }
+        ix = away.x; iz = away.z;
+        if (best) { const dd = d(best, pl) || 1; ix += (best.x - pl.x) / dd * 1.2; iz += (best.z - pl.z) / dd * 1.2; }
+        if (near.some((h) => d(h, pl) < 3.5)) this.monsterAbility();
+        if (near.some((h) => d(h, pl) < 5)) this.monsterPounce();
+      } else if (pl.armor < pl.maxArmor * 0.6 && this.stage < 3) {
+        // Armour stripped and unseen: lie low in grass until it grows back.
+        let best = null;
+        for (const gr of this.grass) if (!best || d(gr, pl) < d(best, pl)) best = gr;
+        if (best && d(best, pl) > best.r * 0.5) { ix = best.x - pl.x; iz = best.z - pl.z; }
+      } else {
+        let best = null;
+        for (const e of this.enemies) if (e.alive && (!best || d(e, pl) < d(best, pl))) best = e;
+        if (best) { ix = best.x - pl.x; iz = best.z - pl.z; }
+      }
+      const r = Math.hypot(pl.x, pl.z);
+      if (r > PH.MONSTER_MODE.arena - 4) { ix -= pl.x / r * 0.6; iz -= pl.z / r * 0.6; }
+      const m = Math.hypot(ix, iz);
+      inp.x = m > 0.001 ? ix / m : 0; inp.z = m > 0.001 ? iz / m : 0;
+    }
+
     /* ── Prey ───────────────────────────────────────────────── */
 
     pickPreyType() {
@@ -429,7 +505,7 @@ window.PH = window.PH || {};
     spawnPrey(initial) {
       const e = this.enemies.find((q) => !q.alive);
       if (!e) return;
-      const M = PH.MONSTER_MODE, pl = this.player;
+      const M = PH.MONSTER_MODE, pl = this.mon;
       let x = 0, z = 0;
       for (let k = 0; k < 12; k++) {
         const a = this.rand() * TAU, d = Math.sqrt(this.rand()) * (M.arena - 2);
@@ -446,7 +522,7 @@ window.PH = window.PH || {};
     }
 
     updatePrey(dt) {
-      const pl = this.player, M = PH.MONSTER_MODE;
+      const pl = this.mon, M = PH.MONSTER_MODE;
       for (const e of this.enemies) {
         if (!e.alive) continue;
         if (e.flash > 0) e.flash -= dt;
@@ -485,7 +561,7 @@ window.PH = window.PH || {};
     }
 
     eat(e) {
-      const pl = this.player, def = PH.ENEMIES[e.type], M = PH.MONSTER_MODE;
+      const pl = this.mon, def = PH.ENEMIES[e.type], M = PH.MONSTER_MODE;
       e.alive = false;
       this.aliveEnemies--;
       this.eaten++;
@@ -520,7 +596,7 @@ window.PH = window.PH || {};
     /* ── The hunters ────────────────────────────────────────── */
 
     dropPoint() {
-      const M = PH.MONSTER_MODE, pl = this.player;
+      const M = PH.MONSTER_MODE, pl = this.mon;
       let best = { x: 0, z: 0 }, bd = -1;
       for (let k = 0; k < 10; k++) {
         const a = this.rand() * TAU, d = M.arena * (0.5 + this.rand() * 0.35);
@@ -556,7 +632,7 @@ window.PH = window.PH || {};
     }
 
     updateHunters(dt) {
-      const M = PH.MONSTER_MODE, A = PH.HUNTER_AI, T = this.team, pl = this.player;
+      const M = PH.MONSTER_MODE, A = PH.HUNTER_AI, T = this.team, pl = this.mon;
       this.beams.length = 0;
       if (!T.landed) {
         if (this.time >= M.hunterArrival) { T.landed = true; this.deploy(this.hunters, 'THE HUNTERS HAVE LANDED'); }
@@ -645,13 +721,15 @@ window.PH = window.PH || {};
         if (h.state !== 'up') continue;
         const C = A[h.cls];
         h.shotT -= dt; h.jetCd -= dt; if (h.shieldT > 0) h.shieldT -= dt;
+        // In hunter mode one of the squad is you.
+        if (h.controlled) { this.updateMe(h, dt, { engage, seen, up, C, T }); continue; }
 
         // Revive a downed teammate if the monster is not standing over them.
         let tx = null, tz = null;
         const downed = this.hunters.find((o) => o.state === 'down' && dist2(o.x, o.z, pl.x, pl.z) > 25);
         if (downed) {
           let nearest = null, nd = Infinity;
-          for (const o of up) { const dd = dist2(o.x, o.z, downed.x, downed.z); if (dd < nd) { nd = dd; nearest = o; } }
+          for (const o of up) { if (o.controlled) continue; const dd = dist2(o.x, o.z, downed.x, downed.z); if (dd < nd) { nd = dd; nearest = o; } }
           if (nearest === h) {
             tx = downed.x; tz = downed.z;
             if (nd < 1.7) {
@@ -762,7 +840,7 @@ window.PH = window.PH || {};
     fireAt(h, shot) {
       const p = this.projectiles.find((q) => !q.alive);
       if (!p) return;
-      const pl = this.player;
+      const pl = this.mon;
       const dx = pl.x - h.x, dz = pl.z - h.z, d = Math.hypot(dx, dz) || 1;
       const spread = (this.rand() - 0.5) * 0.12;
       const c = Math.cos(spread), s = Math.sin(spread);
@@ -775,14 +853,16 @@ window.PH = window.PH || {};
     }
 
     damageHunter(h, dmg) {
+      if (h.iframes > 0) return;
       if (h.state === 'up') {
         if (h.shieldT > 0) dmg *= 1 - PH.HUNTER_AI.support.shield.guard;
         h.hp -= dmg;
         h.lastHit = this.time;
         h.flash = 0.1;
         // Getting hit tells the squad exactly where you are.
-        this.team.known = { x: this.player.x, z: this.player.z, t: this.time };
-        if (this.hooks.onDamage) this.hooks.onDamage(h.x, 2, h.z, dmg, false);
+        this.team.known = { x: this.mon.x, z: this.mon.z, t: this.time };
+        if (this.hunterNumbers !== false && this.hooks.onDamage) this.hooks.onDamage(h.x, 2, h.z, dmg, false);
+        if (this.onHunterHurt) this.onHunterHurt(h, dmg);
         if (h.hp <= 0) {
           h.hp = 0; h.state = 'down'; h.downT = PH.HUNTER_AI.bleedOut; h.reviveT = 0;
           this.banner(`${h.cls.toUpperCase()} IS DOWN`, 'win');
@@ -805,7 +885,7 @@ window.PH = window.PH || {};
     }
 
     updateProjectiles(dt) {
-      const pl = this.player;
+      const pl = this.mon;
       for (const p of this.projectiles) {
         if (!p.alive) continue;
         p.x += p.vx * dt; p.z += p.vz * dt;
@@ -821,7 +901,7 @@ window.PH = window.PH || {};
     }
 
     updateTelegraphs(dt) {
-      const pl = this.player;
+      const pl = this.mon;
       for (let i = this.telegraphs.length - 1; i >= 0; i--) {
         const t = this.telegraphs[i];
         t.t += dt;

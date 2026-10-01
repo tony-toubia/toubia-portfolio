@@ -971,9 +971,15 @@ window.PH = window.PH || {};
           this.shadows.add(pl.x, 0.02, pl.z, 0, sr, 1, sr);
           if (pl.evolveT > 0) this.halos.add(pl.x, 1.2, pl.z, 0, 6, 6, 6, 0.6, 0.45, 0.05);
         } else {
-          P.root.visible = !(pl.iframes > 0 && Math.floor(t * 18) % 2 === 0);
-          this.chars.animateHunter(P.mesh, t, pl.moving);
+          // Hunter mode: you can be downed (lie flat) or dead (gone until redeployed).
+          const down = pl.state === 'down';
+          P.root.rotation.x += ((down ? -1.35 : 0) - P.root.rotation.x) * Math.min(1, dt * 10);
+          P.root.position.y = down ? 0.25 : 0;
+          P.root.visible = pl.state !== 'dead' && pl.state !== 'waiting' && !(pl.iframes > 0 && !down && Math.floor(t * 18) % 2 === 0);
+          if (!down) this.chars.animateHunter(P.mesh, t, pl.moving);
           this.shadows.add(pl.x, 0.02, pl.z, 0, 0.55, 1, 0.55);
+          if (pl.shieldT > 0) this.halos.add(pl.x, 1, pl.z, 0, 2.4, 2.4, 2.4, 0.15, 0.4, 0.9);
+          if (down) this.halos.add(pl.x, 0.4, pl.z, 0, 1.8, 1.8, 1.8, Math.floor(t * 4) % 2 ? 0.8 : 0.3, 0.05, 0.05);
         }
         if (game.overdrive > 0) {
           const k = 0.75 + Math.sin(t * 22) * 0.25;
@@ -1020,7 +1026,10 @@ window.PH = window.PH || {};
       for (const bs of game.bosses) {
         const vb = this.bosses.get(bs.id);
         if (!vb) continue;
-        vb.root.position.set(bs.x, 0, bs.z);
+        // Hunter mode: the monster is only drawn while someone can see it.
+        vb.root.visible = !bs.hidden;
+        if (bs.hidden) continue;
+        vb.root.position.set(bs.x, bs.lift || 0, bs.z);
         vb.root.rotation.y = bs.facing;
         this.chars.animateMonster(vb.mesh, t, bs.moving);
         const mats = vb.mesh.userData;

@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#14182a">
   <title>Primal Hunt</title>
   <meta name="description" content="Survive the swarm. Hunt the monster. A one-thumb arena game by Tony Toubia.">
-  <link rel="stylesheet" href="/map-mobile-game/css/game.css?v=4">
+  <link rel="stylesheet" href="/map-mobile-game/css/game.css?v=5">
 </head>
 <body>
   <!--
@@ -82,9 +82,13 @@
         <div class="mi">🔫</div>
         <div class="mb"><div class="mn">SURVIVAL</div><div class="md">You are a hunter. Outlast the swarm, upgrade your weapons, slay three evolving monsters.</div></div>
       </button>
+      <button class="mode-card" id="mode-hunt" style="--accent: var(--teal)">
+        <div class="mi">🎯</div>
+        <div class="mb"><div class="mn">HUNTER SQUAD <span class="kt new">NEW</span></div><div class="md">You and three AI hunters track a monster through the grass. Trap it and kill it before it evolves - or it hunts you.</div></div>
+      </button>
       <button class="mode-card" id="mode-monster" style="--accent: var(--purple)">
         <div class="mi">👹</div>
-        <div class="mb"><div class="mn">MONSTER <span class="kt new">NEW</span></div><div class="md">You are the monster. Eat, hide in the grass and evolve - then hunt the four hunters, or outlast their clock.</div></div>
+        <div class="mb"><div class="mn">MONSTER</div><div class="md">You are the monster. Eat, hide in the grass and evolve - then hunt the four hunters, or outlast their clock.</div></div>
       </button>
     </div>
   </section>
@@ -108,6 +112,7 @@
         <h2>CHOOSE YOUR HUNTER</h2>
       </div>
       <div id="class-grid" class="pick-grid"></div>
+      <p class="hint" id="hunt-hint" hidden>Your weapon fires on its own when the squad can see the monster. Follow its footprints, watch for birds, and use your special. Stand over a downed teammate to revive them.</p>
       <button class="btn primary" id="btn-hunt" disabled>HUNT</button>
     </div>
   </section>
@@ -150,14 +155,15 @@
   </section>
 
   <script src="/map-mobile-game/vendor/three.min.js?v=r128"></script>
-  <script src="/map-mobile-game/js/config.js?v=4"></script>
-  <script src="/map-mobile-game/js/audio.js?v=4"></script>
-  <script src="/map-mobile-game/js/engine3d/Characters3D.js?v=4"></script>
-  <script src="/map-mobile-game/js/engine3d/Effects3D.js?v=4"></script>
-  <script src="/map-mobile-game/js/render.js?v=4"></script>
-  <script src="/map-mobile-game/js/game.js?v=4"></script>
-  <script src="/map-mobile-game/js/monster.js?v=4"></script>
-  <script src="/map-mobile-game/js/ui.js?v=4"></script>
-  <script src="/map-mobile-game/js/main.js?v=4"></script>
+  <script src="/map-mobile-game/js/config.js?v=5"></script>
+  <script src="/map-mobile-game/js/audio.js?v=5"></script>
+  <script src="/map-mobile-game/js/engine3d/Characters3D.js?v=5"></script>
+  <script src="/map-mobile-game/js/engine3d/Effects3D.js?v=5"></script>
+  <script src="/map-mobile-game/js/render.js?v=5"></script>
+  <script src="/map-mobile-game/js/game.js?v=5"></script>
+  <script src="/map-mobile-game/js/monster.js?v=5"></script>
+  <script src="/map-mobile-game/js/hunt.js?v=5"></script>
+  <script src="/map-mobile-game/js/ui.js?v=5"></script>
+  <script src="/map-mobile-game/js/main.js?v=5"></script>
 </body>
 </html>
