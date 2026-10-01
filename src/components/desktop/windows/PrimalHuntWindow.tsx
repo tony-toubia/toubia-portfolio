@@ -13,7 +13,7 @@ export default function PrimalHuntWindow() {
     <div className="h-full flex flex-col bg-[var(--window-bg)]">
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-1 px-2 py-1 border-b border-[var(--button-shadow)] bg-[var(--button-face)]">
-        <span className="text-xs text-[var(--window-text)] font-bold">Primal Hunt - Hunters vs Monsters</span>
+        <span className="text-xs text-[var(--window-text)] font-bold">Primal Hunt - Survive the Swarm</span>
         <button
           onClick={handlePopOut}
           className="retro-button px-2 py-0.5 text-xs flex items-center gap-1"
@@ -44,7 +44,7 @@ export default function PrimalHuntWindow() {
 
       {/* Status bar */}
       <div className="flex items-center justify-between px-2 py-1 border-t border-[var(--button-highlight)] bg-[var(--button-face)]">
-        <span className="text-xs text-[var(--window-text)]">Best experienced in full screen</span>
+        <span className="text-xs text-[var(--window-text)]">Drag or WASD to move - weapons fire on their own</span>
         <span className="text-xs text-[var(--window-text)]">🎯 vs 👹</span>
       </div>
     </div>

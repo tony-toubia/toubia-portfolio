@@ -29,8 +29,11 @@ class AudioManager {
             this.musicGain.connect(this.context.destination);
             this.sfxGain.connect(this.context.destination);
 
-            this.setMusicVolume(GameSettings.musicVolume);
-            this.setSFXVolume(GameSettings.sfxVolume);
+            // Self-contained defaults: this used to read a GameSettings global
+            // from the old engine's utils.js, and without it init() threw into
+            // the catch below and the game ran silently.
+            this.setMusicVolume(0);
+            this.setSFXVolume(this.muted ? 0 : 0.45);
 
             this.initialized = true;
             this.generateSounds();
@@ -148,6 +151,36 @@ class AudioManager {
             return { noise, gain };
         }, 0.08);
 
+        // Gem pickup: a quick rising chime.
+        this.sounds.gem = this.createSound((ctx, duration) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(880 + Math.random() * 120, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + duration);
+            gain.gain.setValueAtTime(0.08, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.005, ctx.currentTime + duration);
+            osc.connect(gain);
+            return { oscillators: [osc], gain };
+        }, 0.08);
+
+        // Level up: a bright arpeggio.
+        this.sounds.levelup = this.createSound((ctx, duration) => {
+            const gain = ctx.createGain();
+            const oscs = [];
+            [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+                const o = ctx.createOscillator();
+                o.type = 'square';
+                o.frequency.setValueAtTime(f, ctx.currentTime + i * 0.06);
+                o.connect(gain);
+                oscs.push(o);
+            });
+            gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.005, ctx.currentTime + duration);
+            return { oscillators: oscs, gain };
+        }, 0.45);
+
         // Click sound
         this.sounds.click = this.createSound((ctx, duration) => {
             const osc = ctx.createOscillator();
@@ -241,10 +274,25 @@ class AudioManager {
     /**
      * Play a sound effect
      */
+    /**
+     * Play a sound, at most once per `gap` ms. A swarm game can ask for the
+     * same hit sound forty times in a second; stacked oscillators turn that
+     * into a clipping buzz rather than feedback.
+     */
     play(soundName) {
+        const gaps = { hit: 45, shoot: 70, gem: 35, damage: 120, ability: 90 };
+        const now = performance.now();
+        this.lastPlayed = this.lastPlayed || {};
+        if (now - (this.lastPlayed[soundName] || 0) < (gaps[soundName] || 0)) return;
+        this.lastPlayed[soundName] = now;
         if (this.sounds[soundName]) {
             this.sounds[soundName]();
         }
+    }
+
+    setMuted(muted) {
+        this.muted = muted;
+        if (this.sfxGain) this.setSFXVolume(muted ? 0 : 0.45);
     }
 
     /**
@@ -333,5 +381,7 @@ class AudioManager {
     }
 }
 
-// Global audio manager instance
-window.Audio = new AudioManager();
+// Global audio manager instance. Deliberately not window.Audio - that name is
+// the browser's own HTMLAudioElement constructor, and assigning over it broke
+// anything that later tried `new Audio()`.
+window.Sfx = new AudioManager();

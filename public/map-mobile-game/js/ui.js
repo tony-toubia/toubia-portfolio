@@ -1,804 +1,369 @@
 /**
- * UI System for Primal Hunt
- * Handles all user interface elements and interactions
+ * Primal Hunt - screens, HUD and input.
+ *
+ * Two rules learned from the previous version of this game:
+ *  - Input lives on one full-screen surface (#touch) that nothing renders on
+ *    top of during play. The old joystick sat underneath the 3D canvas and
+ *    never received a single touch.
+ *  - The HUD is never rebuilt per frame. The old ability bar was torn down
+ *    and recreated sixty times a second, so the button under your thumb was
+ *    replaced before the tap completed. Here values are written only when
+ *    they change, and the loadout is rebuilt only when the loadout changes.
  */
+window.PH = window.PH || {};
 
-class UIManager {
-    constructor() {
-        this.currentScreen = 'main-menu';
-        this.selectedRole = null;
-        this.selectedCharacter = null;
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('ph.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem('ph.' + k, JSON.stringify(v)); } catch { /* private mode: fine */ } },
+  };
+  const fmtTime = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
-        // Screen elements
-        this.screens = {
-            mainMenu: document.getElementById('main-menu'),
-            roleSelect: document.getElementById('role-select'),
-            hunterSelect: document.getElementById('hunter-select'),
-            monsterSelect: document.getElementById('monster-select'),
-            gameScreen: document.getElementById('game-screen'),
-            upgradeScreen: document.getElementById('upgrade-screen'),
-            gameOver: document.getElementById('game-over'),
-            howToPlay: document.getElementById('how-to-play'),
-            settings: document.getElementById('settings'),
-            loading: document.getElementById('loading-screen')
-        };
+  class UI {
+    constructor(game, render) {
+      this.game = game;
+      this.render = render;
+      this.screens = ['menu', 'classes', 'choice', 'pause', 'over', 'nogl'];
+      this.selectedClass = store.get('class', null);
+      this.muted = store.get('muted', false);
+      this.best = store.get('best', null);
 
-        // HUD elements
-        this.hud = {
-            healthBar: document.getElementById('player-health'),
-            healthText: document.getElementById('health-text'),
-            timer: document.getElementById('game-timer'),
-            evolutionIndicator: document.getElementById('evolution-indicator'),
-            evoProgress: document.getElementById('evo-progress'),
-            abilityBar: document.getElementById('ability-bar'),
-            pauseMenu: document.getElementById('pause-menu'),
-            // Team health panel elements
-            teamHealthPanel: document.getElementById('team-health-panel'),
-            monsterHealthSection: document.getElementById('monster-health-section'),
-            huntersHealthSection: document.getElementById('hunters-health-section'),
-            monsterHealthRow: document.getElementById('monster-health-row'),
-            monsterIcon: document.getElementById('monster-icon'),
-            monsterEvoBadge: document.getElementById('monster-evo-badge'),
-            hudMonsterName: document.getElementById('hud-monster-name'),
-            monsterHealthBar: document.getElementById('monster-health-bar'),
-            monsterHealthText: document.getElementById('monster-health-text'),
-            huntersHealthGrid: document.getElementById('hunters-health-grid')
-        };
+      this.pointerId = null;
+      this.stick = { x: 0, z: 0 };
+      this.keys = new Set();
+      this.cache = {};
+      this.tmp = { x: 0, y: 0, on: true };
+      this.numIdx = 0;
+      this.lastNum = 0;
 
-        // Hunter class icons
-        this.hunterIcons = {
-            'assault': '🔫',
-            'trapper': '🪤',
-            'medic': '💉',
-            'support': '🛡️'
-        };
+      this.el = {
+        hud: $('hud'), xpfill: $('xpfill'), lvl: $('lvl'), timer: $('timer'), kills: $('kills'),
+        hpbar: $('hpbar'), hpfill: $('hpfill'), bossbar: $('bossbar'), bossname: $('bossname'), bossfill: $('bossfill'),
+        banner: $('banner'), numbers: $('numbers'), hurt: $('hurt'), loadout: $('loadout'),
+        joy: $('joy'), knob: $('joy-knob'), touch: $('touch'),
+      };
+      this.nums = [];
+      for (let i = 0; i < 24; i++) {
+        const n = document.createElement('div');
+        n.className = 'n';
+        this.el.numbers.appendChild(n);
+        this.nums.push(n);
+      }
 
-        // Monster type icons
-        this.monsterIcons = {
-            'goliath': '👹',
-            'kraken': '🐙',
-            'wraith': '👻',
-            'behemoth': '🦖'
-        };
-
-        this.setupEventListeners();
+      this.bindScreens();
+      this.bindInput();
+      this.applyMute();
+      this.refreshBest();
     }
 
-    setupEventListeners() {
-        // Main Menu
-        document.getElementById('btn-play').addEventListener('click', () => {
-            Audio.init();
-            Audio.play('click');
-            this.showScreen('role-select');
-        });
+    /* ── Screens ────────────────────────────────────────────── */
 
-        document.getElementById('btn-how-to-play').addEventListener('click', () => {
-            Audio.play('click');
-            this.showScreen('how-to-play');
-        });
-
-        document.getElementById('btn-settings').addEventListener('click', () => {
-            Audio.play('click');
-            this.showScreen('settings');
-        });
-
-        // Role Selection
-        document.getElementById('btn-back-role').addEventListener('click', () => {
-            Audio.play('click');
-            this.showScreen('main-menu');
-        });
-
-        document.getElementById('select-hunter').addEventListener('click', () => {
-            Audio.play('click');
-            this.selectedRole = 'hunter';
-            this.showScreen('hunter-select');
-            this.populateHunterGrid();
-        });
-
-        document.getElementById('select-monster').addEventListener('click', () => {
-            Audio.play('click');
-            this.selectedRole = 'monster';
-            this.showScreen('monster-select');
-            this.populateMonsterGrid();
-        });
-
-        // Hunter Selection
-        document.getElementById('btn-back-hunter').addEventListener('click', () => {
-            Audio.play('click');
-            this.showScreen('role-select');
-        });
-
-        document.getElementById('btn-confirm-hunter').addEventListener('click', () => {
-            if (this.selectedCharacter) {
-                Audio.play('click');
-                this.startGame();
-            }
-        });
-
-        // Monster Selection
-        document.getElementById('btn-back-monster').addEventListener('click', () => {
-            Audio.play('click');
-            this.showScreen('role-select');
-        });
-
-        document.getElementById('btn-confirm-monster').addEventListener('click', () => {
-            if (this.selectedCharacter) {
-                Audio.play('click');
-                this.startGame();
-            }
-        });
-
-        // Game Screen
-        document.getElementById('btn-pause').addEventListener('click', () => {
-            Audio.play('click');
-            this.togglePause();
-        });
-
-        document.getElementById('btn-resume').addEventListener('click', () => {
-            Audio.play('click');
-            this.togglePause();
-        });
-
-        document.getElementById('btn-upgrades').addEventListener('click', () => {
-            Audio.play('click');
-            this.showScreen('upgrade-screen');
-            this.populateUpgradeTree();
-        });
-
-        document.getElementById('btn-quit').addEventListener('click', () => {
-            Audio.play('click');
-            if (window.game) window.game.stop();
-            this.showScreen('main-menu');
-        });
-
-        // Upgrade Screen
-        document.getElementById('btn-back-upgrade').addEventListener('click', () => {
-            Audio.play('click');
-            this.showScreen('game-screen');
-        });
-
-        document.getElementById('btn-apply-upgrades').addEventListener('click', () => {
-            Audio.play('click');
-            this.showScreen('game-screen');
-            if (window.game) window.game.resume();
-        });
-
-        // Game Over
-        document.getElementById('btn-play-again').addEventListener('click', () => {
-            Audio.play('click');
-            this.startGame();
-        });
-
-        document.getElementById('btn-main-menu').addEventListener('click', () => {
-            Audio.play('click');
-            this.showScreen('main-menu');
-        });
-
-        // Help & Settings Back
-        document.getElementById('btn-back-help').addEventListener('click', () => {
-            Audio.play('click');
-            this.showScreen('main-menu');
-        });
-
-        document.getElementById('btn-back-settings').addEventListener('click', () => {
-            Audio.play('click');
-            GameSettings.save();
-            this.showScreen('main-menu');
-        });
-
-        // Settings Controls
-        document.getElementById('sfx-volume').addEventListener('input', (e) => {
-            GameSettings.sfxVolume = e.target.value / 100;
-            Audio.setSFXVolume(GameSettings.sfxVolume);
-        });
-
-        document.getElementById('music-volume').addEventListener('input', (e) => {
-            GameSettings.musicVolume = e.target.value / 100;
-            Audio.setMusicVolume(GameSettings.musicVolume);
-        });
-
-        document.getElementById('vibration-toggle').addEventListener('change', (e) => {
-            GameSettings.vibration = e.target.checked;
-        });
-
-        document.getElementById('fps-toggle').addEventListener('change', (e) => {
-            GameSettings.showFPS = e.target.checked;
-        });
-
-        document.getElementById('difficulty-select').addEventListener('change', (e) => {
-            GameSettings.difficulty = e.target.value;
-        });
-
-        // Load settings
-        this.loadSettings();
+    show(id) {
+      for (const s of this.screens) $(s).classList.toggle('active', s === id);
     }
 
-    showScreen(screenId) {
-        // Hide all screens
-        for (const screen of Object.values(this.screens)) {
-            screen.classList.remove('active');
-        }
+    hideScreens() { for (const s of this.screens) $(s).classList.remove('active'); }
 
-        // Show target screen
-        const targetScreen = this.screens[this.screenIdToKey(screenId)];
-        if (targetScreen) {
-            targetScreen.classList.add('active');
-            this.currentScreen = screenId;
-        }
+    bindScreens() {
+      const tap = (id, fn) => $(id).addEventListener('click', (e) => { e.preventDefault(); this.sfx('click'); fn(); });
+      tap('btn-play', () => { this.buildClassGrid(); this.show('classes'); });
+      tap('btn-classes-back', () => this.show('menu'));
+      tap('btn-hunt', () => this.startRun(this.selectedClass));
+      tap('btn-pause', () => this.pause());
+      tap('btn-resume', () => this.resume());
+      tap('btn-quit', () => this.toMenu());
+      tap('btn-again', () => this.startRun(this.game.classId));
+      tap('btn-menu', () => this.toMenu());
+      tap('btn-mute', () => this.toggleMute());
+      tap('btn-pause-mute', () => this.toggleMute());
     }
 
-    screenIdToKey(id) {
-        const mapping = {
-            'main-menu': 'mainMenu',
-            'role-select': 'roleSelect',
-            'hunter-select': 'hunterSelect',
-            'monster-select': 'monsterSelect',
-            'game-screen': 'gameScreen',
-            'upgrade-screen': 'upgradeScreen',
-            'game-over': 'gameOver',
-            'how-to-play': 'howToPlay',
-            'settings': 'settings',
-            'loading': 'loading'
-        };
-        return mapping[id] || id;
-    }
-
-    populateHunterGrid() {
-        const grid = document.getElementById('hunter-grid');
-        grid.innerHTML = '';
-
-        for (const key in HunterClasses) {
-            const hunter = HunterClasses[key];
-            const card = this.createCharacterCard(hunter, 'hunter');
-            grid.appendChild(card);
-        }
-    }
-
-    populateMonsterGrid() {
-        const grid = document.getElementById('monster-grid');
-        grid.innerHTML = '';
-
-        for (const key in MonsterTypes) {
-            const monster = MonsterTypes[key];
-            const card = this.createCharacterCard(monster, 'monster');
-            grid.appendChild(card);
-        }
-    }
-
-    createCharacterCard(character, type) {
-        const card = document.createElement('div');
-        card.className = 'character-card';
-        card.dataset.characterId = character.id;
-
-        card.innerHTML = `
-            <div class="char-icon">${character.icon}</div>
-            <div class="char-name">${character.name}</div>
-            <div class="char-role">${character.role || character.description.substring(0, 30)}...</div>
-        `;
-
+    buildClassGrid() {
+      const grid = $('class-grid');
+      grid.innerHTML = '';
+      for (const [id, c] of Object.entries(PH.CLASSES)) {
+        const w = PH.WEAPONS[c.weapon];
+        const card = document.createElement('button');
+        card.className = 'class-card' + (id === this.selectedClass ? ' selected' : '');
+        card.style.setProperty('--accent', c.color);
+        card.innerHTML = `<div class="ci">${c.icon}</div><div class="cn">${c.name.toUpperCase()}</div>
+          <div class="cr">${c.role}</div><div class="cw">${w.icon} ${w.name}</div><div class="cp">${c.perkText}</div>`;
         card.addEventListener('click', () => {
-            Audio.play('click');
-            this.selectCharacter(character, type, card);
+          this.sfx('click');
+          this.selectedClass = id;
+          for (const el of grid.children) el.classList.remove('selected');
+          card.classList.add('selected');
+          $('btn-hunt').disabled = false;
         });
-
-        return card;
+        grid.appendChild(card);
+      }
+      $('btn-hunt').disabled = !this.selectedClass;
     }
 
-    selectCharacter(character, type, cardElement) {
-        // Deselect all cards
-        const cards = document.querySelectorAll('.character-card');
-        cards.forEach(c => c.classList.remove('selected'));
-
-        // Select this card
-        cardElement.classList.add('selected');
-        this.selectedCharacter = character;
-
-        // Update info panel
-        this.updateCharacterInfo(character, type);
-
-        // Enable confirm button
-        const confirmBtn = type === 'hunter'
-            ? document.getElementById('btn-confirm-hunter')
-            : document.getElementById('btn-confirm-monster');
-        confirmBtn.disabled = false;
+    startRun(classId) {
+      if (!classId) return;
+      store.set('class', classId);
+      this.selectedClass = classId;
+      this.releaseStick();
+      this.cache = {};
+      this.game.newRun(classId);
+      this.hideScreens();
+      this.el.hud.hidden = false;
+      this.el.bossbar.hidden = true;
+      this.el.hud.classList.remove('has-boss');
+      this.buildLoadout();
     }
 
-    updateCharacterInfo(character, type) {
-        const prefix = type === 'hunter' ? 'hunter' : 'monster';
-        document.getElementById(`${prefix}-name`).textContent = character.name;
-        document.getElementById(`${prefix}-desc`).textContent = character.description;
-
-        // Stats
-        const statsContainer = document.getElementById(`${prefix}-stats`);
-        const stats = character.stats;
-        statsContainer.innerHTML = `
-            <div class="stat-bar">
-                <div class="stat-label">HEALTH</div>
-                <div class="stat-fill-bg">
-                    <div class="stat-fill" style="width: ${(stats.maxHealth / 300) * 100}%; background: #e74c3c;"></div>
-                </div>
-            </div>
-            <div class="stat-bar">
-                <div class="stat-label">DAMAGE</div>
-                <div class="stat-fill-bg">
-                    <div class="stat-fill" style="width: ${(stats.damage / 40) * 100}%; background: #f39c12;"></div>
-                </div>
-            </div>
-            <div class="stat-bar">
-                <div class="stat-label">SPEED</div>
-                <div class="stat-fill-bg">
-                    <div class="stat-fill" style="width: ${(stats.speed / 200) * 100}%; background: #3498db;"></div>
-                </div>
-            </div>
-            <div class="stat-bar">
-                <div class="stat-label">ARMOR</div>
-                <div class="stat-fill-bg">
-                    <div class="stat-fill" style="width: ${(stats.armor / 30) * 100}%; background: #9b59b6;"></div>
-                </div>
-            </div>
-        `;
-
-        // Abilities
-        const abilitiesContainer = document.getElementById(`${prefix}-abilities`);
-        const abilities = getAbilitiesForCharacter(type, character.id);
-        abilitiesContainer.innerHTML = '';
-
-        if (abilities) {
-            for (const key in abilities) {
-                const ability = abilities[key];
-                const preview = document.createElement('div');
-                preview.className = 'ability-preview';
-                preview.innerHTML = `${ability.icon} ${ability.name}`;
-                preview.title = ability.description;
-                abilitiesContainer.appendChild(preview);
-            }
-        }
+    toMenu() {
+      this.game.state = 'menu';
+      this.releaseStick();
+      this.el.hud.hidden = true;
+      this.refreshBest();
+      this.show('menu');
+      this.game.attract();
     }
 
-    startGame() {
-        this.showScreen('loading');
-
-        // Simulate loading
-        const loadingProgress = document.getElementById('loading-progress');
-        const loadingText = document.getElementById('loading-text');
-
-        let progress = 0;
-        const loadingSteps = [
-            'Generating terrain...',
-            'Spawning wildlife...',
-            'Preparing hunters...',
-            'Awakening the monster...',
-            'Starting the hunt!'
-        ];
-
-        const loadingInterval = setInterval(() => {
-            progress += Utils.randomInt(5, 15);
-            if (progress > 100) progress = 100;
-
-            loadingProgress.style.width = `${progress}%`;
-            loadingText.textContent = loadingSteps[Math.floor(progress / 25)] || loadingSteps[0];
-
-            if (progress >= 100) {
-                clearInterval(loadingInterval);
-                setTimeout(() => {
-                    this.showScreen('game-screen');
-
-                    // Always create a fresh game instance
-                    if (window.game) {
-                        window.game.stop();
-                    }
-                    // Use window.Game to get Game3D (which replaces Game in game3d.js)
-                    const GameClass = window.Game;
-                    window.game = new GameClass();
-                    console.log('Created new game instance:', window.game.constructor.name, '| use3D:', window.game.use3D);
-
-                    window.game.init(this.selectedRole, this.selectedCharacter);
-                    window.game.start();
-                }, 500);
-            }
-        }, 100);
+    pause() {
+      if (this.game.state !== 'playing') return;
+      this.game.state = 'paused';
+      this.releaseStick();
+      const pl = $('pause-loadout');
+      pl.innerHTML = this.loadoutHTML();
+      this.show('pause');
     }
 
-    togglePause() {
-        const pauseMenu = this.hud.pauseMenu;
-        pauseMenu.classList.toggle('hidden');
-
-        if (window.game) {
-            if (pauseMenu.classList.contains('hidden')) {
-                window.game.resume();
-            } else {
-                window.game.pause();
-            }
-        }
+    resume() {
+      if (this.game.state !== 'paused') return;
+      this.hideScreens();
+      this.game.state = 'playing';
     }
 
-    updateHUD(player, gameTime) {
-        // Health
-        const healthPercent = (player.health / player.maxHealth) * 100;
-        this.hud.healthBar.style.width = `${healthPercent}%`;
-        this.hud.healthText.textContent = `${Math.floor(player.health)}/${player.maxHealth}`;
+    toggleMute() {
+      this.muted = !this.muted;
+      store.set('muted', this.muted);
+      this.applyMute();
+    }
 
-        // Timer
-        this.hud.timer.textContent = Utils.formatTime(gameTime);
+    applyMute() {
+      if (window.Sfx) window.Sfx.setMuted(this.muted);
+      const label = this.muted ? '🔇 Sound off' : '🔊 Sound on';
+      $('btn-mute').textContent = label;
+      $('btn-pause-mute').textContent = label;
+    }
 
-        // Evolution (for monster)
-        if (player instanceof Monster) {
-            this.hud.evolutionIndicator.style.display = 'block';
-            this.hud.evolutionIndicator.querySelector('.evo-stage').textContent = `Stage ${player.evolutionStage}`;
-            this.hud.evoProgress.style.width = `${player.getEvolutionPercent()}%`;
+    refreshBest() {
+      const b = this.best;
+      $('best-line').textContent = b ? `Best: ${b.score.toLocaleString()}${b.victory ? '  ·  👑 victory' : `  ·  ${fmtTime(b.time)}`}` : '';
+    }
+
+    sfx(name) { if (window.Sfx && !this.muted) window.Sfx.play(name); }
+
+    /* ── Hooks from the game ────────────────────────────────── */
+
+    hooks() {
+      return {
+        sfx: (n) => this.sfx(n),
+        onBanner: (text, kind) => this.banner(text, kind),
+        onPlayerHit: () => {
+          this.el.hurt.classList.add('on');
+          requestAnimationFrame(() => this.el.hurt.classList.remove('on'));
+          if (navigator.vibrate) { try { navigator.vibrate(30); } catch { /* not allowed in iframes */ } }
+        },
+        onDamage: (x, y, z, amount, crit) => this.damageNumber(x, y, z, amount, crit),
+        onBoss: (bosses) => {
+          this.el.bossbar.hidden = bosses.length === 0;
+          this.el.hud.classList.toggle('has-boss', bosses.length > 0);
+          this.cache.bossKey = null;
+        },
+        onChoice: (choices, kind) => this.openChoice(choices, kind),
+        onLoadout: () => this.buildLoadout(),
+        onEnd: (r) => this.gameOver(r),
+      };
+    }
+
+    banner(text, kind = 'warn') {
+      const b = this.el.banner;
+      b.textContent = text;
+      b.className = kind;
+      void b.offsetWidth;            // restart the animation even for back-to-back banners
+      b.classList.add('show');
+    }
+
+    damageNumber(x, y, z, amount, crit) {
+      const now = performance.now();
+      if (!crit && now - this.lastNum < 90) return;   // a field ticking a boss would otherwise be a blizzard
+      this.lastNum = now;
+      const p = this.render.project(x, y, z, this.tmp);
+      if (!p.on) return;
+      const n = this.nums[this.numIdx++ % this.nums.length];
+      n.textContent = Math.round(amount);
+      n.className = 'n' + (crit ? ' crit' : '');
+      n.style.transform = `translate(${p.x + (Math.random() - 0.5) * 24}px, ${p.y}px)`;
+      void n.offsetWidth;
+      n.classList.add('go');
+    }
+
+    openChoice(choices, kind) {
+      this.releaseStick();
+      const chest = kind === 'chest';
+      $('choice-title').textContent = chest ? '🎁 SUPPLY DROP' : `LEVEL ${this.game.level}`;
+      $('choice-sub').textContent = chest ? 'A free upgrade - choose one' : 'Choose an upgrade';
+      const wrap = $('choice-cards');
+      wrap.innerHTML = '';
+      // Ignore taps for a moment: you are usually mid-swipe when a level lands,
+      // and the finger that was steering should not pick a card unread.
+      const armedAt = performance.now() + 450;
+      for (const c of choices) {
+        const card = document.createElement('button');
+        card.className = 'card' + (chest ? ' chest' : '');
+        let icon, name, desc, tag;
+        if (c.type === 'weapon') {
+          const w = PH.WEAPONS[c.id];
+          icon = w.icon; name = w.name; desc = w.levels[c.level - 1].desc;
+          tag = c.level === 1 ? '<span class="kt new">NEW</span>' : `<span class="kt lv">LV ${c.level}</span>`;
+        } else if (c.type === 'passive') {
+          const p = PH.PASSIVES[c.id];
+          icon = p.icon; name = p.name; desc = p.text;
+          tag = c.level === 1 ? '<span class="kt new">NEW</span>' : `<span class="kt lv">LV ${c.level}</span>`;
+        } else if (c.type === 'heal') {
+          icon = '❤️'; name = 'Field Ration'; desc = 'Restore all health.'; tag = '';
         } else {
-            this.hud.evolutionIndicator.style.display = 'none';
+          icon = '⭐'; name = 'Trophy'; desc = '+250 score.'; tag = '';
         }
-    }
-
-    /**
-     * Update the team health panel showing all hunters and monster health
-     * @param {Game} game - The game instance
-     */
-    updateTeamHealthPanel(game) {
-        if (!game || !game.player || !game.entities) return;
-
-        const isPlayerMonster = game.player instanceof Monster;
-
-        // Show/hide appropriate sections
-        if (isPlayerMonster) {
-            // Player is monster - show hunters' health
-            this.hud.monsterHealthSection.style.display = 'none';
-            this.hud.huntersHealthSection.style.display = 'block';
-            this.updateHuntersHealthDisplay(game);
-        } else {
-            // Player is hunter - show monster's health
-            this.hud.monsterHealthSection.style.display = 'block';
-            this.hud.huntersHealthSection.style.display = 'block';
-            this.updateMonsterHealthDisplay(game);
-            this.updateHuntersHealthDisplay(game);
-        }
-    }
-
-    /**
-     * Update the monster health display in the HUD
-     */
-    updateMonsterHealthDisplay(game) {
-        // Find the monster in entities
-        const monster = game.entities.find(e => e instanceof Monster);
-        if (!monster) return;
-
-        // Update monster info
-        const monsterType = monster.monsterType || 'goliath';
-        this.hud.monsterIcon.textContent = this.monsterIcons[monsterType] || '👹';
-        this.hud.hudMonsterName.textContent = monster.name || 'Monster';
-        this.hud.monsterEvoBadge.textContent = monster.evolutionStage || 1;
-
-        // Update health bar
-        const healthPercent = (monster.health / monster.maxHealth) * 100;
-        this.hud.monsterHealthBar.style.width = `${healthPercent}%`;
-        this.hud.monsterHealthText.textContent = `${Math.floor(monster.health)}/${Math.floor(monster.maxHealth)}`;
-
-        // Set health bar color class
-        this.hud.monsterHealthBar.classList.remove('healthy', 'wounded', 'critical');
-        if (healthPercent > 50) {
-            this.hud.monsterHealthBar.classList.add('healthy');
-        } else if (healthPercent > 25) {
-            this.hud.monsterHealthBar.classList.add('wounded');
-        } else {
-            this.hud.monsterHealthBar.classList.add('critical');
-        }
-
-        // Update row state
-        this.hud.monsterHealthRow.classList.remove('downed', 'low-health');
-        if (!monster.isAlive || monster.isDowned) {
-            this.hud.monsterHealthRow.classList.add('downed');
-        } else if (healthPercent <= 25) {
-            this.hud.monsterHealthRow.classList.add('low-health');
-        }
-    }
-
-    /**
-     * Update the hunters health display in the HUD
-     */
-    updateHuntersHealthDisplay(game) {
-        // Find all hunters in entities
-        const hunters = game.entities.filter(e => e instanceof Hunter);
-
-        // Clear and rebuild the hunters grid
-        this.hud.huntersHealthGrid.innerHTML = '';
-
-        hunters.forEach(hunter => {
-            const row = document.createElement('div');
-            const hunterClass = (hunter.hunterClass || 'assault').toLowerCase();
-            row.className = `entity-health-row hunter ${hunterClass}`;
-
-            // Calculate health
-            const healthPercent = (hunter.health / hunter.maxHealth) * 100;
-            let healthClass = 'healthy';
-            if (healthPercent <= 25) healthClass = 'critical';
-            else if (healthPercent <= 50) healthClass = 'wounded';
-
-            // Check if downed
-            if (!hunter.isAlive || hunter.isDowned) {
-                row.classList.add('downed');
-            } else if (healthPercent <= 25) {
-                row.classList.add('low-health');
-            }
-
-            // Get role initial for badge
-            const roleInitial = hunterClass.charAt(0).toUpperCase();
-
-            row.innerHTML = `
-                <div class="entity-portrait">
-                    <span class="entity-icon">${this.hunterIcons[hunterClass] || '🎯'}</span>
-                    <span class="role-badge">${roleInitial}</span>
-                </div>
-                <div class="entity-health-info">
-                    <div class="entity-name">${hunter.name || hunterClass}</div>
-                    <div class="entity-health-bar-wrapper">
-                        <div class="entity-health-bar ${healthClass}" style="width: ${healthPercent}%"></div>
-                    </div>
-                    <div class="entity-health-text">${Math.floor(hunter.health)}/${Math.floor(hunter.maxHealth)}</div>
-                </div>
-            `;
-
-            this.hud.huntersHealthGrid.appendChild(row);
+        card.innerHTML = `<div class="ki">${icon}</div><div class="kb"><div class="kn">${name}${tag}</div><div class="kd">${desc}</div></div>`;
+        card.addEventListener('click', () => {
+          if (performance.now() < armedAt) return;
+          this.sfx('click');
+          this.hideScreens();
+          this.game.choose(c);
         });
+        wrap.appendChild(card);
+      }
+      setTimeout(() => { for (const el of wrap.children) el.classList.add('armed'); }, 450);
+      this.show('choice');
     }
 
-    updateAbilityBar(player) {
-        const bar = this.hud.abilityBar;
-        bar.innerHTML = '';
+    loadoutHTML() {
+      const g = this.game;
+      const w = g.weapons.map((x) => `<div class="lo">${PH.WEAPONS[x.id].icon}<i>${x.level}</i></div>`).join('');
+      const p = g.passives.map((x) => `<div class="lo p">${PH.PASSIVES[x.id].icon}<i>${x.level}</i></div>`).join('');
+      return `<div class="lrow">${w}</div><div class="lrow">${p}</div>`;
+    }
 
-        const abilityKeys = ['primary', 'secondary', 'ability1', 'ability2'];
-        const keyLabels = ['1', '2', '3', '4'];
+    buildLoadout() { this.el.loadout.innerHTML = this.loadoutHTML(); }
 
-        abilityKeys.forEach((key, index) => {
-            const ability = player.abilities[key];
-            if (!ability) return;
+    gameOver(r) {
+      this.releaseStick();
+      const title = $('over-title');
+      title.textContent = r.victory ? 'VICTORY' : 'YOU FELL';
+      title.className = r.victory ? 'win' : 'lose';
+      $('over-sub').textContent = r.victory
+        ? (r.bossKills >= 3 ? 'All three monsters slain. The hunt is over.' : 'The final monster is slain. The hunt is over.')
+        : r.bossKills ? `${r.bossKills} of 3 monsters slain.` : 'The swarm got you.';
+      $('over-stats').innerHTML = [
+        [fmtTime(r.time), 'TIME'], [r.level, 'LEVEL'], [r.kills.toLocaleString(), 'KILLS'], [`${r.bossKills}/3`, 'MONSTERS'],
+      ].map(([v, l]) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('');
+      const isBest = !this.best || r.score > this.best.score;
+      if (isBest) { this.best = { score: r.score, victory: r.victory, time: r.time }; store.set('best', this.best); }
+      $('over-score').innerHTML = `Score ${r.score.toLocaleString()}` + (isBest ? ' <span class="newbest">· NEW BEST</span>' : '');
+      this.sfx(r.victory ? 'victory' : 'defeat');
+      setTimeout(() => this.show('over'), r.victory ? 600 : 900);
+    }
 
-            const btn = document.createElement('button');
-            btn.className = 'ability-btn';
-            if (ability.currentCooldown > 0) {
-                btn.classList.add('on-cooldown');
-            }
+    /* ── Input ──────────────────────────────────────────────── */
 
-            btn.innerHTML = `
-                <span class="ability-icon">${ability.icon}</span>
-                <span class="ability-key">${keyLabels[index]}</span>
-                ${ability.currentCooldown > 0 ? `<span class="cooldown-overlay">${Math.ceil(ability.currentCooldown)}s</span>` : ''}
-            `;
-
-            btn.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                if (window.game) {
-                    window.game.useAbility(key);
-                }
-            });
-
-            btn.addEventListener('click', () => {
-                if (window.game) {
-                    window.game.useAbility(key);
-                }
-            });
-
-            bar.appendChild(btn);
-        });
-
-        // Add special abilities for monster
-        if (player instanceof Monster && player.abilities.ability3) {
-            const specialKeys = ['ability3', 'ability4'];
-            const specialLabels = ['5', '6'];
-
-            specialKeys.forEach((key, index) => {
-                const ability = player.abilities[key];
-                if (!ability) return;
-
-                const btn = document.createElement('button');
-                btn.className = 'ability-btn';
-                if (ability.currentCooldown > 0) {
-                    btn.classList.add('on-cooldown');
-                }
-
-                btn.innerHTML = `
-                    <span class="ability-icon">${ability.icon}</span>
-                    <span class="ability-key">${specialLabels[index]}</span>
-                    ${ability.currentCooldown > 0 ? `<span class="cooldown-overlay">${Math.ceil(ability.currentCooldown)}s</span>` : ''}
-                `;
-
-                btn.addEventListener('touchstart', (e) => {
-                    e.preventDefault();
-                    if (window.game) {
-                        window.game.useAbility(key);
-                    }
-                });
-
-                bar.appendChild(btn);
-            });
+    bindInput() {
+      const t = this.el.touch;
+      const R = 56;
+      const move = (x, y) => {
+        let dx = x - this.ox, dy = y - this.oy;
+        const d = Math.hypot(dx, dy);
+        if (d > R) {
+          // Drag the base along behind the thumb, so reversing is instant
+          // instead of first travelling back across the whole stick.
+          this.ox += dx * (1 - R / d); this.oy += dy * (1 - R / d);
+          dx = x - this.ox; dy = y - this.oy;
         }
+        // Direction from the base, and a strength that reaches full speed at
+        // half the stick's travel: small thumb movements should really move you.
+        const len = Math.hypot(dx, dy);
+        const m = Math.min(1, len / R);
+        const strength = Math.max(0, Math.min(1, (m - 0.1) / 0.4));
+        this.stick.x = len ? (dx / len) * strength : 0;
+        this.stick.z = len ? (dy / len) * strength : 0;
+        this.el.joy.style.left = this.ox + 'px';
+        this.el.joy.style.top = this.oy + 'px';
+        this.el.knob.style.transform = `translate(${dx}px, ${dy}px)`;
+      };
+      t.addEventListener('pointerdown', (e) => {
+        if (this.game.state !== 'playing' || this.pointerId !== null) return;
+        this.pointerId = e.pointerId;
+        try { t.setPointerCapture(e.pointerId); } catch { /* old browsers */ }
+        this.ox = e.clientX; this.oy = e.clientY;
+        move(e.clientX, e.clientY);
+        this.el.joy.classList.add('on');
+        e.preventDefault();
+      });
+      t.addEventListener('pointermove', (e) => { if (e.pointerId === this.pointerId) move(e.clientX, e.clientY); });
+      const end = (e) => { if (e.pointerId === this.pointerId) this.releaseStick(); };
+      t.addEventListener('pointerup', end);
+      t.addEventListener('pointercancel', end);
+      t.addEventListener('lostpointercapture', end);
+      t.addEventListener('contextmenu', (e) => e.preventDefault());
+
+      const KEYS = { KeyW: [0, -1], ArrowUp: [0, -1], KeyS: [0, 1], ArrowDown: [0, 1], KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0] };
+      this.KEYS = KEYS;
+      window.addEventListener('keydown', (e) => {
+        if (KEYS[e.code]) { this.keys.add(e.code); e.preventDefault(); }
+        if (e.code === 'Escape' || e.code === 'KeyP') { if (this.game.state === 'playing') this.pause(); else if (this.game.state === 'paused') this.resume(); }
+      });
+      window.addEventListener('keyup', (e) => this.keys.delete(e.code));
+      window.addEventListener('blur', () => { this.keys.clear(); this.pause(); });
+      document.addEventListener('visibilitychange', () => { if (document.hidden) this.pause(); });
     }
 
-    populateUpgradeTree() {
-        const tree = document.getElementById('skill-tree');
-        tree.innerHTML = '';
-
-        if (!window.game || !window.game.player) return;
-
-        const player = window.game.player;
-        const points = player.upgradePoints || 0;
-        document.getElementById('upgrade-points').textContent = points;
-
-        // Create upgrade categories
-        const categories = {
-            'Combat': [
-                { id: 'damage', name: 'Damage Boost', desc: '+10% damage', cost: 1, icon: '⚔️' },
-                { id: 'critChance', name: 'Critical Strike', desc: '+5% crit chance', cost: 2, icon: '💥' },
-                { id: 'attackSpeed', name: 'Attack Speed', desc: '+10% attack speed', cost: 1, icon: '⚡' }
-            ],
-            'Defense': [
-                { id: 'health', name: 'Vitality', desc: '+20 max health', cost: 1, icon: '❤️' },
-                { id: 'armor', name: 'Thick Skin', desc: '+5 armor', cost: 2, icon: '🛡️' },
-                { id: 'regen', name: 'Regeneration', desc: '+2 health/sec', cost: 2, icon: '💚' }
-            ],
-            'Utility': [
-                { id: 'speed', name: 'Swift', desc: '+10% movement speed', cost: 1, icon: '🏃' },
-                { id: 'energy', name: 'Stamina', desc: '+20 max energy', cost: 1, icon: '🔋' },
-                { id: 'cooldown', name: 'Quick Recovery', desc: '-10% cooldowns', cost: 2, icon: '⏱️' }
-            ]
-        };
-
-        for (const [categoryName, skills] of Object.entries(categories)) {
-            const category = document.createElement('div');
-            category.className = 'skill-category';
-            category.innerHTML = `<h3>${categoryName}</h3>`;
-
-            const skillList = document.createElement('div');
-            skillList.className = 'skill-list';
-
-            for (const skill of skills) {
-                const unlocked = player.upgrades && player.upgrades[skill.id];
-                const canAfford = points >= skill.cost;
-
-                const item = document.createElement('div');
-                item.className = `skill-item ${unlocked ? 'unlocked' : ''} ${!canAfford && !unlocked ? 'locked' : ''}`;
-
-                item.innerHTML = `
-                    <div class="skill-icon">${skill.icon}</div>
-                    <div class="skill-info">
-                        <h4>${skill.name}</h4>
-                        <p>${skill.desc}</p>
-                    </div>
-                    ${!unlocked ? `<div class="skill-cost">${skill.cost}</div>` : '<div class="skill-cost" style="background: #2ed573;">✓</div>'}
-                `;
-
-                if (!unlocked && canAfford) {
-                    item.addEventListener('click', () => {
-                        Audio.play('ability');
-                        this.purchaseUpgrade(skill.id, skill.cost);
-                        this.populateUpgradeTree();
-                    });
-                }
-
-                skillList.appendChild(item);
-            }
-
-            category.appendChild(skillList);
-            tree.appendChild(category);
-        }
+    releaseStick() {
+      this.pointerId = null;
+      this.stick.x = this.stick.z = 0;
+      this.el.joy.classList.remove('on');
     }
 
-    purchaseUpgrade(skillId, cost) {
-        if (!window.game || !window.game.player) return;
-
-        const player = window.game.player;
-        if (!player.upgradePoints || player.upgradePoints < cost) return;
-
-        player.upgradePoints -= cost;
-        if (!player.upgrades) player.upgrades = {};
-        player.upgrades[skillId] = true;
-
-        // Apply upgrade
-        switch (skillId) {
-            case 'damage':
-                player.damage *= 1.1;
-                break;
-            case 'health':
-                player.maxHealth += 20;
-                player.health += 20;
-                break;
-            case 'armor':
-                player.armor += 5;
-                break;
-            case 'speed':
-                player.speed *= 1.1;
-                break;
-            case 'energy':
-                player.maxEnergy += 20;
-                break;
-        }
+    applyInput() {
+      let kx = 0, kz = 0;
+      for (const k of this.keys) { const v = this.KEYS[k]; kx += v[0]; kz += v[1]; }
+      const g = this.game.input;
+      if (kx || kz) { const m = Math.hypot(kx, kz); g.x = kx / m; g.z = kz / m; }
+      else { g.x = this.stick.x; g.z = this.stick.z; }
     }
 
-    showGameOver(victory, stats) {
-        this.showScreen('game-over');
+    /* ── Per-frame HUD: write only what changed ─────────────── */
 
-        const result = document.getElementById('game-result');
-        const summary = document.getElementById('game-summary');
-        const statsDiv = document.getElementById('end-stats');
-
-        result.textContent = victory ? 'VICTORY' : 'DEFEAT';
-        result.className = victory ? 'victory' : 'defeat';
-
-        if (victory) {
-            summary.textContent = this.selectedRole === 'monster'
-                ? 'You eliminated all hunters!'
-                : 'The monster has been captured!';
-            Audio.play('victory');
-        } else {
-            summary.textContent = this.selectedRole === 'monster'
-                ? 'You were captured by the hunters!'
-                : 'The monster has evolved and escaped!';
-            Audio.play('defeat');
-        }
-
-        statsDiv.innerHTML = `
-            <div class="stat-row">
-                <span class="label">Time Survived</span>
-                <span class="value">${Utils.formatTime(stats.time)}</span>
-            </div>
-            <div class="stat-row">
-                <span class="label">Damage Dealt</span>
-                <span class="value">${stats.damageDealt}</span>
-            </div>
-            <div class="stat-row">
-                <span class="label">Damage Taken</span>
-                <span class="value">${stats.damageTaken}</span>
-            </div>
-            ${this.selectedRole === 'monster' ? `
-            <div class="stat-row">
-                <span class="label">Evolution Stage</span>
-                <span class="value">Stage ${stats.evolutionStage}</span>
-            </div>
-            <div class="stat-row">
-                <span class="label">Hunters Killed</span>
-                <span class="value">${stats.huntersKilled}</span>
-            </div>
-            ` : `
-            <div class="stat-row">
-                <span class="label">Abilities Used</span>
-                <span class="value">${stats.abilitiesUsed}</span>
-            </div>
-            `}
-        `;
+    set(key, value, write) {
+      if (this.cache[key] === value) return;
+      this.cache[key] = value;
+      write(value);
     }
 
-    showDamageNumber(x, y, amount, type = 'damage') {
-        const num = document.createElement('div');
-        num.className = `damage-number ${type}`;
-        num.textContent = type === 'heal' ? `+${amount}` : `-${amount}`;
-        num.style.left = `${x}px`;
-        num.style.top = `${y}px`;
-
-        document.getElementById('game-screen').appendChild(num);
-
-        setTimeout(() => num.remove(), 1000);
+    frame() {
+      const g = this.game;
+      if (g.state === 'menu' || !g.player) return;
+      const pl = g.player, E = this.el;
+      this.set('xp', Math.round((g.xp / g.xpNeed) * 200), (v) => { E.xpfill.style.width = (v / 2) + '%'; });
+      this.set('lvl', g.level, (v) => { E.lvl.textContent = `LV ${v}`; });
+      this.set('t', Math.floor(g.time), (v) => { E.timer.textContent = fmtTime(v); });
+      this.set('k', g.kills, (v) => { E.kills.textContent = v.toLocaleString(); });
+      const hp = Math.max(0, Math.round((pl.hp / pl.maxHp) * 100));
+      this.set('hp', hp, (v) => { E.hpfill.style.width = v + '%'; E.hpfill.classList.toggle('low', v < 30); });
+      const p = this.render.project(pl.x, 0, pl.z, this.tmp);
+      E.hpbar.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y + 14)}px)`;
+      if (g.bosses.length) {
+        const b = g.bosses[0];
+        this.set('bossKey', b.id, () => { E.bossname.textContent = `${b.icon} ${b.name.toUpperCase()}  ·  STAGE ${b.stage}`; });
+        this.set('bossHp', Math.round((b.hp / b.maxHp) * 200), (v) => { E.bossfill.style.width = Math.max(0, v / 2) + '%'; });
+      }
     }
+  }
 
-    showToast(message) {
-        const toast = document.createElement('div');
-        toast.className = 'toast';
-        toast.textContent = message;
-
-        document.body.appendChild(toast);
-
-        setTimeout(() => toast.remove(), 3000);
-    }
-
-    loadSettings() {
-        GameSettings.load();
-
-        document.getElementById('sfx-volume').value = GameSettings.sfxVolume * 100;
-        document.getElementById('music-volume').value = GameSettings.musicVolume * 100;
-        document.getElementById('vibration-toggle').checked = GameSettings.vibration;
-        document.getElementById('fps-toggle').checked = GameSettings.showFPS;
-        document.getElementById('difficulty-select').value = GameSettings.difficulty;
-    }
-}
-
-// Export
-window.UIManager = UIManager;
+  PH.UI = UI;
+})();
