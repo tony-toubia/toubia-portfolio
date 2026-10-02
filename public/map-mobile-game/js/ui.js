@@ -34,7 +34,7 @@ window.PH = window.PH || {};
       this.pickFor = 'survival';
       this.bestHunt = store.get('bestHunt', null);
       this.render = render;
-      this.screens = ['menu', 'modes', 'classes', 'monsters', 'choice', 'pause', 'over', 'nogl'];
+      this.screens = ['menu', 'modes', 'classes', 'monsters', 'daily', 'choice', 'pause', 'over', 'nogl'];
       this.selectedMonster = store.get('monster', null);
       this.bestMonster = store.get('bestMonster', null);
       this.selectedClass = store.get('class', null);
@@ -109,9 +109,15 @@ window.PH = window.PH || {};
       tap('btn-pause', () => this.pause());
       tap('btn-resume', () => this.resume());
       tap('btn-quit', () => this.toMenu());
+      tap('btn-daily', () => this.openDaily());
+      tap('btn-daily-back', () => this.show('menu'));
+      tap('btn-daily-go', () => this.startDaily());
+      $('daily-form').addEventListener('submit', (e) => { e.preventDefault(); this.submitDaily(); });
+      $('daily-initials').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3); });
       tap('btn-again', () => {
         const g = this.game;
-        if (g.mode === 'monster') this.startMonsterRun(g.monsterType);
+        if (this.daily) this.startDaily();
+        else if (g.mode === 'monster') this.startMonsterRun(g.monsterType);
         else if (g.mode === 'hunt') this.startHuntRun(g.myClass);
         else this.startRun(g.classId);
       });
@@ -185,6 +191,7 @@ window.PH = window.PH || {};
     }
 
     startMonsterRun(type) {
+      this.daily = null; $('daily-chip').hidden = true;
       if (!type) return;
       store.set('monster', type);
       this.selectedMonster = type;
@@ -213,6 +220,7 @@ window.PH = window.PH || {};
     }
 
     startHuntRun(cls) {
+      this.daily = null; $('daily-chip').hidden = true;
       if (!cls) return;
       store.set('class', cls);
       this.selectedClass = cls;
@@ -231,16 +239,17 @@ window.PH = window.PH || {};
       this.buildSquad();
     }
 
-    startRun(classId) {
+    startRun(classId, daily = null) {
       if (!classId) return;
+      this.daily = daily;
+      $('daily-chip').hidden = !daily;
       this.enterMode(this.survival);
       this.el.dodge.querySelector('.ai').textContent = '💨';
       this.el.dodge.setAttribute('aria-label', 'Dodge roll');
-      store.set('class', classId);
-      this.selectedClass = classId;
+      if (!daily) { store.set('class', classId); this.selectedClass = classId; }
       this.releaseStick();
       this.cache = {};
-      this.game.newRun(classId);
+      this.game.newRun(classId, daily ? daily.seed : undefined);
       this.hideScreens();
       this.el.hud.hidden = false;
       this.el.bossbar.hidden = true;
@@ -252,7 +261,87 @@ window.PH = window.PH || {};
       this.buildLoadout();
     }
 
+    /* ── Daily challenge ────────────────────────────────────── */
+
+    /** The daily screen: today's hunter, the board, your standing. */
+    openDaily() {
+      const t = PH.Daily.today(), cls = PH.CLASSES[t.classId];
+      $('daily-title').textContent = `DAILY HUNT #${t.number}`;
+      const date = new Date(t.day + 'T12:00:00Z').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
+      const hunter = $('daily-hunter');
+      hunter.style.setProperty('--accent', cls.color);
+      hunter.innerHTML = `<div class="ci">${cls.icon}</div><div><div class="cn">${cls.name.toUpperCase()}</div><div class="cr">Today's hunter · ${date}</div></div>`;
+      $('daily-board').innerHTML = '<div class="empty">Loading the board…</div>';
+      $('daily-me').textContent = '';
+      this.show('daily');
+      PH.Daily.board(t.day).then((b) => {
+        this.renderBoard($('daily-board'), b, 10);
+        const mine = PH.Daily.best(t.day);
+        $('daily-me').textContent = b.me ? `Your best today: ${b.me.score.toLocaleString()} · #${b.me.rank} of ${b.total}`
+          : mine ? `Your best today: ${mine.score.toLocaleString()}${mine.submitted ? '' : ' (not on the board yet)'}` : '';
+      });
+    }
+
+    renderBoard(el, b, limit) {
+      if (b.offline) { el.innerHTML = '<div class="empty">The leaderboard is offline right now. Your best is still saved on this device.</div>'; return; }
+      if (b.error) { el.innerHTML = `<div class="empty">Could not load the board (${b.error}).</div>`; return; }
+      if (!b.top || !b.top.length) { el.innerHTML = '<div class="empty">No scores yet today. Be the first.</div>'; return; }
+      const meIdx = b.me ? b.me.rank - 1 : -1;
+      el.innerHTML = b.top.slice(0, limit).map((r, i) => `<div class="row${i === meIdx ? ' me' : ''}"><span class="rk">${i + 1}</span>`
+        + `<span class="nm">${r.name}</span><span class="tm">${PH.CLASSES[r.classId] ? PH.CLASSES[r.classId].icon : ''} ${fmtTime(r.time)}${r.victory ? ' 👑' : ''}</span>`
+        + `<span class="sc">${r.score.toLocaleString()}</span></div>`).join('')
+        + (b.me && b.me.rank > limit ? `<div class="row me"><span class="rk">${b.me.rank}</span><span class="nm">YOU</span><span class="tm"></span><span class="sc">${b.me.score.toLocaleString()}</span></div>` : '');
+    }
+
+    startDaily() {
+      const t = PH.Daily.today();
+      this.startRun(t.classId, t);
+    }
+
+    /** After a daily run: keep the best, offer to put it on the board. */
+    showDailyResult(r) {
+      const d = this.daily, box = $('over-daily');
+      box.hidden = false;
+      const prev = PH.Daily.best(d.day);
+      const improved = !prev || r.score > prev.score;
+      if (improved) PH.Daily.setBest(d.day, { score: r.score, submitted: false, run: r });
+      const best = PH.Daily.best(d.day);
+      const canSubmit = !best.submitted;
+      $('daily-form').hidden = !canSubmit;
+      $('daily-initials').value = PH.Daily.initials();
+      $('btn-daily-submit').disabled = false;
+      const st = $('daily-status');
+      st.className = 'daily-status';
+      st.textContent = improved ? (prev ? `New daily best: ${r.score.toLocaleString()}` : '') : `Your best today is ${best.score.toLocaleString()}.`;
+      $('over-board').innerHTML = '<div class="empty">Loading the board…</div>';
+      PH.Daily.board(d.day).then((b) => this.renderBoard($('over-board'), b, 5));
+    }
+
+    async submitDaily() {
+      const d = this.daily;
+      if (!d) return;
+      const name = $('daily-initials').value.toUpperCase();
+      const st = $('daily-status');
+      if (!/^[A-Z0-9]{3}$/.test(name)) { st.className = 'daily-status err'; st.textContent = 'Three letters or digits, please.'; return; }
+      PH.Daily.setInitials(name);
+      const best = PH.Daily.best(d.day), r = best.run;
+      $('btn-daily-submit').disabled = true;
+      st.className = 'daily-status'; st.textContent = 'Submitting…';
+      const res = await PH.Daily.submit({ day: d.day, name, classId: r.classId, score: r.score, time: Math.round(r.time * 100) / 100,
+        kills: r.kills, level: r.level, bosses: r.bossKills, victory: !!r.victory, bonus: r.bonus || 0 });
+      if (res.offline) { st.className = 'daily-status err'; st.textContent = 'The leaderboard is offline. Your best is saved on this device.'; $('btn-daily-submit').disabled = false; return; }
+      if (res.error) { st.className = 'daily-status err'; st.textContent = `Not accepted: ${res.error}.`; $('btn-daily-submit').disabled = false; return; }
+      PH.Daily.setBest(d.day, { submitted: true, name });
+      $('daily-form').hidden = true;
+      st.className = 'daily-status ok';
+      st.textContent = res.me ? `You're #${res.me.rank} of ${res.total} today!` : 'Submitted.';
+      this.renderBoard($('over-board'), res, 5);
+      this.sfx('levelup');
+    }
+
     toMenu() {
+      this.daily = null;
+      $('daily-chip').hidden = true;
       this.game.state = 'menu';
       this.enterMode(this.survival);
       this.el.hud.hidden = true;
@@ -336,6 +425,10 @@ window.PH = window.PH || {};
       if (this.bestHunt) parts.push(`Squad best ${this.bestHunt.score.toLocaleString()}${this.bestHunt.victory ? ' 👑' : ''}`);
       if (m) parts.push(`Monster best ${m.score.toLocaleString()}${m.victory ? ' 👑' : ''}`);
       $('best-line').textContent = parts.join('  ·  ');
+      if (PH.Daily) {
+        const t = PH.Daily.today(), mine = PH.Daily.best(t.day);
+        $('daily-tag').textContent = `#${t.number} · ${PH.CLASSES[t.classId].name}` + (mine ? ` · your best ${mine.score.toLocaleString()}` : ' · new today');
+      }
     }
 
     sfx(name) {
@@ -379,6 +472,7 @@ window.PH = window.PH || {};
 
     huntOver(r) {
       this.releaseStick();
+      $('over-daily').hidden = true;
       const m = PH.MONSTERS[r.monsterType];
       const title = $('over-title');
       title.textContent = r.victory ? 'MONSTER SLAIN' : r.how === 'apex' ? 'SQUAD WIPED OUT' : 'IT GOT AWAY';
@@ -398,6 +492,7 @@ window.PH = window.PH || {};
 
     monsterOver(r) {
       this.releaseStick();
+      $('over-daily').hidden = true;
       const m = PH.MONSTERS[r.monsterType];
       const title = $('over-title');
       title.textContent = r.victory ? (r.how === 'apex' ? 'APEX PREDATOR' : 'YOU SURVIVED') : 'YOU WERE HUNTED';
@@ -507,6 +602,8 @@ window.PH = window.PH || {};
       const isBest = !this.best || r.score > this.best.score;
       if (isBest) { this.best = { score: r.score, victory: r.victory, time: r.time }; store.set('best', this.best); }
       $('over-score').innerHTML = `Score ${r.score.toLocaleString()}` + (isBest ? ' <span class="newbest">· NEW BEST</span>' : '');
+      if (this.daily) this.showDailyResult(r);
+      else $('over-daily').hidden = true;
       this.sfx(r.victory ? 'victory' : 'defeat');
       setTimeout(() => this.show('over'), r.victory ? 600 : 900);
     }
@@ -563,6 +660,7 @@ window.PH = window.PH || {};
       const KEYS = { KeyW: [0, -1], ArrowUp: [0, -1], KeyS: [0, 1], ArrowDown: [0, 1], KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0] };
       this.KEYS = KEYS;
       window.addEventListener('keydown', (e) => {
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;   // typing initials
         if (KEYS[e.code]) { this.keys.add(e.code); e.preventDefault(); }
         // Only claim Space and Shift in play, so they still work on the menus.
         if (this.game.state === 'playing' && !e.repeat) {
