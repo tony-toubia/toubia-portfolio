@@ -272,6 +272,22 @@ PH.EVENTS = [
 ];
 PH.ELITE_EVERY = 40;      // seconds between elite creatures, which drop a chest
 
+/* ── Weekly mutators ────────────────────────────────────────────
+   One Survival rule-change a week, the same for everyone, with its own
+   board. Weeks start on Monday (UTC); `first` is the week of Weekly #1, and
+   the mutators come round in `order`. The numbers are read in game.js. */
+PH.MUTATORS = {
+  twins:   { name: 'Double Trouble', icon: '👯', desc: 'Every monster arrives with its twin.', twins: true, bossHp: 0.7 },
+  night:   { name: 'Night Hunt', icon: '🌑', desc: 'Night from the start, and you can only see what is close.', night: true },
+  glass:   { name: 'Glass Cannon', icon: '💥', desc: '75% more damage - with half the health.', dmg: 1.75, hp: 0.5 },
+  surge:   { name: 'Swarm Surge', icon: '🐜', desc: '60% more creatures, a little frailer.', rate: 1.6, enemyHp: 0.85 },
+  lava:    { name: 'Floor Is Lava', icon: '🌋', desc: 'The Volcanic Wastes, with twice the lava.', biome: 'volcanic', ponds: 2 },
+  giants:  { name: 'Land of Giants', icon: '🦣', desc: 'Fewer creatures - huge, tough and worth more XP.', rate: 0.5, enemyHp: 1.5, size: 1.45, xp: 1.7 },
+  hyper:   { name: 'Hyper', icon: '⚡', desc: 'Everything moves faster - you included.', speed: 1.25, enemySpeed: 1.3, bossSpeed: 1.2 },
+  vampire: { name: 'Vampire', icon: '🧛', desc: 'No regeneration and no hearts. Every kill heals a little.', vampire: 0.12 },
+};
+PH.WEEKLY = { first: 2961, order: ['twins', 'night', 'glass', 'surge', 'lava', 'giants', 'hyper', 'vampire'] };
+
 /* ── Apex Hunt ──────────────────────────────────────────────────
    After a Survival win you can keep going: endless waves of fully evolved
    monsters, mutated and two at a time, while the swarm keeps thickening.

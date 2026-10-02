@@ -114,7 +114,9 @@ window.PH = window.PH || {};
     BIOMES, ORDER, ARENA_ORDER, CELL, hash2, noise2, pathAt,
     current: 'meadow',
     get biome() { return BIOMES[this.current]; },
-    set(id) { this.current = BIOMES[id] ? id : 'meadow'; return this.biome; },
+    /** `pondMul` scales how many pools there are (the Floor Is Lava mutator). */
+    set(id, pondMul = 1) { this.current = BIOMES[id] ? id : 'meadow'; this.pondMul = pondMul; return this.biome; },
+    pondMul: 1,
     /** A biome picked from a run's seed, so the Daily Hunt is the same for everyone. */
     fromSeed(seed, list = ORDER) { return list[((seed >>> 7) ^ (seed >>> 19)) % list.length]; },
 
@@ -123,13 +125,14 @@ window.PH = window.PH || {};
       const d = BIOMES[id].decor, low = [];
       let acc = 0;
       for (const k of ['rock', 'bush', 'ruin', 'log', 'stump', 'stone', 'bone', 'mush', 'crystal', 'pebble']) { acc += d[k]; low.push([k, acc]); }
-      return { low, pond: 1 - d.pond, dead: 1 - d.pond - d.dead };
+      const pond = Math.min(0.2, d.pond * this.pondMul);
+      return { low, pond: 1 - pond, dead: 1 - pond - d.dead };
     },
 
     /** The pool in a scenery cell (cell corner gx, gz), or null. */
     poolIn(gx, gz, id = this.current) {
       const h = hash2(gx * 0.37, gz * 0.53);
-      if (h <= 1 - BIOMES[id].decor.pond) return null;
+      if (h <= 1 - Math.min(0.2, BIOMES[id].decor.pond * this.pondMul)) return null;
       const x = gx + hash2(gx, gz + 7) * CELL, z = gz + hash2(gx + 3, gz) * CELL;
       if (pathAt(x, z) > 0.1 || Math.hypot(x, z) < 7) return null;     // never on a path, never on the start
       const sc = 1.3 + hash2(gx + 2, gz + 8) * 1.4, rot = hash2(gx, gz + 2) * 6.3;

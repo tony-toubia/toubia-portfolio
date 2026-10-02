@@ -100,7 +100,10 @@ window.PH = window.PH || {};
 
     bindScreens() {
       const tap = (id, fn) => (typeof id === 'string' ? $(id) : id).addEventListener('click', (e) => { e.preventDefault(); this.sfx('click'); fn(); });
-      tap('btn-play', () => this.show('modes'));
+      tap('btn-play', () => { this.refreshWeeklyCard(); this.show('modes'); });
+      tap('mode-weekly', () => this.openDaily('weekly'));
+      tap('tab-weekly', () => this.boardTab('weekly'));
+      tap('btn-weekly-go', () => { this.pickFor = 'weekly'; this.buildClassGrid(); this.show('classes'); });
       tap('btn-modes-back', () => this.show('menu'));
       tap('mode-survival', () => { this.pickFor = 'survival'; this.buildClassGrid(); this.show('classes'); });
       tap('mode-hunt', () => { this.pickFor = 'hunt'; this.buildClassGrid(); this.show('classes'); });
@@ -108,7 +111,8 @@ window.PH = window.PH || {};
       tap('btn-classes-back', () => this.show('modes'));
       tap('btn-monsters-back', () => this.show('modes'));
       tap('btn-monster-go', () => this.startMonsterRun(this.selectedMonster));
-      tap('btn-hunt', () => (this.pickFor === 'hunt' ? this.startHuntRun(this.selectedClass) : this.startRun(this.selectedClass)));
+      tap('btn-hunt', () => (this.pickFor === 'hunt' ? this.startHuntRun(this.selectedClass)
+        : this.pickFor === 'weekly' ? this.startRun(this.selectedClass, PH.Weekly.current()) : this.startRun(this.selectedClass)));
       tap('btn-pause', () => this.pause());
       tap('btn-resume', () => this.resume());
       tap('btn-quit', () => this.toMenu());
@@ -135,7 +139,7 @@ window.PH = window.PH || {};
       $('daily-initials').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3); });
       tap('btn-again', () => {
         const g = this.game;
-        if (this.daily) this.startDaily();
+        if (this.daily) (this.daily.kind === 'weekly' ? this.startRun(g.classId, PH.Weekly.current()) : this.startDaily());
         else if (g.mode === 'monster') this.startMonsterRun(g.monsterType);
         else if (g.mode === 'hunt') this.startHuntRun(g.myClass);
         else this.startRun(g.classId);
@@ -154,7 +158,7 @@ window.PH = window.PH || {};
       grid.innerHTML = '';
       const P = PH.Progress;
       for (const [id, c] of Object.entries(PH.CLASSES)) {
-        const w = PH.WEAPONS[P ? P.starter(id) : c.weapon];
+        const w = PH.WEAPONS[P && this.pickFor !== 'weekly' ? P.starter(id) : c.weapon];   // the weekly uses standard weapons
         const hunt = this.pickFor === 'hunt';
         const skin = P && P.equipped('skin', id);
         const card = document.createElement('button');
@@ -269,6 +273,7 @@ window.PH = window.PH || {};
       if (!classId) return;
       this.daily = daily;
       $('daily-chip').hidden = !daily;
+      if (daily) $('daily-chip').textContent = daily.kind === 'weekly' ? `${PH.MUTATORS[daily.mutator].icon} WEEKLY` : '📅 DAILY';
       this.enterMode(this.survival);
       this.el.dodge.querySelector('.ai').textContent = '💨';
       this.el.dodge.setAttribute('aria-label', 'Dodge roll');
@@ -279,7 +284,7 @@ window.PH = window.PH || {};
       // A first Survival run teaches the controls, in the meadow.
       const tutorial = !daily && !store.get('tutorialDone', false);
       this.game.newRun(classId, daily ? daily.seed : undefined, daily || !PH.Progress ? null : PH.Progress.starter(classId),
-        tutorial ? 'meadow' : null, { tutorial });
+        tutorial ? 'meadow' : null, { tutorial, mutator: daily && daily.mutator });
       this.hideScreens();
       this.el.hud.hidden = false;
       this.el.bossbar.hidden = true;
@@ -294,10 +299,10 @@ window.PH = window.PH || {};
     /* ── Daily challenge ────────────────────────────────────── */
 
     /** The daily screen: today's hunter, the board, your standing. */
-    openDaily() {
-      this.boardTab('daily');
+    openDaily(tab = 'daily') {
+      this.boardTab(tab);
       const t = PH.Daily.today(), cls = PH.CLASSES[t.classId];
-      $('daily-title').textContent = `DAILY HUNT #${t.number}`;
+      if (tab === 'daily') $('daily-title').textContent = `DAILY HUNT #${t.number}`;
       const date = new Date(t.day + 'T12:00:00Z').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
       const hunter = $('daily-hunter');
       hunter.style.setProperty('--accent', cls.color);
@@ -334,11 +339,13 @@ window.PH = window.PH || {};
     /** After a daily run: keep the best, offer to put it on the board. */
     showDailyResult(r) {
       const d = this.daily, box = $('over-daily');
+      // The same block serves the weekly mutator.
+      const C = d.kind === 'weekly' ? PH.Weekly : PH.Daily, id = d.kind === 'weekly' ? d.week : d.day;
       box.hidden = false;
-      const prev = PH.Daily.best(d.day);
+      const prev = C.best(id);
       const improved = !prev || r.score > prev.score;
-      if (improved) PH.Daily.setBest(d.day, { score: r.score, submitted: false, run: r });
-      const best = PH.Daily.best(d.day);
+      if (improved) C.setBest(id, { score: r.score, submitted: false, run: r });
+      const best = C.best(id);
       const canSubmit = !best.submitted;
       $('daily-form').hidden = !canSubmit;
       $('daily-initials').value = PH.Daily.initials();
@@ -347,7 +354,7 @@ window.PH = window.PH || {};
       st.className = 'daily-status';
       st.textContent = improved ? (prev ? `New daily best: ${r.score.toLocaleString()}` : '') : `Your best today is ${best.score.toLocaleString()}.`;
       $('over-board').innerHTML = '<div class="empty">Loading the board…</div>';
-      PH.Daily.board(d.day).then((b) => this.renderBoard($('over-board'), b, 5));
+      C.board(id).then((b) => this.renderBoard($('over-board'), b, 5));
     }
 
     async submitDaily() {
@@ -357,18 +364,19 @@ window.PH = window.PH || {};
       const st = $('daily-status');
       if (!/^[A-Z0-9]{3}$/.test(name)) { st.className = 'daily-status err'; st.textContent = 'Three letters or digits, please.'; return; }
       PH.Daily.setInitials(name);
-      const best = PH.Daily.best(d.day), r = best.run;
+      const weekly = d.kind === 'weekly', C = weekly ? PH.Weekly : PH.Daily, id = weekly ? d.week : d.day;
+      const best = C.best(id), r = best.run;
       $('btn-daily-submit').disabled = true;
       st.className = 'daily-status'; st.textContent = 'Submitting…';
-      const res = await PH.Daily.submit({ day: d.day, name, classId: r.classId, score: r.score, time: Math.round(r.time * 100) / 100,
-        kills: r.kills, level: r.level, bosses: r.bossKills, victory: !!r.victory, bonus: r.bonus || 0 });
+      const res = await C.submit({ ...(weekly ? { week: d.week, mutator: d.mutator } : { day: d.day }), name, classId: r.classId, score: r.score,
+        time: Math.round(r.time * 100) / 100, kills: r.kills, level: r.level, bosses: r.bossKills, victory: !!r.victory, bonus: r.bonus || 0 });
       if (res.offline) { st.className = 'daily-status err'; st.textContent = 'The leaderboard is offline. Your best is saved on this device.'; $('btn-daily-submit').disabled = false; return; }
       if (res.error) { st.className = 'daily-status err'; st.textContent = `Not accepted: ${res.error}.`; $('btn-daily-submit').disabled = false; return; }
-      PH.Daily.setBest(d.day, { submitted: true, name });
-      if (res.me && res.me.rank <= 10 && PH.Progress) this.noted(PH.Progress.note('dailyTop'));
+      C.setBest(id, { submitted: true, name });
+      if (!weekly && res.me && res.me.rank <= 10 && PH.Progress) this.noted(PH.Progress.note('dailyTop'));
       $('daily-form').hidden = true;
       st.className = 'daily-status ok';
-      st.textContent = res.me ? `You're #${res.me.rank} of ${res.total} today!` : 'Submitted.';
+      st.textContent = res.me ? `You're #${res.me.rank} of ${res.total} ${weekly ? 'this week' : 'today'}!` : 'Submitted.';
       this.renderBoard($('over-board'), res, 5);
       this.sfx('levelup');
     }
@@ -393,7 +401,7 @@ window.PH = window.PH || {};
       const res = P.record(r, daily);
       box.hidden = false;
       const pct = (k) => (k.max ? 100 : Math.round((k.into / Math.max(1, k.need)) * 100));
-      $('xp-gain').innerHTML = `+${res.xp.toLocaleString()} XP` + (res.daily ? ` <small>×${P.DAILY_BONUS} daily</small>` : '');
+      $('xp-gain').innerHTML = `+${res.xp.toLocaleString()} XP` + (res.daily ? ` <small>×${P.DAILY_BONUS} ${res.daily}</small>` : '');
       $('xp-rank').textContent = res.rankUp ? `RANK UP! ${res.after.rank} · ${res.after.title.toUpperCase()}` : `RANK ${res.after.rank} · ${res.after.title.toUpperCase()}`;
       $('xp-rank').classList.toggle('up', res.rankUp);
       const fill = $('xp-fill');
@@ -554,6 +562,33 @@ window.PH = window.PH || {};
       P.markSeen();
     }
 
+    /* ── Weekly mutator ─────────────────────────────────────── */
+
+    /** The mode screen's weekly card says what this week's twist is. */
+    refreshWeeklyCard() {
+      const w = PH.Weekly.current(), M = PH.MUTATORS[w.mutator];
+      $('weekly-icon').textContent = M.icon;
+      $('weekly-blurb').textContent = `This week: ${M.name}. ${M.desc}`;
+    }
+
+    showWeekly() {
+      const w = PH.Weekly.current(), M = PH.MUTATORS[w.mutator];
+      const biome = PH.World.BIOMES[M.biome || PH.World.fromSeed(w.seed)];
+      const d = Math.floor(w.endsIn / 86400000), h = Math.floor((w.endsIn % 86400000) / 3600000);
+      $('daily-title').textContent = `WEEKLY #${w.number}`;
+      $('weekly-card').innerHTML = `<div class="ci">${M.icon}</div><div><div class="cn">${M.name.toUpperCase()}</div><div class="cr">${M.desc}</div>`
+        + `<div class="cr">${biome.icon} ${biome.name} · ends in ${d ? `${d}d ` : ''}${h}h</div></div>`;
+      $('weekly-board').innerHTML = '<div class="empty">Loading the board…</div>';
+      $('weekly-me').textContent = '';
+      PH.Weekly.board(w.week).then((b) => {
+        this.renderBoard($('weekly-board'), b, 10);
+        const mine = PH.Weekly.best(w.week);
+        $('weekly-me').textContent = b.me ? `Your best this week: ${b.me.score.toLocaleString()} · #${b.me.rank} of ${b.total}`
+          : mine ? `Your best this week: ${mine.score.toLocaleString()}${mine.submitted ? '' : ' (not on the board yet)'}` : '';
+        if (b.top && !b.top.length && !b.offline && !b.error) $('weekly-board').innerHTML = '<div class="empty">No scores yet this week. Be the first.</div>';
+      });
+    }
+
     /* ── Apex Hunt ──────────────────────────────────────────── */
 
     startApex() {
@@ -634,11 +669,14 @@ window.PH = window.PH || {};
 
     /** The leaderboard screen's two tabs: today's daily, and the all-time Apex board. */
     boardTab(which) {
-      $('tab-daily').classList.toggle('active', which === 'daily');
-      $('tab-apex').classList.toggle('active', which === 'apex');
+      for (const t of ['daily', 'weekly', 'apex']) { $('tab-' + t).classList.toggle('active', which === t); }
       $('daily-today').hidden = which !== 'daily';
+      $('daily-weekly').hidden = which !== 'weekly';
       $('daily-apex').hidden = which !== 'apex';
+      if (which === 'weekly') return this.showWeekly();
+      if (which === 'daily') { const t = PH.Daily.today(); $('daily-title').textContent = `DAILY HUNT #${t.number}`; }
       if (which !== 'apex') return;
+      $('daily-title').textContent = 'APEX HUNT';
       $('apex-board').innerHTML = '<div class="empty">Loading the board…</div>';
       const mine = PH.Daily.apexBest();
       $('apex-me').textContent = '';
@@ -733,7 +771,9 @@ window.PH = window.PH || {};
       const T = this.game, biome = PH.World && T.biomeId ? PH.World.BIOMES[T.biomeId] : null;
       const who = r.mode === 'monster' ? `${PH.MONSTERS[r.monsterType].icon} ${PH.MONSTERS[r.monsterType].name}`
         : r.mode === 'hunt' ? `${PH.CLASSES[r.cls].icon} ${PH.CLASSES[r.cls].name}` : `${PH.CLASSES[r.classId].icon} ${PH.CLASSES[r.classId].name}`;
-      const mode = r.mode === 'monster' ? 'Monster' : r.mode === 'hunt' ? 'Hunter Squad' : r.apex ? 'Apex Hunt' : this.daily ? `Daily Hunt #${this.daily.number}` : 'Survival';
+      const wk = this.daily && this.daily.kind === 'weekly' ? PH.MUTATORS[this.daily.mutator] : null;
+      const mode = r.mode === 'monster' ? 'Monster' : r.mode === 'hunt' ? 'Hunter Squad' : r.apex ? 'Apex Hunt'
+        : wk ? `Weekly: ${wk.name}` : this.daily ? `Daily Hunt #${this.daily.number}` : 'Survival';
       const head = $('over-title').textContent, win = $('over-title').classList.contains('win');
       g.textAlign = 'center';
       g.fillStyle = win ? '#ffd700' : '#ff5a6a'; g.font = font(110);
@@ -759,6 +799,7 @@ window.PH = window.PH || {};
       g.fillText(location.host + location.pathname.replace(/\/$/, ''), W / 2, 1310);
       const blob = await new Promise((res) => c.toBlob(res, 'image/png'));
       const text = r.apex ? `I cleared ${r.apex.waves} Apex Hunt waves in Primal Hunt - ${r.score.toLocaleString()} points. Can you go deeper?`
+        : wk ? `This week's Primal Hunt mutator is ${wk.name} - I scored ${r.score.toLocaleString()}. Beat it?`
         : this.daily ? `Daily Hunt #${this.daily.number}: ${r.score.toLocaleString()} in Primal Hunt. Beat it?`
           : `${head} in Primal Hunt (${mode}, ${who.replace(/^\S+ /, '')}) - ${r.score.toLocaleString()} points. Can you beat it?`;
       return { blob, text };
@@ -1051,10 +1092,10 @@ window.PH = window.PH || {};
       title.textContent = r.victory ? 'VICTORY' : 'YOU FELL';
       title.className = r.victory ? 'win' : 'lose';
       $('over-sub').textContent = r.victory
-        ? (r.bossKills >= 3 ? 'All three monsters slain. The hunt is over - unless you keep going.' : 'The final monster is slain. The hunt is over.')
-        : r.bossKills ? `${r.bossKills} of 3 monsters slain.` : 'The swarm got you.';
+        ? (r.bossKills >= 3 ? `All ${r.mutator === 'twins' ? 'six' : 'three'} monsters slain. The hunt is over${this.daily ? '.' : ' - unless you keep going.'}` : 'The final monster is slain. The hunt is over.')
+        : r.bossKills ? `${r.bossKills} of ${r.mutator === 'twins' ? 6 : 3} monsters slain.` : 'The swarm got you.';
       $('over-stats').innerHTML = [
-        [fmtTime(r.time), 'TIME'], [r.level, 'LEVEL'], [r.kills.toLocaleString(), 'KILLS'], [`${r.bossKills}/3`, 'MONSTERS'],
+        [fmtTime(r.time), 'TIME'], [r.level, 'LEVEL'], [r.kills.toLocaleString(), 'KILLS'], [`${r.bossKills}/${r.mutator === 'twins' ? 6 : 3}`, 'MONSTERS'],
       ].map(([v, l]) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('');
       const isBest = !this.best || r.score > this.best.score;
       if (isBest) { this.best = { score: r.score, victory: r.victory, time: r.time }; store.set('best', this.best); }
@@ -1172,6 +1213,12 @@ window.PH = window.PH || {};
       this.set('lvl', g.level, (v) => { E.lvl.textContent = `LV ${v}`; });
       this.set('t', Math.floor(g.time), (v) => { E.timer.textContent = fmtTime(v); });
       this.set('k', g.kills, (v) => { E.kills.textContent = v.toLocaleString(); });
+      // Night Hunt: you only see what is close.
+      this.set('veil', !!g.forceNight, (v) => { $('night-veil').hidden = !v; });
+      if (g.forceNight) {
+        const q = this.render.project(pl.x, 0.5, pl.z, this.tmp);
+        $('night-veil').style.setProperty('--vx', `${Math.round(q.x)}px`); $('night-veil').style.setProperty('--vy', `${Math.round(q.y)}px`);
+      }
       this.set('apex', g.apex ? g.apex.wave : -1, (v) => { const c = $('apex-chip'); c.hidden = v < 0; c.textContent = v > 0 ? `⚔️ WAVE ${v}` : '⚔️ APEX'; });
       const hp = Math.max(0, Math.round((pl.hp / pl.maxHp) * 100));
       this.set('hp', hp, (v) => { E.hpfill.style.width = v + '%'; E.hpfill.classList.toggle('low', v < 30); });
