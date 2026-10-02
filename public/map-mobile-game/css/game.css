@@ -41,7 +41,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
   padding: calc(16px + var(--safe-t)) calc(16px + var(--safe-r)) calc(16px + var(--safe-b)) calc(16px + var(--safe-l)); }
 .screen.active { display: flex; }
 .screen.modal { background: rgba(8, 10, 20, 0.55); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
-#menu, #classes, #modes, #monsters { background: radial-gradient(ellipse at 50% 35%, rgba(20, 24, 42, 0.35), rgba(10, 12, 22, 0.85)); }
+#menu, #classes, #modes, #monsters, #lodge { background: radial-gradient(ellipse at 50% 35%, rgba(20, 24, 42, 0.35), rgba(10, 12, 22, 0.85)); }
 
 /* ── Joystick (visual only; input lives on #touch) ────── */
 #joy { position: fixed; z-index: 3; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%;
@@ -253,6 +253,75 @@ body.in-iframe .menu-foot { justify-content: center; }
   background: radial-gradient(ellipse at center, transparent 62%, rgba(255, 30, 60, 0.38)); }
 #hurt.on { opacity: 1; transition: none; }
 
+/* ── Rank & Hunter's Lodge ────────────────────────────── */
+.rank-strip { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 12px; padding: 9px 12px; border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05); border: 2px solid rgba(78, 205, 196, 0.35); text-align: left; transition: transform 0.08s; }
+.rank-strip:active { transform: scale(0.97); }
+.rk-badge { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; font-weight: 900;
+  background: radial-gradient(circle at 35% 30%, #7ff0e6, var(--teal) 55%, #1f7f78); color: #06302c; box-shadow: 0 0 14px rgba(78, 205, 196, 0.45); }
+.rk-badge.big { width: 54px; height: 54px; font-size: 1.4rem; }
+.rk-body { flex: 1; min-width: 0; }
+.rk-title { display: block; font-size: 0.78rem; font-weight: 800; letter-spacing: 0.12em; color: var(--teal); }
+.rk-bar { display: block; height: 6px; margin-top: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+.rk-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--teal), #a8fff6); border-radius: 3px; }
+.rk-go { flex: none; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em; color: var(--muted); }
+.rk-new { display: inline-block; margin-right: 6px; padding: 2px 6px; border-radius: 6px; background: var(--gold); color: #3a2a00; font-size: 0.65rem; }
+.rk-new[hidden] { display: none; }
+
+.lodge-panel { max-width: 560px; }
+.lodge-rank { display: flex; align-items: center; gap: 14px; text-align: left; padding: 12px 14px; border-radius: 14px; background: rgba(78, 205, 196, 0.08); }
+.lr-body { flex: 1; min-width: 0; }
+.lr-title { font-weight: 900; letter-spacing: 0.14em; color: var(--teal); }
+.lr-sub { color: var(--muted); font-size: 0.75rem; margin-top: 5px; }
+.lodge-records { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+.lodge-records .stat { padding: 7px 4px; }
+.lodge-records .stat b { font-size: 1.05rem; }
+.lodge-records .stat span { font-size: 0.6rem; }
+.lodge-tabs { display: flex; gap: 6px; margin-top: 14px; }
+.lodge-tabs .lt { flex: 1; padding: 9px 4px; border-radius: 10px; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em;
+  background: rgba(255, 255, 255, 0.05); border: 2px solid transparent; color: var(--muted); }
+.lodge-tabs .lt.active { border-color: var(--teal); color: var(--text); background: rgba(78, 205, 196, 0.1); }
+.lodge-note { color: var(--muted); font-size: 0.75rem; margin: 8px 0 2px; }
+.lodge-row { margin-top: 12px; text-align: left; }
+.lodge-row .lh { font-size: 0.78rem; font-weight: 800; letter-spacing: 0.12em; margin-bottom: 6px; }
+.lo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.lodge-tile { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 6px 9px; border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04); border: 2px solid rgba(255, 255, 255, 0.08); text-align: center; min-width: 0; }
+.lodge-tile.on { border-color: var(--teal); background: rgba(78, 205, 196, 0.1); }
+.lodge-tile.fresh { box-shadow: 0 0 0 2px var(--gold), 0 0 16px rgba(255, 215, 0, 0.35); }
+.lodge-tile .la { display: grid; place-items: center; width: 64px; height: 64px; }
+.lodge-tile .la img { width: 64px; height: 64px; object-fit: contain; }
+.lodge-tile .lw { font-size: 2.1rem; }
+.lodge-tile.locked .la { filter: grayscale(1) brightness(0.45); }
+.lodge-tile .ln { font-size: 0.8rem; font-weight: 800; }
+.lodge-tile .lf { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.1em; color: var(--muted); }
+.lodge-tile.on .lf { color: var(--teal); }
+.lodge-tile .lq { font-size: 0.64rem; color: var(--muted); line-height: 1.3; }
+.lodge-tile .lp { display: block; width: 80%; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.1); overflow: hidden; margin-top: 2px; }
+.lodge-tile .lp i { display: block; height: 100%; background: var(--gold); }
+.lodge-tile .lpn { font-size: 0.6rem; color: var(--muted); }
+
+#over-xp { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(78, 205, 196, 0.08); text-align: left; }
+#over-xp[hidden] { display: none; }
+.xp-line { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.xp-gain { font-weight: 900; color: var(--teal); }
+.xp-gain small { font-weight: 700; color: var(--gold); font-size: 0.7rem; }
+.xp-rank { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.1em; color: var(--muted); }
+.xp-rank.up { color: var(--gold); animation: rankup 0.9s 1s both; }
+@keyframes rankup { 0% { transform: scale(1); } 40% { transform: scale(1.25); text-shadow: 0 0 14px rgba(255, 215, 0, 0.8); } 100% { transform: scale(1); } }
+.xp-bar { height: 8px; margin-top: 7px; border-radius: 4px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+.xp-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--teal), #a8fff6); transition: width 1.1s cubic-bezier(.2, .8, .2, 1); }
+.xp-unlocks:empty { display: none; }
+.unlock-chip { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 8px; padding: 8px 10px; border-radius: 10px; text-align: left;
+  background: rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.5); animation: chipin 0.4s 1.3s both; }
+@keyframes chipin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.unlock-chip .ui { font-size: 1.5rem; }
+.unlock-chip .ub { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.unlock-chip .ub b { font-size: 0.75rem; letter-spacing: 0.08em; color: var(--gold); }
+.unlock-chip .ub small { font-size: 0.7rem; color: var(--muted); }
+.unlock-chip .ue { font-size: 0.66rem; font-weight: 800; letter-spacing: 0.1em; padding: 4px 8px; border-radius: 6px; background: var(--gold); color: #3a2a00; }
+.unlock-chip.on .ue { background: var(--teal); color: #06302c; }
+
 /* ── Pause & game over ────────────────────────────────── */
 .small-panel { max-width: 360px; }
 .small-panel p { color: var(--muted); margin-top: 8px; }
@@ -275,6 +344,8 @@ body.in-iframe .menu-foot { justify-content: center; }
   .btn { padding: 11px 14px; margin-top: 8px; }
   .pick-grid { grid-template-columns: repeat(4, 1fr); }
   .class-card .cw, .class-card .cp { font-size: 0.7rem; }
+  .lodge-records { grid-template-columns: repeat(6, 1fr); }
+  .lo-grid { grid-template-columns: repeat(3, minmax(0, 150px)); }
   #choice-cards { flex-direction: row; }
   .card { flex-direction: column; text-align: center; padding: 10px; gap: 6px; flex: 1; }
   .card .ki { width: auto; }

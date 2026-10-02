@@ -46,13 +46,26 @@ window.PH = window.PH || {};
       this.parts.push({ geo, bone, ...o });
     }
 
-    /** `mats`: [body, glow, ...]; a part picks one with `mat` (or `glow: true` for 1). */
-    build(mats) {
+    /**
+     * `mats`: [body, glow, ...]; a part picks one with `mat` (or `glow: true` for 1).
+     * `tint` recolours the body (material 0) for a colourway: { color, amount,
+     * lum }. Each colour keeps its brightness (times `lum`), so dark hide stays
+     * dark; bone and teeth, the brightest parts, take less of it.
+     */
+    build(mats, tint) {
       const root = this.bones[0];
       root.updateMatrixWorld(true);
       const pos = [], nor = [], col = [], si = [], sw = [];
       const groups = mats.map(() => []);
       const m = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color();
+      const lumOf = (x) => 0.2126 * x.r + 0.7152 * x.g + 0.0722 * x.b;
+      const tc = tint ? new THREE.Color(tint.color).convertSRGBToLinear() : null, tl = tc ? Math.max(1e-4, lumOf(tc)) : 1;
+      const recolour = (x) => {
+        const L = lumOf(x);
+        const a = tint.amount * (1 - Math.min(1, Math.max(0, (L - 0.3) / 0.35)));   // bone keeps most of its colour
+        const k = (L * (tint.lum || 1)) / tl;
+        x.setRGB(lerp(x.r, tc.r * k, a), lerp(x.g, tc.g * k, a), lerp(x.b, tc.b * k, a));
+      };
       for (const p of this.parts) groups[p.mat !== undefined ? p.mat : p.glow ? 1 : 0].push(p);
       const ranges = [];
       let vcount = 0;
@@ -74,7 +87,9 @@ window.PH = window.PH || {};
               const j = p.jitter === undefined ? 0.12 : p.jitter;
               const k = 1 + (Math.random() - 0.5) * 2 * j;
               // Colours are picked as sRGB hex; the shading works in linear.
-              c.set(p.color || 0xffffff).convertSRGBToLinear().multiplyScalar(k);
+              c.set(p.color || 0xffffff).convertSRGBToLinear();
+              if (tc && gi === 0) recolour(c);
+              c.multiplyScalar(k);
             }
             pos.push(P.getX(i), P.getY(i), P.getZ(i));
             nor.push(N.getX(i), N.getY(i), N.getZ(i));
@@ -273,14 +288,15 @@ window.PH = window.PH || {};
 
     // Materials: toon for rock and hide, unlit and brighter than white for
     // the glow so the bloom picks it up.
-    const glowCol = new THREE.Color(1.0, 0.36, 0.06);   // saturated, so the bright glow stays orange
+    const VAR = helpers.variant || {};
+    const glowCol = VAR.glow ? new THREE.Color(...VAR.glow) : new THREE.Color(1.0, 0.36, 0.06);   // saturated, so the bright glow stays orange
     const bodyMat = PH.Look.toonMaterial({ color: 0xffffff, vertexColors: true, flatShading: true,
-      emissive: new THREE.Color(def.glow), emissiveIntensity: 0.0 });
+      emissive: new THREE.Color(VAR.emissive !== undefined ? VAR.emissive : def.glow), emissiveIntensity: 0.0 });
     bodyMat.skinning = true;
     const glowMat = new THREE.MeshBasicMaterial({ color: glowCol.clone(), skinning: true });
     glowMat.toneMapped = false;
 
-    const mesh = rig.build([bodyMat, glowMat]);
+    const mesh = rig.build([bodyMat, glowMat], VAR.tint);
     mesh.castShadow = true; mesh.receiveShadow = false;
 
     // Size: the old model's footprint at this stage.
@@ -529,12 +545,13 @@ window.PH = window.PH || {};
     }
 
     // Materials.
-    const glowCol = new THREE.Color(0.62, 0.22, 1.0);
-    const bodyMat = PH.Look.toonMaterial({ color: 0xffffff, vertexColors: true, flatShading: true, emissive: new THREE.Color(def.glow), emissiveIntensity: 0 });
+    const VAR = helpers.variant || {};
+    const glowCol = VAR.glow ? new THREE.Color(...VAR.glow) : new THREE.Color(0.62, 0.22, 1.0);
+    const bodyMat = PH.Look.toonMaterial({ color: 0xffffff, vertexColors: true, flatShading: true, emissive: new THREE.Color(VAR.emissive !== undefined ? VAR.emissive : def.glow), emissiveIntensity: 0 });
     bodyMat.skinning = true;
     const glowMat = new THREE.MeshBasicMaterial({ color: glowCol.clone(), skinning: true });
     glowMat.toneMapped = false;
-    const mesh = rig.build([bodyMat, glowMat]);
+    const mesh = rig.build([bodyMat, glowMat], VAR.tint);
     mesh.castShadow = true;
 
     const [w, h] = fit;
@@ -757,9 +774,10 @@ window.PH = window.PH || {};
     }
 
     // Materials: body, glow, and the lightning veins.
-    const glowCol = new THREE.Color(0.42, 0.32, 1.0);
-    const arcCol = new THREE.Color(0.55, 0.85, 1.0);
-    const bodyMat = PH.Look.toonMaterial({ color: 0xffffff, vertexColors: true, flatShading: true, emissive: new THREE.Color(def.glow), emissiveIntensity: 0 });
+    const VAR = helpers.variant || {};
+    const glowCol = VAR.glow ? new THREE.Color(...VAR.glow) : new THREE.Color(0.42, 0.32, 1.0);
+    const arcCol = VAR.arc ? new THREE.Color(...VAR.arc) : new THREE.Color(0.55, 0.85, 1.0);
+    const bodyMat = PH.Look.toonMaterial({ color: 0xffffff, vertexColors: true, flatShading: true, emissive: new THREE.Color(VAR.emissive !== undefined ? VAR.emissive : def.glow), emissiveIntensity: 0 });
     bodyMat.skinning = true;
     const glowMat = new THREE.MeshBasicMaterial({ color: glowCol.clone(), skinning: true });
     glowMat.toneMapped = false;
@@ -770,7 +788,7 @@ window.PH = window.PH || {};
     const rest = (b, x, y) => { b.rotation.set(x, y || 0, 0, 'YXZ'); b.userData.rest.r = b.rotation.clone(); };
     for (const T of tents) T.chain.forEach((b, j) => rest(b, j === 0 ? (T.feeder ? -0.3 : -0.85) : 0.24, j === 0 ? T.a : 0));
 
-    const mesh = rig.build([bodyMat, glowMat, arcMat]);
+    const mesh = rig.build([bodyMat, glowMat, arcMat], VAR.tint);
     mesh.castShadow = true;
     const [w, h] = fit;
     mesh.updateMatrixWorld(true);
@@ -964,12 +982,13 @@ window.PH = window.PH || {};
     for (const A of arms) { restR(A.a, -HUNCH - 0.35, A.side * 0.12); restR(A.f, -0.25); restR(A.hnd, 0.6); }
     for (const L of legs) { restR(L.th, -0.25, L.side * 0.08); restR(L.sh, 0.3); }
 
-    const glowCol = new THREE.Color(1.0, 0.32, 0.06);
-    const bodyMat = PH.Look.toonMaterial({ color: 0xffffff, vertexColors: true, flatShading: true, emissive: new THREE.Color(def.glow), emissiveIntensity: 0 });
+    const VAR = helpers.variant || {};
+    const glowCol = VAR.glow ? new THREE.Color(...VAR.glow) : new THREE.Color(1.0, 0.32, 0.06);
+    const bodyMat = PH.Look.toonMaterial({ color: 0xffffff, vertexColors: true, flatShading: true, emissive: new THREE.Color(VAR.emissive !== undefined ? VAR.emissive : def.glow), emissiveIntensity: 0 });
     bodyMat.skinning = true;
     const glowMat = new THREE.MeshBasicMaterial({ color: glowCol.clone(), skinning: true });
     glowMat.toneMapped = false;
-    const mesh = rig.build([bodyMat, glowMat]);
+    const mesh = rig.build([bodyMat, glowMat], VAR.tint);
     mesh.castShadow = true;
 
     const [w, h] = fit;

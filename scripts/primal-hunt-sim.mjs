@@ -14,6 +14,8 @@
  *   node scripts/primal-hunt-sim.mjs --monster       # monster mode, every monster
  *   node scripts/primal-hunt-sim.mjs --monster kraken --seeds 20
  *   node scripts/primal-hunt-sim.mjs --hunt          # hunter mode, a bot playing each class
+ *   node scripts/primal-hunt-sim.mjs --starter       # Survival with each class's unlockable starting weapon
+ *   node scripts/primal-hunt-sim.mjs --class support --weapon grenade   # any starting weapon
  *
  * By default the bot fires its special when it is crowded or near a monster,
  * and dodges about half of the boss attacks it is standing in - roughly how a
@@ -29,13 +31,14 @@ const dir = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../pu
 const ctx = { console, Math, Object, Array, Set, Map, Float32Array, Int32Array, Number, JSON };
 ctx.window = ctx;
 vm.createContext(ctx);
-for (const f of ['config.js', 'render.js', 'game.js', 'monster.js', 'hunt.js']) {
+for (const f of ['config.js', 'render.js', 'game.js', 'monster.js', 'hunt.js', 'progress.js']) {
   // render.js defines PH.NullRender; its three.js parts are never touched.
   let src = fs.readFileSync(path.join(dir, f), 'utf8');
   if (f === 'render.js') src = 'var THREE = new Proxy({}, { get: () => function () {} });\n' + src;
   vm.runInContext(src, ctx, { filename: f });
 }
 const PH = ctx.PH;
+const STARTER = process.argv.includes('--starter');
 
 function run(classId, seed, idle) {
   const log = { levels: [], bosses: [], events: [] };
@@ -53,7 +56,7 @@ function run(classId, seed, idle) {
     onBoss: (bs) => log.bosses.push({ t: Math.round(g.time), alive: bs.map((b) => `${b.name}:${Math.round(b.hp)}`) }),
     onBanner: (text) => log.events.push(`${Math.round(g.time)}s ${text}`),
   });
-  g.newRun(classId, seed);
+  g.newRun(classId, seed, arg('--weapon') || (STARTER ? PH.Progress.STARTERS.find((s) => s.for === classId).weapon : null));
   const dt = PH.CONFIG.step;
   let orbit = 0, maxAlive = 0;
   while (g.state !== 'over' && g.time < 420) {

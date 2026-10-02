@@ -1126,7 +1126,8 @@ window.PH = window.PH || {};
     /** The player as one of the original monsters, at an evolution stage. */
     setPlayerMonster(type, stage) {
       if (this.player) this.scene.remove(this.player.root);
-      const mv = this.monsterModel(type, stage);
+      // Your monster wears the colourway you equipped; the ones you fight do not.
+      const mv = this.monsterModel(type, stage, PH.Progress ? PH.Progress.colorVariant(type) : null);
       if (mv) {
         this.scene.add(mv.root);
         this.player = { ...mv, isMonster: true, facing: this.player ? this.player.facing : 0, flash: 0 };
@@ -1156,9 +1157,9 @@ window.PH = window.PH || {};
     }
 
     /** A real animated monster, when its model has loaded; otherwise null. */
-    monsterModel(type, stage) {
+    monsterModel(type, stage, variant) {
       if (!PH.Models || !PH.Models.hasMonster(type)) return null;
-      const m = PH.Models.createMonster(type, stage);
+      const m = PH.Models.createMonster(type, stage, variant);
       m.root.userData.primaryMaterial = m.material;
       return { root: m.root, mesh: m.root, anim: m, height: m.height, radius: m.radius,
         baseGlow: m.material.emissiveIntensity, attackN: 0, lastAtk: 0 };
@@ -1435,9 +1436,19 @@ window.PH = window.PH || {};
       const facing = this.player ? this.player.facing : 0;
       if (this.player) this.scene.remove(this.player.root);
       this.playerClass = hunterClass;
+      // The skin you equipped for this class. Skins load on first use: until
+      // then the standard model stands in, and swaps when the skin arrives.
+      let skin = PH.Progress && PH.Models ? PH.Progress.skinModel(hunterClass) : null;
+      this.playerSkin = skin;
+      if (skin && !PH.Models.hasFile(skin)) {
+        PH.Models.loadFile(skin).then((ok) => {
+          if (ok && this.playerClass === hunterClass && this.playerSkin === skin && this.player && !this.player.isMonster) this.setPlayer(hunterClass);
+        });
+        skin = null;
+      }
       // A real animated model where one exists and has loaded.
-      if (PH.Models && PH.Models.has(hunterClass)) {
-        const h = PH.Models.createHunter(hunterClass);
+      if (PH.Models && PH.Models.has(hunterClass, skin)) {
+        const h = PH.Models.createHunter(hunterClass, skin);
         const inner = new THREE.Group();
         inner.add(h.root);
         inner.add(this.classRing(hunterClass));

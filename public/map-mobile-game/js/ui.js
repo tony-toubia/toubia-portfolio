@@ -34,7 +34,8 @@ window.PH = window.PH || {};
       this.pickFor = 'survival';
       this.bestHunt = store.get('bestHunt', null);
       this.render = render;
-      this.screens = ['menu', 'modes', 'classes', 'monsters', 'daily', 'choice', 'pause', 'over', 'nogl'];
+      this.screens = ['menu', 'modes', 'classes', 'monsters', 'daily', 'lodge', 'choice', 'pause', 'over', 'nogl'];
+      this.lodgeTab = 'skin';
       this.selectedMonster = store.get('monster', null);
       this.bestMonster = store.get('bestMonster', null);
       this.selectedClass = store.get('class', null);
@@ -97,7 +98,7 @@ window.PH = window.PH || {};
     hideScreens() { for (const s of this.screens) $(s).classList.remove('active'); }
 
     bindScreens() {
-      const tap = (id, fn) => $(id).addEventListener('click', (e) => { e.preventDefault(); this.sfx('click'); fn(); });
+      const tap = (id, fn) => (typeof id === 'string' ? $(id) : id).addEventListener('click', (e) => { e.preventDefault(); this.sfx('click'); fn(); });
       tap('btn-play', () => this.show('modes'));
       tap('btn-modes-back', () => this.show('menu'));
       tap('mode-survival', () => { this.pickFor = 'survival'; this.buildClassGrid(); this.show('classes'); });
@@ -113,6 +114,9 @@ window.PH = window.PH || {};
       tap('btn-daily', () => this.openDaily());
       tap('btn-daily-back', () => this.show('menu'));
       tap('btn-daily-go', () => this.startDaily());
+      tap('btn-lodge', () => this.openLodge());
+      tap('btn-lodge-back', () => this.toMenu());
+      for (const b of document.querySelectorAll('.lodge-tabs .lt')) tap(b, () => { this.lodgeTab = b.dataset.tab; this.renderLodge(); });
       $('daily-form').addEventListener('submit', (e) => { e.preventDefault(); this.submitDaily(); });
       $('daily-initials').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3); });
       tap('btn-again', () => {
@@ -134,18 +138,20 @@ window.PH = window.PH || {};
     buildClassGrid() {
       const grid = $('class-grid');
       grid.innerHTML = '';
+      const P = PH.Progress;
       for (const [id, c] of Object.entries(PH.CLASSES)) {
-        const w = PH.WEAPONS[c.weapon];
+        const w = PH.WEAPONS[P ? P.starter(id) : c.weapon];
         const hunt = this.pickFor === 'hunt';
+        const skin = P && P.equipped('skin', id);
         const card = document.createElement('button');
         card.className = 'class-card' + (id === this.selectedClass ? ' selected' : '');
         card.style.setProperty('--accent', c.color);
         const ab = hunt ? PH.HUNT_MODE.abilities[id] : PH.ABILITIES[c.ability];
         card.innerHTML = hunt
-          ? `<div class="ci">${c.icon}</div><div class="cn">${c.name.toUpperCase()}</div><div class="cr">${c.role}</div>
+          ? `<div class="ci">${c.icon}</div><div class="cn">${c.name.toUpperCase()}</div><div class="cr">${c.role}${skin ? ' · ' + skin.name : ''}</div>
              <div class="ca">${ab.icon} ${ab.name}</div><div class="cp">${ab.desc}</div>`
           : `<div class="ci">${c.icon}</div><div class="cn">${c.name.toUpperCase()}</div>
-          <div class="cr">${c.role}</div><div class="cw">${w.icon} ${w.name}</div><div class="ca">${ab.icon} ${ab.name}</div><div class="cp">${c.perkText}</div>`;
+          <div class="cr">${c.role}${skin ? ' · ' + skin.name : ''}</div><div class="cw">${w.icon} ${w.name}</div><div class="ca">${ab.icon} ${ab.name}</div><div class="cp">${c.perkText}</div>`;
         card.title = ab.desc;
         card.addEventListener('click', () => {
           this.sfx('click');
@@ -168,8 +174,9 @@ window.PH = window.PH || {};
         const card = document.createElement('button');
         card.className = 'class-card' + (id === this.selectedMonster ? ' selected' : '');
         card.style.setProperty('--accent', colors[id]);
+        const look = PH.Progress && PH.Progress.equipped('color', id);
         card.innerHTML = `<div class="ci">${m.icon}</div><div class="cn">${m.name.toUpperCase()}</div>
-          <div class="cr">${m.role}</div><div class="ca">${m.ability.icon} ${m.ability.name}</div><div class="cp">${m.blurb}</div>`;
+          <div class="cr">${m.role}${look ? ' · ' + look.name : ''}</div><div class="ca">${m.ability.icon} ${m.ability.name}</div><div class="cp">${m.blurb}</div>`;
         card.addEventListener('click', () => {
           this.sfx('click');
           this.selectedMonster = id;
@@ -252,7 +259,8 @@ window.PH = window.PH || {};
       if (!daily) { store.set('class', classId); this.selectedClass = classId; }
       this.releaseStick();
       this.cache = {};
-      this.game.newRun(classId, daily ? daily.seed : undefined);
+      // Unlocked starting weapons, except in the daily: everyone starts alike there.
+      this.game.newRun(classId, daily ? daily.seed : undefined, daily || !PH.Progress ? null : PH.Progress.starter(classId));
       this.hideScreens();
       this.el.hud.hidden = false;
       this.el.bossbar.hidden = true;
@@ -340,6 +348,129 @@ window.PH = window.PH || {};
       st.textContent = res.me ? `You're #${res.me.rank} of ${res.total} today!` : 'Submitted.';
       this.renderBoard($('over-board'), res, 5);
       this.sfx('levelup');
+    }
+
+    /* ── Rank and unlocks ───────────────────────────────────── */
+
+    /** The menu's rank strip: rank, title, progress, and a flag for new unlocks. */
+    refreshRank() {
+      const P = PH.Progress;
+      if (!P) { $('btn-lodge').hidden = true; return; }
+      const r = P.rank();
+      $('rank-badge').textContent = r.rank;
+      $('rank-title').textContent = `${r.title.toUpperCase()} · RANK ${r.rank}`;
+      $('rank-fill').style.width = (r.max ? 100 : Math.round((r.into / Math.max(1, r.need)) * 100)) + '%';
+      $('rank-new').hidden = P.unseen().length === 0;
+    }
+
+    /** XP, rank and anything unlocked, on the results screen. */
+    showProgress(r, daily = null) {
+      const P = PH.Progress, box = $('over-xp');
+      if (!P) { box.hidden = true; return; }
+      const res = P.record(r, daily);
+      box.hidden = false;
+      const pct = (k) => (k.max ? 100 : Math.round((k.into / Math.max(1, k.need)) * 100));
+      $('xp-gain').innerHTML = `+${res.xp.toLocaleString()} XP` + (res.daily ? ` <small>×${P.DAILY_BONUS} daily</small>` : '');
+      $('xp-rank').textContent = res.rankUp ? `RANK UP! ${res.after.rank} · ${res.after.title.toUpperCase()}` : `RANK ${res.after.rank} · ${res.after.title.toUpperCase()}`;
+      $('xp-rank').classList.toggle('up', res.rankUp);
+      const fill = $('xp-fill');
+      // Fill from where the bar was to where it is now (from empty after a rank up).
+      fill.style.transition = 'none';
+      fill.style.width = (res.rankUp ? 0 : pct(res.before)) + '%';
+      void fill.offsetWidth;
+      fill.style.transition = '';
+      setTimeout(() => { fill.style.width = pct(res.after) + '%'; }, 950);
+      const list = $('xp-unlocks');
+      list.innerHTML = '';
+      for (const u of res.unlocks) {
+        const chip = document.createElement('button');
+        chip.className = 'unlock-chip';
+        const what = u.kind === 'skin' ? `${PH.CLASSES[u.for].name} skin` : u.kind === 'color' ? `${PH.MONSTERS[u.for].name} colours` : `${PH.CLASSES[u.for].name} starting weapon`;
+        chip.innerHTML = `<span class="ui">${u.icon}</span><span class="ub"><b>UNLOCKED: ${u.name.toUpperCase()}</b><small>${what}</small></span><span class="ue">EQUIP</span>`;
+        chip.addEventListener('click', (e) => {
+          e.preventDefault();
+          if (chip.classList.contains('on')) return;
+          this.sfx('click');
+          P.equip(u.kind, u.for, u.id);
+          chip.classList.add('on');
+          chip.querySelector('.ue').textContent = 'EQUIPPED';
+        });
+        list.appendChild(chip);
+      }
+      if (res.rankUp || res.unlocks.length) setTimeout(() => this.sfx('levelup'), 1200);
+    }
+
+    openLodge() {
+      this.renderLodge();
+      this.show('lodge');
+    }
+
+    renderLodge() {
+      const P = PH.Progress, p = P.profile, r = P.rank();
+      const pct = r.max ? 100 : Math.round((r.into / Math.max(1, r.need)) * 100);
+      $('lodge-rank').innerHTML = `<div class="rk-badge big">${r.rank}</div><div class="lr-body"><div class="lr-title">${r.title.toUpperCase()}</div>`
+        + `<div class="rk-bar"><i style="width:${pct}%"></i></div>`
+        + `<div class="lr-sub">${r.max ? 'Top rank reached' : `${r.into.toLocaleString()} / ${r.need.toLocaleString()} XP to rank ${r.rank + 1}`}</div></div>`;
+      const wins = Object.values(p.survivalWins).reduce((a, b) => a + b, 0);
+      const mwins = Object.values(p.monsterWins).reduce((a, b) => a + b, 0);
+      $('lodge-records').innerHTML = [
+        [p.runs, 'HUNTS'], [p.kills.toLocaleString(), 'KILLS'], [p.slain, 'MONSTERS SLAIN'],
+        [wins + p.huntWins, 'HUNTER WINS'], [mwins, 'MONSTER WINS'], [p.dailyDays.length, 'DAILY HUNTS'],
+      ].map(([v, l]) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('');
+      for (const b of document.querySelectorAll('.lodge-tabs .lt')) b.classList.toggle('active', b.dataset.tab === this.lodgeTab);
+      const tab = this.lodgeTab;
+      $('lodge-note').textContent = tab === 'skin' ? 'Your look in Survival and Hunter Squad, the Daily Hunt included.'
+        : tab === 'color' ? 'Your monster\'s colours in Monster mode.' : 'Your first weapon in Survival. The Daily Hunt always uses the standard one.';
+      const groups = tab === 'color' ? Object.keys(PH.MONSTERS) : Object.keys(PH.CLASSES);
+      const list = $('lodge-list');
+      list.innerHTML = '';
+      const unseen = new Set(P.unseen().map((u) => u.id));
+      for (const g of groups) {
+        const isMon = tab === 'color', def = isMon ? PH.MONSTERS[g] : PH.CLASSES[g];
+        const row = document.createElement('div');
+        row.className = 'lodge-row';
+        row.innerHTML = `<div class="lh">${def.icon} ${def.name.toUpperCase()}</div><div class="lo-grid"></div>`;
+        const grid = row.lastChild;
+        const options = [{ id: null, name: 'Standard' }, ...P.UNLOCKS.filter((u) => u.kind === tab && u.for === g)];
+        const cur = P.equipped(tab, g);
+        for (const o of options) {
+          const owned = !o.id || P.unlocked(o.id);
+          const on = (cur ? cur.id : null) === o.id;
+          const tile = document.createElement('button');
+          tile.className = 'lodge-tile' + (owned ? '' : ' locked') + (on ? ' on' : '') + (o.id && unseen.has(o.id) ? ' fresh' : '');
+          let art;
+          if (tab === 'skin') {
+            const file = o.model || PH.Models.HUNTERS[g].file;
+            art = `<img src="/map-mobile-game/img/lodge/${file.split('/').pop().replace('.glb', '')}.webp" alt="" loading="lazy">`;
+          } else if (tab === 'color') {
+            art = `<img src="/map-mobile-game/img/lodge/${g}-${o.id ? o.id.split('-').pop() : 'standard'}.webp" alt="" loading="lazy">`;
+          } else {
+            const w = PH.WEAPONS[o.weapon || def.weapon];
+            art = `<span class="lw">${w.icon}</span>`;
+          }
+          const label = tab === 'starter' ? PH.WEAPONS[o.weapon || def.weapon].name : o.name;
+          let foot;
+          if (owned) foot = `<span class="lf">${on ? 'EQUIPPED' : 'EQUIP'}</span>`;
+          else {
+            const [a, b] = o.progress(p);
+            foot = `<span class="lq">🔒 ${o.text}</span>` + (b > 1 ? `<span class="lp"><i style="width:${Math.min(100, Math.round((a / b) * 100))}%"></i></span><span class="lpn">${Math.min(a, b).toLocaleString()} / ${b.toLocaleString()}</span>` : '');
+          }
+          tile.innerHTML = `<span class="la">${art}</span><span class="ln">${label}</span>${foot}`;
+          const img = tile.querySelector('img');
+          if (img) img.addEventListener('error', () => { img.replaceWith(Object.assign(document.createElement('span'), { className: 'lw', textContent: o.icon || def.icon })); });
+          tile.addEventListener('click', () => {
+            if (!owned || on) return;
+            this.sfx('click');
+            P.equip(tab, g, o.id);
+            if (tab === 'skin') { this.selectedClass = g; store.set('class', g); }
+            if (tab === 'color') { this.selectedMonster = g; store.set('monster', g); }
+            this.renderLodge();
+          });
+          grid.appendChild(tile);
+        }
+        list.appendChild(row);
+      }
+      P.markSeen();
     }
 
     toMenu() {
@@ -440,6 +571,7 @@ window.PH = window.PH || {};
       if (this.bestHunt) parts.push(`Squad best ${this.bestHunt.score.toLocaleString()}${this.bestHunt.victory ? ' 👑' : ''}`);
       if (m) parts.push(`Monster best ${m.score.toLocaleString()}${m.victory ? ' 👑' : ''}`);
       $('best-line').textContent = parts.join('  ·  ');
+      this.refreshRank();
       if (PH.Daily) {
         const t = PH.Daily.today(), mine = PH.Daily.best(t.day);
         $('daily-tag').textContent = `#${t.number} · ${PH.CLASSES[t.classId].name}` + (mine ? ` · your best ${mine.score.toLocaleString()}` : ' · new today');
@@ -501,6 +633,7 @@ window.PH = window.PH || {};
       const isBest = !this.bestHunt || r.score > this.bestHunt.score;
       if (isBest) { this.bestHunt = { score: r.score, victory: r.victory }; store.set('bestHunt', this.bestHunt); }
       $('over-score').innerHTML = `Score ${r.score.toLocaleString()}` + (isBest ? ' <span class="newbest">· NEW BEST</span>' : '');
+      this.showProgress(r);
       this.sfx(r.victory ? 'victory' : 'defeat');
       setTimeout(() => this.show('over'), r.victory ? 700 : 900);
     }
@@ -521,6 +654,7 @@ window.PH = window.PH || {};
       const isBest = !this.bestMonster || r.score > this.bestMonster.score;
       if (isBest) { this.bestMonster = { score: r.score, victory: r.victory }; store.set('bestMonster', this.bestMonster); }
       $('over-score').innerHTML = `Score ${r.score.toLocaleString()}` + (isBest ? ' <span class="newbest">· NEW BEST</span>' : '');
+      this.showProgress(r);
       this.sfx(r.victory ? 'victory' : 'defeat');
       setTimeout(() => this.show('over'), r.victory ? 700 : 900);
     }
@@ -619,6 +753,7 @@ window.PH = window.PH || {};
       $('over-score').innerHTML = `Score ${r.score.toLocaleString()}` + (isBest ? ' <span class="newbest">· NEW BEST</span>' : '');
       if (this.daily) this.showDailyResult(r);
       else $('over-daily').hidden = true;
+      this.showProgress(r, this.daily);
       this.sfx(r.victory ? 'victory' : 'defeat');
       setTimeout(() => this.show('over'), r.victory ? 600 : 900);
     }

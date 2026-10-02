@@ -69,7 +69,8 @@ window.PH = window.PH || {};
       this.fx.setPlayer(classId);
     }
 
-    newRun(classId, seed = (Math.random() * 1e9) | 0) {
+    /** `starter` replaces the class's starting weapon (an unlock; never in the Daily Hunt). */
+    newRun(classId, seed = (Math.random() * 1e9) | 0, starter = null) {
       this.rand = mulberry32(seed);
       this.classId = classId;
       this.time = 0;
@@ -127,7 +128,7 @@ window.PH = window.PH || {};
       };
       this.weapons = [];
       this.passives = [];
-      this.addWeapon(PH.CLASSES[classId].weapon);
+      this.addWeapon(starter && PH.WEAPONS[starter] ? starter : PH.CLASSES[classId].weapon);
       this.recompute();
       this.player.hp = this.player.maxHp;
       this.state = 'playing';
