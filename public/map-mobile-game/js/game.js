@@ -36,6 +36,7 @@ window.PH = window.PH || {};
       this.hooks = hooks;
       this.mode = 'survival';
       this.mut = {};
+      this.fireTrail = []; this.decoy = null;
       this.input = { x: 0, z: 0 };
       this.state = 'menu';
       this.maxEnemies = C.maxEnemies;
@@ -61,7 +62,7 @@ window.PH = window.PH || {};
       for (const p of this.projectiles) p.alive = false;
       for (const g of this.gems) g.alive = false;
       for (const p of this.pickups) p.alive = false;
-      this.lobs = []; this.mines = []; this.telegraphs = []; this.bosses = []; this.droneHits = []; this.zones = [];
+      this.lobs = []; this.mines = []; this.telegraphs = []; this.bosses = []; this.droneHits = []; this.zones = []; this.fireTrail = [];
       this.weapons = []; this.passives = [];
       this.overdrive = 0; this.hitstop = 0; this.bossKills = 0;
       this.player = { x: 0, z: 0, hp: 1, maxHp: 1, facing: Math.PI * 0.8, moving: false, iframes: 0, radius: 0.42 };
@@ -111,7 +112,7 @@ window.PH = window.PH || {};
       this.abilityCd = this.abilityMax * 0.4;
       this.dodgeCd = 0;
       this.overdrive = 0;
-      this.zones = [];
+      this.zones = []; this.fireTrail = []; this.decoy = null;
       this.abilityUses = 0; this.dodges = 0;
 
       for (const e of this.enemies) e.alive = false;
@@ -246,6 +247,7 @@ window.PH = window.PH || {};
       this.updateLobs(dt);
       this.updateMines(dt);
       this.updateTelegraphs(dt);
+      this.updateFire(dt);
       this.updatePickups(dt);
 
       if (this.player.hp <= 0) return this.end(false);
@@ -388,6 +390,11 @@ window.PH = window.PH || {};
         this.fx.shockwave(pl.x, pl.z, r, 0xff6b9d, 0.45);
         this.fx.burst(pl.x, 1, pl.z, 26, 0x7dffb0, 4, 0.35, 0.7, -1, 0.8);
         this.sfx('heal');
+      } else if (id === 'decoy') {
+        this.zones = this.zones.filter((z) => z.kind !== 'decoy');
+        this.zones.push({ kind: 'decoy', x: pl.x, z: pl.z, r: A.blast * this.mods.area, t: 0, dur: A.dur, lure2: A.lure * A.lure });
+        this.fx.shockwave(pl.x, pl.z, 2, 0xa55eea, 0.35);
+        this.banner('DECOY', 'warn');
       } else if (id === 'dome') {
         this.zones = this.zones.filter((z) => z.kind !== 'dome');
         this.zones.push({ kind: 'dome', x: pl.x, z: pl.z, r: A.radius * this.mods.area, t: 0, dur: A.dur });
@@ -417,11 +424,20 @@ window.PH = window.PH || {};
     /** Snare webs sit where they were cast; the dome travels with you. */
     updateZones(dt) {
       const pl = this.player;
+      this.decoy = this.zones.find((z) => z.kind === 'decoy') || null;
       for (let i = this.zones.length - 1; i >= 0; i--) {
         const z = this.zones[i];
         z.t += dt;
         if (z.kind === 'dome') { z.x = pl.x; z.z = pl.z; }
-        if (z.t >= z.dur) this.zones.splice(i, 1);
+        if (z.t >= z.dur) {
+          if (z.kind === 'decoy') {
+            // The decoy goes off, taking its admirers with it.
+            this.blast(z.x, z.z, z.r, PH.ABILITIES.decoy.dmg, 0xa55eea);
+            this.fx.shockwave(z.x, z.z, z.r, 0xd6a8ff, 0.45);
+            this.fx.addShake(0.4);
+          }
+          this.zones.splice(i, 1);
+        }
       }
     }
 
@@ -618,7 +634,9 @@ window.PH = window.PH || {};
         const e = E[i];
         if (!e.alive) continue;
         const def = PH.ENEMIES[e.type];
-        let dx = pl.x - e.x, dz = pl.z - e.z;
+        // A Ranger's decoy draws in everything near it.
+        const lure = this.decoy && dist2(e.x, e.z, this.decoy.x, this.decoy.z) < this.decoy.lure2 ? this.decoy : pl;
+        let dx = lure.x - e.x, dz = lure.z - e.z;
         const d = Math.hypot(dx, dz) || 0.001;
         dx /= d; dz /= d;
 
@@ -821,8 +839,10 @@ window.PH = window.PH || {};
 
         if (b.state === 'chase') {
           b.moving = true;
-          b.x += dx / d * b.speed * slow * dt; b.z += dz / d * b.speed * slow * dt;
-          b.facing = Math.atan2(dx, dz);
+          const lure = this.decoy && dist2(b.x, b.z, this.decoy.x, this.decoy.z) < this.decoy.lure2 * 1.5 ? this.decoy : null;
+          const cx = lure ? lure.x - b.x : dx, cz = lure ? lure.z - b.z : dz, cd = Math.hypot(cx, cz) || 0.001;
+          b.x += cx / cd * b.speed * slow * dt; b.z += cz / cd * b.speed * slow * dt;
+          b.facing = Math.atan2(cx, cz);
           b.summonT -= dt;
           if (b.summonT <= 0) {
             const brood = b.affix === 'brood' ? PH.APEX.affixes.brood : null;
@@ -871,6 +891,17 @@ window.PH = window.PH || {};
             this.query(b.x, b.z, L.r, (e) => this.hitEnemy(e, 60, 0, 0, 0));
             this.restBoss(b);
           }
+        } else if (b.state === 'dive') {
+          // The swoop: low and fast along the line, a trail of fire behind it.
+          const S = A.dive, k = 1 - Math.max(0, b.timer) / b.diveMax;
+          b.moving = true;
+          b.x += b.dash.x * S.speed * slow * dt; b.z += b.dash.z * S.speed * slow * dt;
+          b.lift = Math.max(0, Math.cos(k * Math.PI * 0.5)) * S.height * 0.6 + 0.4;
+          b.leapT = b.timer;            // the model folds its wings for the dive
+          if (!b.diveHit && dist2(b.x, b.z, pl.x, pl.z) < (b.radius + pl.radius) ** 2) { b.diveHit = true; this.damagePlayer(S.dmg); }
+          this.query(b.x, b.z, b.radius, (e) => this.hitEnemy(e, 40, b.dash.x, b.dash.z, 5));
+          if ((b.fireT -= dt) <= 0) { b.fireT = 0.06; this.fireTrail.push({ x: b.x, z: b.z, life: S.fire.life, r: S.fire.r, dps: S.fire.dps }); }
+          if (b.timer <= 0) { b.lift = 0; b.leapT = 0; this.restBoss(b); }
         } else if (b.state === 'rest') {
           if (b.timer <= 0) { b.state = 'chase'; b.timer = 0.6; }
         }
@@ -890,7 +921,7 @@ window.PH = window.PH || {};
       // A boss that cannot dash yet just keeps walking at you instead.
       const canDash = options.includes('dash') || b.stage >= 2;
       // The signature move doubles as the closer (the Kraken's lightning reaches you anyway).
-      const closer = options.find((a) => a === 'roll' || a === 'leap' || a === 'warp' || a === 'lightning') || (canDash ? 'dash' : null);
+      const closer = options.find((a) => a === 'roll' || a === 'leap' || a === 'warp' || a === 'lightning' || a === 'dive') || (canDash ? 'dash' : null);
       b.attack = d > A.closeIn && closer ? closer : options[Math.floor(this.rand() * options.length)];
       b.state = 'tele';
       b.facing = Math.atan2(dx, dz);
@@ -909,6 +940,10 @@ window.PH = window.PH || {};
         this.telegraphs.push({ shape: 'circle', x: b.x, z: b.z, r: b.radius * 1.3, t: 0, dur: b.timer, owner: b, color: 0x6fb7ff });
       } else if (b.attack === 'warp') {
         this.telegraphs.push({ shape: 'circle', x: b.x, z: b.z, r: b.radius * 1.4, t: 0, dur: b.timer, owner: b, color: 0xb06cff });
+      } else if (b.attack === 'dive') {
+        // Fire Dive: it climbs, then swoops along this line, setting it alight.
+        b.dash = { x: dx, z: dz };
+        this.telegraphs.push({ shape: 'rect', x: b.x, z: b.z, angle: Math.atan2(dx, dz), w: 2.4, len: A.dive.length, t: 0, dur: b.timer, owner: b, color: 0xffaa33 });
       } else if (b.attack === 'leap') {
         // The landing follows you during the wind-up and locks when it jumps.
         this.telegraphs.push({ shape: 'circle', x: pl.x, z: pl.z, r: A.leap.r * (1 + (b.stage - 1) * 0.12), t: 0, dur: b.timer + A.leap.air, owner: b, follow: pl, color: 0xff5533 });
@@ -962,6 +997,13 @@ window.PH = window.PH || {};
         b.facing = Math.atan2(tx - b.x, tz - b.z);
         // Keep showing where it will land while it is in the air.
         this.telegraphs.push({ shape: 'circle', x: tx, z: tz, r: b.leap.r, t: 0, dur: S.air, color: 0xff5533, by: b });
+        this.sfx('roar');
+        return;
+      }
+      if (b.attack === 'dive') {
+        b.state = 'dive';
+        b.timer = A.dive.length / A.dive.speed;
+        b.diveMax = b.timer; b.diveHit = false; b.fireT = 0;
         this.sfx('roar');
         return;
       }
@@ -1031,6 +1073,24 @@ window.PH = window.PH || {};
       }
       this.hooks.onBoss && this.hooks.onBoss(this.bosses);
       if (b.final && !this.apex && !this.bosses.some((o) => o.final && o.alive)) this.victoryAt = this.time + 3;
+    }
+
+    /** The Wyvern's fire: burns you while you stand in it. */
+    updateFire(dt) {
+      const F = this.fireTrail;
+      if (!F.length) return;
+      for (let i = F.length - 1; i >= 0; i--) { F[i].life -= dt; if (F[i].life <= 0) F.splice(i, 1); }
+      const pl = this.player;
+      const f = F.find((q) => dist2(q.x, q.z, pl.x, pl.z) < (q.r + pl.radius * 0.5) ** 2);
+      if (f && pl.dashT <= 0) {
+        this.burnT = (this.burnT || 0) - dt;
+        if (this.burnT <= 0) {
+          this.burnT = 0.3;
+          const d = f.dps * 0.3 * (1 - pl.armor);
+          pl.hp -= d; pl.damageTaken += d;
+          this.hooks.onPlayerHit && this.hooks.onPlayerHit(d);
+        }
+      }
     }
 
     /* ── Tutorial ───────────────────────────────────────────── */
@@ -1127,7 +1187,7 @@ window.PH = window.PH || {};
         w.timer -= dt * rate;
         if (w.timer > 0) continue;
         w.timer = s.cd * this.mods.cd;
-        const fired = this[{ bolt: 'fireBolt', spread: 'fireSpread', lob: 'fireLob', mine: 'fireMine', strike: 'fireStrike', chain: 'fireChain' }[def.kind]](w, s);
+        const fired = this[{ bolt: 'fireBolt', spread: 'fireSpread', lob: 'fireLob', mine: 'fireMine', strike: 'fireStrike', chain: 'fireChain', snipe: 'fireSnipe' }[def.kind]](w, s);
         if (fired === false) w.timer = 0.15;   // nothing in range; check again soon
       }
     }
@@ -1142,6 +1202,26 @@ window.PH = window.PH || {};
       });
       p.hits.length = 0;
       this.fx.muzzle(x, z, dx, dz, vis);
+    }
+
+    /** The Longshot: piercing shots at the toughest things in range, monsters first. */
+    fireSnipe(w, s) {
+      const pl = this.player, r2 = s.range * s.range, n = s.count + this.mods.extra;
+      const targets = [];
+      for (const b of this.bosses) if (dist2(b.x, b.z, pl.x, pl.z) < r2) targets.push(b);
+      const pool = [];
+      for (const e of this.enemies) if (e.alive && dist2(e.x, e.z, pl.x, pl.z) < r2) pool.push(e);
+      pool.sort((a, b) => b.hp - a.hp);
+      targets.push(...pool.slice(0, n));
+      if (!targets.length) return false;
+      for (let i = 0; i < n; i++) {
+        const t = targets[i % targets.length];
+        const dx = t.x - pl.x, dz = t.z - pl.z, d = Math.hypot(dx, dz) || 1;
+        const spread = i < targets.length ? 0 : (i - targets.length + 1) * 0.06;
+        const a = Math.atan2(dx / d, dz / d) + spread;
+        this.shoot(pl.x, pl.z, Math.sin(a), Math.cos(a), s, 'harpoon');
+      }
+      this.sfx('shoot');
     }
 
     fireBolt(w, s) {

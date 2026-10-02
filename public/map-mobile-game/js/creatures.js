@@ -1076,5 +1076,193 @@ window.PH = window.PH || {};
     return { root, material: bodyMat, height: h, radius: w * 0.38, update: pose };
   };
 
-  PH.Creatures = { behemoth, wraith, kraken, goliath };
+  /* ── Wyvern ──────────────────────────────────────────────────
+     A winged drake that fights from the air: slate scales, dusky red
+     membranes, a furnace glow in its throat and along its spine. It hovers
+     on slow, heavy wingbeats, strikes down with its neck, and for Fire Dive
+     folds its wings and plunges. Stage 2 grows horns and neck spines;
+     stage 3 broader wings, a tail blade and a glowing fire sac. */
+  const SCALE_W = 0x343a46, SCALE_W2 = 0x262b35, BELLY_W = 0x8a6f52, MEMBRANE = 0x6e2c2a, MEMBRANE2 = 0x4a1c1c, HORN_W = 0xd8cbb0;
+
+  const wyvern = (stage, def, fit, helpers) => {
+    const S = Math.max(1, Math.min(3, stage));
+    const rig = new Rig();
+    const HOVER = 1.15;                     // body height above the ground, design units
+    const SPAN = [1.25, 1.35, 1.55][S - 1]; // wing length
+
+    rig.bone('root', null, V(0, 0, 0));
+    rig.bone('body', 'root', V(0, HOVER, 0));
+    rig.bone('neck', 'body', V(0, 0.12, 0.42));
+    rig.bone('neck2', 'neck', V(0, 0.22, 0.24));
+    rig.bone('head', 'neck2', V(0, 0.14, 0.2));
+    rig.bone('jaw', 'head', V(0, -0.06, 0.04));
+    rig.bone('tail1', 'body', V(0, -0.02, -0.42));
+    rig.bone('tail2', 'tail1', V(0, 0, -0.34));
+    rig.bone('tail3', 'tail2', V(0, 0, -0.3));
+    rig.bone('tail4', 'tail3', V(0, 0, -0.26));
+
+    // Body: a deep chest tapering to the tail, a pale belly.
+    rig.add(rough(new THREE.IcosahedronGeometry(0.34, 1), 0.05, 3), 'body', { color: SCALE_W, scale: V(0.95, 0.85, 1.45), jitter: 0.1 });
+    rig.add(new THREE.IcosahedronGeometry(0.28, 1), 'body', { color: BELLY_W, at: V(0, -0.12, 0.08), scale: V(0.85, 0.6, 1.25), jitter: 0.06 });
+    // Spine glow from the shoulders down the tail.
+    const spine = (bone, at, l, rx = 0) => rig.add(new THREE.BoxGeometry(0.035, 0.035, l), bone, { glow: true, at, rot: new THREE.Euler(rx, 0, 0) });
+    spine('body', V(0, 0.29, -0.05), 0.55);
+    // Neck: two tapering segments; spines on it from stage 2.
+    rig.add(new THREE.CylinderGeometry(0.13, 0.19, 0.34, 6), 'neck', { color: SCALE_W, at: V(0, 0.1, 0.12), rot: new THREE.Euler(0.95, 0, 0) });
+    rig.add(new THREE.CylinderGeometry(0.11, 0.13, 0.3, 6), 'neck2', { color: SCALE_W, at: V(0, 0.06, 0.1), rot: new THREE.Euler(0.7, 0, 0) });
+    if (S >= 2) for (const [bone, z] of [['neck', 0.05], ['neck', 0.2], ['neck2', 0.05]]) {
+      rig.add(new THREE.ConeGeometry(0.035, 0.14, 4), bone, { color: HORN_W, jitter: 0.03, at: V(0, 0.16, z), rot: new THREE.Euler(-0.5, 0, 0) });
+    }
+    // Head: a wedge snout, brow ridges, glowing eyes, a jaw that opens to breathe fire.
+    rig.add(taper(new THREE.BoxGeometry(0.22, 0.16, 0.36), 0.55), 'head', { color: SCALE_W2, at: V(0, 0.02, 0.12) });
+    rig.add(new THREE.BoxGeometry(0.26, 0.06, 0.12), 'head', { color: SCALE_W, at: V(0, 0.1, 0.02) });
+    for (const side of [-1, 1]) {
+      rig.add(new THREE.BoxGeometry(0.05, 0.025, 0.03), 'head', { glow: true, at: V(side * 0.08, 0.075, 0.12), rot: new THREE.Euler(0, 0, side * 0.3) });
+      // Swept-back horns (short at stage 1).
+      const hl = S >= 2 ? 0.34 : 0.16;
+      rig.add(new THREE.ConeGeometry(0.035, hl, 4), 'head', { color: HORN_W, jitter: 0.03, at: V(side * 0.09, 0.12, -0.08 - hl * 0.3), rot: new THREE.Euler(-2.2, 0, side * 0.25) });
+    }
+    rig.add(taper(new THREE.BoxGeometry(0.17, 0.06, 0.3), 0.6), 'jaw', { color: BELLY_W, at: V(0, -0.03, 0.14) });
+    rig.add(new THREE.BoxGeometry(0.1, 0.03, 0.18), 'jaw', { glow: true, at: V(0, 0.005, 0.1) });   // the fire inside
+    for (const side of [-1, 1]) rig.add(new THREE.ConeGeometry(0.014, 0.05, 3), 'jaw', { color: HORN_W, jitter: 0, at: V(side * 0.05, 0.02, 0.24), rot: new THREE.Euler(Math.PI, 0, 0) });
+    if (S === 3) rig.add(new THREE.IcosahedronGeometry(0.1, 0), 'neck', { glow: true, at: V(0, 0.02, 0.2), scale: V(1, 0.8, 1.2) });   // fire sac
+    // Tail: tapering to a point; a bone blade at stage 3.
+    [['tail1', 0.15], ['tail2', 0.11], ['tail3', 0.08], ['tail4', 0.055]].forEach(([b, r], i) => {
+      rig.add(new THREE.CylinderGeometry(r * 0.75, r, 0.36, 6), b, { color: i % 2 ? SCALE_W2 : SCALE_W, at: V(0, 0, -0.16), rot: new THREE.Euler(Math.PI / 2, 0, 0) });
+      if (i < 3) spine(b, V(0, r * 0.95, -0.16), 0.24);
+    });
+    if (S === 3) {
+      const blade = new THREE.ConeGeometry(0.12, 0.34, 3); blade.scale(1, 1, 0.25);
+      rig.add(blade, 'tail4', { color: HORN_W, jitter: 0.03, at: V(0, 0, -0.42), rot: new THREE.Euler(-Math.PI / 2, 0, 0) });
+    }
+    // Hind legs, tucked under while it flies.
+    const legs = [];
+    for (const side of [-1, 1]) {
+      const th = rig.bone('thigh' + side, 'body', V(side * 0.2, -0.14, -0.12));
+      const sh = rig.bone('shin' + side, 'thigh' + side, V(0, -0.26, 0.04));
+      rig.add(new THREE.CylinderGeometry(0.09, 0.07, 0.28, 5), 'thigh' + side, { color: SCALE_W, at: V(0, -0.13, 0) });
+      rig.add(new THREE.CylinderGeometry(0.05, 0.045, 0.24, 5), 'shin' + side, { color: SCALE_W2, at: V(0, -0.11, 0) });
+      for (const t of [-1, 0, 1]) rig.add(new THREE.ConeGeometry(0.02, 0.09, 3), 'shin' + side, { color: HORN_W, jitter: 0, at: V(t * 0.035, -0.25, 0.05), rot: new THREE.Euler(1.9, 0, 0) });
+      legs.push({ th, sh, side });
+    }
+    // Wings: an arm bone and a hand bone each; the membrane is a fan of
+    // triangles from the body out to finger tips, drawn on both sides.
+    const both = (pts) => {
+      const g = new THREE.BufferGeometry(), pos = [];
+      for (const [a, b, c] of pts) pos.push(...a, ...b, ...c, ...a, ...c, ...b);
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      return g;
+    };
+    const wings = [];
+    for (const side of [-1, 1]) {
+      const arm = rig.bone('wing' + side, 'body', V(side * 0.24, 0.2, 0.18));
+      const hand = rig.bone('hand' + side, 'wing' + side, V(side * SPAN * 0.45, 0, 0));
+      const L = SPAN * 0.45, F = SPAN * 0.62;
+      // The bones of the wing: arm, hand, three long fingers.
+      rig.add(new THREE.CylinderGeometry(0.045, 0.06, L, 5), 'wing' + side, { color: SCALE_W, at: V(side * L / 2, 0, 0), rot: new THREE.Euler(0, 0, Math.PI / 2) });
+      const tips = [[F, 0.05, -0.1], [F * 0.92, 0, -0.45], [F * 0.75, -0.02, -0.75]];
+      for (const [x, y, z] of tips) {
+        const len = Math.hypot(x, z), f = new THREE.CylinderGeometry(0.012, 0.028, len, 4);
+        f.rotateZ(Math.PI / 2); f.translate(len / 2, 0, 0); f.rotateY(Math.atan2(-z, side * x));   // point it at the tip (mirrored, not flipped)
+        rig.add(f, 'hand' + side, { color: SCALE_W2, jitter: 0.04, at: V(0, y, 0) });
+      }
+      rig.add(new THREE.ConeGeometry(0.03, 0.12, 3), 'hand' + side, { color: HORN_W, jitter: 0, at: V(side * 0.02, 0.05, 0.05), rot: new THREE.Euler(-0.4, 0, -side * 0.6) });   // thumb claw
+      // Membranes: inner (body to hand, on the arm bone) and outer (between the fingers).
+      const sx = (p) => [side * p[0], p[1], p[2]];
+      // Trailing edges are scalloped between the bones, like a bat's.
+      const sh0 = sx([0, 0, 0]), el = sx([L, 0, 0]), elT = sx([L * 0.95, -0.02, -0.5]), mid = sx([L * 0.55, -0.02, -0.34]), back = sx([0.02, -0.02, -0.62]);
+      rig.add(both([[sh0, el, mid], [el, elT, mid], [sh0, mid, back]]), 'wing' + side, { color: MEMBRANE, jitter: 0.06 });
+      const m = tips.map(sx), o = [0, 0, 0], end = sx([-0.04, -0.02, -0.58]);
+      const dip = (a2, b2) => [(a2[0] + b2[0]) * 0.36, -0.02, (a2[2] + b2[2]) * 0.36];   // the scallop between two tips
+      const fan = [];
+      for (const [a2, b2] of [[m[0], m[1]], [m[1], m[2]], [m[2], end]]) { const d = dip(a2, b2); fan.push([o, a2, d], [o, d, b2]); }
+      rig.add(both(fan), 'hand' + side, { color: MEMBRANE2, jitter: 0.06 });
+      wings.push({ arm, hand, side });
+    }
+
+    const VAR = helpers.variant || {};
+    const glowCol = VAR.glow ? new THREE.Color(...VAR.glow) : new THREE.Color(1.0, 0.62, 0.12);
+    const bodyMat = PH.Look.toonMaterial({ color: 0xffffff, vertexColors: true, flatShading: true, emissive: new THREE.Color(VAR.emissive !== undefined ? VAR.emissive : def.glow), emissiveIntensity: 0 });
+    bodyMat.skinning = true;
+    const glowMat = new THREE.MeshBasicMaterial({ color: glowCol.clone(), skinning: true });
+    glowMat.toneMapped = false;
+    // Rest pose for measuring: wings half spread, legs tucked.
+    const R = (b) => b.userData.rest.r;
+    const rest = (b, x, y, z) => { b.rotation.set(x, y, z); b.userData.rest.r = b.rotation.clone(); };
+    for (const W of wings) { rest(W.arm, 0, W.side * 0.25, W.side * 0.25); rest(W.hand, 0, -W.side * 0.35, -W.side * 0.15); }
+    for (const L2 of legs) { rest(L2.th, 0.9, 0, 0); rest(L2.sh, -1.2, 0, 0); }
+    rest(rig.byName.neck, -0.1, 0, 0); rest(rig.byName.head, 0.35, 0, 0);
+    const mesh = rig.build([bodyMat, glowMat], VAR.tint);
+    mesh.castShadow = true;
+
+    const [w, h] = fit;
+    const box = new THREE.Box3().setFromObject(mesh);
+    const size = box.getSize(V(0, 0, 0));
+    // Its wingspan may be wider than the footprint its hitbox uses; size to the height and body.
+    const k = Math.min((w * 1.3) / size.x, (w * 0.95) / size.z, (h * 0.95) / Math.max(0.01, box.max.y));
+    const outline = new THREE.SkinnedMesh(mesh.geometry, helpers.skinnedOutline(0.025, 0.1 * k));
+    outline.bind(mesh.skeleton, mesh.bindMatrix);
+    outline.userData.outline = true;
+    outline.frustumCulled = false;
+    mesh.add(outline);
+    const inner = new THREE.Group();
+    inner.add(mesh);
+    inner.scale.setScalar(k);
+    const tilt = new THREE.Group();
+    tilt.add(inner);
+    const root = new THREE.Group();
+    root.add(tilt);
+
+    // ── Animation ──
+    const B = rig.byName;
+    const glowBase = [1.3, 1.7, 2.3][S - 1];
+    let t = Math.random() * 10, flap = 0, move = 0, wind = 0, fast = 0, dive = 0, dead = 0, roar = 0, bite = 0, lastAttack = 0;
+    const pose = (dt, s) => {
+      t += dt;
+      move = ease(move, s.moving && !s.dead ? 1 : 0, 5, dt);
+      fast = ease(fast, s.fast && !s.dead ? 1 : 0, 6, dt);
+      wind = ease(wind, (s.windup || s.cast) && !s.dead ? 1 : 0, 7, dt);
+      dive = ease(dive, s.leap && !s.dead ? 1 : 0, 9, dt);
+      dead = ease(dead, s.dead ? 1 : 0, 2.5, dt);
+      roar = ease(roar, s.evolving && !s.dead ? 1 : 0, 5, dt);
+      if (s.attack !== undefined && s.attack !== lastAttack) { lastAttack = s.attack; bite = 1; }
+      bite = Math.max(0, bite - dt * 3.2);
+      // Wingbeats: slow and heavy hovering, faster flying, stilled in a dive.
+      const rate = (2.6 + move * 1.2 + fast * 1.6) * (1 - dive * 0.9) * (1 - dead);
+      flap += dt * rate * Math.PI * 2;
+      const beat = Math.sin(flap), lift = (1 - dead) * (1 - dive * 0.6);
+
+      B.body.position.set(0, HOVER * lift + Math.max(0, -beat) * 0.08 * lift - dead * 0.2, 0);
+      B.body.rotation.set(move * 0.22 + fast * 0.2 + dive * 0.7 - wind * 0.45 - roar * 0.35, 0, 0);
+      B.neck.rotation.set(R(B.neck).x + wind * 0.25 - bite * 0.6 + dive * 0.3 + Math.sin(t * 1.3) * 0.05, Math.sin(t * 0.7) * 0.2 * (1 - move), 0);
+      B.neck2.rotation.set(R(B.neck2).x - bite * 0.4 + wind * 0.2, 0, 0);
+      B.head.rotation.set(R(B.head).x - wind * 0.5 + bite * 0.5 - roar * 0.4, 0, 0);
+      B.jaw.rotation.x = Math.max(wind * 0.7, bite * 0.6, roar * 0.8) + Math.sin(t * 22) * 0.04 * wind;
+      ['tail1', 'tail2', 'tail3', 'tail4'].forEach((n, i) => {
+        B[n].rotation.set(-0.12 + Math.sin(t * 2 - i * 0.7) * 0.08 + dive * 0.15, Math.sin(t * 1.6 - i * 0.6) * 0.18 * (1 - fast * 0.6), 0);
+      });
+      for (const W of wings) {
+        // Spread wide for the wind-up and the roar, folded back for the dive.
+        const spread = Math.max(wind, roar);
+        const az = R(W.arm).z + W.side * (beat * 0.75 * (1 - spread * 0.7)) + W.side * spread * 0.35 - W.side * dive * 1.1;
+        W.arm.rotation.set(dive * 0.5, R(W.arm).y - W.side * dive * 0.9, az * (1 - dead * 0.6) - W.side * dead * 0.8);
+        W.hand.rotation.set(0, R(W.hand).y - W.side * dive * 1.2 + W.side * spread * 0.3, R(W.hand).z + W.side * Math.sin(flap - 0.9) * 0.45 * (1 - spread));
+      }
+      for (const L2 of legs) {
+        // Tucked in flight; dangling when it hovers still; braced as it lands from a dive.
+        L2.th.rotation.set(R(L2.th).x * (0.6 + move * 0.4) - dive * 0.4, 0, L2.side * 0.1);
+        L2.sh.rotation.set(R(L2.sh).x * (0.6 + move * 0.4), 0, 0);
+      }
+      // Death: it drops and keels over onto one wing.
+      tilt.rotation.z = dead * 1.1;
+      tilt.position.y = 0;
+
+      const g = glowBase * (1 + Math.sin(t * 3) * 0.12) * (1 + wind * 1.2 + dive * 0.8 + roar * 0.8 + bite * 0.4) * (1 - dead * 0.9);
+      glowMat.color.copy(glowCol).multiplyScalar(g);
+    };
+
+    return { root, material: bodyMat, height: h, radius: w * 0.38, update: pose };
+  };
+
+  PH.Creatures = { behemoth, wraith, kraken, goliath, wyvern };
 })();

@@ -58,7 +58,7 @@ export const utcDay = (offsetDays = 0) => new Date(Date.now() + offsetDays * 864
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const NAME = /^[A-Z0-9]{3}$/;
-export const CLASSES = new Set(['assault', 'trapper', 'medic', 'support']);
+export const CLASSES = new Set(['assault', 'trapper', 'medic', 'support', 'ranger']);
 // Three letters can still spell things; keep the obvious ones off the board.
 export const BLOCKED = new Set(['ASS', 'FUK', 'FUC', 'FCK', 'CUM', 'COC', 'COK', 'DIK', 'DIC', 'FAG', 'GAY', 'JEW', 'KKK', 'NIG', 'NGR', 'SEX', 'TIT', 'VAG', 'WTF', 'SHT', 'CNT', 'KYS', 'POO', 'PEE', 'HOE', 'SUK', 'SUX', 'XXX', 'NAZ', 'GOD']);
 

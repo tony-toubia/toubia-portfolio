@@ -67,6 +67,8 @@ window.PH = window.PH || {};
     { id: 'skin-medic-botanist',    for: 'medic',   name: 'Botanist',  model: C + 'male-a.glb',   icon: '🌿', text: 'Play the Daily Hunt on 3 days', progress: (p) => [p.dailyDays.length, 3] },
     { id: 'skin-support-engineer',  for: 'support', name: 'Engineer',  model: C + 'female-f.glb', icon: '🔧', ...rankReq(4) },
     { id: 'skin-support-operative', for: 'support', name: 'Operative', model: C + 'female-d.glb', icon: '📡', text: 'Win a Survival run', progress: (p) => [count(p.survivalWins) ? 1 : 0, 1] },
+    { id: 'skin-ranger-stalker',    for: 'ranger',  name: 'Stalker',   model: C + 'male-f.glb',   icon: '🦉', portrait: 'ranger-stalker', ...rankReq(8) },
+    { id: 'skin-ranger-warden',     for: 'ranger',  name: 'Warden',    model: C + 'female-b.glb', icon: '🌲', portrait: 'ranger-warden', text: 'Slay 15 monsters', progress: (p) => [p.slain, 15] },
   ].map((u) => ({ ...u, kind: 'skin' }));
 
   // Colourways for the custom monsters: a body tint (luminance kept, so the
@@ -81,6 +83,8 @@ window.PH = window.PH || {};
     { id: 'color-kraken-crimson',    for: 'kraken',   name: 'Crimson Tide', swatch: ['#5a1a2a', '#ff3355'], variant: { tint: { color: 0x6e1f33, amount: 0.8 }, glow: [1.0, 0.12, 0.25], arc: [1.0, 0.75, 0.4], emissive: 0xff2244 } },
     { id: 'color-goliath-storm',     for: 'goliath',  name: 'Storm',       swatch: ['#3e4152', '#a066ff'], variant: { tint: { color: 0x4a4d66, amount: 0.75 }, glow: [0.6, 0.35, 1.0], emissive: 0x9955ff } },
     { id: 'color-goliath-venom',     for: 'goliath',  name: 'Venom',       swatch: ['#2f3d22', '#9dff1a'], variant: { tint: { color: 0x3d5229, amount: 0.8 }, glow: [0.55, 1.0, 0.08], emissive: 0x88ff11 } },
+    { id: 'color-wyvern-glacial',    for: 'wyvern',   name: 'Glacial',     swatch: ['#9fb8d0', '#44ccff'], variant: { tint: { color: 0x8fb0cc, amount: 0.75 }, glow: [0.3, 0.85, 1.0], emissive: 0x44ccff } },
+    { id: 'color-wyvern-void',       for: 'wyvern',   name: 'Void',        swatch: ['#1a1424', '#9933ff'], variant: { tint: { color: 0x241c30, amount: 0.85, lum: 0.5 }, glow: [0.7, 0.2, 1.0], emissive: 0x9933ff } },
   ].map((u, i) => {
     const name = () => (PH.MONSTERS && PH.MONSTERS[u.for] ? PH.MONSTERS[u.for].name : u.for);
     const apex = i % 2 === 1;
@@ -96,6 +100,7 @@ window.PH = window.PH || {};
     { id: 'starter-trapper', for: 'trapper', weapon: 'harpoon' },
     { id: 'starter-medic',   for: 'medic',   weapon: 'arc' },
     { id: 'starter-support', for: 'support', weapon: 'grenade' },
+    { id: 'starter-ranger',  for: 'ranger',  weapon: 'harpoon' },
   ].map((u) => {
     const cls = () => (PH.CLASSES && PH.CLASSES[u.for] ? PH.CLASSES[u.for].name : u.for);
     return {
@@ -121,7 +126,7 @@ window.PH = window.PH || {};
   const prog = (f, n) => (p) => [Math.min(n, f(p)), n];
   const ACHIEVEMENTS = [
     ['first_win', '🏆', 'First Blood', 'Win a Survival run.', (p) => count(p.survivalWins) > 0],
-    ['all_classes', '🎖️', 'Jack of All Trades', 'Win Survival with every class.', null, prog((p) => count(p.survivalWins), 4)],
+    ['all_classes', '🎖️', 'Jack of All Trades', 'Win Survival with every class.', null, prog((p) => count(p.survivalWins), Object.keys(PH.CLASSES).length)],
     ['biomes', '🗺️', 'World Traveller', 'Win Survival in every biome.', null, prog((p) => count(p.survivalBiomes), 5)],
     ['volcano', '🌋', 'Trial by Fire', 'Win Survival in the Volcanic Wastes.', (p) => !!p.survivalBiomes.volcanic],
     ['untouchable', '🕊️', 'Untouchable', 'Win a Survival run without dodging once.', (p, r) => winS(r) && r.dodges === 0],
@@ -142,17 +147,17 @@ window.PH = window.PH || {};
     ['weekly4', '🔬', 'Lab Rat', 'Play four different weekly mutators.', null, prog((p) => count(p.mutatorsPlayed || {}), 4)],
     ['monster_win', '👹', 'It Got Away', 'Win Monster mode.', (p) => count(p.monsterWins) > 0],
     ['apex_pred', '🦖', 'Apex Predator', 'Wipe out the whole squad in Monster mode.', (p) => count(p.apexWins) > 0],
-    ['all_apex', '🐉', 'Every Shape of Fear', 'Wipe out the squad with every monster.', null, prog((p) => count(p.apexWins), 4)],
+    ['all_apex', '🐉', 'Every Shape of Fear', 'Wipe out the squad with every monster.', null, prog((p) => count(p.apexWins), Object.keys(PH.MONSTERS).length)],
     ['mutant', '🧬', 'Fully Mutated', 'Reach stage 3 with two mutations.', (p, r) => !!r && r.mode === 'monster' && r.mutations >= 2],
     ['feast', '🍖', 'Feast', 'Eat 50 prey in one Monster run.', (p, r) => !!r && r.mode === 'monster' && r.eaten >= 50],
     ['squad_win', '🎯', 'Squad Goals', 'Win a Hunter Squad hunt.', (p) => p.huntWins > 0],
     ['squad_clean', '💪', 'No One Left Behind', 'Win Hunter Squad without going down.', (p, r) => !!r && r.mode === 'hunt' && r.victory && r.downs === 0],
     ['squad_early', '🪤', 'Nipped in the Bud', 'Kill the monster in Hunter Squad before it evolves.', (p, r) => !!r && r.mode === 'hunt' && r.victory && r.stage === 1],
-    ['squad_all', '🤝', 'Every Role', 'Win Hunter Squad with every class.', null, prog((p) => count(p.huntClasses), 4)],
+    ['squad_all', '🤝', 'Every Role', 'Win Hunter Squad with every class.', null, prog((p) => count(p.huntClasses), Object.keys(PH.CLASSES).length)],
     ['rank10', '⭐', 'Veteran', 'Reach Hunter Rank 10.', null, prog((p) => rankOf(p.xp).rank, 10)],
     ['rank20', '🌠', 'Legend in the Making', 'Reach Hunter Rank 20.', null, prog((p) => rankOf(p.xp).rank, 20)],
     ['collector', '🎨', 'Collector', 'Unlock 10 things in the Lodge.', null, prog((p) => count(p.unlocked), 10)],
-    ['complete', '🏛️', 'Completionist', 'Unlock everything in the Lodge.', null, prog((p) => count(p.unlocked), 20)],
+    ['complete', '🏛️', 'Completionist', 'Unlock everything in the Lodge.', null, prog((p) => count(p.unlocked), UNLOCKS.length)],
     ['sharer', '📤', 'Word of Mouth', 'Share a result.', (p) => p.shared > 0],
   ].map(([id, icon, name, desc, test, progress]) => ({ id, icon, name, desc, test: test || ((p) => { const [a, b] = progress(p); return a >= b; }), progress }));
 

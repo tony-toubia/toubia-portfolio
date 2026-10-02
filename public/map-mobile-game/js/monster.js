@@ -109,11 +109,12 @@ window.PH = window.PH || {};
         hp: S.hp * def.hp, maxHp: S.hp * def.hp, armor: S.armor * def.hp, maxArmor: S.armor * def.hp,
         dashT: 0, dashX: 0, dashZ: 0, lift: 0, slowT: 0, slowK: 0, rollT: 0, rollX: 0, rollZ: 0, leap: null, leapT: 0,
         evolveT: 0, lastHit: -99, attackT: 0.5, trackAcc: 0, hidden: false, damageTaken: 0, lastHurtFx: -9,
-        phantomT: 0, trailT: 0,
+        phantomT: 0, trailT: 0, diveT: 0,
       };
       this.team = { landed: false, known: null, waypoint: null, respawnAt: 0, arenaCd: PH.HUNTER_AI.trapper.arena.first, strikeCd: 8, shieldCd: 0,
         scanT: PH.HUNTER_AI.scan.every, sweep: null };
-      this.hunters = HUNTER_ORDER.map((cls, id) => {
+      // Hunter Squad swaps in your class if it is not one of the usual four.
+      this.hunters = (this.squadOrder || HUNTER_ORDER).map((cls, id) => {
         const hp = PH.HUNTER_AI[cls].hp;
         return { id, cls, state: 'waiting', x: 0, z: 0, hp, maxHp: hp, facing: 0, moving: false, shotT: 0.5 + this.rand(),
           jetCd: 0, shieldT: 0, reviveT: 0, downT: 0, lastHit: -99, flash: 0 };
@@ -244,9 +245,30 @@ window.PH = window.PH || {};
         const F = this.mut('scorched');
         if (F && (pl.trailT -= dt) <= 0) {
           pl.trailT = 0.1;
-          this.fireTrail.push({ x: pl.x, z: pl.z, life: F.life });
+          this.fireTrail.push({ x: pl.x, z: pl.z, life: F.life, r: F.r, dps: F.dps });
           if (this.fireTrail.length > 80) this.fireTrail.shift();
         }
+      } else if (pl.diveT > 0) {
+        // Fire Dive: a low, fast swoop that scorches the ground and anyone under it.
+        const A = def.ability, D = pl.dive;
+        pl.diveT -= dt;
+        const k = 1 - Math.max(0, pl.diveT) / A.dur;
+        pl.x += D.x * D.v * dt; pl.z += D.z * D.v * dt;
+        pl.lift = Math.sin(k * Math.PI) * 1.4;
+        pl.moving = true;
+        const reach = pl.radius + 0.5, dmg = A.dmg * this.abilityMult();
+        for (const h of this.hunters) {
+          if (h.state !== 'up' || D.hit.has(h) || dist2(h.x, h.z, pl.x, pl.z) > (reach + HUNTER_R) ** 2) continue;
+          D.hit.add(h); this.damageHunter(h, dmg);
+        }
+        for (const e of this.enemies) if (e.alive && !D.hit.has(e) && dist2(e.x, e.z, pl.x, pl.z) < (reach + e.radius) ** 2) { D.hit.add(e); this.damagePrey(e, dmg); }
+        if ((pl.trailT -= dt) <= 0) {
+          pl.trailT = 0.05;
+          const inf = this.mut('inferno');
+          this.fireTrail.push({ x: pl.x, z: pl.z, life: A.fire.life * (inf ? inf.life : 1), r: A.fire.r * (inf ? inf.r : 1), dps: A.fire.dps });
+          if (this.fireTrail.length > 120) this.fireTrail.shift();
+        }
+        if (pl.diveT <= 0) pl.lift = 0;
       } else if (pl.dashT > 0) {
         const P = M.pounce, v = P.dist / P.dur;
         pl.dashT -= dt;
@@ -292,7 +314,7 @@ window.PH = window.PH || {};
       if (regen && calm && pl.evolveT <= 0) pl.hp = Math.min(pl.maxHp, pl.hp + regen.hps * dt);
 
       // Claws: automatic, like the hunters' weapons in survival.
-      if (pl.evolveT <= 0 && pl.leapT <= 0 && pl.rollT <= 0) {
+      if (pl.evolveT <= 0 && pl.leapT <= 0 && pl.rollT <= 0 && pl.diveT <= 0) {
         pl.attackT -= dt;
         if (pl.attackT <= 0) {
           const t = this.clawTarget();
@@ -348,7 +370,7 @@ window.PH = window.PH || {};
 
     monsterAbility() {
       const pl = this.mon;
-      if (this.state !== 'playing' || this.monAbilityCd > 0 || pl.evolveT > 0 || pl.leapT > 0 || pl.rollT > 0) return false;
+      if (this.state !== 'playing' || this.monAbilityCd > 0 || pl.evolveT > 0 || pl.leapT > 0 || pl.rollT > 0 || pl.diveT > 0) return false;
       const A = this.def().ability, d = this.aimDir(), mult = this.abilityMult();
       const meteor = this.mut('meteor');
       if (A.id === 'leap') {
@@ -387,12 +409,18 @@ window.PH = window.PH || {};
         pl.x = t.x; pl.z = t.z; pl.facing = Math.atan2(d.x, d.z);
         pl.iframes = Math.max(pl.iframes, 0.3);
         this.aoe(pl.x, pl.z, A.r, A.dmg * mult, 5, 0xb06cff);
+      } else if (A.id === 'dive') {
+        const sky = this.mut('skyborne'), dist = A.dist * (sky ? sky.dist : 1);
+        pl.diveT = A.dur; pl.dive = { x: d.x, z: d.z, v: dist / A.dur, hit: new Set() }; pl.trailT = 0;
+        pl.iframes = Math.max(pl.iframes, A.dur);
+        pl.facing = Math.atan2(d.x, d.z);
       } else if (A.id === 'roll') {
         const jug = this.mut('juggernaut');
         pl.rollT = A.dur * (jug ? jug.dur : 1); pl.rollX = d.x; pl.rollZ = d.z; pl.rollHit = new Set(); pl.trailT = 0;
         pl.facing = Math.atan2(d.x, d.z);
       }
-      const cd = A.cd * (meteor ? meteor.cd : 1);
+      const sky = this.mut('skyborne');
+      const cd = A.cd * (meteor ? meteor.cd : 1) * (A.id === 'dive' && sky ? sky.cd : 1);
       this.monAbilityMax = cd;
       this.monAbilityCd = cd;
       this.abilityUses++;
@@ -404,7 +432,7 @@ window.PH = window.PH || {};
     /** Pounce: a quick lunge. Out in the open, it can send birds up. */
     monsterPounce() {
       const pl = this.mon, P = PH.MONSTER_MODE.pounce;
-      if (this.state !== 'playing' || this.monDodgeCd > 0 || pl.evolveT > 0 || pl.leapT > 0 || pl.rollT > 0) return false;
+      if (this.state !== 'playing' || this.monDodgeCd > 0 || pl.evolveT > 0 || pl.leapT > 0 || pl.rollT > 0 || pl.diveT > 0) return false;
       const d = this.aimDir();
       pl.dashX = d.x; pl.dashZ = d.z; pl.dashT = P.dur;
       pl.facing = Math.atan2(d.x, d.z);
@@ -420,7 +448,7 @@ window.PH = window.PH || {};
 
     canEvolve() {
       const pl = this.mon;
-      return this.state === 'playing' && this.stage < 3 && this.food >= this.stageDef().food && pl.evolveT <= 0 && pl.leapT <= 0 && pl.rollT <= 0;
+      return this.state === 'playing' && this.stage < 3 && this.food >= this.stageDef().food && pl.evolveT <= 0 && pl.leapT <= 0 && pl.rollT <= 0 && pl.diveT <= 0;
     }
 
     monsterEvolve() {
@@ -496,15 +524,16 @@ window.PH = window.PH || {};
       this.sfx('levelup');
     }
 
-    /** Scorched Earth: the trail burns hunters who stand in it. */
+    /** Scorched Earth and Fire Dive: the fire burns hunters who stand in it. */
     updateFireTrail(dt) {
       if (!this.fireTrail.length) return;
-      const F = PH.MUTATIONS.scorched, dps = F.dps * this.abilityMult();
+      const mult = this.abilityMult();
       for (let i = this.fireTrail.length - 1; i >= 0; i--) { const f = this.fireTrail[i]; f.life -= dt; if (f.life <= 0) this.fireTrail.splice(i, 1); }
       for (const h of this.hunters) {
         if (h.state !== 'up') continue;
-        if (this.fireTrail.some((f) => dist2(f.x, f.z, h.x, h.z) < (F.r + HUNTER_R) ** 2)) {
-          h.burn = (h.burn || 0) + dps * dt;
+        const f = this.fireTrail.find((q) => dist2(q.x, q.z, h.x, h.z) < (q.r + HUNTER_R) ** 2);
+        if (f) {
+          h.burn = (h.burn || 0) + f.dps * mult * dt;
           if (h.burn >= 6) { const b = h.burn; h.burn = 0; this.damageHunter(h, b); }
         }
       }
