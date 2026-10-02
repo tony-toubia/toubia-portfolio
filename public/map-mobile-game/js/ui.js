@@ -34,7 +34,7 @@ window.PH = window.PH || {};
       this.pickFor = 'survival';
       this.bestHunt = store.get('bestHunt', null);
       this.render = render;
-      this.screens = ['menu', 'modes', 'classes', 'monsters', 'daily', 'lodge', 'settings', 'choice', 'pause', 'over', 'nogl'];
+      this.screens = ['menu', 'modes', 'classes', 'monsters', 'daily', 'lodge', 'settings', 'coop', 'choice', 'pause', 'over', 'nogl'];
       this.lodgeTab = 'skin';
       this.selectedMonster = store.get('monster', null);
       this.bestMonster = store.get('bestMonster', null);
@@ -88,6 +88,9 @@ window.PH = window.PH || {};
       this.applyHaptics();
       this.applySettings();
       this.refreshBest();
+      // An invite link (?join=CODE) opens the co-op screen with the code filled in.
+      const join = new URLSearchParams(location.search).get('join');
+      if (join && PH.Net) setTimeout(() => this.openCoop(join.toUpperCase().replace(/[^A-HJ-NP-Z]/g, '').slice(0, 4)), 0);
     }
 
     /* ── Screens ────────────────────────────────────────────── */
@@ -102,6 +105,13 @@ window.PH = window.PH || {};
       const tap = (id, fn) => (typeof id === 'string' ? $(id) : id).addEventListener('click', (e) => { e.preventDefault(); this.sfx('click'); fn(); });
       tap('btn-play', () => { this.refreshWeeklyCard(); this.show('modes'); });
       tap('mode-weekly', () => this.openDaily('weekly'));
+      tap('mode-coop', () => this.openCoop());
+      tap('btn-coop-back', () => { this.leaveCoop(); this.show('modes'); });
+      tap('btn-coop-host', () => this.hostCoop());
+      tap('btn-coop-join', () => this.joinCoop());
+      tap('btn-coop-invite', () => this.inviteCoop());
+      tap('btn-coop-go', () => this.startCoop());
+      $('coop-code').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-HJ-NP-Z]/g, '').slice(0, 4); });
       tap('tab-weekly', () => this.boardTab('weekly'));
       tap('btn-weekly-go', () => { this.pickFor = 'weekly'; this.buildClassGrid(); this.show('classes'); });
       tap('btn-modes-back', () => this.show('menu'));
@@ -115,7 +125,7 @@ window.PH = window.PH || {};
         : this.pickFor === 'weekly' ? this.startRun(this.selectedClass, PH.Weekly.current()) : this.startRun(this.selectedClass)));
       tap('btn-pause', () => this.pause());
       tap('btn-resume', () => this.resume());
-      tap('btn-quit', () => this.toMenu());
+      tap('btn-quit', () => { this.leaveCoop(); this.toMenu(); });
       tap('btn-daily', () => this.openDaily());
       tap('btn-daily-back', () => this.show('menu'));
       tap('btn-daily-go', () => this.startDaily());
@@ -139,12 +149,13 @@ window.PH = window.PH || {};
       $('daily-initials').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3); });
       tap('btn-again', () => {
         const g = this.game;
+        if (g.coop) return this.coopAgain();
         if (this.daily) (this.daily.kind === 'weekly' ? this.startRun(g.classId, PH.Weekly.current()) : this.startDaily());
         else if (g.mode === 'monster') this.startMonsterRun(g.monsterType);
         else if (g.mode === 'hunt') this.startHuntRun(g.myClass);
         else this.startRun(g.classId);
       });
-      tap('btn-menu', () => this.toMenu());
+      tap('btn-menu', () => { this.leaveCoop(); this.toMenu(); });
       tap('btn-mute', () => this.toggleMute());
       tap('btn-pause-mute', () => this.toggleMute());
       tap('btn-music', () => this.toggleMusic());
@@ -688,6 +699,268 @@ window.PH = window.PH || {};
       });
     }
 
+    /* ── Online co-op ───────────────────────────────────────── */
+
+    openCoop(code = '') {
+      $('coop-start').hidden = false;
+      $('coop-lobby').hidden = true;
+      $('coop-name').value = store.get('coopName', '') || PH.Daily.initials() || '';
+      $('coop-code').value = code;
+      const st = $('coop-start-status');
+      st.className = 'daily-status';
+      st.textContent = PH.Net.supported ? '' : 'This browser cannot play online.';
+      this.show('coop');
+    }
+
+    coopName() {
+      const n = ($('coop-name').value || '').trim().slice(0, 12) || 'Hunter';
+      store.set('coopName', n);
+      return n;
+    }
+
+    coopRoom() {
+      this.leaveCoop();
+      const room = new PH.Net.Room({
+        onPeerOpen: (pid, name) => this.coopPeerOpen(pid, name),
+        onPeerClosed: (pid) => this.coopPeerClosed(pid),
+        onMessage: (pid, m) => this.coopMessage(pid, m),
+        onStatus: (t) => { $('coop-start-status').textContent = t; },
+      });
+      this.coop = { room, host: room.isHost, players: [], me: null };
+      return room;
+    }
+
+    async hostCoop() {
+      const st = $('coop-start-status');
+      st.className = 'daily-status'; st.textContent = 'Opening a room…';
+      const room = this.coopRoom();
+      try {
+        const code = await room.host();
+        this.coop.host = true;
+        this.coop.players = [{ pid: 'host', name: this.coopName(), cls: this.selectedClass || 'assault', host: true }];
+        this.coop.me = 'host';
+        $('coop-room-code').textContent = code;
+        $('coop-start').hidden = true; $('coop-lobby').hidden = false;
+        this.renderLobby();
+      } catch (e) { st.className = 'daily-status err'; st.textContent = e.message; this.leaveCoop(); }
+    }
+
+    async joinCoop() {
+      const code = $('coop-code').value.toUpperCase(), st = $('coop-start-status');
+      if (!/^[A-HJ-NP-Z]{4}$/.test(code)) { st.className = 'daily-status err'; st.textContent = 'Room codes are four letters.'; return; }
+      st.className = 'daily-status'; st.textContent = 'Joining…';
+      const room = this.coopRoom();
+      try {
+        await room.join(code, this.coopName());
+        $('coop-room-code').textContent = code;
+        room.toHost({ t: 'hello', name: this.coopName(), cls: this.selectedClass || 'assault' });
+        $('coop-start').hidden = true; $('coop-lobby').hidden = false;
+        $('coop-status').textContent = 'Connected. The host starts the hunt.';
+      } catch (e) { st.className = 'daily-status err'; st.textContent = e.message; this.leaveCoop(); }
+    }
+
+    leaveCoop() {
+      if (!this.coop) return;
+      this.coop.room.close();
+      this.coop = null;
+    }
+
+    async inviteCoop() {
+      const code = $('coop-room-code').textContent, url = `${location.origin}${location.pathname}?join=${code}`;
+      const text = `Hunt with me in Primal Hunt - room ${code}`;
+      try {
+        if (navigator.share) await navigator.share({ title: 'Primal Hunt co-op', text, url });
+        else { await navigator.clipboard.writeText(`${text}: ${url}`); this.toast('Invite link copied'); }
+      } catch { /* cancelled */ }
+    }
+
+    /** Host: a guest connected. Give them the first free class until they pick. */
+    coopPeerOpen(pid, name) {
+      const C = this.coop;
+      if (!C || !C.host) return;
+      if (C.players.length >= 4) { C.room.send(pid, { t: 'full' }); return; }
+      const free = Object.keys(PH.CLASSES).find((c) => !C.players.some((p) => p.cls === c));
+      C.players.push({ pid, name: (name || 'Hunter').slice(0, 12), cls: free });
+      this.toast(`${name || 'A hunter'} joined`);
+      this.sfx('click');
+      this.renderLobby();
+    }
+
+    coopPeerClosed(pid) {
+      const C = this.coop;
+      if (!C) return;
+      if (C.host) {
+        const p = C.players.find((q) => q.pid === pid);
+        C.players = C.players.filter((q) => q.pid !== pid);
+        if (this.game.coop && this.game.dropPeer) this.game.dropPeer(pid);
+        else this.toast(`${p ? p.name : 'A hunter'} left`);
+        this.renderLobby();
+      } else {
+        // The host is gone: the hunt is over.
+        this.leaveCoop();
+        this.toast('The host left the hunt');
+        this.toMenu();
+      }
+    }
+
+    coopMessage(pid, m) {
+      const C = this.coop;
+      if (!C) return;
+      if (C.host) {
+        const p = C.players.find((q) => q.pid === pid);
+        if (m.t === 'hello' && p) { p.name = (m.name || p.name).slice(0, 12); if (m.cls && !C.players.some((q) => q.cls === m.cls)) p.cls = m.cls; this.renderLobby(); }
+        else if (m.t === 'pick' && p && PH.CLASSES[m.cls] && !C.players.some((q) => q !== p && q.cls === m.cls)) { p.cls = m.cls; this.renderLobby(); }
+        else if (m.t === 'pick' && p && m.cls === 'monster' && !C.players.some((q) => q !== p && q.cls === 'monster')) {
+          // One friend can play the monster instead of a hunter.
+          p.cls = 'monster'; p.mtype = PH.MONSTERS[m.mtype] ? m.mtype : null; this.renderLobby();
+        }
+        else if (this.game.coop && this.game.onPeer) this.game.onPeer(pid, m);
+        return;
+      }
+      // Guest.
+      if (m.t === 'lobby') { C.players = m.players; C.me = m.you; this.renderLobby(); }
+      else if (m.t === 'start') this.coopStartGuest(m.setup);
+      else if (m.t === 's' && this.game.coop) this.game.snap(m);
+      else if (m.t === 'ev' && this.game.coop) this.game.events(m);
+      else if (m.t === 'hurt' && this.game.coop) this.game.hurt(m.dmg);
+      else if (m.t === 'end' && this.game.coop) { this.game.state = 'over'; this.lastResult = m.result; if (m.result.mode === 'monster') this.monsterOver(m.result); else this.huntOver(m.result); }
+      else if (m.t === 'mut' && this.game.offer) this.game.offer(m.choices);
+      else if (m.t === 'mutdone' && this.game.choosing) {
+        this.game.choosing = false;
+        if ($('choice').classList.contains('active')) this.hideScreens();
+        this.toast(`🧬 Out of time - you mutated: ${PH.MUTATIONS[m.id].name}`);
+      }
+      else if (m.t === 'full') { this.leaveCoop(); this.openCoop(); $('coop-start-status').textContent = 'That hunt is full.'; }
+      else if (m.t === 'bye') this.coopPeerClosed(pid);
+    }
+
+    /** The lobby: who is in, and which classes are free. Host sends it to everyone. */
+    renderLobby() {
+      const C = this.coop;
+      if (!C) return;
+      if (C.host) {
+        for (const p of C.players) if (!p.host) C.room.send(p.pid, { t: 'lobby', players: C.players, you: p.pid });
+      }
+      const slots = [], hunters = C.players.filter((p) => p.cls !== 'monster'), beast = C.players.find((p) => p.cls === 'monster');
+      for (let i = 0; i < 4; i++) {
+        const p = hunters[i];
+        if (p) {
+          const cls = PH.CLASSES[p.cls];
+          slots.push(`<div class="coop-slot${p.pid === C.me ? ' me' : ''}"><span class="ci">${cls.icon}</span><span><span class="cn">${p.name}${p.host ? ' 👑' : ''}</span><small>${cls.name}</small></span></div>`);
+        } else slots.push('<div class="coop-slot ai"><span class="ci">🤖</span><span><span class="cn">AI hunter</span><small>open place</small></span></div>');
+      }
+      const bm = beast && PH.MONSTERS[beast.mtype];
+      slots.push(beast
+        ? `<div class="coop-slot beast${beast.pid === C.me ? ' me' : ''}"><span class="ci">${bm ? bm.icon : '🦖'}</span><span><span class="cn">${beast.name}</span><small>plays the monster${bm ? ` · ${bm.name}` : ' · random'}</small></span></div>`
+        : '<div class="coop-slot beast ai"><span class="ci">🦖</span><span><span class="cn">AI monster</span><small>a friend can play it instead</small></span></div>');
+      $('coop-players').innerHTML = slots.join('');
+      const mine = C.players.find((p) => p.pid === C.me);
+      const box = $('coop-classes');
+      box.innerHTML = '';
+      for (const [id, cls] of Object.entries(PH.CLASSES)) {
+        const b = document.createElement('button');
+        const takenBy = C.players.find((p) => p.cls === id && p.pid !== C.me);
+        b.className = mine && mine.cls === id ? 'on' : '';
+        b.style.setProperty('--accent', cls.color);
+        b.disabled = !!takenBy;
+        b.innerHTML = `<span class="ci">${cls.icon}</span>${cls.name.toUpperCase()}`;
+        b.addEventListener('click', () => {
+          this.sfx('click');
+          if (C.host) { mine.cls = id; this.renderLobby(); } else C.room.toHost({ t: 'pick', cls: id });
+        });
+        box.appendChild(b);
+      }
+      // A guest can play the monster instead (the host always hunts: their device runs the hunt).
+      const mbox = $('coop-monster');
+      mbox.innerHTML = '';
+      $('coop-pick-title').textContent = mine && mine.cls === 'monster' ? 'OR HUNT INSTEAD' : 'YOUR HUNTER';
+      if (!C.host && mine) {
+        const isBeast = mine.cls === 'monster';
+        const t = document.createElement('button');
+        t.className = 'btn cm-toggle' + (isBeast ? ' on' : '');
+        t.disabled = !!beast && !isBeast;
+        t.textContent = isBeast ? '🦖 YOU ARE THE MONSTER - TAP A CLASS TO HUNT' : beast ? `🦖 ${beast.name} PLAYS THE MONSTER` : '🦖 PLAY THE MONSTER';
+        t.addEventListener('click', () => { if (isBeast) return; this.sfx('click'); C.room.toHost({ t: 'pick', cls: 'monster', mtype: this.selectedMonster || null }); });
+        mbox.appendChild(t);
+        if (isBeast) {
+          const row = document.createElement('div');
+          row.className = 'coop-classes';
+          for (const [id, m] of [['', { icon: '🎲', name: 'Random' }], ...Object.entries(PH.MONSTERS)]) {
+            const b = document.createElement('button');
+            b.className = (mine.mtype || '') === id ? 'on' : '';
+            b.style.setProperty('--accent', '#b06cff');
+            b.innerHTML = `<span class="ci">${m.icon}</span>${m.name.toUpperCase()}`;
+            b.addEventListener('click', () => {
+              this.sfx('click');
+              if (id) { this.selectedMonster = id; store.set('monster', id); }
+              C.room.toHost({ t: 'pick', cls: 'monster', mtype: id || null });
+            });
+            row.appendChild(b);
+          }
+          mbox.appendChild(row);
+        }
+      }
+      $('btn-coop-go').hidden = !C.host;
+      if (C.host) {
+        $('coop-status').textContent = C.players.length < 2 ? 'Share the code - friends join from Play → Online co-op, or your invite link.'
+          : beast ? `${hunters.length} ${hunters.length === 1 ? 'hunter' : 'hunters'} against ${beast.name}'s monster. Empty places go to AI hunters.`
+            : `${C.players.length} hunters ready. Empty places go to AI hunters.`;
+      }
+    }
+
+    /** Host: start (or restart) the hunt for everyone. */
+    startCoop() {
+      const C = this.coop;
+      if (!C || !C.host) return;
+      if (!this.coopGame) { this.coopGame = new PH.CoopHunt(this.render, this.hooks(), C.room); }
+      this.coopGame.room = C.room;
+      this.daily = null; $('daily-chip').hidden = true;
+      this.enterMode(this.coopGame);
+      this.coopGame.startCoop(C.players, (Math.random() * 1e9) | 0);
+      this.coopHud(C.players.find((p) => p.host).cls);
+    }
+
+    coopStartGuest(setup) {
+      const C = this.coop, beast = !!setup.monster;
+      const key = beast ? 'coopBeast' : 'coopClient';
+      if (!this[key]) this[key] = new (beast ? PH.CoopMonsterClient : PH.CoopClient)(this.render, this.hooks(), C.room);
+      const g = this[key];
+      g.room = C.room;
+      this.enterMode(g);
+      g.start(setup);
+      this.coopHud(beast ? null : g.me.cls);
+    }
+
+    /** The HUD for a co-op hunt: your class's buttons, or the monster's (cls null). */
+    coopHud(cls) {
+      this.hideScreens();
+      this.el.hud.hidden = false;
+      this.el.bossbar.hidden = true;
+      this.el.hud.classList.remove('has-boss');
+      if (!cls) {
+        const m = PH.MONSTERS[this.game.monsterType];
+        this.el.ability.style.setProperty('--accent', '#b06cff');
+        this.el.abilityIcon.textContent = m.ability.icon;
+        this.el.ability.setAttribute('aria-label', m.ability.name);
+        this.el.dodge.querySelector('.ai').textContent = '🐾';
+        this.el.dodge.setAttribute('aria-label', 'Pounce');
+        this.buildSquad();
+        return;
+      }
+      const ab = PH.HUNT_MODE.abilities[cls];
+      this.el.ability.style.setProperty('--accent', PH.CLASSES[cls].color);
+      this.el.abilityIcon.textContent = ab.icon;
+      this.el.ability.setAttribute('aria-label', ab.name);
+      this.el.dodge.querySelector('.ai').textContent = '💨';
+      this.el.dodge.setAttribute('aria-label', 'Jetpack');
+      this.buildSquad();
+    }
+
+    coopAgain() {
+      if (this.coop && this.coop.host) this.startCoop();
+      else this.toast('Waiting for the host to start the next hunt');
+    }
+
     /* ── Settings ───────────────────────────────────────────── */
 
     openSettings(from) {
@@ -817,6 +1090,7 @@ window.PH = window.PH || {};
     }
 
     pause() {
+      if (this.game.coop) { if (this.game.state === 'playing' && !$('pause').classList.contains('active')) { this.releaseStick(); $('pause-loadout').innerHTML = ''; this.show('pause'); } return; }   // co-op never stops for one player
       if (this.game.state !== 'playing') return;
       this.game.state = 'paused';
       this.releaseStick();
@@ -836,6 +1110,7 @@ window.PH = window.PH || {};
     }
 
     resume() {
+      if (this.game.coop) { this.hideScreens(); return; }
       if (this.game.state !== 'paused') return;
       this.hideScreens();
       this.game.state = 'playing';
@@ -957,6 +1232,7 @@ window.PH = window.PH || {};
 
     huntOver(r) {
       this.releaseStick();
+      $('btn-again').textContent = this.game.coop && !(this.coop && this.coop.host) ? 'WAITING FOR THE HOST' : 'HUNT AGAIN';
       $('over-daily').hidden = true; $('over-apex').hidden = true; $('btn-apex').hidden = true;
       const m = PH.MONSTERS[r.monsterType];
       const title = $('over-title');
@@ -978,6 +1254,7 @@ window.PH = window.PH || {};
 
     monsterOver(r) {
       this.releaseStick();
+      $('btn-again').textContent = this.game.coop && !(this.coop && this.coop.host) ? 'WAITING FOR THE HOST' : 'HUNT AGAIN';
       $('over-daily').hidden = true; $('over-apex').hidden = true; $('btn-apex').hidden = true;
       const m = PH.MONSTERS[r.monsterType];
       const title = $('over-title');
@@ -1083,6 +1360,7 @@ window.PH = window.PH || {};
 
     gameOver(r) {
       this.releaseStick();
+      $('btn-again').textContent = 'HUNT AGAIN';
       this.coach(null);
       if (r.apex) return this.apexOver(r);
       $('over-apex').hidden = true;

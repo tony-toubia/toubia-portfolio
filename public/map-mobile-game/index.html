@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#14182a">
   <title>Primal Hunt</title>
   <meta name="description" content="Survive the swarm. Hunt the monster. A one-thumb arena game by Tony Toubia.">
-  <link rel="stylesheet" href="/map-mobile-game/css/game.css?v=28">
+  <link rel="stylesheet" href="/map-mobile-game/css/game.css?v=30">
 </head>
 <body>
   <!--
@@ -103,6 +103,10 @@
       <button class="mode-card" id="mode-weekly" style="--accent: #7dff9a">
         <div class="mi" id="weekly-icon">🧪</div>
         <div class="mb"><div class="mn">WEEKLY MUTATOR <span class="kt new">NEW</span></div><div class="md" id="weekly-blurb">Survival with a twist that changes every Monday, and its own leaderboard.</div></div>
+      </button>
+      <button class="mode-card" id="mode-coop" style="--accent: #4ecdc4">
+        <div class="mi">🤝</div>
+        <div class="mb"><div class="mn">ONLINE CO-OP <span class="kt new">NEW</span></div><div class="md">Hunter Squad with friends: up to four of you, each a hunter, against the monster. Share a code to play together.</div></div>
       </button>
       <button class="mode-card" id="mode-monster" style="--accent: var(--purple)">
         <div class="mi">👹</div>
@@ -210,6 +214,39 @@
     </div>
   </section>
 
+  <section id="coop" class="screen">
+    <div class="panel coop-panel">
+      <div class="panel-head">
+        <button class="icon-btn" id="btn-coop-back" aria-label="Back">←</button>
+        <h2>ONLINE CO-OP</h2>
+      </div>
+      <div id="coop-start">
+        <p class="hint">Hunt the monster together: up to four friends, each a hunter, with AI hunters filling any empty places. One of you hosts; everyone else joins with the code.</p>
+        <label class="coop-label" for="coop-name">Your name</label>
+        <input id="coop-name" class="coop-input" maxlength="12" autocomplete="off" spellcheck="false" placeholder="Hunter">
+        <button class="btn primary" id="btn-coop-host">HOST A HUNT</button>
+        <div class="coop-or">or join one</div>
+        <div class="daily-entry">
+          <input id="coop-code" class="coop-input code" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="CODE" aria-label="Room code">
+          <button class="btn" id="btn-coop-join">JOIN</button>
+        </div>
+        <p class="daily-status" id="coop-start-status"></p>
+      </div>
+      <div id="coop-lobby" hidden>
+        <div class="coop-room">
+          <div><span class="cr-l">ROOM</span><b id="coop-room-code">----</b></div>
+          <button class="btn coop-invite" id="btn-coop-invite">📤 INVITE</button>
+        </div>
+        <div id="coop-players"></div>
+        <h3 class="board-title" id="coop-pick-title">YOUR HUNTER</h3>
+        <div id="coop-classes" class="coop-classes"></div>
+        <div id="coop-monster" class="coop-monster"></div>
+        <p class="hint" id="coop-status"></p>
+        <button class="btn primary" id="btn-coop-go">START THE HUNT</button>
+      </div>
+    </div>
+  </section>
+
   <section id="choice" class="screen modal">
     <div class="panel choice-panel">
       <h2 id="choice-title">LEVEL UP</h2>
@@ -280,26 +317,28 @@
   </section>
 
   <script src="/map-mobile-game/vendor/three.min.js?v=r128"></script>
-  <script src="/map-mobile-game/js/config.js?v=28"></script>
-  <script src="/map-mobile-game/js/world.js?v=28"></script>
-  <script src="/map-mobile-game/js/settings.js?v=28"></script>
-  <script src="/map-mobile-game/js/progress.js?v=28"></script>
-  <script src="/map-mobile-game/js/audio.js?v=28"></script>
-  <script src="/map-mobile-game/js/music.js?v=28"></script>
-  <script src="/map-mobile-game/js/engine3d/Characters3D.js?v=28"></script>
-  <script src="/map-mobile-game/js/engine3d/Effects3D.js?v=28"></script>
+  <script src="/map-mobile-game/js/config.js?v=30"></script>
+  <script src="/map-mobile-game/js/world.js?v=30"></script>
+  <script src="/map-mobile-game/js/settings.js?v=30"></script>
+  <script src="/map-mobile-game/js/progress.js?v=30"></script>
+  <script src="/map-mobile-game/js/audio.js?v=30"></script>
+  <script src="/map-mobile-game/js/music.js?v=30"></script>
+  <script src="/map-mobile-game/js/engine3d/Characters3D.js?v=30"></script>
+  <script src="/map-mobile-game/js/engine3d/Effects3D.js?v=30"></script>
   <script src="/map-mobile-game/vendor/GLTFLoader.js?v=r128"></script>
   <script src="/map-mobile-game/vendor/SkeletonUtils.js?v=r128"></script>
-  <script src="/map-mobile-game/js/look.js?v=28"></script>
-  <script src="/map-mobile-game/js/models.js?v=28"></script>
-  <script src="/map-mobile-game/js/creatures.js?v=28"></script>
-  <script src="/map-mobile-game/js/swarm.js?v=28"></script>
-  <script src="/map-mobile-game/js/render.js?v=28"></script>
-  <script src="/map-mobile-game/js/game.js?v=28"></script>
-  <script src="/map-mobile-game/js/monster.js?v=28"></script>
-  <script src="/map-mobile-game/js/hunt.js?v=28"></script>
-  <script src="/map-mobile-game/js/daily.js?v=28"></script>
-  <script src="/map-mobile-game/js/ui.js?v=28"></script>
-  <script src="/map-mobile-game/js/main.js?v=28"></script>
+  <script src="/map-mobile-game/js/look.js?v=30"></script>
+  <script src="/map-mobile-game/js/models.js?v=30"></script>
+  <script src="/map-mobile-game/js/creatures.js?v=30"></script>
+  <script src="/map-mobile-game/js/swarm.js?v=30"></script>
+  <script src="/map-mobile-game/js/render.js?v=30"></script>
+  <script src="/map-mobile-game/js/game.js?v=30"></script>
+  <script src="/map-mobile-game/js/monster.js?v=30"></script>
+  <script src="/map-mobile-game/js/hunt.js?v=30"></script>
+  <script src="/map-mobile-game/js/daily.js?v=30"></script>
+  <script src="/map-mobile-game/js/net.js?v=30"></script>
+  <script src="/map-mobile-game/js/coop.js?v=30"></script>
+  <script src="/map-mobile-game/js/ui.js?v=30"></script>
+  <script src="/map-mobile-game/js/main.js?v=30"></script>
 </body>
 </html>
