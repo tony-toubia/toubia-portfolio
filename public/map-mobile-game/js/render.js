@@ -1514,6 +1514,7 @@ window.PH = window.PH || {};
     }
 
     addShake(a) {
+      if (PH.Settings && PH.Settings.v.reduceMotion) a *= 0.25;
       this.shake = Math.min(1.2, this.shake + a);
       if (a >= 0.45 && this.haptic) this.haptic(a);    // slams, landings, boss deaths: felt as well as seen
     }
@@ -1695,7 +1696,7 @@ window.PH = window.PH || {};
       this.pops.push({ type: e.type, x: e.x, z: e.z, facing: e.facing, s: PH.ENEMIES[e.type].scale * e.scale, t: 0 });
     }
 
-    zoomPunch(a) { this.zoom = Math.max(this.zoom, a); }
+    zoomPunch(a) { if (PH.Settings && PH.Settings.v.reduceMotion) return; this.zoom = Math.max(this.zoom, a); }
 
     dashTrail(x, z, dx, dz, dist) {
       for (let i = 0; i <= 6; i++) {
@@ -1749,8 +1750,21 @@ window.PH = window.PH || {};
       const pl = game.player;
       // Camera: a short lag reads as weight; a long one reads as lag.
       const k = 1 - Math.exp(-dt * 9);
-      const cx = this.camTarget.x + (pl.x - this.camTarget.x) * k;
-      const cz = this.camTarget.z + (pl.z - this.camTarget.z) * k;
+      let tx = pl.x, tz = pl.z;
+      if (this.focus) {
+        // A camera moment: ease over to the point, hold, ease back.
+        const F = this.focus;
+        F.t += dt;
+        const e = Math.min(1, F.t / 0.35, (F.dur - F.t) / 0.45);
+        if (F.t >= F.dur) this.focus = null;
+        else {
+          const w = e * e * (3 - 2 * e) * 0.85;
+          tx += (F.x - tx) * w; tz += (F.z - tz) * w;
+          this.zoom = Math.max(this.zoom, F.zoom * w);
+        }
+      }
+      const cx = this.camTarget.x + (tx - this.camTarget.x) * k;
+      const cz = this.camTarget.z + (tz - this.camTarget.z) * k;
       this.shake *= Math.exp(-dt * 7);
       this.zoom *= Math.exp(-dt * 1.6);
       this.placeCamera(cx, cz, false);
@@ -1939,8 +1953,12 @@ window.PH = window.PH || {};
 
       // Telegraphs
       let ti = 0;
+      // Colour-blind-safe warnings: yellow for what can hurt you, blue for what is yours.
+      const cb = PH.Settings && PH.Settings.v.cbSafe;
       for (const tg of game.telegraphs) {
         if (ti >= this.telePool.length) break;
+        const mine = game.mode === 'monster' ? !!tg.monster : !!tg.strike;
+        const col = cb ? (mine ? 0x2f9bff : 0xffd21f) : (tg.color || 0xff3344);
         const T = this.telePool[ti++];
         const prog = Math.min(1, tg.t / tg.dur);
         const blink = prog > 0.75 ? (Math.floor(t * 20) % 2 ? 1 : 0.55) : 1;
@@ -1950,11 +1968,12 @@ window.PH = window.PH || {};
           T.edge.position.set(tg.x, 0.05, tg.z); T.edge.scale.set(tg.r, 1, tg.r);
           T.fill.position.set(tg.x, 0.04, tg.z); T.fill.scale.set(tg.r * prog, 1, tg.r * prog);
           T.edge.material.opacity = 0.85 * blink;
-          T.edge.material.color.setHex(tg.color || 0xff3344); T.fill.material.color.setHex(tg.color || 0xff3344);
+          T.edge.material.color.setHex(col); T.fill.material.color.setHex(col);
         } else {
           T.edge.visible = T.fill.visible = false;
           T.rect.visible = T.rectFill.visible = true;
           for (const m of [T.rect, T.rectFill]) { m.position.set(tg.x, 0.04, tg.z); m.rotation.y = tg.angle; }
+          T.rect.material.color.setHex(cb ? 0xffd21f : 0xff3344); T.rectFill.material.color.setHex(cb ? 0xffd21f : 0xff3344);
           T.rect.scale.set(tg.w, 1, tg.len);
           T.rectFill.scale.set(tg.w, 1, tg.len * prog);
           T.rect.material.opacity = 0.22 * blink;
@@ -2206,30 +2225,91 @@ window.PH = window.PH || {};
       for (const k of ['position', 'color', 'size', 'alpha']) g.attributes[k].needsUpdate = true;
     }
 
+    /**
+     * Graphics quality, in steps from full (0) to lowest (4):
+     *   1 no real shadows (the blob shadows stay)   2 lower resolution
+     *   3 resolution 1x                             4 no outlines, grass carpet
+     *                                                 or pebbles; fewer creatures
+     * 'auto' measures the first second of play and jumps straight to a step
+     * that keeps up, keeps stepping down while frames are slow, steps back up
+     * once there has been headroom for a while, and remembers where it
+     * settled for next time. 'high' and 'low' pin it.
+     */
+    setQualityStep(n) {
+      n = Math.max(0, Math.min(4, n));
+      this.qStep = n;
+      this.sun.castShadow = n < 1;
+      const dpr = n >= 3 ? 1 : n === 2 ? Math.max(1, this.maxDpr - 0.5) : this.maxDpr;
+      if (dpr !== this.dpr) { this.dpr = dpr; this.renderer.setPixelRatio(dpr); if (this.w) this.resize(this.w, this.h); }
+      const low = n >= 4;
+      this.qualityLevel = low ? 1 : 0;      // the game lowers the enemy cap
+      PH.Look.setOutlines(!low);
+      this.tufts.visible = this.pebbles.visible = !low;
+      this.frameTimes.length = 0;
+      this.lastQualityCheck = this.time;
+      if (this.qualityMode() === 'auto') { try { localStorage.setItem('ph.qstep', String(n)); } catch { /* private mode */ } }
+    }
+
+    qualityMode() { return (PH.Settings && PH.Settings.v.quality) || 'auto'; }
+
+    applyQualitySetting() {
+      const mode = this.qualityMode();
+      let start = 0;
+      if (mode === 'low') start = 4;
+      else if (mode === 'auto') { try { start = Number(localStorage.getItem('ph.qstep')) || 0; } catch { start = 0; } }
+      this.qProbe = mode === 'auto';
+      this.qProbeAt = 0;
+      this.qLockUp = false;
+      this.setQualityStep(start);
+    }
+
     trackFrameTime(dt) {
+      if (this.qStep === undefined) this.applyQualitySetting();
+      if (dt <= 0 || this.qualityMode() !== 'auto') return;
       const ft = this.frameTimes;
       ft.push(dt);
-      if (ft.length > 120) ft.shift();
+      if (ft.length > 600) ft.shift();
+      const avgOf = (n) => { let s = 0; for (let i = ft.length - n; i < ft.length; i++) s += ft[i]; return s / n; };
+      // The first second: jump straight to a step that keeps up.
+      // Wall-clock time: frame times are capped, so a very slow device would take far too long to judge.
+      const now = performance.now();
+      if (!this.qProbeAt) this.qProbeAt = now;
+      if (this.qProbe && (ft.length >= 50 || (now - this.qProbeAt > 2500 && ft.length >= 8))) {
+        this.qProbe = false;
+        const avg = avgOf(Math.min(50, ft.length));
+        if (avg > 1 / 24) return this.setQualityStep(this.qStep + 3);
+        if (avg > 1 / 34) return this.setQualityStep(this.qStep + 2);
+      }
       if (this.time - this.lastQualityCheck < 2.5 || ft.length < 90) return;
       this.lastQualityCheck = this.time;
-      const avg = ft.reduce((a, b) => a + b, 0) / ft.length;
-      if (avg > 1 / 42) {
-        // Cheapest loss first: real shadows (the blob shadows stay), then
-        // resolution, then outlines and the enemy cap.
-        if (this.sun.castShadow) {
-          this.sun.castShadow = false;
-          ft.length = 0;
-        } else if (this.dpr > 1) {
-          this.dpr = Math.max(1, this.dpr - 0.25);
-          this.renderer.setPixelRatio(this.dpr);
-          this.resize(this.w, this.h);
-          ft.length = 0;
-        } else if (this.qualityLevel === 0) {
-          this.qualityLevel = 1;          // game lowers the enemy cap
-          PH.Look.setOutlines(false);     // and outlines go,
-          this.tufts.visible = this.pebbles.visible = false;   // with the grass carpet and the pebbles
-        }
+      const avg = avgOf(90);
+      if (avg > 1 / 42 && this.qStep < 4) {
+        if (this.qUpAt && this.time - this.qUpAt < 15) this.qLockUp = true;   // stepped up and could not hold it
+        this.setQualityStep(this.qStep + 1);
+      } else if (!this.qLockUp && this.qStep > 0 && ft.length >= 600 && avgOf(600) < 1 / 57) {
+        // Ten seconds of headroom: try one step better.
+        this.qUpAt = this.time;
+        this.setQualityStep(this.qStep - 1);
       }
+    }
+
+    /* ── Camera moments ─────────────────────────────────────── */
+
+    /** A monster arrives: the camera pushes in on it for a moment. */
+    bossIntro(x, z) { this.focusOn(x, z, 1.7, 0.2); }
+    /** The final blow: hold on where it fell, pushed in. */
+    killCam(x, z) { this.focusOn(x, z, 1.9, 0.3); }
+    focusOn(x, z, dur, zoom) {
+      if (PH.Settings && PH.Settings.v.reduceMotion) return;
+      this.focus = { x, z, t: 0, dur, zoom };
+    }
+
+    /** The current frame as an image (for the share card). */
+    snapshot() {
+      try {
+        if (this.grade) this.grade.render(this.scene, this.camera, this.time); else this.renderer.render(this.scene, this.camera);
+        return this.canvas.toDataURL('image/jpeg', 0.85);
+      } catch { return null; }
     }
 
     clearRun() {
@@ -2253,7 +2333,7 @@ window.PH = window.PH || {};
     constructor() { this.view = { minX: -8, maxX: 8, minZ: -14, maxZ: 6 }; this.qualityLevel = 0; }
     burst() {} ring() {} explosion() {} lightningChain() {} addShake() {} strike() {}
     shockwave() {} enemyDeath() {} zoomPunch() {} dashTrail() {} muzzle() {} impact() {}
-    setMonsterMode() {} setHunters() {} setViewScale() {} flashPlayer() {} birds() {} setWorld() {}
+    setMonsterMode() {} setHunters() {} setViewScale() {} flashPlayer() {} birds() {} setWorld() {} bossIntro() {} killCam() {}
     setPlayerMonster(type, stage) { return { radius: 1.1 + stage * 0.25, height: 3 }; }
     bossArrival() {} bossSlam() {} bossDeath() {} flashBoss() {} removeBoss() {} clearRun() {} setPlayer() {} prepareBosses() {}
     addBoss() { return { radius: 1.4, height: 3 }; }

@@ -753,7 +753,13 @@ window.PH = window.PH || {};
       this.fx.bossArrival(b.x, b.z, stage, type);
       this.fx.zoomPunch(0.18);
       this.fx.addShake(0.6);
-      if (!opts.quiet) this.banner(`THE ${b.name.toUpperCase()} HAS EMERGED`, 'boss');
+      if (!opts.quiet && opts.noIntro) this.banner(`THE ${b.name.toUpperCase()} HAS EMERGED`, 'boss');
+      if (!opts.noIntro) {
+        // The arrival: the camera pushes in on it, the world slows, a name card.
+        this.fx.bossIntro && this.fx.bossIntro(b.x, b.z);
+        this.slowmo = Math.max(this.slowmo, 1.1);
+        this.hooks.onBossIntro && this.hooks.onBossIntro(b, this.apex ? this.apex.wave : 0);
+      }
       this.sfx('roar');
       this.hooks.onBoss && this.hooks.onBoss(this.bosses);
     }
@@ -961,6 +967,8 @@ window.PH = window.PH || {};
     }
 
     killBoss(b) {
+      // The last monster standing gets a kill-cam: the final one, or the end of an Apex wave.
+      const last = b.final || (b.apex && !this.bosses.some((o) => o !== b && o.apex && o.alive));
       b.alive = false;
       this.bosses = this.bosses.filter((x) => x !== b);
       this.telegraphs = this.telegraphs.filter((t) => t.owner !== b);
@@ -970,7 +978,8 @@ window.PH = window.PH || {};
       this.fx.addShake(1.2);
       this.fx.shockwave(b.x, b.z, 7, 0xffd700, 0.7);
       this.hitstop = Math.max(this.hitstop, 0.14);
-      this.slowmo = 0.9;
+      this.slowmo = last ? 1.6 : 0.9;
+      if (last) this.fx.killCam && this.fx.killCam(b.x, b.z);
       for (let i = 0; i < 14; i++) {
         const a = (i / 14) * TAU;
         this.dropGem(b.x + Math.cos(a) * 1.5, b.z + Math.sin(a) * 1.5, 8 * b.stage);
@@ -1023,7 +1032,7 @@ window.PH = window.PH || {};
         const affix = affixes[Math.floor(this.rand() * affixes.length)];
         const looks = colors.filter((c) => c.for === type);
         const variant = looks.length ? looks[Math.floor(this.rand() * looks.length)].variant : null;
-        this.spawnBoss(type, 3, false, { hp: X.hp[0] + X.hp[1] * A.wave, affix, variant, apex: true, quiet: true });
+        this.spawnBoss(type, 3, false, { hp: X.hp[0] + X.hp[1] * A.wave, affix, variant, apex: true, quiet: true, noIntro: i > 0 });
       }
       const names = this.bosses.filter((b) => b.apex).map((b) => b.name.toUpperCase());
       this.banner(`WAVE ${A.wave}: ${names.join(' + ')}`, 'boss');
