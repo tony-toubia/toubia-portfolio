@@ -122,6 +122,10 @@ window.PH = window.PH || {};
 
       this.state = 'playing';
       this.fx.clearRun();
+      // A biome for the look only: hazards are a Survival thing, so no lava here.
+      this.biomeId = PH.World.fromSeed(seed, PH.World.ARENA_ORDER);
+      PH.World.set(this.biomeId);
+      this.fx.setWorld && this.fx.setWorld(this.biomeId);
       this.fx.setMonsterMode(true, this.grass, M.arena);
       this.setupRender();
     }

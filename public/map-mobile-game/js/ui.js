@@ -281,7 +281,9 @@ window.PH = window.PH || {};
       const date = new Date(t.day + 'T12:00:00Z').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
       const hunter = $('daily-hunter');
       hunter.style.setProperty('--accent', cls.color);
-      hunter.innerHTML = `<div class="ci">${cls.icon}</div><div><div class="cn">${cls.name.toUpperCase()}</div><div class="cr">Today's hunter · ${date}</div></div>`;
+      const biome = PH.World.BIOMES[PH.World.fromSeed(t.seed)];
+      hunter.innerHTML = `<div class="ci">${cls.icon}</div><div><div class="cn">${cls.name.toUpperCase()}</div><div class="cr">Today's hunter · ${date}</div>`
+        + `<div class="cr">${biome.icon} ${biome.name}${biome.blurb && biome !== PH.World.BIOMES.meadow ? ' · ' + biome.blurb : ''}</div></div>`;
       $('daily-board').innerHTML = '<div class="empty">Loading the board…</div>';
       $('daily-me').textContent = '';
       this.show('daily');
@@ -575,7 +577,8 @@ window.PH = window.PH || {};
       this.refreshRank();
       if (PH.Daily) {
         const t = PH.Daily.today(), mine = PH.Daily.best(t.day);
-        $('daily-tag').textContent = `#${t.number} · ${PH.CLASSES[t.classId].name}` + (mine ? ` · your best ${mine.score.toLocaleString()}` : ' · new today');
+        const biome = PH.World.BIOMES[PH.World.fromSeed(t.seed)];
+        $('daily-tag').textContent = `#${t.number} · ${PH.CLASSES[t.classId].name} · ${biome.icon} ${biome.name}` + (mine ? ` · your best ${mine.score.toLocaleString()}` : ' · new today');
       }
     }
 
