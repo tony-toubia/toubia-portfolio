@@ -903,6 +903,37 @@ window.PH = window.PH || {};
     rig.add(new THREE.BoxGeometry(0.34, 0.1, 0.24), 'jaw', { color: SKIN_G, at: V(0, -0.06, 0.12) });
     for (const side of [-1, 1]) rig.add(new THREE.ConeGeometry(0.025, 0.09, 3), 'jaw', { color: BONE_G, jitter: 0, at: V(side * 0.1, 0.02, 0.22) });
 
+    // A knuckle-walker's fist (in the hand bone's space, the arm running down
+    // -y): the back of the hand widening to the knuckles, four curled fingers
+    // whose middle joints carry its weight on pale pads, a thumb tucked on the
+    // inside, a molten crack across the back. Stage 2 caps each knuckle in
+    // bone; stage 3 grows a glowing spike from each cap.
+    const fist = (bone, side) => {
+      const back = new THREE.BoxGeometry(0.3, 0.19, 0.24, 1, 2, 1).toNonIndexed();
+      {
+        const P = back.attributes.position;
+        for (let i = 0; i < P.count; i++) if (P.getY(i) < 0) P.setX(i, P.getX(i) * 1.18);   // wider at the knuckles
+      }
+      rig.add(rough(back, 0.04, 14 + side), bone, { color: HIDE_G2, at: V(0, -0.08, 0) });
+      rig.add(new THREE.BoxGeometry(0.035, 0.15, 0.035), bone, { glow: true, at: V(side * 0.03, -0.08, 0.125), rot: new THREE.Euler(0, 0, side * 0.35) });
+      [-0.12, -0.04, 0.04, 0.12].forEach((x, i) => {
+        const y = -0.25 + Math.abs(x) * 0.12, w = i === 0 || i === 3 ? 0.072 : 0.082;
+        // The curled finger: a chunky, leathery knuckle segment, and the tip
+        // folded back under the palm.
+        rig.add(rough(new THREE.BoxGeometry(w, 0.14, 0.16), 0.05, 20 + i), bone, { color: SKIN_G, at: V(x, y, 0.035) });
+        rig.add(new THREE.BoxGeometry(w * 0.9, 0.09, 0.11), bone, { color: HIDE_G, at: V(x, y + 0.02, -0.085), rot: new THREE.Euler(0.4, 0, 0) });
+        rig.add(new THREE.IcosahedronGeometry(w * 0.55, 0), bone, { color: 0x6a5650, at: V(x, y - 0.07, 0.035), scale: V(1, 0.45, 1.2) });
+        if (S >= 2) {
+          rig.add(new THREE.BoxGeometry(w * 1.08, 0.055, 0.12), bone, { color: BONE_G, jitter: 0.05, at: V(x, y + 0.015, 0.11), rot: new THREE.Euler(-0.35, 0, 0) });
+          if (S === 3) rig.add(new THREE.ConeGeometry(0.028, 0.13, 4), bone, { glow: true, at: V(x, y + 0.035, 0.21), rot: new THREE.Euler(Math.PI / 2 - 0.35, 0, 0) });
+        }
+      });
+      // Thumb, on the inside of the fist.
+      rig.add(rough(new THREE.BoxGeometry(0.08, 0.15, 0.09), 0.05, 30 + side), bone, { color: HIDE_G, at: V(-side * 0.17, -0.16, 0.06), rot: new THREE.Euler(0.3, 0, side * 0.45) });
+      // A shaggy cuff where the hand meets the forearm.
+      rig.add(rough(new THREE.CylinderGeometry(0.2, 0.19, 0.1, 7), 0.08, 40 + side), bone, { color: HIDE_G, at: V(0, 0.02, 0) });
+    };
+
     // Arms: long, with forearms thicker than the upper arms, and big fists.
     const arms = [];
     for (const [nm, side] of [['L', 1], ['R', -1]]) {
@@ -914,11 +945,7 @@ window.PH = window.PH || {};
       rig.add(new THREE.CylinderGeometry(0.17, 0.24, 0.66, 6), 'fore' + nm, { color: HIDE_G2, at: V(0, -0.31, 0) });
       crack('fore' + nm, V(side * 0.1, -0.3, 0.17), 0.4, side * 0.15);
       if (S >= 2) crack('fore' + nm, V(-side * 0.08, -0.36, 0.18), 0.3, -side * 0.2);
-      rig.add(rough(new THREE.BoxGeometry(0.34, 0.26, 0.32), 0.06, 12 + side), 'hand' + nm, { color: SKIN_G, at: V(0, -0.1, 0.02) });
-      if (S >= 2) {
-        rig.add(new THREE.BoxGeometry(0.36, 0.1, 0.1), 'hand' + nm, { color: BONE_G, at: V(0, -0.2, 0.15) });
-        if (S === 3) for (const kx of [-0.11, 0, 0.11]) rig.add(new THREE.ConeGeometry(0.035, 0.14, 4), 'hand' + nm, { glow: true, at: V(kx, -0.2, 0.25), rot: new THREE.Euler(Math.PI / 2, 0, 0) });
-      }
+      fist('hand' + nm, side);
       arms.push({ a, f, hnd, side });
     }
     // Legs: short and bowed.
