@@ -272,6 +272,27 @@ PH.EVENTS = [
 ];
 PH.ELITE_EVERY = 40;      // seconds between elite creatures, which drop a chest
 
+/* ── Apex Hunt ──────────────────────────────────────────────────
+   After a Survival win you can keep going: endless waves of fully evolved
+   monsters, mutated and two at a time, while the swarm keeps thickening.
+   It ends when you fall; the score keeps counting the same way. */
+PH.APEX = {
+  first: 6,                  // seconds before the first wave
+  rest: 8,                   // seconds between waves
+  hp: [0.6, 0.3],            // boss health: stage-3 health x (hp[0] + hp[1] x wave)
+  pairFrom: 2,               // waves from here bring two monsters at once...
+  trioFrom: 6,               // ...and from here, three
+  swarm: 0.12,               // spawn rate +12% per wave
+  dmg: 0.08,                 // damage you take +8% per wave
+  // Mutations a monster can carry into the Apex Hunt.
+  affixes: {
+    swift:    { name: 'Swift',    icon: '💨', speed: 1.3, rest: 0.7 },
+    titanic:  { name: 'Titanic',  icon: '⛰️', hp: 1.5, size: 1.15 },
+    volatile: { name: 'Volatile', icon: '💥', every: 6, orbs: 10, deathOrbs: 18, dmg: 9 },
+    brood:    { name: 'Brood',    icon: '🕷️', summon: 0.5, extra: 6 },
+  },
+};
+
 /* Bosses run at 75-90% of your speed: you can open distance, not escape.
    If you do get away, they dash to close it (see `closeIn`).
    `attacks` is ordered: a boss knows one attack per evolution stage, so the

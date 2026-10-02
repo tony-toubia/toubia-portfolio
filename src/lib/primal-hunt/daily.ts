@@ -1,6 +1,6 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
-import postgres from 'postgres';
+import { sql as getSql } from './db';
 
 /**
  * Primal Hunt's daily challenge leaderboard.
@@ -18,15 +18,13 @@ import postgres from 'postgres';
  * address can enter. Enough to keep the board honest-looking; not proof.
  */
 
-const url = process.env.GAME_DATABASE_URL;
-export const isConfigured = Boolean(url);
+export { isConfigured } from './db';
 
-let client: ReturnType<typeof postgres> | null = null;
 let ready: Promise<unknown> | null = null;
 
 async function db() {
-  if (!url) return null;
-  if (!client) client = postgres(url, { max: 2, idle_timeout: 20, prepare: false });
+  const client = getSql();
+  if (!client) return null;
   // The table creates itself on first use (db/primal-hunt-daily.sql is the same schema).
   if (!ready) {
     const sql = client;
@@ -58,11 +56,11 @@ async function db() {
 export const utcDay = (offsetDays = 0) => new Date(Date.now() + offsetDays * 86400000).toISOString().slice(0, 10);
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const NAME = /^[A-Z0-9]{3}$/;
-const CLASSES = new Set(['assault', 'trapper', 'medic', 'support']);
+export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const NAME = /^[A-Z0-9]{3}$/;
+export const CLASSES = new Set(['assault', 'trapper', 'medic', 'support']);
 // Three letters can still spell things; keep the obvious ones off the board.
-const BLOCKED = new Set(['ASS', 'FUK', 'FUC', 'FCK', 'CUM', 'COC', 'COK', 'DIK', 'DIC', 'FAG', 'GAY', 'JEW', 'KKK', 'NIG', 'NGR', 'SEX', 'TIT', 'VAG', 'WTF', 'SHT', 'CNT', 'KYS', 'POO', 'PEE', 'HOE', 'SUK', 'SUX', 'XXX', 'NAZ', 'GOD']);
+export const BLOCKED = new Set(['ASS', 'FUK', 'FUC', 'FCK', 'CUM', 'COC', 'COK', 'DIK', 'DIC', 'FAG', 'GAY', 'JEW', 'KKK', 'NIG', 'NGR', 'SEX', 'TIT', 'VAG', 'WTF', 'SHT', 'CNT', 'KYS', 'POO', 'PEE', 'HOE', 'SUK', 'SUX', 'XXX', 'NAZ', 'GOD']);
 
 export type Entry = { name: string; score: number; time: number; victory: boolean; classId: string };
 export type Board = { day: string; total: number; top: Entry[]; me: { score: number; rank: number } | null };
@@ -95,7 +93,7 @@ export type Submission = {
   score: number; time: number; kills: number; level: number; bosses: number; victory: boolean; bonus: number;
 };
 
-const int = (v: unknown, lo: number, hi: number, what: string) => {
+export const int = (v: unknown, lo: number, hi: number, what: string) => {
   if (typeof v !== 'number' || !Number.isFinite(v) || v < lo || v > hi) throw new BadRequest(`bad ${what}`);
   return v;
 };

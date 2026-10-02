@@ -140,6 +140,11 @@ window.PH = window.PH || {};
         p.huntersKilled += r.huntersKilled || 0;
         if (r.victory) p.monsterWins[r.monsterType] = (p.monsterWins[r.monsterType] || 0) + 1;
         if (r.victory && r.how === 'apex') p.apexWins[r.monsterType] = (p.apexWins[r.monsterType] || 0) + 1;
+      } else if (r.mode === 'apex') {
+        // The Apex Hunt after a win: its own kills and monsters, and the deepest run.
+        p.kills += r.kills || 0;
+        p.slain += r.bossKills || 0;
+        p.apexBest = Math.max(p.apexBest || 0, r.waves || 0);
       } else if (r.mode === 'hunt') {
         if (r.victory) { p.huntWins++; p.slain++; }
       } else {
