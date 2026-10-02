@@ -1267,6 +1267,13 @@ window.PH = window.PH || {};
         this.trackBatch.add(k.x + Math.cos(k.angle) * side, 0.025, k.z - Math.sin(k.angle) * side, k.angle, s, 1, s);
       }
       this.trackBatch.end();
+      // Scorched Earth: the Behemoth's burning trail, flickering as it dies down.
+      const fire = game.fireTrail || [];
+      for (let i = 0; i < fire.length; i++) {
+        const f = fire[i], a = Math.min(1, f.life / 1.2), fl = (0.75 + 0.25 * Math.sin(t * 17 + i * 2.3)) * a;
+        const s = (2.6 + 0.5 * Math.sin(t * 11 + i)) * (0.6 + 0.4 * a);
+        this.halos.add(f.x, 0.25, f.z, 0, s, s, s, 1.0 * fl, 0.36 * fl, 0.05 * fl);
+      }
       // Birds
       this.birdBatch.begin();
       for (let i = this.flocks.length - 1; i >= 0; i--) {

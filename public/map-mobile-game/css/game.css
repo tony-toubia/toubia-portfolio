@@ -210,6 +210,8 @@ body.in-iframe .menu-foot { justify-content: center; }
 }
 .class-card .ca { font-size: 0.76rem; margin-top: 2px; color: var(--text); opacity: 0.85; }
 .card .kt.evo { background: var(--gold); color: #3a2a00; }
+.card .kt.mut { background: #7dff9a; color: #0a3315; }
+.card.mut { border-color: rgba(125, 255, 154, 0.45); }
 .card.evo { border-color: rgba(255, 215, 0, 0.7); background: linear-gradient(135deg, rgba(255, 215, 0, 0.16), rgba(255, 255, 255, 0.04));
   box-shadow: 0 0 22px rgba(255, 215, 0, 0.22); }
 .lo.evo { border-color: var(--gold); box-shadow: 0 0 8px rgba(255, 215, 0, 0.5); }

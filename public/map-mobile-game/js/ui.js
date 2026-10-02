@@ -497,7 +497,8 @@ window.PH = window.PH || {};
         // The monster has no loadout; show what it is and how the run is going.
         const g = this.game, m = PH.MONSTERS[g.monsterType];
         pl.innerHTML = `<div class="lo">${m.icon}<i>${g.stage}</i></div><div class="lo">${m.ability.icon}</div>`
-          + `<div class="lo">💀<i>${g.huntersKilled}</i></div><div class="lo">🍖<i>${g.eaten}</i></div>`;
+          + `<div class="lo">💀<i>${g.huntersKilled}</i></div><div class="lo">🍖<i>${g.eaten}</i></div>`
+          + [...g.muts].map((id) => `<div class="lo evo" title="${PH.MUTATIONS[id].name}">${PH.MUTATIONS[id].icon}</div>`).join('');
       } else pl.innerHTML = this.loadoutHTML();
       this.show('pause');
     }
@@ -683,9 +684,9 @@ window.PH = window.PH || {};
 
     openChoice(choices, kind) {
       this.releaseStick();
-      const chest = kind === 'chest';
-      $('choice-title').textContent = chest ? '🎁 SUPPLY DROP' : `LEVEL ${this.game.level}`;
-      $('choice-sub').textContent = chest ? 'A free upgrade - choose one' : 'Choose an upgrade';
+      const chest = kind === 'chest', mutation = kind === 'mutation';
+      $('choice-title').textContent = mutation ? '🧬 MUTATION' : chest ? '🎁 SUPPLY DROP' : `LEVEL ${this.game.level}`;
+      $('choice-sub').textContent = mutation ? `Stage ${this.game.stage}: choose how you evolve` : chest ? 'A free upgrade - choose one' : 'Choose an upgrade';
       const wrap = $('choice-cards');
       wrap.innerHTML = '';
       // Ignore taps for a moment: you are usually mid-swipe when a level lands,
@@ -695,7 +696,12 @@ window.PH = window.PH || {};
         const card = document.createElement('button');
         card.className = 'card' + (chest ? ' chest' : '');
         let icon, name, desc, tag;
-        if (c.type === 'evolve') {
+        if (c.type === 'mutation') {
+          const m = PH.MUTATIONS[c.id];
+          icon = m.icon; name = m.name; desc = m.desc;
+          tag = c.signature ? '<span class="kt evo">SIGNATURE</span>' : '<span class="kt mut">MUTATION</span>';
+          card.classList.add(c.signature ? 'evo' : 'mut');
+        } else if (c.type === 'evolve') {
           const ev = PH.EVOLUTIONS[c.id];
           icon = ev.icon; name = ev.name; desc = `${PH.WEAPONS[c.id].name} evolves. ${ev.desc}`;
           tag = '<span class="kt evo">EVOLVE</span>';

@@ -151,7 +151,7 @@ function runMonster(type, seed) {
     }
   }
   return { type, seed, ...(ended || { victory: false, how: 'timeout', time: g.time, stage: g.stage, huntersKilled: g.huntersKilled, eaten: g.eaten }),
-    firstSeen, armorLeft: Math.round(g.player.armor), hpLeft: Math.round(g.player.hp) };
+    firstSeen, armorLeft: Math.round(g.player.armor), hpLeft: Math.round(g.player.hp), muts: [...(g.muts || [])].join('+') };
 }
 
 /**
@@ -229,7 +229,7 @@ if (process.argv.includes('--monster')) {
   console.log(`${rows.length} monster runs in ${((Date.now() - t0) / 1000).toFixed(1)}s\n`);
   console.log('monster    seed   result      time  stage  kills  eaten  first-seen  hp-left');
   for (const r of rows) {
-    console.log(`${r.type.padEnd(9)} ${String(r.seed).padStart(6)}   ${(r.victory ? 'WIN ' + r.how : 'died').padEnd(10)} ${fmt(r.time).padStart(5)}    ${r.stage}     ${String(r.huntersKilled).padStart(2)}    ${String(r.eaten).padStart(3)}     ${r.firstSeen === null ? '  -' : fmt(r.firstSeen).padStart(5)}     ${String(Math.max(0, r.hpLeft)).padStart(5)}`);
+    console.log(`${r.type.padEnd(9)} ${String(r.seed).padStart(6)}   ${(r.victory ? 'WIN ' + r.how : 'died').padEnd(10)} ${fmt(r.time).padStart(5)}    ${r.stage}     ${String(r.huntersKilled).padStart(2)}    ${String(r.eaten).padStart(3)}     ${r.firstSeen === null ? '  -' : fmt(r.firstSeen).padStart(5)}     ${String(Math.max(0, r.hpLeft)).padStart(5)}   ${r.muts}`);
   }
   for (const t of types) {
     const rs = rows.filter((r) => r.type === t);

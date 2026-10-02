@@ -340,6 +340,33 @@ PH.MONSTERS = {
               ability: { id: 'roll', name: 'Rolling Charge', icon: '🪨', cd: 7, dur: 1.1, speed: 13, dmg: 32, knock: 9 } },
 };
 
+/* Mutations: each evolution offers three - one that changes your monster's
+   signature move, two general ones - and you keep the one you pick. In
+   Hunter Squad the AI monster mutates too, at random. `for` marks a
+   signature mutation; the numbers are read in monster.js. */
+PH.MUTATIONS = {
+  // Goliath
+  aftershock: { for: 'goliath',  icon: '🌋', name: 'Aftershock',      desc: 'Leap Smash sends out a second, wider quake half a second after landing.', r: 1.8, dmg: 0.55, delay: 0.5 },
+  meteor:     { for: 'goliath',  icon: '☄️', name: 'Meteor Leap',     desc: 'Leap 60% further, and Leap Smash recharges 25% faster.', dist: 1.6, cd: 0.75 },
+  // Kraken
+  chain:      { for: 'kraken',   icon: '🔗', name: 'Chain Lightning', desc: 'Each bolt arcs on to two more hunters nearby for 60% damage.', jumps: 2, range: 7, dmg: 0.6 },
+  stormcell:  { for: 'kraken',   icon: '🌩️', name: 'Storm Cell',      desc: 'Lightning Strike calls two more bolts around its target.', extra: 2, spread: 3.2, dmg: 0.7, stagger: 0.25 },
+  // Wraith
+  echo:       { for: 'wraith',   icon: '💫', name: 'Echo Blast',      desc: 'Warp Blast also detonates where you vanished, for 60% damage.', dmg: 0.6 },
+  phantom:    { for: 'wraith',   icon: '🫥', name: 'Phantom',         desc: 'After a warp you stay unseen for 2.5s, even in the open.', dur: 2.5 },
+  // Behemoth
+  scorched:   { for: 'behemoth', icon: '🔥', name: 'Scorched Earth',  desc: 'Rolling Charge leaves a burning trail for 4s.', life: 4, r: 1.2, dps: 22 },
+  juggernaut: { for: 'behemoth', icon: '🛡️', name: 'Juggernaut',      desc: 'Roll 50% longer and take 40% less damage while rolling.', dur: 1.5, guard: 0.4 },
+  // Any monster
+  thickhide:  { icon: '🪨', name: 'Thick Hide',       desc: '+25% armour, and it grows back 50% faster in the grass.', armor: 1.25, regen: 1.5 },
+  bloodlust:  { icon: '🩸', name: 'Bloodlust',        desc: 'Claws hit 15% harder and heal you for 20% of the damage dealt to hunters.', dmg: 1.15, leech: 0.2 },
+  stride:     { icon: '🐾', name: "Predator's Stride", desc: '+12% speed, and Pounce recharges 30% faster.', speed: 1.12, pounce: 0.7 },
+  silent:     { icon: '🤫', name: 'Silent Stalker',   desc: 'You leave no footprints, and birds scatter far less often.', birds: 0.4 },
+  rending:    { icon: '🗡️', name: 'Rending Claws',    desc: 'Claws hit 25% harder and 15% faster.', dmg: 1.25, rate: 0.85 },
+  frenzy:     { icon: '🍖', name: 'Feeding Frenzy',   desc: 'Prey gives 40% more food and armour.', food: 1.4 },
+  regen:      { icon: '💚', name: 'Regeneration',     desc: 'Regain 3 health a second while out of combat.', hps: 3 },
+};
+
 /* The AI squad. Ranges are where each one prefers to stand while fighting. */
 PH.HUNTER_AI = {
   speed: 4.0, jet: { cd: 6, dist: 4, chance: 0.5, chase: 5 },   // `chase`: jet cooldown when closing on a fleeing monster
