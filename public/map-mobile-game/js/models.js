@@ -85,7 +85,7 @@ window.PH = window.PH || {};
   const MONSTERS = {
     goliath:  { file: 'quaternius/yeti.glb',    glow: 0xff4400, fit: [[5.7, 5.28], [7.69, 7.13], [9.68, 8.98]] },
     kraken:   { file: 'quaternius/cthulhu.glb', glow: 0x9966ff, fit: [[7.54, 5.74], [10.18, 7.74], [12.83, 9.75]], hover: 0.22 },
-    wraith:   { file: 'quaternius/ghost.glb',   glow: 0xcc66ff, fit: [[4.08, 4.75], [5.5, 6.41], [6.93, 8.07]] },
+    wraith:   { custom: 'wraith',               glow: 0xcc66ff, fit: [[4.08, 4.75], [5.5, 6.41], [6.93, 8.07]] },     // built in creatures.js
     behemoth: { custom: 'behemoth',             glow: 0xff8800, fit: [[5.9, 3.65], [7.97, 4.77], [10.04, 6.34]] },   // built in creatures.js
   };
   // Gentler than the old models' glow: these textures are light, and the

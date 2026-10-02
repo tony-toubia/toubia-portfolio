@@ -927,7 +927,7 @@ window.PH = window.PH || {};
     monsterAnimState(v, e, extra) {
       if ((e.attackT || 0) > v.lastAtk + 0.25) v.attackN++;
       v.lastAtk = e.attackT || 0;
-      return { moving: e.moving, fast: e.rollT > 0 || e.dashT > 0, leap: e.leapT > 0, evolving: e.evolveT > 0, attack: v.attackN, ...extra };
+      return { moving: e.moving, fast: e.rollT > 0 || e.dashT > 0, leap: e.leapT > 0, evolving: e.evolveT > 0, blink: e.iframes > 0, attack: v.attackN, ...extra };
     }
 
     flashPlayer() { if (this.player) this.player.flash = 1; }

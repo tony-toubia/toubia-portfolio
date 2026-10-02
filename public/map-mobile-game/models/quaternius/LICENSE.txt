@@ -4,9 +4,8 @@ Zero (CC0): http://creativecommons.org/publicdomain/zero/1.0/
 
   yeti.glb      - Goliath
   cthulhu.glb   - Kraken
-  ghost.glb     - Wraith
 
-(The Behemoth is custom-built in js/creatures.js.)
+(The Behemoth and the Wraith are custom-built in js/creatures.js.)
 
 Converted from the pack's FBX files to GLB with three.js (r128) FBXLoader
 and GLTFExporter: textures embedded at 256px, unused clips removed.
