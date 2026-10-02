@@ -370,6 +370,36 @@ body.big-hud #banner { font-size: 1.5em; }
   100% { opacity: 0; transform: translateY(-14px); }
 }
 
+/* ── Tutorial coach ───────────────────────────────────── */
+#coach { position: fixed; left: 50%; top: calc(64px + var(--safe-t)); transform: translateX(-50%); z-index: 5; width: min(92vw, 420px);
+  padding: 12px 14px 10px; border-radius: 14px; background: rgba(14, 18, 34, 0.92); border: 2px solid var(--teal); text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); }
+#coach[hidden] { display: none; }
+#coach .ct { font-weight: 800; font-size: 0.98rem; line-height: 1.35; }
+#coach .ct small { display: block; font-weight: 600; color: var(--muted); font-size: 0.78rem; margin-top: 3px; }
+#coach.pop { animation: coachpop 0.35s ease-out; }
+@keyframes coachpop { from { transform: translateX(-50%) scale(0.9); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
+#btn-coach-skip { margin-top: 6px; color: var(--muted); font-size: 0.72rem; text-decoration: underline; }
+.coach-ring { animation: coachring 1s ease-in-out infinite; }
+@keyframes coachring { 0%, 100% { box-shadow: 0 0 0 0 rgba(78, 205, 196, 0.9); } 50% { box-shadow: 0 0 0 12px rgba(78, 205, 196, 0); } }
+
+/* ── Achievements ─────────────────────────────────────── */
+.ach-head { color: var(--muted); font-size: 0.78rem; margin: 10px 0 2px; text-align: left; }
+.ach-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.ach { display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.04);
+  border: 2px solid rgba(255, 255, 255, 0.07); text-align: left; min-width: 0; }
+.ach.got { border-color: rgba(255, 215, 0, 0.55); background: rgba(255, 215, 0, 0.08); }
+.ach.fresh { box-shadow: 0 0 0 2px var(--gold), 0 0 16px rgba(255, 215, 0, 0.35); }
+.ach .ai { font-size: 1.6rem; flex: none; }
+.ach:not(.got) .ai { filter: grayscale(1) brightness(0.6); }
+.ach .ab { min-width: 0; display: flex; flex-direction: column; }
+.ach .ab b { font-size: 0.8rem; }
+.ach .ab small { font-size: 0.68rem; color: var(--muted); line-height: 1.3; }
+.ach .lp { display: block; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.1); overflow: hidden; margin-top: 4px; }
+.ach .lp i { display: block; height: 100%; background: var(--gold); }
+.unlock-chip.award { border-color: rgba(255, 215, 0, 0.8); background: linear-gradient(135deg, rgba(255, 215, 0, 0.18), rgba(255, 255, 255, 0.03)); cursor: default; }
+@media (max-width: 380px) { .ach-grid { grid-template-columns: 1fr; } }
+
 /* ── Pause & game over ────────────────────────────────── */
 .small-panel { max-width: 360px; }
 .small-panel p { color: var(--muted); margin-top: 8px; }

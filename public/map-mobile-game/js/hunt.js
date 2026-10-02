@@ -303,6 +303,7 @@ window.PH = window.PH || {};
       this.hooks.onEnd && this.hooks.onEnd({
         mode: 'hunt', victory: !monsterWon, how, time: this.time, stage: this.stage, monsterType: this.monsterType,
         cls: this.myClass, downs: this.me ? this.me.downs : 0, huntersLost: this.huntersKilled, score: this.score(),
+        biome: this.biomeId,
       });
     }
   }
