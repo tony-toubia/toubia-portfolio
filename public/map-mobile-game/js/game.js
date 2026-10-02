@@ -1303,7 +1303,7 @@ window.PH = window.PH || {};
       this.victory = victory;
       this.hooks.onEnd && this.hooks.onEnd({
         victory, time: this.time, kills: this.kills, level: this.level,
-        bossKills: this.bossKills, score: this.score(), classId: this.classId,
+        bossKills: this.bossKills, score: this.score(), classId: this.classId, bonus: this.bonusScore || 0,
       });
     }
   }
