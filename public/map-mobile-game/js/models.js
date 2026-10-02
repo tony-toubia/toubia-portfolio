@@ -49,9 +49,14 @@ window.PH = window.PH || {};
         .replace('#include <project_vertex>', `#include <project_vertex>\n  mvPosition.z -= ${push.toFixed(4)};\n  gl_Position = projectionMatrix * mvPosition;`);
     };
     m.customProgramCacheKey = () => 'ph-skin-outline-' + key;
+    m.visible = outlinesOn;
     outlines.set(key, m);
     return m;
   };
+  // Weak devices drop outlines first; the skinned ones go with the rest.
+  let outlinesOn = true;
+  const setOutlines = PH.Look.setOutlines;
+  PH.Look.setOutlines = (on) => { setOutlines(on); outlinesOn = on; for (const m of outlines.values()) m.visible = on; };
 
   /** Toon shading plus skinned outline shells on every skinned mesh of a model. */
   const styleSkinned = (model, thick, push) => {
@@ -81,7 +86,7 @@ window.PH = window.PH || {};
     goliath:  { file: 'quaternius/yeti.glb',    glow: 0xff4400, fit: [[5.7, 5.28], [7.69, 7.13], [9.68, 8.98]] },
     kraken:   { file: 'quaternius/cthulhu.glb', glow: 0x9966ff, fit: [[7.54, 5.74], [10.18, 7.74], [12.83, 9.75]], hover: 0.22 },
     wraith:   { file: 'quaternius/ghost.glb',   glow: 0xcc66ff, fit: [[4.08, 4.75], [5.5, 6.41], [6.93, 8.07]] },
-    behemoth: { file: 'quaternius/cyclops.glb', glow: 0xff8800, fit: [[5.9, 3.65], [7.97, 4.77], [10.04, 6.34]] },
+    behemoth: { custom: 'behemoth',             glow: 0xff8800, fit: [[5.9, 3.65], [7.97, 4.77], [10.04, 6.34]] },   // built in creatures.js
   };
   // Gentler than the old models' glow: these textures are light, and the
   // same intensity washed them out to the glow colour.
@@ -90,7 +95,11 @@ window.PH = window.PH || {};
   const Models = {
     HUNTERS, HEIGHT, MONSTERS,
     has(cls) { const h = HUNTERS[cls]; return !!h && cache.has(h.file) && (!h.gun || cache.has(h.gun)); },
-    hasMonster(type) { const m = MONSTERS[type]; return !!m && cache.has(m.file); },
+    hasMonster(type) {
+      const m = MONSTERS[type];
+      if (!m) return false;
+      return m.custom ? !!(PH.Creatures && PH.Creatures[m.custom]) : cache.has(m.file);
+    },
 
     load() {
       if (loading) return loading;
@@ -98,7 +107,7 @@ window.PH = window.PH || {};
       const loader = new THREE.GLTFLoader();
       const files = new Set();
       for (const h of Object.values(HUNTERS)) { files.add(h.file); if (h.gun) files.add(h.gun); }
-      for (const m of Object.values(MONSTERS)) files.add(m.file);
+      for (const m of Object.values(MONSTERS)) if (m.file) files.add(m.file);
       loading = Promise.all([...files].map((f) => new Promise((res) => {
         loader.load(BASE + f, (g) => { cache.set(f, g); res(true); }, undefined, (e) => { console.warn('model failed', f, e); res(false); });
       }))).then((ok) => ok.every(Boolean));
@@ -203,6 +212,7 @@ window.PH = window.PH || {};
      */
     createMonster(type, stage) {
       const def = MONSTERS[type];
+      if (def.custom) return PH.Creatures[def.custom](stage, def, def.fit[Math.max(0, Math.min(2, stage - 1))], { skinnedOutline });
       const src = cache.get(def.file);
       const [w, h] = def.fit[Math.max(0, Math.min(2, stage - 1))];
       const model = THREE.SkeletonUtils.clone(src.scene);
