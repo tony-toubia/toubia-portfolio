@@ -375,5 +375,276 @@ window.PH = window.PH || {};
     };
   };
 
-  PH.Creatures = { behemoth };
+
+  /** A copy of a surface, a little smaller and facing inward, so open shells look solid. */
+  const inside = (geo, k = 0.94) => {
+    const g = (geo.index ? geo.toNonIndexed() : geo.clone());
+    g.scale(k, k, k);
+    const P = g.attributes.position;
+    for (let v = 0; v < P.count; v += 3) {
+      const x = P.getX(v + 1), y = P.getY(v + 1), z = P.getZ(v + 1);
+      P.setXYZ(v + 1, P.getX(v + 2), P.getY(v + 2), P.getZ(v + 2));
+      P.setXYZ(v + 2, x, y, z);
+    }
+    return g;
+  };
+
+  /** A soft round dot for smoke and wisps. */
+  let puffTex = null;
+  const puff = () => {
+    if (puffTex) return puffTex;
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const x = c.getContext('2d');
+    const g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.4, 'rgba(255,255,255,0.45)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+    puffTex = new THREE.CanvasTexture(c);
+    return puffTex;
+  };
+
+  /* ── Wraith ──────────────────────────────────────────────────
+     A hooded, tattered cloak with nothing inside but two eyes, and spectral
+     claws floating where its hands would be. Torn strips hang from the hem
+     and flutter as it glides; violet smoke trails off them. It warps by
+     collapsing to smoke and re-forming. Stage 2 tears the cloak longer and
+     adds a rune band and bone shoulder spikes; stage 3 is ragged to the
+     ground, crowned with spectral horns, with an orbiting ring of rune
+     crystals and bigger claws. */
+  const CLOAK = 0x3b2e58, CLOAK_DARK = 0x2a2042, VOID = 0x07050c, GHOST_BONE = 0xd9d0ea;
+
+  const wraith = (stage, def, fit, helpers) => {
+    const S = Math.max(1, Math.min(3, stage));
+    const HOVER = 0.35;                         // the hem floats this high
+    const LEN = [1.25, 1.45, 1.7][S - 1];       // cloak length below the shoulders
+    const SH = HOVER + LEN;                     // shoulder height
+    const STRIPS = [7, 9, 11][S - 1];
+    const CLAWS = S === 3 ? 4 : 3;
+    const rig = new Rig();
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+
+    rig.bone('root', null, V(0, 0, 0));
+    rig.bone('body', 'root', V(0, SH, 0));
+
+    // The cloak: a bell turned on a lathe, its hem cut ragged.
+    const prof = [];
+    const R0 = 0.2, R1 = 0.72 + S * 0.04;
+    for (let i = 0; i <= 6; i++) {
+      const t = i / 6;
+      prof.push(new THREE.Vector2(R0 + (R1 - R0) * Math.pow(t, 0.8), 0.15 - t * LEN));
+    }
+    prof.reverse();                              // bottom to top, so the faces point out
+    const bell = new THREE.LatheGeometry(prof, 12).toNonIndexed();
+    {
+      const P = bell.attributes.position, cut = new Map();
+      for (let i = 0; i < P.count; i++) {
+        if (P.getY(i) > 0.15 - LEN + 0.01) continue;
+        const a = Math.atan2(P.getZ(i), P.getX(i)).toFixed(2);
+        if (!cut.has(a)) cut.set(a, rnd() * 0.35 * S);
+        P.setY(i, P.getY(i) + cut.get(a));
+      }
+    }
+    rig.add(bell, 'body', { color: CLOAK, jitter: 0.1 });
+    rig.add(inside(bell, 0.96), 'body', { color: VOID, jitter: 0.02 });
+
+    // Hood: open at the front, a dark void inside, two glowing eyes.
+    rig.bone('hood', 'body', V(0, 0.18, 0.02));
+    const hoodGeo = new THREE.SphereGeometry(0.42, 10, 6, Math.PI / 2 + 0.75, Math.PI * 2 - 1.5, 0, Math.PI * 0.68).toNonIndexed();
+    rig.add(hoodGeo, 'hood', { color: CLOAK_DARK, jitter: 0.08, at: V(0, 0.22, 0) });
+    rig.add(inside(hoodGeo, 0.95), 'hood', { color: VOID, jitter: 0.02, at: V(0, 0.22, 0) });
+    rig.add(new THREE.ConeGeometry(0.2, 0.42, 6), 'hood', { color: CLOAK_DARK, at: V(0, 0.62, -0.18), rot: new THREE.Euler(-0.75, 0, 0) });
+    rig.add(new THREE.SphereGeometry(0.3, 8, 6), 'hood', { color: VOID, jitter: 0, at: V(0, 0.2, -0.02) });
+    for (const side of [-1, 1]) {
+      rig.add(new THREE.IcosahedronGeometry(0.06, 0), 'hood', { glow: true, at: V(side * 0.12, 0.24, 0.26), scale: V(1.5, 0.7, 0.6),
+        rot: new THREE.Euler(0, 0, side * 0.35) });
+    }
+    if (S === 3) {
+      for (const side of [-1, 1]) {
+        rig.add(new THREE.ConeGeometry(0.06, 0.55, 5), 'hood', { color: GHOST_BONE, jitter: 0.04, at: V(side * 0.26, 0.6, -0.02), rot: new THREE.Euler(-0.35, 0, -side * 0.55) });
+        rig.add(new THREE.ConeGeometry(0.025, 0.2, 4), 'hood', { glow: true, at: V(side * 0.4, 0.84, -0.12), rot: new THREE.Euler(-0.35, 0, -side * 0.55) });
+      }
+    }
+    // Shoulder spikes and a rune band from stage 2.
+    if (S >= 2) {
+      for (const side of [-1, 1]) {
+        for (let k = 0; k < 3; k++) {
+          rig.add(new THREE.ConeGeometry(0.05, 0.28 + k * 0.05, 4), 'body', { color: GHOST_BONE, jitter: 0.05,
+            at: V(side * (0.28 + k * 0.07), 0.02 - k * 0.07, -0.05), rot: new THREE.Euler(0, 0, -side * (0.6 + k * 0.25)) });
+        }
+      }
+      const yRune = -LEN * 0.32, rRune = R0 + (R1 - R0) * Math.pow(0.32, 0.8) + 0.015;
+      for (let k = 0; k < 10; k++) {
+        const a = (k / 10) * Math.PI * 2;
+        rig.add(new THREE.BoxGeometry(0.16, 0.05, 0.03), 'body', { glow: true,
+          at: V(Math.sin(a) * rRune, yRune + (k % 2) * 0.05, Math.cos(a) * rRune), rot: new THREE.Euler(0, a, (k % 2 ? 0.4 : -0.4)) });
+      }
+    }
+
+    // Torn strips hanging from the hem, two segments each so they flutter.
+    const strips = [];
+    const hemY = 0.15 - LEN, hemR = R1 * 0.92;
+    for (let i = 0; i < STRIPS; i++) {
+      const a = (i / STRIPS) * Math.PI * 2 + rnd() * 0.2;
+      const len = (0.3 + rnd() * 0.35) * (0.7 + S * 0.25);
+      const w = 0.3 + rnd() * 0.12;
+      const b0 = rig.bone('strip' + i, 'body', V(Math.sin(a) * hemR, hemY + 0.12, Math.cos(a) * hemR));
+      b0.rotation.y = a;
+      b0.userData.rest.r = b0.rotation.clone();
+      const b1 = rig.bone('strip' + i + 'b', 'strip' + i, V(0, -len * 0.5, 0));
+      const seg = (top, bot, h) => {
+        const g = new THREE.BoxGeometry(1, h, 0.03, 1, 1, 1).toNonIndexed();
+        const P = g.attributes.position;
+        for (let v = 0; v < P.count; v++) P.setX(v, P.getX(v) * (P.getY(v) > 0 ? top : bot));
+        return g;
+      };
+      rig.add(seg(w, w * 0.7, len * 0.55), 'strip' + i, { color: i % 2 ? CLOAK : CLOAK_DARK, at: V(0, -len * 0.25, 0) });
+      rig.add(seg(w * 0.7, 0.02, len * 0.55), 'strip' + i + 'b', { color: CLOAK_DARK, at: V(0, -len * 0.25, 0) });
+      strips.push({ b0, b1, a, ph: rnd() * 6 });
+    }
+
+    // Claws: no arms, just hands floating at its sides.
+    for (const [name, side] of [['handL', 1], ['handR', -1]]) {
+      rig.bone(name, 'body', V(side * (R1 + 0.02), -0.3, 0.3));
+      rig.byName[name].scale.setScalar(1.6);
+      rig.byName[name].userData.rest.s = rig.byName[name].scale.clone();
+      rig.add(rough(new THREE.DodecahedronGeometry(0.1, 0), 0.1, 3 + side), name, { color: CLOAK_DARK, scale: V(1, 0.7, 1.2) });
+      const cl = S === 3 ? 0.58 : 0.42;
+      for (let k = 0; k < CLAWS; k++) {
+        const f = CLAWS === 1 ? 0 : k / (CLAWS - 1) - 0.5;
+        rig.add(new THREE.ConeGeometry(0.035, cl, 4), name, { color: GHOST_BONE, jitter: 0.04,
+          at: V(f * 0.16, -0.05, 0.08 + cl * 0.42), rot: new THREE.Euler(1.25, f * 0.5 * side, 0) });
+        rig.add(new THREE.ConeGeometry(0.014, cl * 0.3, 3), name, { glow: true,
+          at: V(f * 0.16 + f * 0.04, -0.05 - cl * 0.2, 0.08 + cl * 0.85), rot: new THREE.Euler(1.25, f * 0.5 * side, 0) });
+      }
+    }
+
+    // A ring of rune crystals orbiting the body at stage 3.
+    if (S === 3) {
+      rig.bone('halo', 'body', V(0, -LEN * 0.55, 0));
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2;
+        rig.add(new THREE.OctahedronGeometry(0.14, 0), 'halo', { glow: true, at: V(Math.sin(a) * (R1 + 0.45), 0, Math.cos(a) * (R1 + 0.45)), scale: V(0.6, 1.4, 0.6) });
+      }
+    }
+
+    // Materials.
+    const glowCol = new THREE.Color(0.62, 0.22, 1.0);
+    const bodyMat = PH.Look.toonMaterial({ color: 0xffffff, vertexColors: true, flatShading: true, emissive: new THREE.Color(def.glow), emissiveIntensity: 0 });
+    bodyMat.skinning = true;
+    const glowMat = new THREE.MeshBasicMaterial({ color: glowCol.clone(), skinning: true });
+    glowMat.toneMapped = false;
+    const mesh = rig.build(bodyMat, glowMat);
+    mesh.castShadow = true;
+
+    const [w, h] = fit;
+    const box = new THREE.Box3().setFromObject(mesh);
+    const size = box.getSize(V(0, 0, 0));
+    const k = Math.min((w * 0.95) / Math.max(size.x, size.z), (h * 0.95) / size.y);
+    const shellMesh = new THREE.SkinnedMesh(mesh.geometry, helpers.skinnedOutline(0.035, 0.1 * k));
+    shellMesh.bind(mesh.skeleton, mesh.bindMatrix);
+    shellMesh.userData.outline = true;
+    shellMesh.frustumCulled = false;
+    mesh.add(shellMesh);
+
+    // Smoke: one draw of soft additive dots drifting off the hem.
+    const NP = 18 + S * 6;
+    const sp = new Float32Array(NP * 3), sc = new Float32Array(NP * 3);
+    const smoke = new THREE.BufferGeometry();
+    smoke.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+    smoke.setAttribute('color', new THREE.BufferAttribute(sc, 3));
+    const smokeMat = new THREE.PointsMaterial({ size: 0.75 * k, map: puff(), vertexColors: true, transparent: true,
+      blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true });
+    const points = new THREE.Points(smoke, smokeMat);
+    points.frustumCulled = false;
+    const P = [];
+    for (let i = 0; i < NP; i++) P.push({ x: 0, y: HOVER + 0.5, z: 0, vx: 0, vy: 0, vz: 0, life: 0, max: 1 });
+
+    const inner = new THREE.Group();
+    inner.add(mesh, points);
+    inner.scale.setScalar(k);
+    const tilt = new THREE.Group();
+    tilt.add(inner);
+    const root = new THREE.Group();
+    root.add(tilt);
+
+    // ── Animation ──
+    const B = rig.byName;
+    const glowBase = [1.4, 1.8, 2.4][S - 1];
+    let t = rnd() * 10, move = 0, wind = 0, fast = 0, dead = 0, swipe = 0, lastAttack = 0, form = 1, wasBlink = false, emit = 0;
+
+    const spawn = (n, burst) => {
+      for (let j = 0; j < n; j++) {
+        const p = P.find((q) => q.life <= 0);
+        if (!p) return;
+        const a = rnd() * Math.PI * 2, r = hemR * (burst ? rnd() : 0.7 + rnd() * 0.4);
+        p.x = Math.sin(a) * r; p.z = Math.cos(a) * r; p.y = burst ? HOVER + rnd() * LEN : HOVER + rnd() * 0.3;
+        const sp2 = burst ? 1.6 : 0.25;
+        p.vx = Math.sin(a) * sp2 * rnd(); p.vz = Math.cos(a) * sp2 * rnd() - move * 0.6; p.vy = burst ? 0.4 + rnd() : 0.15 + rnd() * 0.25;
+        p.max = p.life = burst ? 0.6 + rnd() * 0.4 : 0.9 + rnd() * 0.8;
+      }
+    };
+
+    const pose = (dt, s) => {
+      t += dt;
+      move = ease(move, s.moving && !s.dead ? 1 : 0, 5, dt);
+      wind = ease(wind, (s.windup || s.evolving) && !s.dead ? 1 : 0, 7, dt);
+      fast = ease(fast, s.fast && !s.dead ? 1 : 0, 8, dt);
+      dead = ease(dead, s.dead ? 1 : 0, 3, dt);
+      if (s.attack !== undefined && s.attack !== lastAttack) { lastAttack = s.attack; swipe = 1; }
+      swipe = Math.max(0, swipe - dt * 3.5);
+      // A warp: collapse to smoke and re-form where it lands.
+      if (s.blink && !wasBlink) { form = 0; spawn(16, true); }
+      wasBlink = !!s.blink;
+      form = Math.min(1, form + dt * 3);
+
+      const bob = Math.sin(t * 2.1) * 0.08 * (1 - dead);
+      const lean = move * 0.22 + fast * 0.35 - wind * 0.15;
+      B.body.position.set(0, SH + bob + wind * 0.25 - dead * (SH - 0.4), 0);
+      B.body.rotation.set(lean, Math.sin(t * 0.8) * 0.06, Math.sin(t * 1.3) * 0.04);
+      const f = 0.15 + form * 0.85;
+      B.body.scale.set(lerp(1, 1.25, 1 - form) * lerp(1, 1.3, dead), f * lerp(1, 0.35, dead), lerp(1, 1.25, 1 - form) * lerp(1, 1.3, dead));
+      B.hood.rotation.set(-wind * 0.25 + swipe * 0.2, Math.sin(t * 0.6) * 0.2 * (1 - move), 0);
+
+      // Strips: flutter, trail behind when it moves, flare out in the wind-up.
+      for (const st of strips) {
+        const back = Math.cos(st.a);     // +1 at the front, -1 at the back
+        const flut = Math.sin(t * (3 + move * 5 + fast * 6) + st.ph);
+        st.b0.rotation.set(-0.3 + flut * 0.2 + (move + fast) * back * 0.55 - wind * 0.6, st.a, 0, 'YXZ');   // + swings in, - out
+        st.b1.rotation.set(Math.sin(t * (4 + move * 6) + st.ph + 1) * 0.4 + (move + fast) * 0.3 - wind * 0.3, 0, 0);
+      }
+
+      // Claws: drift, spread wide and high in the wind-up, sweep in on a swipe.
+      for (const [hb, side] of [[B.handL, 1], [B.handR, -1]]) {
+        const r = hb.userData.rest.p;
+        const sw = Math.sin(Math.min(1, (1 - swipe) * 1.6) * Math.PI) * (swipe > 0 ? 1 : 0);
+        hb.position.set(r.x * (1 + wind * 0.22) - side * sw * 0.5, r.y + Math.sin(t * 2.3 + side) * 0.06 + wind * 0.32, r.z + sw * 0.45 - fast * 0.4);
+        hb.rotation.set(-wind * 0.9 + sw * 0.6 + fast * 0.8, side * (wind * 0.5 - sw * 0.8), side * wind * 0.4);
+      }
+      if (B.halo) B.halo.rotation.y = t * 1.2;
+
+      tilt.rotation.x = dead * 0.3;
+
+      // Smoke: a steady trail, more when moving, a burst on a warp.
+      emit += dt * (6 + move * 10 + fast * 20) * (1 - dead * 0.5);
+      while (emit > 1) { spawn(1, false); emit -= 1; }
+      for (let i = 0; i < NP; i++) {
+        const p = P[i];
+        if (p.life > 0) { p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; }
+        const a = Math.max(0, p.life / p.max);
+        // Spent ones wait, invisible, inside the cloak.
+        sp[i * 3] = p.x; sp[i * 3 + 1] = p.life > 0 ? p.y : HOVER + 0.5; sp[i * 3 + 2] = p.z;
+        const g2 = a * a * 0.9;
+        sc[i * 3] = glowCol.r * g2; sc[i * 3 + 1] = glowCol.g * g2; sc[i * 3 + 2] = glowCol.b * g2;
+      }
+      smoke.attributes.position.needsUpdate = true;
+      smoke.attributes.color.needsUpdate = true;
+
+      const g = glowBase * (1 + Math.sin(t * 4) * 0.15) * (1 + wind * 1.0 + swipe * 0.6 + (1 - form) * 1.5) * (1 - dead * 0.9);
+      glowMat.color.copy(glowCol).multiplyScalar(g);
+    };
+
+    return { root, material: bodyMat, height: h, radius: w * 0.38, update: pose };
+  };
+
+  PH.Creatures = { behemoth, wraith };
 })();
