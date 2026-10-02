@@ -18,6 +18,7 @@
  *   node scripts/primal-hunt-sim.mjs --class support --weapon grenade   # any starting weapon
  *   node scripts/primal-hunt-sim.mjs --biome volcanic  # Survival in a biome (default: meadow, so runs compare)
  *   node scripts/primal-hunt-sim.mjs --apex          # wins carry on into the Apex Hunt
+ *   node scripts/primal-hunt-sim.mjs --mutator twins # Survival under a weekly mutator
  *
  * By default the bot fires its special when it is crowded or near a monster,
  * and dodges about half of the boss attacks it is standing in - roughly how a
@@ -64,7 +65,7 @@ function run(classId, seed, idle) {
     onBoss: (bs) => log.bosses.push({ t: Math.round(g.time), alive: bs.map((b) => `${b.name}:${Math.round(b.hp)}`) }),
     onBanner: (text) => log.events.push(`${Math.round(g.time)}s ${text}`),
   });
-  g.newRun(classId, seed, arg('--weapon') || (STARTER ? PH.Progress.STARTERS.find((s) => s.for === classId).weapon : null), arg('--biome') || 'meadow');
+  g.newRun(classId, seed, arg('--weapon') || (STARTER ? PH.Progress.STARTERS.find((s) => s.for === classId).weapon : null), arg('--biome') || 'meadow', { mutator: arg('--mutator') });
   const dt = PH.CONFIG.step;
   let orbit = 0, maxAlive = 0;
   while ((g.state !== 'over' || setTimeout0.length) && g.time < (APEX ? 1500 : 420)) {

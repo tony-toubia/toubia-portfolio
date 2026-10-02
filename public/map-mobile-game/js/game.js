@@ -35,6 +35,7 @@ window.PH = window.PH || {};
       this.fx = fx;
       this.hooks = hooks;
       this.mode = 'survival';
+      this.mut = {};
       this.input = { x: 0, z: 0 };
       this.state = 'menu';
       this.maxEnemies = C.maxEnemies;
@@ -77,8 +78,12 @@ window.PH = window.PH || {};
       this.rand = mulberry32(seed);
       // A first run teaches the controls, with the clock stopped until it is done.
       this.tutorial = opts.tutorial ? { step: -1, moved: 0, mark: 0 } : null;
-      this.biomeId = biome && PH.World.BIOMES[biome] ? biome : PH.World.fromSeed(seed);
-      PH.World.set(this.biomeId);
+      // A weekly mutator changes the rules (see PH.MUTATORS).
+      this.mutatorId = opts.mutator && PH.MUTATORS[opts.mutator] ? opts.mutator : null;
+      const M = this.mut = this.mutatorId ? PH.MUTATORS[this.mutatorId] : {};
+      this.forceNight = !!M.night;
+      this.biomeId = M.biome || (biome && PH.World.BIOMES[biome] ? biome : PH.World.fromSeed(seed));
+      PH.World.set(this.biomeId, M.ponds || 1);
       this.poolList = null; this.poolT = 0; this.lavaT = 0; this.hazTick = 0; this.hazardDmg = 0;
       const rub = PH.World.biome.rubble;
       this.rubbleT = rub ? rub.every[0] + 6 : Infinity;
@@ -165,15 +170,16 @@ window.PH = window.PH || {};
         for (const k in per) m[k] += per[k] * p.level;
       }
       const P = C.player, pl = this.player;
+      const M = this.mut || {};
       const oldMax = pl.maxHp;
-      pl.maxHp = P.hp + m.maxHp;
+      pl.maxHp = Math.round((P.hp + m.maxHp) * (M.hp || 1));
       if (pl.maxHp > oldMax) pl.hp += pl.maxHp - oldMax;   // new max health arrives filled
-      pl.speed = P.speed * (1 + m.speed);
+      pl.speed = P.speed * (1 + m.speed) * (M.speed || 1);
       pl.pickup = P.pickup * (1 + m.pickup);
-      pl.regen = P.regen + m.regen;
+      pl.regen = M.vampire ? 0 : P.regen + m.regen;
       pl.armor = Math.min(0.6, m.armor);
       this.mods = {
-        dmg: 1 + m.damage,
+        dmg: (1 + m.damage) * (M.dmg || 1),
         cd: Math.max(0.45, 1 - m.cooldown),
         area: 1 + m.area,
         extra: m.extra,
@@ -521,12 +527,13 @@ window.PH = window.PH || {};
       if (!e) return null;
       const def = PH.ENEMIES[type];
       const elite = !!opts.elite;
-      const hp = def.hp * C.hpScale(this.time) * (elite ? 9 : 1);
+      const M = this.mut || {}, size = M.size || 1;
+      const hp = def.hp * C.hpScale(this.time) * (elite ? 9 : 1) * (M.enemyHp || 1);
       Object.assign(e, {
         alive: true, type, x, z, kx: 0, kz: 0, hp, maxHp: hp,
-        speed: def.speed * (elite ? 0.9 : 1) * (0.92 + this.rand() * 0.16),
-        dmg: def.dmg * (elite ? 1.6 : 1), radius: def.radius * (elite ? 1.5 : 1),
-        scale: elite ? 1.5 : 1, elite, flash: 0, facing: 0, phase: this.rand() * TAU,
+        speed: def.speed * (elite ? 0.9 : 1) * (0.92 + this.rand() * 0.16) * (M.enemySpeed || 1),
+        dmg: def.dmg * (elite ? 1.6 : 1), radius: def.radius * (elite ? 1.5 : 1) * size,
+        scale: (elite ? 1.5 : 1) * size, elite, flash: 0, facing: 0, phase: this.rand() * TAU,
         spit: def.ranged ? def.ranged.cd * (0.5 + this.rand()) : 0,
         charge: opts.charge || null, chargeT: opts.chargeT || 0, rootT: 0,
       });
@@ -546,7 +553,7 @@ window.PH = window.PH || {};
       const bossUp = this.bosses.length > 0;
       const apexK = this.apex ? 1 + PH.APEX.swarm * this.apex.wave : 1;
       const tut = this.tutorial ? (this.tutorial.step <= 0 ? 0 : 0.5) : 1;   // a quiet field while you learn
-      this.spawnAcc += wave.rate * apexK * tut * (bossUp ? 0.55 : 1) * dt;
+      this.spawnAcc += wave.rate * apexK * tut * (this.mut.rate || 1) * (bossUp ? 0.55 : 1) * dt;
       if (this.apex) this.updateApex();
       while (this.spawnAcc >= 1) {
         this.spawnAcc -= 1;
@@ -584,7 +591,11 @@ window.PH = window.PH || {};
         }
         this.banner(ev.text);
       } else if (ev.type === 'boss') {
-        this.spawnBoss(this.bossOrder[ev.stage - 1], ev.stage, !!ev.final);
+        if (this.mut.twins) {
+          // Double Trouble: the monster and its twin, a little less tough each.
+          this.spawnBoss(this.bossOrder[ev.stage - 1], ev.stage, !!ev.final, { hp: this.mut.bossHp });
+          this.spawnBoss(this.bossOrder[ev.stage - 1], ev.stage, !!ev.final, { hp: this.mut.bossHp, noIntro: true, quiet: true });
+        } else this.spawnBoss(this.bossOrder[ev.stage - 1], ev.stage, !!ev.final);
       }
     }
 
@@ -711,7 +722,8 @@ window.PH = window.PH || {};
       this.fx.enemyDeath(e);
       this.fx.burst(e.x, 0.5, e.z, e.elite ? 30 : 9, def.colors.primary, e.elite ? 6 : 3.5, 0.26, 0.45);
       this.fx.burst(e.x, 0.6, e.z, 3, def.colors.eye, 2.5, 0.2, 0.35);
-      this.dropGem(e.x, e.z, def.xp * (e.elite ? 12 : 1));
+      this.dropGem(e.x, e.z, def.xp * (e.elite ? 12 : 1) * (this.mut.xp || 1));
+      if (this.mut.vampire) this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.mut.vampire);
       if (e.elite) {
         this.dropPickup('chest', e.x, e.z);
         this.fx.addShake(0.25);
@@ -720,7 +732,7 @@ window.PH = window.PH || {};
         this.sfx('evolve');
       } else {
         const r = this.rand();
-        if (r < 0.006) this.dropPickup('heart', e.x + 0.4, e.z);
+        if (r < 0.006 && !this.mut.vampire) this.dropPickup('heart', e.x + 0.4, e.z);
         else if (r < 0.0085) this.dropPickup('magnet', e.x + 0.4, e.z);
       }
       this.sfx('hit');
@@ -750,7 +762,7 @@ window.PH = window.PH || {};
         id, boss: true, alive: true, type, stage, final, name: affix ? `${affix.name} ${def.name}` : def.name, icon: def.icon,
         x: p.x, z: p.z, hp, maxHp: hp, radius: Math.max(1.1, vis.radius), facing: 0, moving: true,
         state: 'chase', timer: 2.2, attack: null, dash: null, summonT: PH.BOSS_ATTACKS.summonEvery,
-        speed: def.speed * (1 + (stage - 1) * 0.12) * (affix && affix.speed ? affix.speed : 1), droneT: new Float32Array(8).fill(-1), slowT: 0,
+        speed: def.speed * (1 + (stage - 1) * 0.12) * (affix && affix.speed ? affix.speed : 1) * ((this.mut && this.mut.bossSpeed) || 1), droneT: new Float32Array(8).fill(-1), slowT: 0,
         affix: opts.affix || null, apex: !!opts.apex, volT: affix && affix.every ? affix.every : 0,
       };
       this.bosses.push(b);
@@ -997,7 +1009,7 @@ window.PH = window.PH || {};
         for (let i = 0; i < V.deathOrbs; i++) { const a = (i / V.deathOrbs) * TAU; this.fireHostile(b.x, b.z, Math.cos(a), Math.sin(a), 5, V.dmg, 1, 0.45, 0.2); }
       }
       this.hooks.onBoss && this.hooks.onBoss(this.bosses);
-      if (b.final && !this.apex) this.victoryAt = this.time + 3;
+      if (b.final && !this.apex && !this.bosses.some((o) => o.final && o.alive)) this.victoryAt = this.time + 3;
     }
 
     /* ── Tutorial ───────────────────────────────────────────── */
@@ -1510,7 +1522,7 @@ window.PH = window.PH || {};
         victory: this.victory, time: this.time, kills: this.kills, level: this.level,
         bossKills: this.bossKills, score: this.score(), classId: this.classId, bonus: this.bonusScore || 0,
         apex: this.apex ? { waves: this.apex.cleared || 0, ...this.apex.base } : null,
-        biome: this.biomeId, dodges: this.dodges, damageTaken: Math.round(this.player.damageTaken),
+        biome: this.biomeId, dodges: this.dodges, damageTaken: Math.round(this.player.damageTaken), mutator: this.mutatorId,
         evolved: this.weapons.filter((w) => w.level > 5).length,
       });
     }

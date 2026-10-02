@@ -138,6 +138,8 @@ window.PH = window.PH || {};
     ['daily7', '📅', 'Regular', 'Play the Daily Hunt on 7 days.', null, prog((p) => p.dailyDays.length, 7)],
     ['daily_top', '🥇', 'Top Ten', 'Make the top 10 of a Daily Hunt board.', (p) => p.dailyTop],
     ['apex_board', '🏅', 'On the Board', 'Put an Apex Hunt on the all-time board.', (p) => p.apexBoard],
+    ['weekly_win', '🧪', 'Mutant Hunter', 'Win a Weekly Mutator hunt.', (p, r) => winS(r) && !!r.mutator],
+    ['weekly4', '🔬', 'Lab Rat', 'Play four different weekly mutators.', null, prog((p) => count(p.mutatorsPlayed || {}), 4)],
     ['monster_win', '👹', 'It Got Away', 'Win Monster mode.', (p) => count(p.monsterWins) > 0],
     ['apex_pred', '🦖', 'Apex Predator', 'Wipe out the whole squad in Monster mode.', (p) => count(p.apexWins) > 0],
     ['all_apex', '🐉', 'Every Shape of Fear', 'Wipe out the squad with every monster.', null, prog((p) => count(p.apexWins), 4)],
@@ -204,12 +206,13 @@ window.PH = window.PH || {};
         if (r.victory) p.survivalWins[r.classId] = (p.survivalWins[r.classId] || 0) + 1;
         if (r.victory && r.biome) p.survivalBiomes[r.biome] = 1;
       }
-      if (daily && !p.dailyDays.includes(daily.day)) p.dailyDays = [...p.dailyDays, daily.day].slice(-60);
+      if (daily && daily.kind !== 'weekly' && !p.dailyDays.includes(daily.day)) p.dailyDays = [...p.dailyDays, daily.day].slice(-60);
+      if (r.mutator) p.mutatorsPlayed = { ...(p.mutatorsPlayed || {}), [r.mutator]: 1 };
       const unlocks = check(p);
       const achievements = award(p, r);
       save();
       const after = rankOf(p.xp);
-      return { xp, daily: !!daily, before, after, rankUp: after.rank > before.rank, unlocks, achievements };
+      return { xp, daily: daily ? daily.kind || 'daily' : false, before, after, rankUp: after.rank > before.rank, unlocks, achievements };
     },
 
     /** Note something that happens outside a run (a board placing, a share). Returns new achievements. */

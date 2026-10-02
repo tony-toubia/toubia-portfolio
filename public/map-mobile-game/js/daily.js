@@ -89,4 +89,39 @@ window.PH = window.PH || {};
   };
 
   PH.Daily = Daily;
+
+  /**
+   * The weekly mutator: one Survival rule-change a week (PH.MUTATORS), the
+   * same for everyone - seed, biome and mutator all come from the week.
+   * Weeks start on Monday, UTC. Its board works like the daily one.
+   */
+  const Weekly = {
+    current() {
+      const days = Date.now() / 86400000, week = Math.floor((days + 3) / 7), W = PH.WEEKLY;
+      const mutator = W.order[((week - W.first) % W.order.length + W.order.length) % W.order.length];
+      const seed = fnv('primal-hunt-weekly:' + week);
+      const endsIn = ((week + 1) * 7 - 3 - days) * 86400000;
+      return { kind: 'weekly', week, number: week - W.first + 1, seed, mutator, endsIn };
+    },
+    best(week) { const b = store.get('weekly', null); return b && b.week === week ? b : null; },
+    setBest(week, data) { store.set('weekly', { week, ...(this.best(week) || {}), ...data }); },
+    async board(week) {
+      try {
+        const r = await fetch(`/api/primal-hunt/weekly?week=${week}&device=${Daily.deviceId()}`, { cache: 'no-store' });
+        if (r.status === 503) return { offline: true };
+        const j = await r.json();
+        return r.ok ? j : { error: j.error || 'unavailable' };
+      } catch { return { offline: true }; }
+    },
+    async submit(entry) {
+      try {
+        const r = await fetch('/api/primal-hunt/weekly', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...entry, deviceId: Daily.deviceId() }) });
+        if (r.status === 503) return { offline: true };
+        const j = await r.json();
+        return r.ok ? j : { error: j.error || 'unavailable' };
+      } catch { return { offline: true }; }
+    },
+  };
+  PH.Weekly = Weekly;
 })();

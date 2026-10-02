@@ -400,6 +400,12 @@ body.big-hud #banner { font-size: 1.5em; }
 .unlock-chip.award { border-color: rgba(255, 215, 0, 0.8); background: linear-gradient(135deg, rgba(255, 215, 0, 0.18), rgba(255, 255, 255, 0.03)); cursor: default; }
 @media (max-width: 380px) { .ach-grid { grid-template-columns: 1fr; } }
 
+/* ── Weekly mutator ───────────────────────────────────── */
+#daily-weekly[hidden], #night-veil[hidden] { display: none; }
+.weekly-card { border-color: #7dff9a; }
+#night-veil { position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle at var(--vx, 50%) var(--vy, 50%), rgba(2, 3, 8, 0) 0, rgba(2, 3, 8, 0) 20vmin, rgba(2, 3, 8, 0.86) 44vmin, rgba(2, 3, 8, 0.94) 80vmin); }
+
 /* ── Pause & game over ────────────────────────────────── */
 .small-panel { max-width: 360px; }
 .small-panel p { color: var(--muted); margin-top: 8px; }

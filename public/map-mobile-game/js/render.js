@@ -2081,7 +2081,7 @@ window.PH = window.PH || {};
 
     /** Ease the light, sky and ground toward the current evolution stage. */
     updateBiome(game, dt) {
-      const target = game.state === 'menu' ? 0 : Math.min(2, game.bossKills || 0);
+      const target = game.state === 'menu' ? 0 : game.forceNight ? 2 : Math.min(2, game.bossKills || 0);
       this.biome += (target - this.biome) * Math.min(1, dt * 0.6);
       const i = Math.min(1, Math.floor(this.biome)), k = this.biome - i;
       const ST = stages(), A = ST[i], B = ST[i + 1];
