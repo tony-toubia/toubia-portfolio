@@ -78,6 +78,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .hint { color: var(--muted); font-size: 0.82rem; line-height: 1.5; margin-top: 10px; }
 .menu-foot { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2px 14px; margin-top: 14px; }
 .menu-foot .link { white-space: nowrap; }
+.menu-foot .link.off { opacity: 0.55; }
 body.in-iframe #back-home { display: none; }
 body.in-iframe .menu-foot { justify-content: center; }
 

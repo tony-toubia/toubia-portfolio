@@ -25,13 +25,17 @@
   const ui = new PH.UI(game, render, monster, hunt);
   game.hooks = ui.hooks();
   monster.hooks = ui.hooks();
-  render.sfx = (n) => ui.sfx(n);
-  render.haptic = (a) => ui.haptic(Math.round(20 + a * 70));   // big hits rumble    // the storm's thunder comes from the renderer
+  render.sfx = (n) => ui.sfx(n);    // the storm's thunder comes from the renderer
+  render.haptic = (a) => ui.haptic(Math.round(20 + a * 70));   // big hits rumble
   hunt.hooks = ui.hooks();
 
   // Browsers only allow audio after a user gesture.
   const unlock = () => {
-    if (window.Sfx) { window.Sfx.init(); window.Sfx.resume(); ui.applyMute(); }
+    if (window.Sfx) {
+      window.Sfx.init(); window.Sfx.resume();
+      if (PH.Music) PH.Music.attach(window.Sfx);   // the adaptive score shares the effects' audio context
+      ui.applyMute();
+    }
     window.removeEventListener('pointerdown', unlock, true);
     window.removeEventListener('keydown', unlock, true);
   };
@@ -67,6 +71,7 @@
     const frozen = game.state === 'paused' || game.state === 'choice';
     render.frame(game, frozen ? 0 : dt);
     ui.frame();
+    if (PH.Music) PH.Music.update(PH.MusicEngine.mood(game), dt);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
