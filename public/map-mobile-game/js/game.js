@@ -69,9 +69,17 @@ window.PH = window.PH || {};
       this.fx.setPlayer(classId);
     }
 
-    /** `starter` replaces the class's starting weapon (an unlock; never in the Daily Hunt). */
-    newRun(classId, seed = (Math.random() * 1e9) | 0, starter = null) {
+    /**
+     * `starter` replaces the class's starting weapon (an unlock; never in the
+     * Daily Hunt). The biome comes from the seed unless one is given.
+     */
+    newRun(classId, seed = (Math.random() * 1e9) | 0, starter = null, biome = null) {
       this.rand = mulberry32(seed);
+      this.biomeId = biome && PH.World.BIOMES[biome] ? biome : PH.World.fromSeed(seed);
+      PH.World.set(this.biomeId);
+      this.poolList = null; this.poolT = 0; this.lavaT = 0; this.hazTick = 0; this.hazardDmg = 0;
+      const rub = PH.World.biome.rubble;
+      this.rubbleT = rub ? rub.every[0] + 6 : Infinity;
       this.classId = classId;
       this.time = 0;
       this.kills = 0;
@@ -125,7 +133,7 @@ window.PH = window.PH || {};
       this.player = {
         x: 0, z: 0, hp: P.hp, maxHp: P.hp, speed: P.speed, radius: P.radius, pickup: P.pickup,
         regen: P.regen, armor: 0, iframes: 0, facing: Math.PI, moving: false, damageTaken: 0,
-        dashT: 0, dashX: 0, dashZ: 0,
+        dashT: 0, dashX: 0, dashZ: 0, vx: 0, vz: 0, onIce: false, inBog: false,
       };
       this.weapons = [];
       this.passives = [];
@@ -134,8 +142,12 @@ window.PH = window.PH || {};
       this.player.hp = this.player.maxHp;
       this.state = 'playing';
       this.fx.clearRun();
+      this.fx.setWorld && this.fx.setWorld(this.biomeId);
       this.fx.setMonsterMode(false);
       this.fx.setPlayer(classId);
+      const B = PH.World.biome;
+      this.banner(`${B.icon} ${B.name.toUpperCase()}`, 'boss');
+      if (B.blurb && this.biomeId !== 'meadow') this.hooks.onToast && this.hooks.onToast(`${B.icon} ${B.blurb}`);
       // Build this run's three monsters now, while the screen is changing,
       // rather than mid-fight when each one arrives.
       this.fx.prepareBosses(this.bossOrder.map((type, i) => ({ type, stage: i + 1 })));
@@ -211,6 +223,7 @@ window.PH = window.PH || {};
       this.abilityCd = Math.max(0, this.abilityCd - dt);
       this.dodgeCd = Math.max(0, this.dodgeCd - dt);
       if (this.overdrive > 0) this.overdrive -= dt;
+      this.updateHazards(dt);
       this.updatePlayer(dt);
       this.updateZones(dt);
       this.buildGrid();
@@ -241,17 +254,77 @@ window.PH = window.PH || {};
         pl.dashT -= dt;
         pl.x += pl.dashX * v * dt; pl.z += pl.dashZ * v * dt;
         pl.moving = true;
-      } else if (pl.moving) {
-        const k = pl.speed * mag / Math.hypot(inp.x, inp.z);
-        pl.x += inp.x * k * dt;
-        pl.z += inp.z * k * dt;
-        pl.facing = Math.atan2(inp.x, inp.z);
+        pl.vx = pl.dashX * pl.speed; pl.vz = pl.dashZ * pl.speed;   // a roll onto ice keeps sliding
       } else {
-        const t = this.nearest(pl.x, pl.z, 12);
-        if (t) pl.facing = Math.atan2(t.x - pl.x, t.z - pl.z);
+        let tx = 0, tz = 0;
+        if (pl.moving) {
+          const bog = pl.inBog ? 1 - PH.World.biome.pool.slow : 1;
+          const k = pl.speed * bog * mag / Math.hypot(inp.x, inp.z);
+          tx = inp.x * k; tz = inp.z * k;
+          pl.facing = Math.atan2(inp.x, inp.z);
+        } else {
+          const t = this.nearest(pl.x, pl.z, 12);
+          if (t) pl.facing = Math.atan2(t.x - pl.x, t.z - pl.z);
+        }
+        if (pl.onIce) {
+          // On ice your speed only slowly follows the stick: you slide.
+          const a = 1 - Math.exp(-dt * PH.World.biome.pool.grip);
+          pl.vx = (pl.vx || 0) + (tx - (pl.vx || 0)) * a; pl.vz = (pl.vz || 0) + (tz - (pl.vz || 0)) * a;
+          if (Math.hypot(pl.vx, pl.vz) > 0.4) pl.moving = true;
+        } else { pl.vx = tx; pl.vz = tz; }
+        pl.x += pl.vx * dt; pl.z += pl.vz * dt;
       }
       if (pl.iframes > 0) pl.iframes -= dt;
       if (pl.regen > 0) pl.hp = Math.min(pl.maxHp, pl.hp + pl.regen * dt);
+    }
+
+    /**
+     * The biome's hazard. Pools near you are looked up twice a second; bog
+     * slows whoever wades in, ice makes you slide (see updatePlayer), lava
+     * burns, and in the ruins rubble falls near you every so often.
+     */
+    updateHazards(dt) {
+      const W = PH.World, B = W.biome, P = B.pool, pl = this.player;
+      if (P.kind !== 'water') {
+        this.poolT -= dt;
+        if (this.poolT <= 0 || !this.poolList) { this.poolT = 0.5; this.poolList = W.poolsNear(pl.x, pl.z, 24); }
+        const pools = this.poolList;
+        const here = pools.length && pl.dashT <= 0 ? W.inPool(pl.x, pl.z, pools) : null;
+        pl.onIce = P.kind === 'ice' && !!here;
+        pl.inBog = P.kind === 'bog' && !!here;
+        if (P.kind === 'lava' && here) {
+          this.lavaT -= dt;
+          if (this.lavaT <= 0) {
+            this.lavaT = 0.35;
+            const d = P.dps * 0.35 * (1 - pl.armor);
+            pl.hp -= d; pl.damageTaken += d; this.hazardDmg = (this.hazardDmg || 0) + d;
+            this.hooks.onPlayerHit && this.hooks.onPlayerHit(d);
+            this.fx.burst(pl.x, 0.3, pl.z, 6, 0xff7a1a, 2.5, 0.25, 0.45, -4, 0.8);
+          }
+        } else this.lavaT = 0;
+        // Creatures: bog slows them, lava burns them.
+        this.hazTick += dt;
+        if (this.hazTick >= 0.25 && pools.length) {
+          const k = this.hazTick;
+          this.hazTick = 0;
+          for (const e of this.enemies) {
+            if (!e.alive || !W.inPool(e.x, e.z, pools)) continue;
+            if (P.kind === 'bog') e.bogT = 0.3;
+            else if (P.kind === 'lava') this.hitEnemy(e, P.enemyDps * k / this.mods.dmg, 0, 0, 0, false);
+          }
+        }
+      }
+      // Ruins: rubble falls around you, some of it on where you are heading.
+      const R = B.rubble;
+      if (R && (this.rubbleT -= dt) <= 0) {
+        this.rubbleT = R.every[0] + this.rand() * (R.every[1] - R.every[0]);
+        for (let i = 0; i < R.count; i++) {
+          const lead = i === 0 ? 1.2 : 0;
+          const a = this.rand() * Math.PI * 2, d = i === 0 ? 0.6 : 1.5 + this.rand() * R.near;
+          const x = pl.x + (pl.vx || 0) * lead + Math.cos(a) * d, z = pl.z + (pl.vz || 0) * lead + Math.sin(a) * d;
+          this.telegraphs.push({ shape: 'circle', x, z, r: R.r, t: 0, dur: R.delay + i * 0.18, color: 0xd9b27a, rubble: R.dmg, rubbleE: R.enemyDmg });
+        }
+      }
     }
 
     damagePlayer(amount) {
@@ -545,6 +618,7 @@ window.PH = window.PH || {};
           }
         }
 
+        if (e.bogT > 0) { e.bogT -= dt; spd *= 1 - PH.World.biome.pool.slow; }
         e.x += (mvx * spd + e.kx) * dt;
         e.z += (mvz * spd + e.kz) * dt;
         const kd = Math.exp(-dt * 9);
@@ -1223,6 +1297,18 @@ window.PH = window.PH || {};
           continue;
         }
         if (t.by && t.t >= t.dur) { this.telegraphs.splice(i, 1); continue; }
+        if (t.rubble && t.t >= t.dur) {
+          // Falling masonry: hurts you if you are under it, and crushes creatures.
+          const pl = this.player;
+          if (dist2(t.x, t.z, pl.x, pl.z) < (t.r + pl.radius * 0.5) ** 2) this.damagePlayer(t.rubble);
+          this.query(t.x, t.z, t.r, (e) => this.hitEnemy(e, t.rubbleE / this.mods.dmg, 0, 0, 0));
+          this.fx.explosion(t.x, t.z, t.r, 0xb89466);
+          this.fx.burst(t.x, 1.2, t.z, 16, 0x8a7656, 5, 0.35, 0.6, 10, 2);
+          this.fx.addShake(0.25);
+          this.sfx('hit');
+          this.telegraphs.splice(i, 1);
+          continue;
+        }
         if (t.strike && t.t >= t.dur) {
           this.blast(t.x, t.z, t.r, t.strike, 0x4ecdc4);
           this.fx.burst(t.x, 3, t.z, 12, 0xbff8ff, 1, 0.5, 0.35, -8, -2);

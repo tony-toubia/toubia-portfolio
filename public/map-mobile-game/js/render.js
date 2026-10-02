@@ -129,11 +129,8 @@ window.PH = window.PH || {};
    * blood-red night for the final fight, so every run has a visible arc.
    * r128 treats these as linear colours, so they are darker than they look.
    */
-  const BIOMES = [
-    { bg: 0x14182a, amb: 0x404060, ambI: 0.40, sky: 0x87ceeb, gnd: 0x2d5016, hemiI: 0.30, sun: 0xfff5e0, sunI: 1.00, tint: [1, 1, 1],       tuft: 0x1c4417, mote: 0xd8ff6a, mist: 0xd8ecff, mistA: 0.08, sunDir: [-0.45, 1, 0.55] },
-    { bg: 0x22132e, amb: 0x4a3560, ambI: 0.40, sky: 0xc07aa0, gnd: 0x2a2016, hemiI: 0.30, sun: 0xffa070, sunI: 0.72, tint: [1.12, 0.7, 1.3],  tuft: 0x2a2a26, mote: 0xffb35c, mist: 0xd6b8ff, mistA: 0.12, sunDir: [-1, 0.42, 0.3] },
-    { bg: 0x12050a, amb: 0x3a1a2a, ambI: 0.42, sky: 0x9a2a3a, gnd: 0x200808, hemiI: 0.30, sun: 0xff5040, sunI: 0.52, tint: [1.08, 0.55, 0.62], tuft: 0x341216, mote: 0xff4a2a, mist: 0xff8a7a, mistA: 0.14, sunDir: [0.85, 0.62, -0.35] },
-  ];
+  // Light for each time of day comes from the current biome (world.js).
+  const stages = () => PH.World.biome.stages;
   const AFFIX_GLOW = { swift: [0.35, 0.75, 1], titanic: [1, 0.75, 0.35], volatile: [1, 0.3, 0.08], brood: [0.6, 1, 0.3] };
   const _ca = new THREE.Color(), _cb = new THREE.Color();
   const mixHex = (out, a, b, k) => out.copy(_ca.setHex(a)).lerp(_cb.setHex(b), k);
@@ -324,8 +321,8 @@ window.PH = window.PH || {};
       // Ruins: broken stone pillars.
       const pillar = new THREE.BoxGeometry(0.55, 1, 0.55); pillar.translate(0, 0.5, 0);
       this.ruinMat = L.toonMaterial({ color: 0x2c2f37, flatShading: true });
-      this.ruins = inst(pillar, this.ruinMat, 60);
-      this.ruinOutline = inst(pillar, L.outlineMaterial, 60);
+      this.ruins = inst(pillar, this.ruinMat, 200);
+      this.ruinOutline = inst(pillar, L.outlineMaterial, 200);
       // Rocks get the same toon look.
       this.rocks.material = L.toonMaterial({ color: 0x262931, flatShading: true });
       this.rockOutline = inst(this.rocks.geometry, L.outlineMaterial, this.rocks.count);
@@ -361,17 +358,17 @@ window.PH = window.PH || {};
       const runeBar = (w, h, x, y, rz) => { const g = new THREE.BoxGeometry(w, h, 0.03); g.rotateZ(rz); g.translate(x, y, 0.2); return g; };
       const rune = mergeGeos([runeBar(0.05, 0.62, 0, 1.25, 0), runeBar(0.04, 0.3, 0.09, 1.38, 0.65), runeBar(0.04, 0.3, -0.09, 1.38, -0.65),
         runeBar(0.2, 0.04, 0, 0.92, 0), runeBar(0.04, 0.2, 0.08, 1.05, -0.4)]);
-      this.stones = inst(stone, L.toonMaterial({ color: 0x3a3e49, flatShading: true }), 24);
-      this.stoneOutline = inst(stone, L.outlineMaterial, 24);
+      this.stones = inst(stone, L.toonMaterial({ color: 0x3a3e49, flatShading: true }), 60);
+      this.stoneOutline = inst(stone, L.outlineMaterial, 60);
       this.runeMat = new THREE.MeshBasicMaterial({ color: 0x7fd0ff });
       this.runeMat.toneMapped = false;
-      this.runes = inst(rune, this.runeMat, 24);
+      this.runes = inst(rune, this.runeMat, 60);
       // Bones: an old rib cage and skull, half sunk in the grass.
       const ribParts = [];
       for (let k = 0; k < 4; k++) { const r = new THREE.TorusGeometry(0.42 - k * 0.06, 0.035, 3, 8, Math.PI); r.scale(1, 0.85, 1); r.translate(0, 0, -0.45 + k * 0.28); ribParts.push(r); }
       const spine = new THREE.CylinderGeometry(0.04, 0.04, 1.3, 4); spine.rotateX(Math.PI / 2); spine.translate(0, 0.04, -0.05); ribParts.push(spine);
       const skull = new THREE.IcosahedronGeometry(0.17, 0); skull.scale(1, 0.8, 1.2); skull.translate(0, 0.1, 0.78); ribParts.push(skull);
-      this.boneMesh = inst(mergeGeos(ribParts), L.toonMaterial({ color: 0xd8ccb0, flatShading: true }), 24);
+      this.boneMesh = inst(mergeGeos(ribParts), L.toonMaterial({ color: 0xd8ccb0, flatShading: true }), 40);
       // Pebbles, mostly along the worn paths.
       const pebble = new THREE.DodecahedronGeometry(0.1, 0); pebble.scale(1, 0.6, 1); pebble.translate(0, 0.03, 0);
       this.pebbles = inst(pebble, L.toonMaterial({ color: 0x6a6866, flatShading: true }), 900, true);
@@ -388,21 +385,32 @@ window.PH = window.PH || {};
         return g;
       };
       this.pondMat = new THREE.MeshStandardMaterial({ color: 0x06161c, roughness: 0.2, metalness: 0.25, polygonOffset: true, polygonOffsetFactor: -2 });
-      this.ponds = inst(blob(1, 1.3), this.pondMat, 12);
-      this.banks = inst(blob(1.25, 1.3), new THREE.MeshLambertMaterial({ color: 0x1c150d, polygonOffset: true, polygonOffsetFactor: -1 }), 12);
+      this.ponds = inst(blob(1, 1.3), this.pondMat, 48);
+      this.ponds.count0 = 48;
+      this.banks = inst(blob(1.25, 1.3), new THREE.MeshLambertMaterial({ color: 0x1c150d, polygonOffset: true, polygonOffsetFactor: -1 }), 48);
       for (const m of [this.ponds, this.banks]) { m.receiveShadow = true; m.renderOrder = -3; }
       const reed = new THREE.ConeGeometry(0.035, 0.9, 3); reed.translate(0, 0.45, 0);
-      this.reeds = inst(reed, L.windify(new THREE.MeshLambertMaterial({ color: 0x4a6b2a }), 0.22), 500, true);
+      this.reeds = inst(reed, L.windify(new THREE.MeshLambertMaterial({ color: 0x4a6b2a }), 0.22), 900, true);
       const pad = new THREE.CircleGeometry(0.16, 7, 0.4, Math.PI * 2 - 0.5); pad.rotateX(-Math.PI / 2); pad.translate(0, 0.03, 0);
-      this.pads = inst(pad, new THREE.MeshLambertMaterial({ color: 0x3f7a2e, side: THREE.DoubleSide }), 160, true);
+      this.pads = inst(pad, new THREE.MeshLambertMaterial({ color: 0x3f7a2e, side: THREE.DoubleSide }), 300, true);
       // Dead trees: bare trunks with a few crooked branches - height and long
       // shadows without a canopy hiding the fight underneath.
       const limb = (r0, r1, len, x, y, z, rx, rz) => { const g = new THREE.CylinderGeometry(r1, r0, len, 5); g.translate(0, len / 2, 0); g.rotateZ(rz); g.rotateX(rx); g.translate(x, y, z); return g; };
       const deadTree = mergeGeos([limb(0.22, 0.12, 2.4, 0, 0, 0, 0, 0.08), limb(0.1, 0.03, 1.1, 0.05, 1.5, 0, 0.2, -0.9), limb(0.09, 0.03, 0.9, -0.02, 1.9, 0, -0.4, 0.8),
         limb(0.07, 0.02, 0.8, 0.1, 2.25, 0, 0.6, -0.3), limb(0.08, 0.02, 0.7, 0, 1.1, 0.05, -1.0, 0.2)]);
-      this.deadTrees = inst(deadTree, L.toonMaterial({ color: 0x2b2019, flatShading: true }), 30);
-      this.deadTreeOutline = inst(deadTree, L.outlineMaterial, 30);
-      for (const m of [this.rocks, this.bushes, this.ruins, this.logs, this.stumps, this.stones, this.boneMesh, this.deadTrees]) { m.castShadow = true; m.receiveShadow = true; }
+      this.deadTrees = inst(deadTree, L.toonMaterial({ color: 0x2b2019, flatShading: true }), 60);
+      this.deadTreeOutline = inst(deadTree, L.outlineMaterial, 60);
+      // Crystal clusters: three tall shards (ice in the tundra, magma in the wastes).
+      const shard = (h, w, x, z, rx, rz) => { const g = new THREE.OctahedronGeometry(1, 0); g.scale(w, h, w); g.translate(0, h * 0.8, 0); g.rotateX(rx); g.rotateZ(rz); g.translate(x, 0, z); return g; };
+      const cluster = mergeGeos([shard(0.9, 0.22, 0, 0, 0, 0.05), shard(0.6, 0.17, 0.28, 0.08, 0.15, -0.45), shard(0.5, 0.15, -0.25, 0.12, -0.2, 0.5), shard(0.35, 0.12, 0.05, -0.28, -0.5, 0.1)]);
+      this.crystalMat = L.toonMaterial({ color: 0x9fd4ff, emissive: 0x3a8acc, emissiveIntensity: 0.35, flatShading: true });
+      this.crystalGlow = 0.35;
+      this.crystals = inst(cluster, this.crystalMat, 60, true);
+      this.crystalOutline = inst(cluster, L.outlineMaterial, 60);
+      this.weather = 'rain';
+      this.poolKind = 'water';
+      this.flakes = null;
+      for (const m of [this.rocks, this.bushes, this.ruins, this.logs, this.stumps, this.stones, this.boneMesh, this.deadTrees, this.crystals]) { m.castShadow = true; m.receiveShadow = true; }
 
       // Ground decals: blood where things died, scorch where things blew up.
       const splat = canvasTexture(128, (g, s) => {
@@ -515,6 +523,7 @@ window.PH = window.PH || {};
       // so slopes catch the moving sun, while the ground (and the fight on
       // it) stays flat. Hollows are a touch darker, crests a touch lighter.
       const H = (x, z) => noise2(x * 0.045, z * 0.045) + noise2(x * 0.13 + 3, z * 0.13 - 8) * 0.35;
+      const world = PH.World.current;
       for (let i = 0; i < pos.count; i++) {
         const wx = pos.getX(i) + cx, wz = pos.getZ(i) + cz;
         const hdx = (H(wx + 0.5, wz) - H(wx - 0.5, wz)), hdz = (H(wx, wz + 0.5) - H(wx, wz - 0.5));
@@ -525,16 +534,43 @@ window.PH = window.PH || {};
         const dry = noise2(wx * 0.025 + 40, wz * 0.025 - 13);
         // r128 treats colours as linear and sRGB-encodes them on output, so these
         // read far brighter on screen than they look here.
-        let r = 0.016 + n * 0.024 + dry * 0.05, g = 0.045 + n * 0.055 + dry * 0.03, b = 0.014 + n * 0.012;
-        // Dry, sun-bleached patches: a clear yellow-olive against the lush green.
         const parch = Math.max(0, (dry - 0.62) / 0.38);
-        r += (0.11 - r) * parch * 0.7; g += (0.1 - g) * parch * 0.6; b += (0.03 - b) * parch * 0.5;
-        // Worn dirt paths along ridges of a slow noise, and darker moss in hollows.
         const path = 1 - Math.abs(noise2(wx * 0.028 + 7, wz * 0.028 - 3) * 2 - 1);
         const p = Math.max(0, (path - 0.86) / 0.14);
-        r += (0.075 - r) * p; g += (0.05 - g) * p; b += (0.025 - b) * p;
         const moss = Math.max(0, noise2(wx * 0.11 - 20, wz * 0.11 + 5) - 0.62) * 2.2;
-        r *= 1 - moss * 0.35; g *= 1 - moss * 0.12; b *= 1 - moss * 0.3;
+        let r, g, b;
+        // Each biome's ground: a base that varies with the noise, its own
+        // patches (`parch`), worn paths and darker hollows (`moss`).
+        const mix = (pr, pg, pb, k) => { r += (pr - r) * k; g += (pg - g) * k; b += (pb - b) * k; };
+        if (world === 'swamp') {
+          r = 0.02 + n * 0.02; g = 0.034 + n * 0.042 + dry * 0.01; b = 0.016 + n * 0.012;
+          mix(0.034, 0.03, 0.016, parch * 0.75);                    // bare mud
+          mix(0.048, 0.038, 0.022, p);
+          r *= 1 - moss * 0.3; g *= 1 - moss * 0.05; b *= 1 - moss * 0.2;
+        } else if (world === 'tundra') {
+          const v = 0.36 + n * 0.14 + dry * 0.05;                   // snow, with windblown drifts
+          r = v * 0.9; g = v * 0.95; b = v * 1.05;
+          mix(0.075, 0.075, 0.08, parch * 0.85);                    // rock and frozen earth showing through
+          mix(0.24, 0.26, 0.31, p * 0.8);                           // packed snow on the paths
+          r *= 1 - moss * 0.12; g *= 1 - moss * 0.1; b *= 1 - moss * 0.04;
+        } else if (world === 'volcanic') {
+          r = 0.038 + n * 0.024 + dry * 0.012; g = 0.031 + n * 0.017; b = 0.028 + n * 0.015;
+          mix(0.011, 0.009, 0.009, parch * 0.9);                    // fresh black basalt
+          mix(0.065, 0.026, 0.014, p);                              // scorched red earth on the paths
+          r *= 1 - moss * 0.3; g *= 1 - moss * 0.3; b *= 1 - moss * 0.3;
+        } else if (world === 'ruins') {
+          r = 0.05 + n * 0.03 + dry * 0.05; g = 0.052 + n * 0.04 + dry * 0.03; b = 0.018 + n * 0.012;
+          mix(0.19, 0.145, 0.075, Math.max(0, (dry - 0.42) / 0.58) * 0.8);   // sand blown over the old city
+          mix(0.12, 0.11, 0.1, p);                                   // flagstones where the streets were
+          r *= 1 - moss * 0.3; g *= 1 - moss * 0.1; b *= 1 - moss * 0.25;
+        } else {
+          r = 0.016 + n * 0.024 + dry * 0.05; g = 0.045 + n * 0.055 + dry * 0.03; b = 0.014 + n * 0.012;
+          // Dry, sun-bleached patches: a clear yellow-olive against the lush green.
+          r += (0.11 - r) * parch * 0.7; g += (0.1 - g) * parch * 0.6; b += (0.03 - b) * parch * 0.5;
+          // Worn dirt paths along ridges of a slow noise, and darker moss in hollows.
+          mix(0.075, 0.05, 0.025, p);
+          r *= 1 - moss * 0.35; g *= 1 - moss * 0.12; b *= 1 - moss * 0.3;
+        }
         col.setXYZ(i, r * relief, g * relief, b * relief);
       }
       col.needsUpdate = true;
@@ -547,47 +583,87 @@ window.PH = window.PH || {};
       // ground's corner, which moved with every snap, so the whole layout
       // re-rolled as you walked; and the caps filled one side only.)
       const arena = this.monsterMode ? this.arenaR : Infinity;
-      const pathAt = (x, z) => Math.max(0, ((1 - Math.abs(noise2(x * 0.028 + 7, z * 0.028 - 3) * 2 - 1)) - 0.86) / 0.14);
-      const n = { t: 0, r: 0, f: 0, b: 0, u: 0, lg: 0, st: 0, ms: 0, sn: 0, bn: 0, pb: 0, pd: 0, rd: 0, lp: 0, dt: 0 };
+      const W = PH.World, B = W.biome, cuts = W.cuts(), pathAt = W.pathAt;
+      const wet = B.pool.kind === 'water' || B.pool.kind === 'bog';
+      const n = { t: 0, r: 0, f: 0, b: 0, u: 0, lg: 0, st: 0, ms: 0, sn: 0, bn: 0, pb: 0, pd: 0, rd: 0, lp: 0, dt: 0, cr: 0 };
       const pools = [];                                 // no grass growing in the ponds
-      const cell = 2.5;
+      const cell = W.CELL;
+      const kindOf = (h) => { for (const [k, c] of cuts.low) if (h < c) return k; return null; };
+      // Keep rocks, logs and the rest out of the water (or lava).
+      const water = W.poolsNear(cx, cz, this.groundSize / 2);
+      const wet2 = (x, z) => water.some((q) => (x - q.x) * (x - q.x) + (z - q.z) * (z - q.z) < (q.sc * 1.2) * (q.sc * 1.2));
       for (const [dx, dz] of this.cellOrder(cell)) {
         const gx = (Math.round(cx / cell) + dx) * cell, gz = (Math.round(cz / cell) + dz) * cell;
         const h = hash2(gx * 0.37, gz * 0.53);
         const ox = gx + hash2(gx, gz + 7) * cell, oz = gz + hash2(gx + 3, gz) * cell;
         if (Math.hypot(ox, oz) > arena) continue;     // outside a monster arena is forest
-        if (h < 0.05) {
+        if (h > cuts.pond) {
+          // The same pools the game logic sees (world.js), so a hazard is where it looks.
+          const pl = W.poolIn(gx, gz);
+          if (!pl || n.pd >= this.ponds.count0) continue;
+          if ((this.hidingGrass || []).some((q) => Math.hypot(q.x - ox, q.z - oz) < (q.r || 4) + 3)) continue;
+          const sc = pl.sc, rot = pl.rot;
+          pools.push([ox, oz, sc * 1.25]);
+          this.placeDecor(this.ponds, null, n.pd, ox, 0.012, oz, rot, sc, 1, sc * 0.8);
+          this.placeDecor(this.banks, null, n.pd++, ox, 0.008, oz, rot, sc, 1, sc * 0.8);
+          if (!wet) continue;
+          for (let k = 0; k < 16 && n.rd < 900; k++) {   // reeds around the bank, in clumps
+            const a = rot + k * 0.55 + hash2(k, gx) * 0.3, rr = sc * (1.05 + hash2(gz, k) * 0.25);
+            _c.setHSL(0.22 + hash2(k, gz) * 0.06, 0.45, 0.3 + hash2(gx, k) * 0.15);
+            const hs = 0.7 + hash2(gx + k, gz) * 0.8;
+            this.placeDecor(this.reeds, null, n.rd++, ox + Math.cos(a) * rr, 0, oz + Math.sin(a) * rr * 0.8, k, 1, hs, 1, _c);
+          }
+          for (let k = 0; k < 6 && n.lp < 300; k++) {    // lily pads on the water
+            const a = hash2(gx + k * 7, gz) * 6.3, rr = sc * 0.7 * Math.sqrt(hash2(gx, gz + k * 7));
+            _c.setHSL(B.pool.kind === 'bog' ? 0.2 : 0.27, 0.5, 0.25 + hash2(k, k + gx) * 0.12);
+            this.placeDecor(this.pads, null, n.lp++, ox + Math.cos(a) * rr, 0.012, oz + Math.sin(a) * rr * 0.8, a * 3, 1, 1, 1, _c);
+          }
+          continue;
+        }
+        if (wet2(ox, oz)) continue;
+        if (h > cuts.dead) {
+          if (n.dt >= 60) continue;
+          const sc = 0.9 + hash2(gx + 1, gz - 1) * 0.7;
+          this.placeDecor(this.deadTrees, this.deadTreeOutline, n.dt++, ox, 0, oz, h * 500, sc, sc, sc);
+          continue;
+        }
+        const kind = kindOf(h);
+        if (kind === 'rock') {
           if (n.r >= this.rockCap) continue;
           const sc = 0.5 + hash2(gx + 11, gz) * 0.9;
           this.placeDecor(this.rocks, this.rockOutline, n.r++, ox, sc * 0.25, oz, h * 40, sc, sc * 0.7, sc);
-        } else if (h < 0.08) {
+        } else if (kind === 'bush') {
+          const C = B.bush;
           for (let k = 0; k < 3 && n.b < 260; k++) {     // a small cluster of bushes
             const sc = 0.7 + hash2(gx + k * 3, gz + 1) * 0.7;
-            _c.setHSL(0.27 + hash2(gx, gz + k) * 0.08, 0.6, 0.05 + hash2(gx + k, gz) * 0.035);
+            _c.setHSL(C[0] + hash2(gx, gz + k) * C[1], C[2], C[3] + hash2(gx + k, gz) * C[4]);
             this.placeDecor(this.bushes, this.bushOutline, n.b++, ox + (k - 1) * 0.55, 0, oz + hash2(k, gz) * 0.6, h * 30 + k, sc, sc * 0.85, sc, _c);
           }
-        } else if (h < 0.086) {
-          for (let k = 0; k < 3 && n.u < 60; k++) {      // a broken colonnade
-            const ht = 0.5 + hash2(gx + k, gz - k) * 1.8;
-            this.placeDecor(this.ruins, this.ruinOutline, n.u++, ox + k * 1.1, 0, oz + (k % 2) * 0.4, h * 9 + k * 0.2, 1, ht, 1);
+        } else if (kind === 'ruin') {
+          // A broken colonnade; in the ruins, sometimes a stretch of wall.
+          const wall = PH.World.current === 'ruins' && hash2(gx - 4, gz + 4) < 0.35;
+          for (let k = 0; k < 3 && n.u < 200; k++) {
+            const ht = wall ? 0.7 + hash2(gx + k, gz - k) * 0.9 : 0.5 + hash2(gx + k, gz - k) * 1.8;
+            if (wall) this.placeDecor(this.ruins, this.ruinOutline, n.u++, ox + k * 0.95, 0, oz, h * 9, 1.75, ht, 0.6);
+            else this.placeDecor(this.ruins, this.ruinOutline, n.u++, ox + k * 1.1, 0, oz + (k % 2) * 0.4, h * 9 + k * 0.2, 1, ht, 1);
           }
-        } else if (h < 0.1) {
+        } else if (kind === 'log') {
           if (n.lg >= 40) continue;
           const sc = 0.8 + hash2(gx + 5, gz - 2) * 0.5;
           this.placeDecor(this.logs, this.logOutline, n.lg++, ox, 0, oz, h * 300, sc, sc, sc);
-        } else if (h < 0.11) {
+        } else if (kind === 'stump') {
           if (n.st >= 40) continue;
           const sc = 0.8 + hash2(gx - 5, gz + 2) * 0.6;
           this.placeDecor(this.stumps, this.stumpOutline, n.st++, ox, 0, oz, h * 200, sc, sc * (0.8 + hash2(gx, gz - 9) * 0.6), sc);
-        } else if (h < 0.116) {
-          if (n.sn >= 24) continue;
+        } else if (kind === 'stone') {
+          if (n.sn >= 60) continue;
           const sc = 0.85 + hash2(gx + 9, gz) * 0.5, rot = h * 900;
           this.placeDecor(this.stones, this.stoneOutline, n.sn, ox, 0, oz, rot, sc, sc, sc);
           this.placeDecor(this.runes, null, n.sn++, ox, 0, oz, rot, sc, sc, sc);
-        } else if (h < 0.122) {
-          if (n.bn >= 24) continue;
+        } else if (kind === 'bone') {
+          if (n.bn >= 40) continue;
           this.placeDecor(this.boneMesh, null, n.bn++, ox, -0.05, oz, h * 700, 1, 1, 1);
-        } else if (h < 0.16) {
+        } else if (kind === 'mush') {
           const hue = [0.5, 0.78, 0.44, 0.9][Math.floor(hash2(gx - 3, gz + 3) * 4)];
           for (let k = 0; k < 5 && n.ms < 400; k++) {    // a ring of glowing mushrooms
             const a = k * 1.3 + h * 50, d = 0.18 + hash2(gx + k, gz) * 0.35, sc = 0.6 + hash2(gx, gz + k) * 0.8;
@@ -596,32 +672,16 @@ window.PH = window.PH || {};
             this.placeDecor(this.mStems, null, n.ms, mx, 0, mz, a, sc, sc, sc);
             this.placeDecor(this.mCaps, null, n.ms++, mx, 0, mz, a, sc, sc, sc, _c);
           }
-        } else if (h > 0.985) {
-          if (n.pd >= 12 || pathAt(ox, oz) > 0.1) continue;
-          if ((this.hidingGrass || []).some((p) => Math.hypot(p.x - ox, p.z - oz) < (p.r || 4) + 3)) continue;
-          const sc = 1.3 + hash2(gx + 2, gz + 8) * 1.4, rot = hash2(gx, gz + 2) * 6.3;
-          pools.push([ox, oz, sc * 1.25]);
-          this.placeDecor(this.ponds, null, n.pd, ox, 0.012, oz, rot, sc, 1, sc * 0.8);
-          this.placeDecor(this.banks, null, n.pd++, ox, 0.008, oz, rot, sc, 1, sc * 0.8);
-          for (let k = 0; k < 16 && n.rd < 500; k++) {   // reeds around the bank, in clumps
-            const a = rot + k * 0.55 + hash2(k, gx) * 0.3, rr = sc * (1.05 + hash2(gz, k) * 0.25);
-            _c.setHSL(0.22 + hash2(k, gz) * 0.06, 0.45, 0.3 + hash2(gx, k) * 0.15);
-            const hs = 0.7 + hash2(gx + k, gz) * 0.8;
-            this.placeDecor(this.reeds, null, n.rd++, ox + Math.cos(a) * rr, 0, oz + Math.sin(a) * rr * 0.8, k, 1, hs, 1, _c);
-          }
-          for (let k = 0; k < 6 && n.lp < 160; k++) {    // lily pads on the water
-            const a = hash2(gx + k * 7, gz) * 6.3, rr = sc * 0.7 * Math.sqrt(hash2(gx, gz + k * 7));
-            _c.setHSL(0.27, 0.5, 0.25 + hash2(k, k + gx) * 0.12);
-            this.placeDecor(this.pads, null, n.lp++, ox + Math.cos(a) * rr, 0.012, oz + Math.sin(a) * rr * 0.8, a * 3, 1, 1, 1, _c);
-          }
-        } else if (h > 0.972) {
-          if (n.dt >= 30) continue;
-          const sc = 0.9 + hash2(gx + 1, gz - 1) * 0.7;
-          this.placeDecor(this.deadTrees, this.deadTreeOutline, n.dt++, ox, 0, oz, h * 500, sc, sc, sc);
-        } else if (h < 0.26 && (h < 0.2 || pathAt(ox, oz) > 0.15)) {
+        } else if (kind === 'crystal') {
+          if (n.cr >= 60) continue;
+          const sc = 0.8 + hash2(gx + 4, gz - 6) * 0.9, v = 0.85 + hash2(gx - 6, gz + 4) * 0.3;
+          _c.setRGB(v, v, v);
+          this.placeDecor(this.crystals, this.crystalOutline, n.cr++, ox, -0.05, oz, h * 77, sc, sc * (0.8 + hash2(gx, gz + 1) * 0.6), sc, _c);
+        } else if (kind === 'pebble') {
+          const C = B.pebble;
           for (let k = 0; k < 5 && n.pb < 900; k++) {    // a scatter of pebbles
             const sc = 0.5 + hash2(gx + k * 2, gz) * 1.1;
-            _c.setHSL(0.08, 0.08, 0.32 + hash2(gx, gz + k * 2) * 0.25);
+            _c.setHSL(C[0], C[1], C[2] + hash2(gx, gz + k * 2) * C[3]);
             this.placeDecor(this.pebbles, null, n.pb++, ox + (hash2(k, gz) - 0.5) * 1.4, 0, oz + (hash2(gx, k) - 0.5) * 1.4, k * 2.1, sc, sc, sc, _c);
           }
         }
@@ -632,9 +692,9 @@ window.PH = window.PH || {};
         if (n.t >= this.tuftCap) break;
         const gx = (Math.round(cx / gcell) + dx) * gcell, gz = (Math.round(cz / gcell) + dz) * gcell;
         const meadow = noise2(gx * 0.07 + 11, gz * 0.07 - 4) * 0.7 + noise2(gx * 0.21 - 2, gz * 0.21 + 6) * 0.3;
-        if (meadow < 0.36 || pathAt(gx, gz) > 0.25 || Math.hypot(gx, gz) > arena) continue;
+        if (meadow < B.grass || pathAt(gx, gz) > 0.25 || Math.hypot(gx, gz) > arena || wet2(gx + 0.5, gz + 0.5)) continue;
         if (pools.some(([px2, pz2, pr]) => Math.hypot(gx + 0.5 - px2, gz + 0.5 - pz2) < pr)) continue;
-        const lush = (meadow - 0.36) / 0.64;
+        const lush = (meadow - B.grass) / (1 - B.grass);
         for (let k = 0; k < 3 && n.t < this.tuftCap; k++) {
           if (k >= 1 && lush < 0.25 * k) break;
           const sc = 0.7 + lush * 0.8 + hash2(gx + k, gz - k) * 0.4;
@@ -650,7 +710,7 @@ window.PH = window.PH || {};
       for (const [dx, dz] of this.cellOrder(fcell)) {
         if (n.f >= 700) break;
         const gx = (Math.round(cx / fcell) + dx) * fcell, gz = (Math.round(cz / fcell) + dz) * fcell;
-        if (hash2(gx * 0.71 + 5, gz * 0.29 - 9) > 0.1 || Math.hypot(gx, gz) > arena) continue;
+        if (hash2(gx * 0.71 + 5, gz * 0.29 - 9) > B.flowers || Math.hypot(gx, gz) > arena || wet2(gx, gz)) continue;
         const hue = [0.13, 0.95, 0.8, 0.58, 0.0][Math.floor(hash2(gx, gz * 3) * 5)];
         for (let k = 0; k < 5 && n.f < 700; k++) {
           const fx = gx + (hash2(gx + k, gz) - 0.5) * 1.2, fz = gz + (hash2(gx, gz + k) - 0.5) * 1.2, sc = 0.8 + hash2(k, gx) * 0.5;
@@ -672,7 +732,8 @@ window.PH = window.PH || {};
       this.pebbles.count = n.pb;
       this.ponds.count = this.banks.count = n.pd; this.reeds.count = n.rd; this.pads.count = n.lp;
       this.deadTrees.count = this.deadTreeOutline.count = n.dt;
-      for (const m of [this.tufts, this.rocks, this.rockOutline, this.flowers, this.stems, this.bushes, this.bushOutline, this.ruins, this.ruinOutline,
+      this.crystals.count = this.crystalOutline.count = n.cr;
+      for (const m of [this.crystals, this.crystalOutline, this.tufts, this.rocks, this.rockOutline, this.flowers, this.stems, this.bushes, this.bushOutline, this.ruins, this.ruinOutline,
         this.logs, this.logOutline, this.stumps, this.stumpOutline, this.stones, this.stoneOutline, this.runes, this.boneMesh, this.mStems, this.mCaps, this.pebbles,
         this.ponds, this.banks, this.reeds, this.pads, this.deadTrees, this.deadTreeOutline]) {
         m.instanceMatrix.needsUpdate = true;
@@ -979,14 +1040,17 @@ window.PH = window.PH || {};
       }
       // Storm and rain once the final night has fallen.
       const night = Math.max(0, Math.min(1, (this.biome - 1.5) / 0.5));
-      if (night > 0.5 && dt > 0) {
+      if (night > 0.5 && dt > 0 && this.weather !== 'snow') {
         this.stormT -= dt;
         if (this.stormT <= 0) { this.stormT = 2.5 + Math.random() * 5; this.strike(); }
       }
       this.flash = Math.max(0, this.flash - dt * 5);
       this.rain.begin();
-      if (night > 0 && this.view) {
-        this.rain.mesh.material.opacity = 0.42 * night;
+      // The swamp drizzles from dusk; elsewhere it rains on the final night.
+      const wet = this.weather !== 'rain' ? 0 : PH.World.current === 'swamp' ? Math.max(night, Math.min(1, this.biome) * 0.55) : night;
+      this.drawFlakes(dt, night);
+      if (wet > 0 && this.view) {
+        this.rain.mesh.material.opacity = 0.42 * wet;
         const v = this.view, cx = this.camTarget.x, cz = this.camTarget.z;
         for (const d of this.drops) {
           if (dt > 0) { d.y -= d.v * dt; d.x -= 1.5 * dt; }
@@ -1014,6 +1078,45 @@ window.PH = window.PH || {};
         this.grade.setRipples(list);
         this.grade.setFlash(this.flash * night);
       }
+    }
+
+    /**
+     * Snow in the tundra (a blizzard by the final night), ash drifting down
+     * over the volcanic wastes. Flakes wander as they fall; built on first use.
+     */
+    drawFlakes(dt, night) {
+      const kind = this.weather === 'snow' || this.weather === 'ash' ? this.weather : null;
+      if (!kind && !this.flakes) return;
+      if (!this.flakes) {
+        const g = new THREE.OctahedronGeometry(0.06, 0);
+        this.flakes = new Batch(this.scene, g, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false, toneMapped: false }), 300, true);
+        this.flakeList = [];
+        for (let i = 0; i < 300; i++) this.flakeList.push({ x: (Math.random() - 0.5) * 30, y: Math.random() * 12, z: (Math.random() - 0.5) * 34, v: 0.8 + Math.random() * 1.4, ph: Math.random() * 6.3, s: 0.6 + Math.random() * 0.9 });
+      }
+      const F = this.flakes;
+      F.begin();
+      if (kind && this.view && this.qualityLevel < 2) {
+        const snow = kind === 'snow', v = this.view, cx = this.camTarget.x, cz = this.camTarget.z;
+        const count = snow ? Math.round(170 + night * 130) : 140, wind = snow ? 1.2 + night * 3.5 : 0.5;
+        F.mesh.material.opacity = snow ? 0.85 : 0.7;
+        for (let i = 0; i < count; i++) {
+          const d = this.flakeList[i];
+          if (dt > 0) {
+            d.y -= d.v * (snow ? 1 + night * 0.8 : 0.6) * dt;
+            d.x += (Math.sin(this.time * 1.3 + d.ph) * 0.6 - wind) * dt;
+            d.z += Math.cos(this.time * 0.9 + d.ph) * 0.3 * dt;
+          }
+          if (d.y < 0 || d.x < v.minX - 4) {
+            d.y = 8 + Math.random() * 5;
+            d.x = v.minX + Math.random() * (v.maxX - v.minX + 8);
+            d.z = v.minZ - 2 + Math.random() * (v.maxZ - v.minZ + 4);
+          }
+          // Ash: mostly grey flakes, with the odd glowing cinder.
+          const r = snow ? 1 : i % 9 === 0 ? 2.2 : 0.32, g = snow ? 1 : i % 9 === 0 ? 0.8 : 0.3, b = snow ? 1.05 : i % 9 === 0 ? 0.25 : 0.3;
+          F.add(cx + d.x, d.y, cz + d.z, d.ph + this.time, d.s, d.s, d.s, r, g, b);
+        }
+      }
+      F.end();
     }
 
     /* ── Monster mode ───────────────────────────────────────── */
@@ -1940,7 +2043,7 @@ window.PH = window.PH || {};
      */
     updateSun(cx, cz) {
       const i = Math.min(1, Math.floor(this.biome)), k = this.biome - i;
-      const A = BIOMES[i].sunDir, B = BIOMES[i + 1].sunDir;
+      const ST = stages(), A = ST[i].sunDir, B = ST[i + 1].sunDir;
       this.sunDir.set(A[0] + (B[0] - A[0]) * k, A[1] + (B[1] - A[1]) * k, A[2] + (B[2] - A[2]) * k).normalize();
       // Cover the visible ground, with margin for long dusk shadows.
       const v = this.view, span = Math.ceil(Math.max(v.maxX - v.minX, v.maxZ - v.minZ) * 0.62 + 4);
@@ -1962,7 +2065,7 @@ window.PH = window.PH || {};
       const target = game.state === 'menu' ? 0 : Math.min(2, game.bossKills || 0);
       this.biome += (target - this.biome) * Math.min(1, dt * 0.6);
       const i = Math.min(1, Math.floor(this.biome)), k = this.biome - i;
-      const A = BIOMES[i], B = BIOMES[i + 1];
+      const ST = stages(), A = ST[i], B = ST[i + 1];
       mixHex(this.scene.background, A.bg, B.bg, k);
       this.scene.fog.color.copy(this.scene.background);
       mixHex(this.ambient.color, A.amb, B.amb, k); this.ambient.intensity = A.ambI + (B.ambI - A.ambI) * k;
@@ -1984,13 +2087,44 @@ window.PH = window.PH || {};
       const night = Math.min(1, this.biome / 1.6), pulse = 1 + Math.sin(this.time * 1.7) * 0.15;
       this.capMat.emissiveIntensity = (0.22 + night * 0.9) * pulse;
       this.runeMat.color.setRGB(0.5, 0.8, 1.0).multiplyScalar((0.7 + night * 1.6) * pulse);
+      // Lava breathes; ice crystals and magma glints brighten after dark.
+      if (this.poolKind === 'lava') this.pondMat.emissiveIntensity = 1.05 + Math.sin(this.time * 2.1) * 0.22 + Math.sin(this.time * 5.3) * 0.08;
+      this.crystalMat.emissiveIntensity = this.crystalGlow * (0.8 + night * 0.9) * pulse;
+    }
+
+    /**
+     * Switch biome: scenery colours and materials, and which props and pools
+     * the ground gets (re-placed on the next frame). Light eases on its own.
+     */
+    setWorld(id) {
+      const B = PH.World.set(id), kind = B.pool.kind;
+      this.groundKey = null;
+      this.rocks.material.color.setHex(B.rock);
+      this.ruinMat.color.setHex(B.ruin);
+      this.stones.material.color.setHex(B.stone);
+      this.deadTrees.material.color.setHex(B.dead);
+      this.logs.material.color.setHex(B.wood);
+      this.boneMesh.material.color.setHex(B.bone);
+      this.wallMesh && this.wallMesh.material.color.setHex(B.rock);
+      // Pools: dark water, green bog, pale ice, glowing lava.
+      this.poolKind = kind;
+      const P = { water: [0x06161c, 0x000000, 0.2, 0.25, 0x1c150d], bog: [0x080c04, 0x020400, 0.16, 0.32, 0x1a140a],
+        ice: [0x2c5a80, 0x08243c, 0.05, 0.4, 0xb4c0cc], lava: [0x1a0400, 0xe2300a, 0.6, 0.0, 0x0e0806] }[kind];
+      this.pondMat.color.setHex(P[0]); this.pondMat.emissive.setHex(P[1]); this.pondMat.emissiveIntensity = kind === 'lava' ? 1.1 : 1;
+      this.pondMat.roughness = P[2]; this.pondMat.metalness = P[3];
+      this.banks.material.color.setHex(P[4]);
+      // Crystals: ice in the tundra, magma in the wastes.
+      this.crystalMat.color.setHex(id === 'volcanic' ? 0x2a0c06 : 0x9fd4ff);
+      this.crystalMat.emissive.setHex(id === 'volcanic' ? 0xff5a14 : 0x3a8acc);
+      this.crystalGlow = id === 'volcanic' ? 1.2 : 0.35;
+      this.weather = B.weather;
     }
 
     /** Fireflies by day, drifting dust at dusk, embers in the final night. */
     ambientMotes(game, dt) {
       if (dt <= 0 || this.qualityLevel > 0) return;
       this.moteAcc += dt * 14;
-      const v = this.view, P = this.p, ember = this.biome > 1.5;
+      const v = this.view, P = this.p, ember = this.biome > 1.5 || this.weather === 'ash';
       const cr = ((this.moteColor >> 16) & 255) / 255, cg = ((this.moteColor >> 8) & 255) / 255, cb = (this.moteColor & 255) / 255;
       while (this.moteAcc >= 1 && P.n < this.pMax) {
         this.moteAcc -= 1;
@@ -2119,7 +2253,7 @@ window.PH = window.PH || {};
     constructor() { this.view = { minX: -8, maxX: 8, minZ: -14, maxZ: 6 }; this.qualityLevel = 0; }
     burst() {} ring() {} explosion() {} lightningChain() {} addShake() {} strike() {}
     shockwave() {} enemyDeath() {} zoomPunch() {} dashTrail() {} muzzle() {} impact() {}
-    setMonsterMode() {} setHunters() {} setViewScale() {} flashPlayer() {} birds() {}
+    setMonsterMode() {} setHunters() {} setViewScale() {} flashPlayer() {} birds() {} setWorld() {}
     setPlayerMonster(type, stage) { return { radius: 1.1 + stage * 0.25, height: 3 }; }
     bossArrival() {} bossSlam() {} bossDeath() {} flashBoss() {} removeBoss() {} clearRun() {} setPlayer() {} prepareBosses() {}
     addBoss() { return { radius: 1.4, height: 3 }; }

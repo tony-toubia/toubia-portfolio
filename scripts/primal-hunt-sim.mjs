@@ -16,6 +16,7 @@
  *   node scripts/primal-hunt-sim.mjs --hunt          # hunter mode, a bot playing each class
  *   node scripts/primal-hunt-sim.mjs --starter       # Survival with each class's unlockable starting weapon
  *   node scripts/primal-hunt-sim.mjs --class support --weapon grenade   # any starting weapon
+ *   node scripts/primal-hunt-sim.mjs --biome volcanic  # Survival in a biome (default: meadow, so runs compare)
  *   node scripts/primal-hunt-sim.mjs --apex          # wins carry on into the Apex Hunt
  *
  * By default the bot fires its special when it is crowded or near a monster,
@@ -32,7 +33,7 @@ const dir = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../pu
 const ctx = { console, Math, Object, Array, Set, Map, Float32Array, Int32Array, Number, JSON };
 ctx.window = ctx;
 vm.createContext(ctx);
-for (const f of ['config.js', 'render.js', 'game.js', 'monster.js', 'hunt.js', 'progress.js']) {
+for (const f of ['config.js', 'world.js', 'render.js', 'game.js', 'monster.js', 'hunt.js', 'progress.js']) {
   // render.js defines PH.NullRender; its three.js parts are never touched.
   let src = fs.readFileSync(path.join(dir, f), 'utf8');
   if (f === 'render.js') src = 'var THREE = new Proxy({}, { get: () => function () {} });\n' + src;
@@ -63,7 +64,7 @@ function run(classId, seed, idle) {
     onBoss: (bs) => log.bosses.push({ t: Math.round(g.time), alive: bs.map((b) => `${b.name}:${Math.round(b.hp)}`) }),
     onBanner: (text) => log.events.push(`${Math.round(g.time)}s ${text}`),
   });
-  g.newRun(classId, seed, arg('--weapon') || (STARTER ? PH.Progress.STARTERS.find((s) => s.for === classId).weapon : null));
+  g.newRun(classId, seed, arg('--weapon') || (STARTER ? PH.Progress.STARTERS.find((s) => s.for === classId).weapon : null), arg('--biome') || 'meadow');
   const dt = PH.CONFIG.step;
   let orbit = 0, maxAlive = 0;
   while ((g.state !== 'over' || setTimeout0.length) && g.time < (APEX ? 1500 : 420)) {
@@ -92,6 +93,14 @@ function run(classId, seed, idle) {
         ix += dx / d * want; iz += dz / d * want;
         ix += -dz / d * 0.5; iz += dx / d * 0.5;   // strafe around it
       }
+      // Biome hazards a player can see: keep out of lava and bog.
+      const P = PH.World.biome.pool;
+      if ((P.kind === 'lava' || P.kind === 'bog') && g.poolList) {
+        for (const q of g.poolList) {
+          const dx = pl.x - q.x, dz = pl.z - q.z, d = Math.hypot(dx, dz) || 1, edge = q.sc * 1.6;
+          if (d < edge) { const w = (P.kind === 'lava' ? 1.4 : 0.6) * (1 - d / edge); ix += dx / d * w; iz += dz / d * w; }
+        }
+      }
       orbit += dt * 0.4;
       ix += Math.cos(orbit) * 0.15; iz += Math.sin(orbit) * 0.15;
       const m = Math.hypot(ix, iz);
@@ -106,8 +115,8 @@ function run(classId, seed, idle) {
         // Dodge a boss attack that is about to land on us - about half the time.
         if (g.dodgeCd <= 0 && Math.floor(g.time * 10) % 2 === 0) {
           for (const t of g.telegraphs) {
-            // Boss telegraphs, and the strikes bosses call down (lightning, warp blasts).
-            if (!(t.owner || t.bolt || t.blast) || t.t / t.dur < 0.6) continue;
+            // Boss telegraphs, the strikes bosses call down (lightning, warp blasts), falling rubble.
+            if (!(t.owner || t.bolt || t.blast || t.rubble) || t.t / t.dur < 0.6) continue;
             let inside, ax = pl.x - t.x, az = pl.z - t.z;
             if (t.shape === 'circle') inside = Math.hypot(ax, az) < t.r + 0.5;
             else {
@@ -129,7 +138,7 @@ function run(classId, seed, idle) {
     maxAlive = Math.max(maxAlive, g.aliveEnemies);
     if (g.state === 'choice') { /* handled synchronously in onChoice */ }
   }
-  return { classId, seed, bossOrder: g.bossOrder.join('>'), uses: g.abilityUses, dodges: g.dodges, evos: g.weapons.filter((w) => w.level > 5).length, ...(ended || { victory: false, time: g.time, kills: g.kills, level: g.level, bossKills: g.bossKills, score: g.score() }), maxAlive, dmgTaken: Math.round(g.player.damageTaken), apexWaves: g.apex ? g.apex.cleared || 0 : null, apexTime: apexAt === null ? null : g.time - apexAt, log };
+  return { classId, seed, bossOrder: g.bossOrder.join('>'), uses: g.abilityUses, dodges: g.dodges, evos: g.weapons.filter((w) => w.level > 5).length, ...(ended || { victory: false, time: g.time, kills: g.kills, level: g.level, bossKills: g.bossKills, score: g.score() }), maxAlive, dmgTaken: Math.round(g.player.damageTaken), hazard: Math.round(g.hazardDmg || 0), apexWaves: g.apex ? g.apex.cleared || 0 : null, apexTime: apexAt === null ? null : g.time - apexAt, log };
 }
 
 /**
@@ -260,7 +269,7 @@ const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(
 console.log(`${rows.length} runs in ${((Date.now() - t0) / 1000).toFixed(1)}s${idle ? '  (idle player)' : ''}\n`);
 console.log('class     seed   result   time   lvl  kills  bosses  peak-alive  dmg-taken  specials  dodges  evos');
 for (const r of rows) {
-  console.log(`${r.classId.padEnd(9)} ${String(r.seed).padStart(5)}   ${(r.victory ? 'WIN' : 'died').padEnd(6)}  ${fmt(r.time).padStart(5)}   ${String(r.level).padStart(3)}  ${String(r.kills).padStart(5)}   ${r.bossKills}/3     ${String(r.maxAlive).padStart(5)}     ${String(r.dmgTaken).padStart(6)}   ${String(r.uses).padStart(6)}  ${String(r.dodges).padStart(6)}  ${String(r.evos).padStart(4)}   ${r.victory ? '' : r.bossOrder}`);
+  console.log(`${r.classId.padEnd(9)} ${String(r.seed).padStart(5)}   ${(r.victory ? 'WIN' : 'died').padEnd(6)}  ${fmt(r.time).padStart(5)}   ${String(r.level).padStart(3)}  ${String(r.kills).padStart(5)}   ${r.bossKills}/3     ${String(r.maxAlive).padStart(5)}     ${String(r.dmgTaken).padStart(6)}${r.hazard ? `(${r.hazard})` : ""}   ${String(r.uses).padStart(6)}  ${String(r.dodges).padStart(6)}  ${String(r.evos).padStart(4)}   ${r.victory ? '' : r.bossOrder}`);
 }
 for (const c of classes) {
   const rs = rows.filter((r) => r.classId === c);
