@@ -84,8 +84,13 @@ window.PH = window.PH || {};
   };
 
   Look.outlineMaterial = OUTLINE;
-  /** Weak devices drop outlines first: hiding the shared material skips every shell. */
-  Look.setOutlines = (on) => { OUTLINE.visible = on; };
+  // Other outline materials (skinned and animated ones) register here so the
+  // quality ladder switches them with the rest.
+  const extraOutlines = new Set();
+  let outlinesOn = true;
+  Look.registerOutline = (m) => { m.visible = outlinesOn; extraOutlines.add(m); return m; };
+  /** Weak devices drop outlines first: hiding the shared materials skips every shell. */
+  Look.setOutlines = (on) => { outlinesOn = on; OUTLINE.visible = on; for (const m of extraOutlines) m.visible = on; };
 
   /**
    * Toon-shade a model and give its larger parts an outline shell. Materials
