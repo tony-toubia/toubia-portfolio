@@ -39,6 +39,7 @@ window.PH = window.PH || {};
       this.bestMonster = store.get('bestMonster', null);
       this.selectedClass = store.get('class', null);
       this.muted = store.get('muted', false);
+      this.musicOn = store.get('music', true);
       // Vibration on phones that support it (iOS Safari does not, so the toggle hides there).
       this.haptics = store.get('haptics', true);
       this.canVibrate = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
@@ -124,6 +125,8 @@ window.PH = window.PH || {};
       tap('btn-menu', () => this.toMenu());
       tap('btn-mute', () => this.toggleMute());
       tap('btn-pause-mute', () => this.toggleMute());
+      tap('btn-music', () => this.toggleMusic());
+      tap('btn-pause-music', () => this.toggleMusic());
       tap('btn-haptics', () => this.toggleHaptics());
       tap('btn-pause-haptics', () => this.toggleHaptics());
     }
@@ -411,11 +414,23 @@ window.PH = window.PH || {};
       this.hapticLen = len;
     }
 
+    toggleMusic() {
+      this.musicOn = !this.musicOn;
+      store.set('music', this.musicOn);
+      this.applyMute();
+    }
+
+    /** Sound off silences everything; Music off just the score. */
     applyMute() {
       if (window.Sfx) window.Sfx.setMuted(this.muted);
+      if (PH.Music) PH.Music.setEnabled(!this.muted && this.musicOn);
       const label = this.muted ? '🔇 Sound off' : '🔊 Sound on';
       $('btn-mute').textContent = label;
       $('btn-pause-mute').textContent = label;
+      const ml = this.musicOn ? '🎵 Music on' : '🎵 Music off';
+      $('btn-music').textContent = ml;
+      $('btn-pause-music').textContent = ml;
+      $('btn-music').classList.toggle('off', !this.musicOn || this.muted);
     }
 
     refreshBest() {

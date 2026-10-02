@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#14182a">
   <title>Primal Hunt</title>
   <meta name="description" content="Survive the swarm. Hunt the monster. A one-thumb arena game by Tony Toubia.">
-  <link rel="stylesheet" href="/map-mobile-game/css/game.css?v=18">
+  <link rel="stylesheet" href="/map-mobile-game/css/game.css?v=19">
 </head>
 <body>
   <!--
@@ -69,6 +69,7 @@
       <p class="hint">Drag anywhere to move. Attacks fire on their own.<br>Tap the big button for your special, the small one to dodge<span class="kb-only"> (Space / Shift)</span>.</p>
       <div class="menu-foot">
         <button class="link" id="btn-mute">🔊 Sound on</button>
+        <button class="link" id="btn-music">🎵 Music on</button>
         <button class="link" id="btn-haptics" hidden>📳 Vibration on</button>
         <a class="link" id="back-home" href="/">← tonytoubia.com</a>
       </div>
@@ -149,6 +150,7 @@
       <div id="pause-loadout"></div>
       <button class="btn primary" id="btn-resume">RESUME</button>
       <button class="btn" id="btn-pause-mute">🔊 Sound on</button>
+      <button class="btn" id="btn-pause-music">🎵 Music on</button>
       <button class="btn" id="btn-pause-haptics" hidden>📳 Vibration on</button>
       <button class="btn ghost" id="btn-quit">QUIT RUN</button>
     </div>
@@ -185,22 +187,23 @@
   </section>
 
   <script src="/map-mobile-game/vendor/three.min.js?v=r128"></script>
-  <script src="/map-mobile-game/js/config.js?v=18"></script>
-  <script src="/map-mobile-game/js/audio.js?v=18"></script>
-  <script src="/map-mobile-game/js/engine3d/Characters3D.js?v=18"></script>
-  <script src="/map-mobile-game/js/engine3d/Effects3D.js?v=18"></script>
+  <script src="/map-mobile-game/js/config.js?v=19"></script>
+  <script src="/map-mobile-game/js/audio.js?v=19"></script>
+  <script src="/map-mobile-game/js/music.js?v=19"></script>
+  <script src="/map-mobile-game/js/engine3d/Characters3D.js?v=19"></script>
+  <script src="/map-mobile-game/js/engine3d/Effects3D.js?v=19"></script>
   <script src="/map-mobile-game/vendor/GLTFLoader.js?v=r128"></script>
   <script src="/map-mobile-game/vendor/SkeletonUtils.js?v=r128"></script>
-  <script src="/map-mobile-game/js/look.js?v=18"></script>
-  <script src="/map-mobile-game/js/models.js?v=18"></script>
-  <script src="/map-mobile-game/js/creatures.js?v=18"></script>
-  <script src="/map-mobile-game/js/swarm.js?v=18"></script>
-  <script src="/map-mobile-game/js/render.js?v=18"></script>
-  <script src="/map-mobile-game/js/game.js?v=18"></script>
-  <script src="/map-mobile-game/js/monster.js?v=18"></script>
-  <script src="/map-mobile-game/js/hunt.js?v=18"></script>
-  <script src="/map-mobile-game/js/daily.js?v=18"></script>
-  <script src="/map-mobile-game/js/ui.js?v=18"></script>
-  <script src="/map-mobile-game/js/main.js?v=18"></script>
+  <script src="/map-mobile-game/js/look.js?v=19"></script>
+  <script src="/map-mobile-game/js/models.js?v=19"></script>
+  <script src="/map-mobile-game/js/creatures.js?v=19"></script>
+  <script src="/map-mobile-game/js/swarm.js?v=19"></script>
+  <script src="/map-mobile-game/js/render.js?v=19"></script>
+  <script src="/map-mobile-game/js/game.js?v=19"></script>
+  <script src="/map-mobile-game/js/monster.js?v=19"></script>
+  <script src="/map-mobile-game/js/hunt.js?v=19"></script>
+  <script src="/map-mobile-game/js/daily.js?v=19"></script>
+  <script src="/map-mobile-game/js/ui.js?v=19"></script>
+  <script src="/map-mobile-game/js/main.js?v=19"></script>
 </body>
 </html>
