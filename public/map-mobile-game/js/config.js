@@ -238,6 +238,18 @@ PH.ENEMIES = {
   brute:     { geo: 'large',  scale: 2.0, hp: 120, speed: 1.45, dmg: 16, xp: 10, radius: 0.85,
                colors: { primary: 0x3f4a6b, secondary: 0x1e2436, eye: 0xff4d4d } },
 
+  // Biome creatures: each stands in for half of one kind in its biome (see
+  // BIOME_CREATURES). `chill`: its bite slows you; `burst`: it flares as it
+  // dies; `split`: it breaks into two when killed; `armor`: damage it shrugs off.
+  frostmite: { geo: 'small',  scale: 1.6, hp: 11,  speed: 2.4, dmg: 6,  xp: 1, radius: 0.34, chill: { t: 1.1, k: 0.35 },
+               colors: { primary: 0x2f68a8, secondary: 0x183a66, eye: 0x9ff0ff } },
+  emberboar: { geo: 'medium', scale: 1.6, hp: 30,  speed: 2.1, dmg: 9,  xp: 3, radius: 0.5, burst: { r: 1.5, dmg: 7 },
+               colors: { primary: 0x7a2a14, secondary: 0x3a120a, eye: 0xff7a1a } },
+  bogleech:  { geo: 'small',  scale: 1.3, hp: 7,   speed: 3.2, dmg: 4,  xp: 1, radius: 0.3, split: 'swarmling',
+               colors: { primary: 0x4a5a22, secondary: 0x262e10, eye: 0xd8ff4a } },
+  golem:     { geo: 'large',  scale: 2.0, hp: 120, speed: 1.25, dmg: 18, xp: 14, radius: 0.88, armor: 0.4,
+               colors: { primary: 0x5e5a66, secondary: 0x34313c, eye: 0x7fd0ff } },
+
   // Monster mode's prey. `food` fills the evolution meter, `armor` refills armour.
   deer:      { geo: 'small',  scale: 2.4, hp: 14,  speed: 3.7, dmg: 0,  xp: 0, radius: 0.38, food: 9,  armor: 14,
                colors: { primary: 0x8b5a2b, secondary: 0x4a2e14, eye: 0x111111 } },
@@ -245,6 +257,14 @@ PH.ENEMIES = {
                colors: { primary: 0x5e4436, secondary: 0x2e2018, eye: 0x221111 } },
   megabeast: { geo: 'large',  scale: 2.5, hp: 170, speed: 2.0, dmg: 10, xp: 0, radius: 0.85, food: 36, armor: 60,
                colors: { primary: 0x56634a, secondary: 0x2a3122, eye: 0xffb347 } },
+};
+
+/* In each biome, half of one kind of creature is that biome's own. */
+PH.BIOME_CREATURES = {
+  tundra:   { critter: 'frostmite' },
+  volcanic: { boar: 'emberboar' },
+  swamp:    { swarmling: 'bogleech' },
+  ruins:    { brute: 'golem' },
 };
 
 /* Spawn director. `rate` is creatures per second and is interpolated

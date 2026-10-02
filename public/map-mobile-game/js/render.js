@@ -1818,6 +1818,7 @@ window.PH = window.PH || {};
           if (!down && !P.anim) this.chars.animateHunter(P.mesh, t, pl.moving);
           this.shadows.add(pl.x, 0.02, pl.z, 0, 0.55, 1, 0.55);
           if (pl.shieldT > 0) this.halos.add(pl.x, 1, pl.z, 0, 2.4, 2.4, 2.4, 0.15, 0.4, 0.9);
+          if (pl.chillT > 0) this.halos.add(pl.x, 0.7, pl.z, 0, 2, 2, 2, 0.25, 0.55, 0.85);   // chilled by a frost mite
           if (down) this.halos.add(pl.x, 0.4, pl.z, 0, 1.8, 1.8, 1.8, Math.floor(t * 4) % 2 ? 0.8 : 0.3, 0.05, 0.05);
         }
         if (game.overdrive > 0) {

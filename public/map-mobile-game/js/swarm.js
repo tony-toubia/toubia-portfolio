@@ -295,6 +295,36 @@ void swarmAnim( out mat3 R, out float S ) {
     return outlineMaterial;
   };
 
+  // The biome creatures: an original design in new colours, with something of
+  // their biome on them.
+  DESIGNS.frostmite = (K, c) => {
+    DESIGNS.critter(K, c);
+    // Ice shards growing out of its shell.
+    for (const [x, z, h, r] of [[0, 0.1, 0.42, 0.1], [-0.18, -0.15, 0.3, -0.35], [0.18, -0.12, 0.32, 0.4]]) {
+      K.add(cone(0.08, h, 4), { glow: true, color: c.eye, at: V(x, 0.72 + h * 0.4, z), rot: new THREE.Euler(0, 0, r) });
+    }
+  };
+  DESIGNS.emberboar = (K, c) => {
+    DESIGNS.boar(K, c);
+    // Molten cracks along its flanks and back.
+    for (const [x, y, z, w, l] of [[0, 0.98, -0.1, 0.06, 0.9], [-0.36, 0.7, 0, 0.04, 0.6], [0.36, 0.7, 0, 0.04, 0.6], [0, 0.85, 0.35, 0.3, 0.05]]) {
+      K.add(box(w, 0.04, l), { glow: true, color: c.eye, at: V(x, y, z) });
+    }
+  };
+  DESIGNS.bogleech = (K, c) => {
+    DESIGNS.swarmling(K, c);
+    // A swollen, glistening sac on its back.
+    K.add(ico(0.32, 1), { color: c.primary, at: V(0, 0.55, -0.25), scale: V(1, 0.8, 1.3), anim: [PULSE, 0.12, 0, 5] });
+    K.add(ico(0.12, 0), { glow: true, color: c.eye, at: V(0, 0.74, -0.25) });
+  };
+  DESIGNS.golem = (K, c) => {
+    DESIGNS.brute(K, c);
+    // Carved runes glowing on its chest and shoulders.
+    for (const [x, y, z, w, h] of [[0, 1.3, 0.62, 0.06, 0.4], [0, 1.4, 0.62, 0.3, 0.05], [-0.55, 1.75, 0.2, 0.2, 0.05], [0.55, 1.75, 0.2, 0.2, 0.05]]) {
+      K.add(box(w, h, 0.04), { glow: true, color: c.eye, at: V(x, y, z) });
+    }
+  };
+
   PH.Swarm = {
     uniforms,
     has: (type) => !!DESIGNS[type],
