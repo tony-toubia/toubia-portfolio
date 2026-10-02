@@ -268,7 +268,8 @@ window.PH = window.PH || {};
         let tx = 0, tz = 0;
         if (pl.moving) {
           const bog = pl.inBog ? 1 - PH.World.biome.pool.slow : 1;
-          const k = pl.speed * bog * mag / Math.hypot(inp.x, inp.z);
+          const chill = pl.chillT > 0 ? 1 - (pl.chillK || 0) : 1;
+          const k = pl.speed * bog * chill * mag / Math.hypot(inp.x, inp.z);
           tx = inp.x * k; tz = inp.z * k;
           pl.facing = Math.atan2(inp.x, inp.z);
         } else {
@@ -284,6 +285,7 @@ window.PH = window.PH || {};
         pl.x += pl.vx * dt; pl.z += pl.vz * dt;
       }
       if (pl.iframes > 0) pl.iframes -= dt;
+      if (pl.chillT > 0) pl.chillT -= dt;
       if (pl.regen > 0) pl.hp = Math.min(pl.maxHp, pl.hp + pl.regen * dt);
     }
 
@@ -495,6 +497,12 @@ window.PH = window.PH || {};
       return { rate: a.rate + (b.rate - a.rate) * k, mix: a.mix };
     }
 
+    /** Half of one kind of creature is the biome's own (PH.BIOME_CREATURES). */
+    biomeType(type) {
+      const sub = PH.BIOME_CREATURES[this.biomeId];
+      return sub && sub[type] && this.rand() < 0.5 ? sub[type] : type;
+    }
+
     pickType(mix) {
       let total = 0;
       for (const k in mix) total += mix[k];
@@ -558,7 +566,7 @@ window.PH = window.PH || {};
       while (this.spawnAcc >= 1) {
         this.spawnAcc -= 1;
         const p = this.spawnPoint();
-        this.spawnEnemy(this.pickType(wave.mix), p.x, p.z);
+        this.spawnEnemy(this.biomeType(this.pickType(wave.mix)), p.x, p.z);
       }
 
       if (this.time >= this.nextElite) {
@@ -684,6 +692,7 @@ window.PH = window.PH || {};
         const cr = e.radius + pl.radius;
         if (dist2(e.x, e.z, pl.x, pl.z) < cr * cr) {
           this.damagePlayer(e.dmg);
+          if (def.chill) { this.player.chillT = def.chill.t; this.player.chillK = def.chill.k; }   // frost mites: a numbing bite
           e.kx -= dx * 5; e.kz -= dz * 5;
         }
 
@@ -702,6 +711,8 @@ window.PH = window.PH || {};
       const crit = this.rand() < 0.08;
       if (crit) dmg *= 2;
       if (e.boss) return this.hitBoss(e, dmg, crit);
+      const arm = PH.ENEMIES[e.type].armor;
+      if (arm) dmg *= 1 - arm;          // stone golems shrug off part of every hit
       e.hp -= dmg;
       // Damage over time does not flash: a field ticks four times a second,
       // and flashing on every tick strobed everything inside it white.
@@ -719,6 +730,16 @@ window.PH = window.PH || {};
       this.aliveEnemies--;
       this.kills++;
       const def = PH.ENEMIES[e.type];
+      if (def.burst) {
+        // Ember boars flare as they die: keep your distance.
+        const B = def.burst, pl = this.player;
+        this.fx.explosion(e.x, e.z, B.r, 0xff6a1a);
+        if (dist2(e.x, e.z, pl.x, pl.z) < (B.r + pl.radius * 0.5) ** 2) this.damagePlayer(B.dmg);
+      }
+      if (def.split) {
+        // Bog leeches break into two.
+        for (const s of [-1, 1]) this.spawnEnemy(def.split, e.x + s * 0.4, e.z + s * 0.2);
+      }
       this.fx.enemyDeath(e);
       this.fx.burst(e.x, 0.5, e.z, e.elite ? 30 : 9, def.colors.primary, e.elite ? 6 : 3.5, 0.26, 0.45);
       this.fx.burst(e.x, 0.6, e.z, 3, def.colors.eye, 2.5, 0.2, 0.35);
