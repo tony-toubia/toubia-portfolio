@@ -34,7 +34,7 @@ window.PH = window.PH || {};
       this.pickFor = 'survival';
       this.bestHunt = store.get('bestHunt', null);
       this.render = render;
-      this.screens = ['menu', 'modes', 'classes', 'monsters', 'daily', 'lodge', 'choice', 'pause', 'over', 'nogl'];
+      this.screens = ['menu', 'modes', 'classes', 'monsters', 'daily', 'lodge', 'settings', 'choice', 'pause', 'over', 'nogl'];
       this.lodgeTab = 'skin';
       this.selectedMonster = store.get('monster', null);
       this.bestMonster = store.get('bestMonster', null);
@@ -86,6 +86,7 @@ window.PH = window.PH || {};
       this.bindInput();
       this.applyMute();
       this.applyHaptics();
+      this.applySettings();
       this.refreshBest();
     }
 
@@ -115,6 +116,12 @@ window.PH = window.PH || {};
       tap('btn-daily-back', () => this.show('menu'));
       tap('btn-daily-go', () => this.startDaily());
       tap('btn-lodge', () => this.openLodge());
+      tap('btn-settings', () => this.openSettings('menu'));
+      tap('btn-pause-settings', () => this.openSettings('pause'));
+      tap('btn-settings-back', () => this.show(this.settingsFrom || 'menu'));
+      tap('btn-share', () => this.shareResult());
+      for (const b of document.querySelectorAll('#set-quality button')) tap(b, () => { PH.Settings.set('quality', b.dataset.v); this.applySettings(); this.render.applyQualitySetting(); });
+      for (const b of document.querySelectorAll('.set-toggle')) tap(b, () => { PH.Settings.set(b.dataset.k, !PH.Settings.v[b.dataset.k]); this.applySettings(); });
       tap('btn-apex', () => this.startApex());
       tap('tab-daily', () => this.boardTab('daily'));
       tap('tab-apex', () => this.boardTab('apex'));
@@ -577,6 +584,118 @@ window.PH = window.PH || {};
       });
     }
 
+    /* ── Settings ───────────────────────────────────────────── */
+
+    openSettings(from) {
+      this.settingsFrom = from;
+      this.applySettings();
+      this.show('settings');
+    }
+
+    applySettings() {
+      const v = PH.Settings.v;
+      for (const b of document.querySelectorAll('#set-quality button')) { b.classList.toggle('on', b.dataset.v === v.quality); b.setAttribute('aria-checked', b.dataset.v === v.quality); }
+      for (const b of document.querySelectorAll('.set-toggle')) { b.classList.toggle('on', !!v[b.dataset.k]); b.setAttribute('aria-checked', !!v[b.dataset.k]); }
+      document.body.classList.toggle('big-hud', !!v.bigHud);
+    }
+
+    /** A monster's arrival: its name, and what it does (or its Apex mutation). */
+    bossCard(b, wave) {
+      const el = $('boss-card'), A = b.affix && PH.APEX ? PH.APEX.affixes[b.affix] : null, ab = PH.MONSTERS[b.type] && PH.MONSTERS[b.type].ability;
+      el.querySelector('.bc-name').textContent = `THE ${b.name.toUpperCase()}`;
+      el.querySelector('.bc-sub').textContent = A ? `${A.icon} ${A.name.toUpperCase()} · APEX WAVE ${wave}` : `STAGE ${b.stage}${ab ? ` · ${ab.icon} ${ab.name.toUpperCase()}` : ''}`;
+      el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+    }
+
+    /* ── Share card ─────────────────────────────────────────── */
+
+    /** Draw the result as an image and hand it to the phone's share sheet (or save it). */
+    async shareResult() {
+      const r = this.lastResult;
+      if (!r) return;
+      const btn = $('btn-share');
+      btn.disabled = true;
+      try {
+        const { blob, text } = await this.shareCard(r);
+        const url = location.origin + location.pathname;
+        const file = new File([blob], 'primal-hunt.png', { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: 'Primal Hunt', text: `${text} ${url}` });
+        } else {
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob); a.download = 'primal-hunt.png';
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+          try { await navigator.clipboard.writeText(`${text} ${url}`); this.toast('Image saved, and the message copied'); } catch { this.toast('Image saved'); }
+        }
+      } catch (e) {
+        if (!(e && e.name === 'AbortError')) this.toast('Could not share that');
+      } finally { btn.disabled = false; }
+    }
+
+    async shareCard(r) {
+      const W = 1080, H = 1350, c = document.createElement('canvas');
+      c.width = W; c.height = H;
+      const g = c.getContext('2d');
+      const bg = g.createLinearGradient(0, 0, 0, H);
+      bg.addColorStop(0, '#1b2038'); bg.addColorStop(1, '#090b14');
+      g.fillStyle = bg; g.fillRect(0, 0, W, H);
+      // The last moment of the run, behind the top of the card.
+      const shot = this.render.snapshot();
+      if (shot) {
+        const img = await new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = shot; });
+        if (img) {
+          const k = Math.max(W / img.width, 760 / img.height), w = img.width * k, h = img.height * k;
+          g.drawImage(img, (W - w) / 2, (760 - h) / 2, w, h);
+          const fade = g.createLinearGradient(0, 380, 0, 780);
+          fade.addColorStop(0, 'rgba(9,11,20,0)'); fade.addColorStop(1, 'rgba(14,16,30,1)');
+          g.fillStyle = fade; g.fillRect(0, 380, W, 400);
+        }
+      }
+      const font = (px, w = 900) => `${w} ${px}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+      g.textBaseline = 'alphabetic';
+      // Header
+      const title = g.createLinearGradient(0, 40, 0, 120);
+      title.addColorStop(0, '#ffd27a'); title.addColorStop(1, '#ff6b35');
+      g.fillStyle = title; g.font = font(64); g.textAlign = 'left';
+      g.shadowColor = 'rgba(0,0,0,0.6)'; g.shadowBlur = 18;
+      g.fillText('PRIMAL HUNT', 60, 110);
+      g.shadowBlur = 0;
+      // What happened
+      const T = this.game, biome = PH.World && T.biomeId ? PH.World.BIOMES[T.biomeId] : null;
+      const who = r.mode === 'monster' ? `${PH.MONSTERS[r.monsterType].icon} ${PH.MONSTERS[r.monsterType].name}`
+        : r.mode === 'hunt' ? `${PH.CLASSES[r.cls].icon} ${PH.CLASSES[r.cls].name}` : `${PH.CLASSES[r.classId].icon} ${PH.CLASSES[r.classId].name}`;
+      const mode = r.mode === 'monster' ? 'Monster' : r.mode === 'hunt' ? 'Hunter Squad' : r.apex ? 'Apex Hunt' : this.daily ? `Daily Hunt #${this.daily.number}` : 'Survival';
+      const head = $('over-title').textContent, win = $('over-title').classList.contains('win');
+      g.textAlign = 'center';
+      g.fillStyle = win ? '#ffd700' : '#ff5a6a'; g.font = font(110);
+      g.shadowColor = win ? 'rgba(255,215,0,0.45)' : 'rgba(255,70,90,0.4)'; g.shadowBlur = 30;
+      g.fillText(head, W / 2, 860);
+      g.shadowBlur = 0;
+      g.fillStyle = '#c8cde0'; g.font = font(40, 700);
+      g.fillText([mode, who, biome ? `${biome.icon} ${biome.name}` : null].filter(Boolean).join('  ·  '), W / 2, 930);
+      g.fillStyle = '#ffffff'; g.font = font(92);
+      g.fillText(`${r.score.toLocaleString()}`, W / 2, 1050);
+      g.fillStyle = '#9aa0b8'; g.font = font(30, 700);
+      g.fillText('SCORE', W / 2, 1092);
+      // The four stats from the results screen
+      const stats = [...document.querySelectorAll('#over-stats .stat')].map((el) => [el.querySelector('b').textContent, el.querySelector('span').textContent]);
+      const bw = 225, gap = 20, x0 = (W - (bw * 4 + gap * 3)) / 2;
+      stats.slice(0, 4).forEach(([v, l], i) => {
+        const x = x0 + i * (bw + gap);
+        g.fillStyle = 'rgba(255,255,255,0.07)'; g.beginPath(); g.roundRect ? g.roundRect(x, 1130, bw, 120, 18) : g.rect(x, 1130, bw, 120); g.fill();
+        g.fillStyle = '#ffffff'; g.font = font(48); g.fillText(v, x + bw / 2, 1195);
+        g.fillStyle = '#9aa0b8'; g.font = font(22, 700); g.fillText(l, x + bw / 2, 1232);
+      });
+      g.fillStyle = '#4ecdc4'; g.font = font(30, 700);
+      g.fillText(location.host + location.pathname.replace(/\/$/, ''), W / 2, 1310);
+      const blob = await new Promise((res) => c.toBlob(res, 'image/png'));
+      const text = r.apex ? `I cleared ${r.apex.waves} Apex Hunt waves in Primal Hunt - ${r.score.toLocaleString()} points. Can you go deeper?`
+        : this.daily ? `Daily Hunt #${this.daily.number}: ${r.score.toLocaleString()} in Primal Hunt. Beat it?`
+          : `${head} in Primal Hunt (${mode}, ${who.replace(/^\S+ /, '')}) - ${r.score.toLocaleString()} points. Can you beat it?`;
+      return { blob, text };
+    }
+
     toMenu() {
       this.daily = null;
       $('daily-chip').hidden = true;
@@ -711,7 +830,8 @@ window.PH = window.PH || {};
         },
         onChoice: (choices, kind) => this.openChoice(choices, kind),
         onLoadout: () => this.buildLoadout(),
-        onEnd: (r) => (r.mode === 'monster' ? this.monsterOver(r) : r.mode === 'hunt' ? this.huntOver(r) : this.gameOver(r)),
+        onEnd: (r) => { this.lastResult = r; return r.mode === 'monster' ? this.monsterOver(r) : r.mode === 'hunt' ? this.huntOver(r) : this.gameOver(r); },
+        onBossIntro: (b, wave) => this.bossCard(b, wave),
         onToast: (text) => this.toast(text),
         onEvolveReady: () => { if (navigator.vibrate) { try { navigator.vibrate([40, 60, 40]); } catch { /* iframe */ } } },
       };

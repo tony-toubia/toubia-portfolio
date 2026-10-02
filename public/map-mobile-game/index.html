@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#14182a">
   <title>Primal Hunt</title>
   <meta name="description" content="Survive the swarm. Hunt the monster. A one-thumb arena game by Tony Toubia.">
-  <link rel="stylesheet" href="/map-mobile-game/css/game.css?v=23">
+  <link rel="stylesheet" href="/map-mobile-game/css/game.css?v=24">
 </head>
 <body>
   <!--
@@ -55,6 +55,7 @@
     <div id="hbars"></div>
     <button id="btn-evolve" hidden>🧬 EVOLVE</button>
     <div id="toast"></div>
+    <div id="boss-card" aria-live="polite"><div class="bc-name"></div><div class="bc-sub"></div></div>
     <div id="banner"></div>
     <div id="numbers"></div>
     <div id="hurt"></div>
@@ -77,6 +78,7 @@
         <button class="link" id="btn-mute">🔊 Sound on</button>
         <button class="link" id="btn-music">🎵 Music on</button>
         <button class="link" id="btn-haptics" hidden>📳 Vibration on</button>
+        <button class="link" id="btn-settings">⚙️ Settings</button>
         <a class="link" id="back-home" href="/">← tonytoubia.com</a>
       </div>
     </div>
@@ -172,6 +174,25 @@
     </div>
   </section>
 
+  <section id="settings" class="screen modal">
+    <div class="panel small-panel settings-panel">
+      <div class="panel-head">
+        <button class="icon-btn" id="btn-settings-back" aria-label="Back">←</button>
+        <h2>SETTINGS</h2>
+      </div>
+      <div class="set-row">
+        <div class="sl">🎮 Graphics</div>
+        <div class="seg" id="set-quality" role="radiogroup">
+          <button data-v="auto" role="radio">AUTO</button><button data-v="high" role="radio">HIGH</button><button data-v="low" role="radio">LOW</button>
+        </div>
+      </div>
+      <p class="set-note">Auto lowers detail if your device struggles, raises it again when it can, and remembers what works.</p>
+      <button class="set-toggle" data-k="reduceMotion" role="switch"><span class="st-t">🌀 Reduce motion<small>Gentler screen shake, no camera push-ins</small></span><i></i></button>
+      <button class="set-toggle" data-k="cbSafe" role="switch"><span class="st-t">🎨 Colour-blind-safe warnings<small>Yellow for danger, blue for what is yours</small></span><i></i></button>
+      <button class="set-toggle" data-k="bigHud" role="switch"><span class="st-t">🔠 Larger HUD<small>Bigger text and bars while you play</small></span><i></i></button>
+    </div>
+  </section>
+
   <section id="choice" class="screen modal">
     <div class="panel choice-panel">
       <h2 id="choice-title">LEVEL UP</h2>
@@ -188,6 +209,7 @@
       <button class="btn" id="btn-pause-mute">🔊 Sound on</button>
       <button class="btn" id="btn-pause-music">🎵 Music on</button>
       <button class="btn" id="btn-pause-haptics" hidden>📳 Vibration on</button>
+      <button class="btn" id="btn-pause-settings">⚙️ SETTINGS</button>
       <button class="btn ghost" id="btn-quit">QUIT RUN</button>
     </div>
   </section>
@@ -227,6 +249,7 @@
       </div>
       <button class="btn apex-btn" id="btn-apex" hidden>⚔️ APEX HUNT · KEEP GOING</button>
       <button class="btn primary" id="btn-again">HUNT AGAIN</button>
+      <button class="btn share-btn" id="btn-share">📤 SHARE RESULT</button>
       <button class="btn ghost" id="btn-menu">MENU</button>
     </div>
   </section>
@@ -240,25 +263,26 @@
   </section>
 
   <script src="/map-mobile-game/vendor/three.min.js?v=r128"></script>
-  <script src="/map-mobile-game/js/config.js?v=23"></script>
-  <script src="/map-mobile-game/js/world.js?v=23"></script>
-  <script src="/map-mobile-game/js/progress.js?v=23"></script>
-  <script src="/map-mobile-game/js/audio.js?v=23"></script>
-  <script src="/map-mobile-game/js/music.js?v=23"></script>
-  <script src="/map-mobile-game/js/engine3d/Characters3D.js?v=23"></script>
-  <script src="/map-mobile-game/js/engine3d/Effects3D.js?v=23"></script>
+  <script src="/map-mobile-game/js/config.js?v=24"></script>
+  <script src="/map-mobile-game/js/world.js?v=24"></script>
+  <script src="/map-mobile-game/js/settings.js?v=24"></script>
+  <script src="/map-mobile-game/js/progress.js?v=24"></script>
+  <script src="/map-mobile-game/js/audio.js?v=24"></script>
+  <script src="/map-mobile-game/js/music.js?v=24"></script>
+  <script src="/map-mobile-game/js/engine3d/Characters3D.js?v=24"></script>
+  <script src="/map-mobile-game/js/engine3d/Effects3D.js?v=24"></script>
   <script src="/map-mobile-game/vendor/GLTFLoader.js?v=r128"></script>
   <script src="/map-mobile-game/vendor/SkeletonUtils.js?v=r128"></script>
-  <script src="/map-mobile-game/js/look.js?v=23"></script>
-  <script src="/map-mobile-game/js/models.js?v=23"></script>
-  <script src="/map-mobile-game/js/creatures.js?v=23"></script>
-  <script src="/map-mobile-game/js/swarm.js?v=23"></script>
-  <script src="/map-mobile-game/js/render.js?v=23"></script>
-  <script src="/map-mobile-game/js/game.js?v=23"></script>
-  <script src="/map-mobile-game/js/monster.js?v=23"></script>
-  <script src="/map-mobile-game/js/hunt.js?v=23"></script>
-  <script src="/map-mobile-game/js/daily.js?v=23"></script>
-  <script src="/map-mobile-game/js/ui.js?v=23"></script>
-  <script src="/map-mobile-game/js/main.js?v=23"></script>
+  <script src="/map-mobile-game/js/look.js?v=24"></script>
+  <script src="/map-mobile-game/js/models.js?v=24"></script>
+  <script src="/map-mobile-game/js/creatures.js?v=24"></script>
+  <script src="/map-mobile-game/js/swarm.js?v=24"></script>
+  <script src="/map-mobile-game/js/render.js?v=24"></script>
+  <script src="/map-mobile-game/js/game.js?v=24"></script>
+  <script src="/map-mobile-game/js/monster.js?v=24"></script>
+  <script src="/map-mobile-game/js/hunt.js?v=24"></script>
+  <script src="/map-mobile-game/js/daily.js?v=24"></script>
+  <script src="/map-mobile-game/js/ui.js?v=24"></script>
+  <script src="/map-mobile-game/js/main.js?v=24"></script>
 </body>
 </html>
