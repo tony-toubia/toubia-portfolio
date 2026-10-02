@@ -930,6 +930,12 @@ window.PH = window.PH || {};
       return { moving: e.moving, fast: e.rollT > 0 || e.dashT > 0, leap: e.leapT > 0, evolving: e.evolveT > 0, blink: e.iframes > 0, attack: v.attackN, ...extra };
     }
 
+    /** The first moments after the monster uses its ability: a casting pose. */
+    monsterCasting(game) {
+      const def = PH.MONSTERS[game.monsterType];
+      return !!def && game.monAbilityCd > def.ability.cd - 0.7;
+    }
+
     flashPlayer() { if (this.player) this.player.flash = 1; }
 
     /** Models arrive after the game starts: swap the player in if it now has one. */
@@ -1401,12 +1407,13 @@ window.PH = window.PH || {};
         if (P.isMonster) {
           P.root.position.y = pl.lift || 0;
           P.root.visible = true;
-          if (P.anim) P.anim.update(dt, this.monsterAnimState(P, pl, { dead: pl.hp <= 0 }));
+          if (P.anim) P.anim.update(dt, this.monsterAnimState(P, pl, { dead: pl.hp <= 0, cast: this.monsterCasting(game) }));
           else this.chars.animateMonster(P.mesh, t, pl.moving || pl.evolveT > 0);
           const pm = P.mesh.userData.primaryMaterial;
           if (pm) {
             P.flash = Math.max(0, P.flash - dt * 12);
-            const evo = pl.evolveT > 0 ? 0.6 + Math.sin(t * 20) * 0.4 : 0;
+            // The real models flare their own glow; a full-strength wash would paint them orange.
+            const evo = pl.evolveT > 0 ? (0.6 + Math.sin(t * 20) * 0.4) * (P.anim ? 0.2 : 1) : 0;
             pm.emissiveIntensity = P.baseGlow + P.flash * 0.35 + evo;
           }
           const sr = pl.radius * 1.15;
@@ -1483,7 +1490,8 @@ window.PH = window.PH || {};
         if (bs.hidden) continue;
         vb.root.position.set(bs.x, bs.lift || 0, bs.z);
         vb.root.rotation.y = bs.facing;
-        if (vb.anim) vb.anim.update(dt, this.monsterAnimState(vb, bs, { fast: bs.state === 'dash' || bs.rollT > 0, windup: bs.state === 'tele' }));
+        if (vb.anim) vb.anim.update(dt, this.monsterAnimState(vb, bs, { fast: bs.state === 'dash' || bs.rollT > 0, windup: bs.state === 'tele',
+          cast: game.mode === 'hunt' && this.monsterCasting(game) }));
         else this.chars.animateMonster(vb.mesh, t, bs.moving);
         const mats = vb.mesh.userData;
         if (mats.primaryMaterial) {
