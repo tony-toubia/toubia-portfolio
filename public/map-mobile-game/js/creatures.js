@@ -46,13 +46,14 @@ window.PH = window.PH || {};
       this.parts.push({ geo, bone, ...o });
     }
 
-    build(bodyMat, glowMat) {
+    /** `mats`: [body, glow, ...]; a part picks one with `mat` (or `glow: true` for 1). */
+    build(mats) {
       const root = this.bones[0];
       root.updateMatrixWorld(true);
       const pos = [], nor = [], col = [], si = [], sw = [];
-      const groups = [[], []];
+      const groups = mats.map(() => []);
       const m = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color();
-      for (const p of this.parts) groups[p.glow ? 1 : 0].push(p);
+      for (const p of this.parts) groups[p.mat !== undefined ? p.mat : p.glow ? 1 : 0].push(p);
       const ranges = [];
       let vcount = 0;
       groups.forEach((list, gi) => {
@@ -93,7 +94,7 @@ window.PH = window.PH || {};
       geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
       for (const [s, n, gi] of ranges) if (n > 0) geo.addGroup(s, n, gi);
       geo.computeBoundingSphere();
-      const mesh = new THREE.SkinnedMesh(geo, [bodyMat, glowMat]);
+      const mesh = new THREE.SkinnedMesh(geo, mats);
       mesh.add(root);
       mesh.updateMatrixWorld(true);
       mesh.bind(new THREE.Skeleton(this.bones));
@@ -279,7 +280,7 @@ window.PH = window.PH || {};
     const glowMat = new THREE.MeshBasicMaterial({ color: glowCol.clone(), skinning: true });
     glowMat.toneMapped = false;
 
-    const mesh = rig.build(bodyMat, glowMat);
+    const mesh = rig.build([bodyMat, glowMat]);
     mesh.castShadow = true; mesh.receiveShadow = false;
 
     // Size: the old model's footprint at this stage.
@@ -533,7 +534,7 @@ window.PH = window.PH || {};
     bodyMat.skinning = true;
     const glowMat = new THREE.MeshBasicMaterial({ color: glowCol.clone(), skinning: true });
     glowMat.toneMapped = false;
-    const mesh = rig.build(bodyMat, glowMat);
+    const mesh = rig.build([bodyMat, glowMat]);
     mesh.castShadow = true;
 
     const [w, h] = fit;
@@ -646,5 +647,388 @@ window.PH = window.PH || {};
     return { root, material: bodyMat, height: h, radius: w * 0.38, update: pose };
   };
 
-  PH.Creatures = { behemoth, wraith };
+
+  /* ── Kraken ──────────────────────────────────────────────────
+     A floating jellyfish-squid. A pulsing bell speckled with glowing spots,
+     big squid eyes at its rim, and a skirt of tentacles that multiplies with
+     each stage. When it casts, it rises, splays its tentacles and lightning
+     flickers along them. Stage 2 adds two long feeder arms with glowing
+     clubs; stage 3 a crown of crystal spires. */
+  const BELL = 0x46348a, BELL_DARK = 0x2a1f55, TENT = 0x3a2b70, DEEP = 0x0a0716;
+
+  const kraken = (stage, def, fit, helpers) => {
+    const S = Math.max(1, Math.min(3, stage));
+    const BASE = 1.55;                         // bell rim height
+    const NT = [6, 8, 10][S - 1];
+    const SEG = 4, SEGL = 0.36;
+    const rig = new Rig();
+    let seed = 21;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+
+    rig.bone('root', null, V(0, 0, 0));
+    rig.bone('body', 'root', V(0, BASE, 0));
+    rig.bone('bell', 'body', V(0, 0, 0));
+
+    // The bell: a dome on a lathe, scalloped at the rim, dark inside.
+    const prof = [[0.86, 0], [0.9, 0.12], [0.84, 0.36], [0.68, 0.62], [0.42, 0.82], [0.0, 0.9]].map(([x, y]) => new THREE.Vector2(x, y));
+    const bell = new THREE.LatheGeometry(prof, 14).toNonIndexed();
+    {
+      const P = bell.attributes.position;
+      for (let i = 0; i < P.count; i++) if (P.getY(i) < 0.01) {
+        const a = Math.atan2(P.getZ(i), P.getX(i));
+        P.setY(i, P.getY(i) - 0.07 - Math.cos(a * 7) * 0.05);
+      }
+    }
+    rig.add(bell, 'bell', { color: BELL, jitter: 0.1 });
+    rig.add(inside(bell, 0.95), 'bell', { color: DEEP, jitter: 0.02 });
+    // Glowing rim, spots in rings over the dome.
+    rig.add(new THREE.TorusGeometry(0.88, 0.032, 3, 28), 'bell', { glow: true, at: V(0, 0.02, 0), rot: new THREE.Euler(Math.PI / 2, 0, 0) });
+    const rows = S === 1 ? [[0.25, 7], [0.55, 5]] : [[0.22, 9], [0.48, 7], [0.7, 4]];
+    for (const [hgt, n] of rows) {
+      const y = 0.9 * hgt + 0.08, r = 0.86 * Math.cos(hgt * 1.35) + 0.02;
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * Math.PI * 2 + hgt * 3;
+        rig.add(new THREE.IcosahedronGeometry(0.045 + rnd() * 0.02, 0), 'bell', { glow: true, at: V(Math.sin(a) * r, y, Math.cos(a) * r) });
+      }
+    }
+    // Eyes: two big glowing eyes low on the front of the bell, slit pupils.
+    for (const side of [-1, 1]) {
+      const at = V(side * 0.38, 0.2, 0.75);
+      rig.add(new THREE.IcosahedronGeometry(0.15, 1), 'bell', { glow: true, at, scale: V(1, 0.8, 0.6) });
+      rig.add(new THREE.BoxGeometry(0.05, 0.2, 0.05), 'bell', { color: DEEP, jitter: 0, at: V(side * 0.38, 0.2, 0.84) });
+      rig.add(new THREE.TorusGeometry(0.16, 0.03, 3, 10), 'bell', { color: BELL_DARK, at: V(side * 0.38, 0.2, 0.76), rot: new THREE.Euler(0, side * 0.45, 0) });
+      // A heavy brow plate, low on the inside: it glares.
+      rig.add(new THREE.BoxGeometry(0.34, 0.08, 0.16), 'bell', { color: BELL_DARK, at: V(side * 0.36, 0.37, 0.74), rot: new THREE.Euler(0.2, side * 0.45, side * 0.38) });
+    }
+    // Squid fins swept back off the top of the bell: its shape from above.
+    for (const side of [-1, 1]) {
+      const fin = new THREE.ConeGeometry(0.34 + S * 0.06, 0.95 + S * 0.15, 4).toNonIndexed();
+      fin.scale(1, 1, 0.18);
+      rig.add(fin, 'bell', { color: BELL_DARK, jitter: 0.1, at: V(side * 0.62, 0.62, -0.28), rot: new THREE.Euler(-1.1, side * 0.5, side * 1.05) });
+      rig.add(new THREE.BoxGeometry(0.02, 0.8 + S * 0.12, 0.02), 'bell', { glow: true, at: V(side * 0.64, 0.64, -0.3), rot: new THREE.Euler(-1.1, side * 0.5, side * 1.05) });
+    }
+    if (S === 3) {
+      rig.add(new THREE.ConeGeometry(0.1, 0.6, 5), 'bell', { glow: true, at: V(0, 1.15, -0.05) });
+      for (let k = 0; k < 5; k++) {
+        const a = (k / 5) * Math.PI * 2;
+        rig.add(new THREE.ConeGeometry(0.07, 0.38, 4), 'bell', { glow: true, at: V(Math.sin(a) * 0.32, 0.95, Math.cos(a) * 0.32), rot: new THREE.Euler(Math.cos(a) * 0.4, 0, -Math.sin(a) * 0.4) });
+      }
+    }
+    // A frilled skirt under the rim.
+    const frill = new THREE.CylinderGeometry(0.78, 0.66, 0.22, 14, 1, true).toNonIndexed();
+    {
+      const P = frill.attributes.position;
+      for (let i = 0; i < P.count; i++) if (P.getY(i) < 0) {
+        const a = Math.atan2(P.getZ(i), P.getX(i));
+        P.setY(i, P.getY(i) - Math.abs(Math.sin(a * 5)) * 0.1);
+      }
+    }
+    rig.add(frill, 'body', { color: BELL_DARK, at: V(0, -0.14, 0), jitter: 0.08 });
+    rig.add(inside(frill, 0.97), 'body', { color: DEEP, at: V(0, -0.14, 0), jitter: 0.02 });
+
+    // Tentacles: chains of tapering segments, splayed in a skirt; lightning
+    // veins (material 2) run down each one, dark until it casts.
+    const tents = [];
+    const tentacle = (name, a, segs, len, r0, tip) => {
+      const chain = [];
+      let parent = 'body';
+      for (let j = 0; j < segs; j++) {
+        const bn = `${name}_${j}`;
+        const b = rig.bone(bn, parent, j === 0 ? V(Math.sin(a) * 0.58, -0.12, Math.cos(a) * 0.58) : V(0, -len, 0));
+        const ra = r0 * (1 - j / segs * 0.75), rb = r0 * (1 - (j + 1) / segs * 0.75);
+        rig.add(new THREE.CylinderGeometry(ra, rb, len * 1.08, 5), bn, { color: j % 2 ? TENT : BELL_DARK, at: V(0, -len / 2, 0), jitter: 0.08 });
+        rig.add(new THREE.BoxGeometry(0.018, len * 0.95, 0.018), bn, { mat: 2, at: V(0, -len / 2, ra * 0.85) });
+        chain.push(b);
+        parent = bn;
+      }
+      if (tip === 'club') rig.add(new THREE.IcosahedronGeometry(0.13, 0), `${name}_${segs - 1}`, { glow: true, at: V(0, -len, 0), scale: V(0.8, 1.4, 0.8) });
+      else rig.add(new THREE.ConeGeometry(r0 * 0.3, 0.16, 4), `${name}_${segs - 1}`, { glow: true, at: V(0, -len - 0.05, 0), rot: new THREE.Euler(Math.PI, 0, 0) });
+      return chain;
+    };
+    for (let i = 0; i < NT; i++) {
+      const a = (i / NT) * Math.PI * 2 + Math.PI / NT;
+      tents.push({ chain: tentacle('t' + i, a, SEG, SEGL * (0.9 + rnd() * 0.25), 0.12, 'tip'), a, ph: rnd() * 6, feeder: false });
+    }
+    if (S >= 2) {
+      for (const side of [-1, 1]) {
+        const a = side * 0.32;
+        tents.push({ chain: tentacle('f' + side, a, 6, 0.34, 0.075, 'club'), a, ph: rnd() * 6, feeder: true, side });
+      }
+    }
+
+    // Materials: body, glow, and the lightning veins.
+    const glowCol = new THREE.Color(0.42, 0.32, 1.0);
+    const arcCol = new THREE.Color(0.55, 0.85, 1.0);
+    const bodyMat = PH.Look.toonMaterial({ color: 0xffffff, vertexColors: true, flatShading: true, emissive: new THREE.Color(def.glow), emissiveIntensity: 0 });
+    bodyMat.skinning = true;
+    const glowMat = new THREE.MeshBasicMaterial({ color: glowCol.clone(), skinning: true });
+    glowMat.toneMapped = false;
+    const arcMat = new THREE.MeshBasicMaterial({ color: arcCol.clone(), skinning: true });
+    arcMat.toneMapped = false;
+
+    // The rest pose before measuring: tentacles splayed out, curving down.
+    const rest = (b, x, y) => { b.rotation.set(x, y || 0, 0, 'YXZ'); b.userData.rest.r = b.rotation.clone(); };
+    for (const T of tents) T.chain.forEach((b, j) => rest(b, j === 0 ? (T.feeder ? -0.3 : -0.85) : 0.24, j === 0 ? T.a : 0));
+
+    const mesh = rig.build([bodyMat, glowMat, arcMat]);
+    mesh.castShadow = true;
+    const [w, h] = fit;
+    mesh.updateMatrixWorld(true);
+    const box = new THREE.Box3();
+    for (const b of rig.bones) box.expandByPoint(new THREE.Vector3().setFromMatrixPosition(b.matrixWorld));
+    box.expandByPoint(V(0, BASE + 1.0, 0)); box.expandByPoint(V(0, 0, 0));
+    const size = box.getSize(V(0, 0, 0));
+    const k = Math.min((w * 0.92) / Math.max(size.x, size.z), (h * 0.95) / size.y);
+    const outline = new THREE.SkinnedMesh(mesh.geometry, helpers.skinnedOutline(0.03, 0.1 * k));
+    outline.bind(mesh.skeleton, mesh.bindMatrix);
+    outline.userData.outline = true;
+    outline.frustumCulled = false;
+    mesh.add(outline);
+
+    const inner = new THREE.Group();
+    inner.add(mesh);
+    inner.scale.setScalar(k);
+    const tilt = new THREE.Group();
+    tilt.add(inner);
+    const root = new THREE.Group();
+    root.add(tilt);
+
+    // ── Animation ──
+    const B = rig.byName;
+    const glowBase = [1.3, 1.7, 2.2][S - 1];
+    let t = rnd() * 10, move = 0, wind = 0, fast = 0, dead = 0, lash = 0, lastAttack = 0, pulseT = 0;
+
+    const pose = (dt, s) => {
+      t += dt;
+      move = ease(move, s.moving && !s.dead ? 1 : 0, 4, dt);
+      wind = ease(wind, (s.windup || s.cast || s.evolving) && !s.dead ? 1 : 0, 7, dt);
+      fast = ease(fast, s.fast && !s.dead ? 1 : 0, 8, dt);
+      dead = ease(dead, s.dead ? 1 : 0, 2.5, dt);
+      if (s.attack !== undefined && s.attack !== lastAttack) { lastAttack = s.attack; lash = 1; }
+      lash = Math.max(0, lash - dt * 3);
+      pulseT += dt * (2.2 + move * 2.5 + fast * 3);
+      const pulse = Math.sin(pulseT);
+
+      // Bell: contract and relax like a jellyfish; float and bob; rise to cast.
+      B.bell.scale.set(1 - pulse * 0.05, 1 + pulse * 0.07, 1 - pulse * 0.05);
+      B.body.position.set(0, BASE + Math.sin(t * 1.2) * 0.1 + pulse * 0.04 + wind * 0.35 - dead * (BASE - 0.55), 0);
+      B.body.rotation.set(move * 0.22 + fast * 0.3 - wind * 0.1, Math.sin(t * 0.4) * 0.15, dead * 0.5);
+
+      const sw = lash > 0 ? Math.sin((1 - lash) * Math.PI) : 0;
+      for (const T of tents) {
+        const back = Math.cos(T.a);   // +1 at the front
+        T.chain.forEach((b, j) => {
+          const r = b.userData.rest.r;
+          const wave = Math.sin(t * 2.4 + T.ph - j * 0.8 + pulseT * 0.3) * (0.14 + j * 0.03) * (1 + move * 0.6);
+          let x = r.x + wave;
+          if (j === 0) {
+            x += (move + fast) * back * 0.45 - wind * 0.55 - pulse * 0.08;
+            if (back > 0.55) x -= sw * 1.3;               // the front ones whip forward
+            if (T.feeder) x -= wind * 1.2 + sw * 0.6;      // feeders reach up to cast
+          } else {
+            x += wind * (T.feeder ? -0.12 : -0.3) + (move + fast) * 0.12;
+          }
+          x = lerp(x, 0.05 + (j === 0 ? -0.9 : 0.25), dead * 0.8);   // limp when dead
+          b.rotation.set(x, r.y, 0, 'YXZ');
+        });
+      }
+
+      tilt.position.y = 0;
+      // Glow pulses with the bell; lightning crackles while it casts.
+      const g = glowBase * (1 + pulse * 0.12) * (1 + wind * 0.8 + sw * 0.5) * (1 - dead * 0.85);
+      glowMat.color.copy(glowCol).multiplyScalar(g);
+      const crackle = wind > 0.05 ? wind * (Math.random() > 0.35 ? 3.2 : 0.5) : 0;
+      arcMat.color.copy(arcCol).multiplyScalar((0.12 + crackle + sw * 1.5) * (1 - dead));
+    };
+
+    return { root, material: bodyMat, height: h, radius: w * 0.38, update: pose };
+  };
+
+
+  /* ── Goliath ─────────────────────────────────────────────────
+     A hulking ape that walks on its knuckles: huge shoulders and forearms,
+     short legs, a low head under a heavy brow. Dark, faceted hide split by
+     molten cracks on its chest and forearms. It rears up and roars to wind
+     up, punches when it attacks, tucks and raises both fists for Leap Smash,
+     and beats its chest while it evolves. Stage 2 adds bone knuckle plates,
+     shoulder plates and a heavier brow; stage 3 glowing crystal spines down
+     its back and a molten core in its chest. */
+  const HIDE_G = 0x34302f, HIDE_G2 = 0x2a2626, SKIN_G = 0x4c3f3b, BONE_G = 0xd6c6a4;
+
+  const goliath = (stage, def, fit, helpers) => {
+    const S = Math.max(1, Math.min(3, stage));
+    const rig = new Rig();
+    let seed = 33;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const HIPY = 0.78, HUNCH = 0.55;
+
+    rig.bone('root', null, V(0, 0, 0));
+    rig.bone('hips', 'root', V(0, HIPY, -0.2));
+    rig.bone('chest', 'hips', V(0, 0.3, 0.1));
+    rig.byName.chest.rotation.x = HUNCH;
+    rig.byName.chest.userData.rest.r = rig.byName.chest.rotation.clone();
+    rig.bone('head', 'chest', V(0, 0.6, 0.58));
+    rig.byName.head.scale.setScalar(1.3);
+    rig.byName.head.userData.rest.s = rig.byName.head.scale.clone();
+    rig.byName.head.rotation.x = -HUNCH * 0.8;   // keep looking forward
+    rig.byName.head.userData.rest.r = rig.byName.head.rotation.clone();
+    rig.bone('jaw', 'head', V(0, -0.08, 0.1));
+
+    // Torso: a big rough chest and back hump over a smaller belly.
+    rig.add(rough(new THREE.IcosahedronGeometry(0.42, 1), 0.07, 2), 'hips', { color: HIDE_G2, scale: V(1.15, 0.85, 1.0), jitter: 0.12 });
+    rig.add(rough(new THREE.DodecahedronGeometry(0.62, 1), 0.06, 4), 'chest', { color: HIDE_G, at: V(0, 0.3, -0.02), scale: V(1.35, 1.0, 0.95), jitter: 0.12 });
+    rig.add(rough(new THREE.DodecahedronGeometry(0.42, 0), 0.08, 5), 'chest', { color: HIDE_G2, at: V(0, 0.55, -0.28), scale: V(1.3, 0.8, 0.9) });
+    rig.add(rough(new THREE.IcosahedronGeometry(0.36, 0), 0.06, 6), 'chest', { color: SKIN_G, at: V(0, 0.22, 0.32), scale: V(1.3, 1.1, 0.5) });
+    // Molten cracks across the chest.
+    const crack = (bone, at, len, rz, ry = 0, rx = 0) => rig.add(new THREE.BoxGeometry(0.05, len, 0.05), bone, { glow: true, at, rot: new THREE.Euler(rx, ry, rz) });
+    crack('chest', V(-0.2, 0.2, 0.6), 0.38, 0.5); crack('chest', V(0.2, 0.2, 0.6), 0.38, -0.5);
+    crack('chest', V(0, 0.0, 0.58), 0.24, 0);
+    // On the back too, where the camera sees it.
+    crack('chest', V(-0.22, 0.72, -0.3), 0.42, 0.35, 0, -1.0); crack('chest', V(0.22, 0.72, -0.3), 0.42, -0.35, 0, -1.0);
+    if (S >= 2) { crack('chest', V(-0.4, 0.42, 0.48), 0.3, -0.9, -0.5); crack('chest', V(0.4, 0.42, 0.48), 0.3, 0.9, 0.5);
+      crack('chest', V(0, 0.82, -0.12), 0.36, 0, 0, -1.2); }
+    if (S === 3) {
+      rig.add(new THREE.OctahedronGeometry(0.13, 0), 'chest', { glow: true, at: V(0, 0.32, 0.6), scale: V(1, 1.3, 0.6) });
+      for (let k = 0; k < 5; k++) {
+        rig.add(new THREE.ConeGeometry(0.08 + (k === 2 ? 0.03 : 0), 0.4 + (2 - Math.abs(k - 2)) * 0.12, 4), 'chest', { glow: true,
+          at: V(0, 0.75 - k * 0.12, -0.32 - k * 0.1), rot: new THREE.Euler(-0.5 - k * 0.15, 0, 0) });
+      }
+    }
+
+    // Head: a low skull under a heavy brow, glowing eyes, a jaw that drops to roar.
+    rig.add(rough(new THREE.BoxGeometry(0.44, 0.36, 0.4, 1, 1, 1), 0.06, 8), 'head', { color: HIDE_G, at: V(0, 0.06, 0) });
+    rig.add(new THREE.BoxGeometry(0.5, 0.1 + (S >= 2 ? 0.05 : 0), 0.16), 'head', { color: S >= 2 ? BONE_G : HIDE_G2, at: V(0, 0.2, 0.17), rot: new THREE.Euler(0.15, 0, 0) });
+    rig.add(new THREE.BoxGeometry(0.32, 0.16, 0.2), 'head', { color: SKIN_G, at: V(0, -0.02, 0.22) });
+    for (const side of [-1, 1]) rig.add(new THREE.BoxGeometry(0.08, 0.035, 0.03), 'head', { glow: true, at: V(side * 0.12, 0.11, 0.24), rot: new THREE.Euler(0, 0, side * 0.25) });
+    rig.add(new THREE.BoxGeometry(0.34, 0.1, 0.24), 'jaw', { color: SKIN_G, at: V(0, -0.06, 0.12) });
+    for (const side of [-1, 1]) rig.add(new THREE.ConeGeometry(0.025, 0.09, 3), 'jaw', { color: BONE_G, jitter: 0, at: V(side * 0.1, 0.02, 0.22) });
+
+    // Arms: long, with forearms thicker than the upper arms, and big fists.
+    const arms = [];
+    for (const [nm, side] of [['L', 1], ['R', -1]]) {
+      const a = rig.bone('arm' + nm, 'chest', V(side * 0.72, 0.36, 0.0));
+      const f = rig.bone('fore' + nm, 'arm' + nm, V(0, -0.56, 0));
+      const hnd = rig.bone('hand' + nm, 'fore' + nm, V(0, -0.62, 0));
+      rig.add(new THREE.CylinderGeometry(0.19, 0.15, 0.6, 6), 'arm' + nm, { color: HIDE_G, at: V(0, -0.28, 0) });
+      rig.add(rough(new THREE.DodecahedronGeometry(0.26, 0), 0.08, 10 + side), 'arm' + nm, { color: S >= 2 ? BONE_G : HIDE_G2, at: V(side * 0.04, 0.04, 0), scale: V(1, 0.8, 1) });
+      rig.add(new THREE.CylinderGeometry(0.17, 0.24, 0.66, 6), 'fore' + nm, { color: HIDE_G2, at: V(0, -0.31, 0) });
+      crack('fore' + nm, V(side * 0.1, -0.3, 0.17), 0.4, side * 0.15);
+      if (S >= 2) crack('fore' + nm, V(-side * 0.08, -0.36, 0.18), 0.3, -side * 0.2);
+      rig.add(rough(new THREE.BoxGeometry(0.34, 0.26, 0.32), 0.06, 12 + side), 'hand' + nm, { color: SKIN_G, at: V(0, -0.1, 0.02) });
+      if (S >= 2) {
+        rig.add(new THREE.BoxGeometry(0.36, 0.1, 0.1), 'hand' + nm, { color: BONE_G, at: V(0, -0.2, 0.15) });
+        if (S === 3) for (const kx of [-0.11, 0, 0.11]) rig.add(new THREE.ConeGeometry(0.035, 0.14, 4), 'hand' + nm, { glow: true, at: V(kx, -0.2, 0.25), rot: new THREE.Euler(Math.PI / 2, 0, 0) });
+      }
+      arms.push({ a, f, hnd, side });
+    }
+    // Legs: short and bowed.
+    const legs = [];
+    for (const [nm, side] of [['L', 1], ['R', -1]]) {
+      const th = rig.bone('thigh' + nm, 'hips', V(side * 0.28, -0.08, 0));
+      const sh = rig.bone('shin' + nm, 'thigh' + nm, V(0, -0.36, 0));
+      rig.add(new THREE.CylinderGeometry(0.17, 0.14, 0.4, 6), 'thigh' + nm, { color: HIDE_G, at: V(0, -0.18, 0) });
+      rig.add(new THREE.CylinderGeometry(0.14, 0.15, 0.36, 6), 'shin' + nm, { color: HIDE_G2, at: V(0, -0.17, 0) });
+      rig.add(new THREE.BoxGeometry(0.22, 0.1, 0.32), 'shin' + nm, { color: SKIN_G, at: V(0, -0.33, 0.06) });
+      legs.push({ th, sh, side });
+    }
+
+    // Rest pose: arms forward and down to the knuckles, slightly out.
+    const restR = (b, x, z) => { b.rotation.set(x, 0, z || 0); b.userData.rest.r = b.rotation.clone(); };
+    for (const A of arms) { restR(A.a, -HUNCH - 0.35, A.side * 0.12); restR(A.f, -0.25); restR(A.hnd, 0.6); }
+    for (const L of legs) { restR(L.th, -0.25, L.side * 0.08); restR(L.sh, 0.3); }
+
+    const glowCol = new THREE.Color(1.0, 0.32, 0.06);
+    const bodyMat = PH.Look.toonMaterial({ color: 0xffffff, vertexColors: true, flatShading: true, emissive: new THREE.Color(def.glow), emissiveIntensity: 0 });
+    bodyMat.skinning = true;
+    const glowMat = new THREE.MeshBasicMaterial({ color: glowCol.clone(), skinning: true });
+    glowMat.toneMapped = false;
+    const mesh = rig.build([bodyMat, glowMat]);
+    mesh.castShadow = true;
+
+    const [w, h] = fit;
+    const box = new THREE.Box3().setFromObject(mesh);
+    const size = box.getSize(V(0, 0, 0));
+    const k = Math.min((w * 0.9) / Math.max(size.x, size.z), (h * 0.95) / size.y);
+    const outline = new THREE.SkinnedMesh(mesh.geometry, helpers.skinnedOutline(0.035, 0.1 * k));
+    outline.bind(mesh.skeleton, mesh.bindMatrix);
+    outline.userData.outline = true;
+    outline.frustumCulled = false;
+    mesh.add(outline);
+    const inner = new THREE.Group();
+    inner.add(mesh);
+    inner.scale.setScalar(k);
+    inner.position.y = -box.min.y * k;
+    const tilt = new THREE.Group();
+    tilt.add(inner);
+    const root = new THREE.Group();
+    root.add(tilt);
+
+    // ── Animation ──
+    const B = rig.byName;
+    const glowBase = [1.3, 1.7, 2.3][S - 1];
+    let t = rnd() * 10, walk = 0, move = 0, wind = 0, fast = 0, leap = 0, dead = 0, beat = 0, punch = 0, punchSide = 0, lastAttack = 0;
+    const R = (b) => b.userData.rest.r;
+
+    const pose = (dt, s) => {
+      t += dt;
+      move = ease(move, s.moving && !s.dead ? 1 : 0, 6, dt);
+      fast = ease(fast, s.fast && !s.dead ? 1 : 0, 6, dt);
+      wind = ease(wind, (s.windup || s.cast) && !s.dead ? 1 : 0, 7, dt);
+      leap = ease(leap, s.leap && !s.dead ? 1 : 0, 10, dt);
+      dead = ease(dead, s.dead ? 1 : 0, 3, dt);
+      beat = ease(beat, s.evolving && !s.dead ? 1 : 0, 6, dt);
+      if (s.attack !== undefined && s.attack !== lastAttack) { lastAttack = s.attack; punch = 1; punchSide = 1 - punchSide; }
+      punch = Math.max(0, punch - dt * 3.5);
+      walk += dt * (6.5 + fast * 5) * move;
+      const up = Math.max(wind, leap * 0.6, beat * 0.7);   // how upright it stands
+
+      // Body: bob with the knuckle-walk, rear up for the wind-up and the roar.
+      const bob = Math.abs(Math.sin(walk)) * 0.06 * move;
+      B.hips.position.set(0, HIPY + bob + up * 0.12 - leap * 0.1, -0.2);
+      B.hips.rotation.set(-up * 0.25 + fast * 0.15, Math.sin(walk) * 0.08 * move, Math.sin(walk) * 0.05 * move);
+      const breathe = 1 + Math.sin(t * 2) * 0.02;
+      B.chest.scale.set(breathe, breathe, breathe);
+      B.chest.rotation.set(R(B.chest).x - up * 0.75 + fast * 0.15 + punch * 0.15, Math.sin(walk) * 0.06 * move - (punch > 0 ? (punchSide ? 0.25 : -0.25) * Math.sin(punch * Math.PI) : 0), 0);
+      B.head.rotation.set(R(B.head).x + up * 0.55 - wind * 0.25, Math.sin(t * 0.5) * 0.35 * (1 - move) * (1 - up), 0);
+      B.jaw.rotation.x = Math.max(wind, beat * 0.6) * (0.55 + Math.sin(t * 25) * 0.05) + punch * 0.2;
+
+      // Arms: knuckle-walk; overhead for the wind-up and the leap; punch; beat the chest.
+      arms.forEach((A, i) => {
+        const ph = walk + (i ? Math.PI : 0);
+        let ax = R(A.a).x + Math.sin(ph) * 0.5 * move;
+        let az = R(A.a).z;
+        let fx = R(A.f).x - Math.max(0, Math.cos(ph)) * 0.3 * move;
+        // Overhead: both fists high, ready to slam.
+        ax = lerp(ax, -2.9, Math.max(wind, leap));
+        fx = lerp(fx, -0.5, Math.max(wind, leap));
+        // Chest-beat: alternate fists to the chest.
+        const hit = Math.sin(t * 11 + i * Math.PI);
+        ax = lerp(ax, -1.45 - Math.max(0, hit) * 0.25, beat);
+        az = lerp(az, -A.side * 0.9, beat);
+        fx = lerp(fx, -1.9, beat);
+        // A punch: the next arm in turn swings forward.
+        if (punch > 0 && i === punchSide) { const p = Math.sin(punch * Math.PI); ax = lerp(ax, -1.9, p); fx = lerp(fx, 0, p); }
+        A.a.rotation.set(ax, 0, az);
+        A.f.rotation.set(fx, 0, 0);
+        A.hnd.rotation.set(lerp(R(A.hnd).x, 0, Math.max(wind, leap, beat)), 0, 0);
+      });
+      legs.forEach((L, i) => {
+        const ph = walk + (i ? 0 : Math.PI);
+        L.th.rotation.set(R(L.th).x + Math.sin(ph) * 0.45 * move - leap * 0.7, 0, R(L.th).z);
+        L.sh.rotation.set(R(L.sh).x + Math.max(0, -Math.sin(ph)) * 0.5 * move + leap * 1.0, 0, 0);
+      });
+
+      // Falls onto its back.
+      tilt.rotation.x = -dead * 1.4;
+      tilt.position.y = dead * 0.3 * k;
+      tilt.position.z = -dead * 0.6 * k;
+
+      const g = glowBase * (1 + Math.sin(t * 2.6) * 0.12) * (1 + wind * 0.9 + leap * 0.6 + beat * 0.8 + punch * 0.4) * (1 - dead * 0.9);
+      glowMat.color.copy(glowCol).multiplyScalar(g);
+    };
+
+    return { root, material: bodyMat, height: h, radius: w * 0.38, update: pose };
+  };
+
+  PH.Creatures = { behemoth, wraith, kraken, goliath };
 })();

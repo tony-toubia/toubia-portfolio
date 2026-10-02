@@ -2,7 +2,8 @@
  * Primal Hunt - animated character models (all CC0).
  *
  * Each hunter class is one of Kenney's Mini Characters holding a Blaster Kit
- * gun; each monster is one of Quaternius's Cute Animated Monsters. The swarm
+ * gun. The monsters are custom-built for the game (creatures.js); a monster
+ * can also be a GLB file, which is how the first versions worked. The swarm
  * still uses the original procedural models.
  *
  * Loading is asynchronous and optional: the game starts with the procedural
@@ -78,18 +79,19 @@ window.PH = window.PH || {};
     return skinned;
   };
 
-  // The monsters. `fit` is the procedural model's footprint width and height
+  // The monsters, all custom-built in creatures.js (a `file` entry would load
+  // a GLB instead). `fit` is the procedural model's footprint width and height
   // per evolution stage: the hitboxes come from those numbers, so the new
   // model is sized to them and gameplay does not change. `glow` is the
-  // emissive colour the stages build up. Cthulhu only flies, so it hovers.
+  // emissive colour the stages build up.
   const MONSTERS = {
-    goliath:  { file: 'quaternius/yeti.glb',    glow: 0xff4400, fit: [[5.7, 5.28], [7.69, 7.13], [9.68, 8.98]] },
-    kraken:   { file: 'quaternius/cthulhu.glb', glow: 0x9966ff, fit: [[7.54, 5.74], [10.18, 7.74], [12.83, 9.75]], hover: 0.22 },
-    wraith:   { custom: 'wraith',               glow: 0xcc66ff, fit: [[4.08, 4.75], [5.5, 6.41], [6.93, 8.07]] },     // built in creatures.js
-    behemoth: { custom: 'behemoth',             glow: 0xff8800, fit: [[5.9, 3.65], [7.97, 4.77], [10.04, 6.34]] },   // built in creatures.js
+    goliath:  { custom: 'goliath',  glow: 0xff4400, fit: [[5.7, 5.28], [7.69, 7.13], [9.68, 8.98]] },
+    kraken:   { custom: 'kraken',   glow: 0x9966ff, fit: [[7.54, 5.74], [10.18, 7.74], [12.83, 9.75]] },
+    wraith:   { custom: 'wraith',   glow: 0xcc66ff, fit: [[4.08, 4.75], [5.5, 6.41], [6.93, 8.07]] },
+    behemoth: { custom: 'behemoth', glow: 0xff8800, fit: [[5.9, 3.65], [7.97, 4.77], [10.04, 6.34]] },
   };
-  // Gentler than the old models' glow: these textures are light, and the
-  // same intensity washed them out to the glow colour.
+  // For GLB monsters: gentler than the old models' glow, since textures are
+  // light and the same intensity washed them out to the glow colour.
   const STAGE_GLOW = [0.03, 0.07, 0.12];
 
   const Models = {
