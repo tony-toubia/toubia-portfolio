@@ -187,7 +187,7 @@ window.PH = window.PH || {};
     buildMonsterGrid() {
       const grid = $('monster-grid');
       grid.innerHTML = '';
-      const colors = { goliath: '#ff6b35', kraken: '#4ecdc4', wraith: '#b06cff', behemoth: '#c9a227' };
+      const colors = { goliath: '#ff6b35', kraken: '#4ecdc4', wraith: '#b06cff', behemoth: '#c9a227', wyvern: '#ff9f43' };
       for (const [id, m] of Object.entries(PH.MONSTERS)) {
         const card = document.createElement('button');
         card.className = 'class-card' + (id === this.selectedMonster ? ' selected' : '');
@@ -241,7 +241,7 @@ window.PH = window.PH || {};
     }
 
     buildSquad() {
-      const icons = { assault: '🔫', trapper: '🪤', medic: '💉', support: '🛡️' };
+      const icons = { assault: '🔫', trapper: '🪤', medic: '💉', support: '🛡️', ranger: '🏹' };
       const hs = this.game.hunters;
       this.el.squad.innerHTML = hs.map((h) =>
         `<div class="sq${h.controlled ? ' you' : ''}" style="--c:${PH.CLASSES[h.cls].color}"><span>${icons[h.cls]}</span><span class="sb"><i></i></span><span class="st"></span></div>`).join('');
@@ -529,8 +529,8 @@ window.PH = window.PH || {};
           tile.className = 'lodge-tile' + (owned ? '' : ' locked') + (on ? ' on' : '') + (o.id && unseen.has(o.id) ? ' fresh' : '');
           let art;
           if (tab === 'skin') {
-            const file = o.model || PH.Models.HUNTERS[g].file;
-            art = `<img src="/map-mobile-game/img/lodge/${file.split('/').pop().replace('.glb', '')}.webp" alt="" loading="lazy">`;
+            const file = o.model || PH.Models.HUNTERS[g].file, key = o.model ? o.portrait : PH.Models.HUNTERS[g].portrait;
+            art = `<img src="/map-mobile-game/img/lodge/${key || file.split('/').pop().replace('.glb', '')}.webp" alt="" loading="lazy">`;
           } else if (tab === 'color') {
             art = `<img src="/map-mobile-game/img/lodge/${g}-${o.id ? o.id.split('-').pop() : 'standard'}.webp" alt="" loading="lazy">`;
           } else {

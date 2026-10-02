@@ -54,6 +54,10 @@ PH.CLASSES = {
     name: 'Medic', icon: '💉', color: '#2ed573', role: 'Sustain',
     weapon: 'biofield', ability: 'pulse', perk: { maxHp: 30, regen: 0.3 }, perkText: '+30 HP and regeneration',
   },
+  ranger: {
+    name: 'Ranger', icon: '🏹', color: '#a55eea', role: 'Marksman',
+    weapon: 'longshot', ability: 'decoy', perk: { damage: 0.1, pickup: 0.25 }, perkText: '+10% damage, +25% pickup range',
+  },
   support: {
     name: 'Support', icon: '🛡️', color: '#1e90ff', role: 'Utility',
     // Drones have no cooldown, so a cooldown perk did nothing for this class.
@@ -71,6 +75,8 @@ PH.ABILITIES = {
                desc: 'Roots every creature nearby for 3.5s; slows monsters.' },
   pulse:     { name: 'Life Pulse', icon: '💖', cd: 18, heal: 18, radius: 4.2, dmg: 32, knock: 10,
                desc: 'Heals 18 and blasts creatures away from you.' },
+  decoy:     { name: 'Decoy', icon: '🎯', cd: 16, dur: 4.5, lure: 12, blast: 3.8, dmg: 80,
+               desc: 'A decoy that draws creatures and monsters to it for 4.5s, then explodes.' },
   dome:      { name: 'Shield Dome', icon: '🔰', cd: 18, dur: 4.5, radius: 3.4, guard: 0.5,
                desc: 'A dome that stops shots, repels creatures and halves damage taken.' },
 };
@@ -92,6 +98,17 @@ PH.WEAPONS = {
       { dmg: 14, cd: 0.48, count: 2, pierce: 0, speed: 17, desc: 'Fires 2 rounds.' },
       { dmg: 17, cd: 0.45, count: 2, pierce: 1, speed: 18, desc: 'Rounds pierce one creature.' },
       { dmg: 22, cd: 0.40, count: 3, pierce: 2, speed: 19, desc: '3 rounds, pierce two.' },
+    ],
+  },
+  longshot: {
+    name: 'Longshot', icon: '🏹', kind: 'snipe',
+    blurb: 'A piercing shot at the toughest thing in range.',
+    levels: [
+      { dmg: 34, cd: 1.35, count: 1, pierce: 6, speed: 34, range: 18, desc: 'A piercing shot at the toughest thing in range.' },
+      { dmg: 44, cd: 1.25, count: 1, pierce: 8, speed: 36, range: 18, desc: '+10 damage, faster.' },
+      { dmg: 42, cd: 1.2, count: 2, pierce: 8, speed: 36, range: 19, desc: 'Two shots.' },
+      { dmg: 54, cd: 1.1, count: 2, pierce: 10, speed: 38, range: 20, desc: 'Harder hitting, further.' },
+      { dmg: 66, cd: 1.0, count: 3, pierce: 12, speed: 40, range: 21, desc: 'Three shots.' },
     ],
   },
   shotgun: {
@@ -189,6 +206,8 @@ PH.WEAPONS = {
    stronger form, offered as an upgrade card - always on a supply drop. The
    stats replace level 5's; extra keys switch on behaviour in game.js. */
 PH.EVOLUTIONS = {
+  longshot: { needs: 'haste',     name: 'Railgun',         icon: '⚡',
+              stats: { dmg: 115, cd: 0.8, count: 3, pierce: 99, speed: 60, range: 26 }, desc: 'Rails that tear through everything in a line.' },
   rifle:    { needs: 'haste',     name: 'Minigun',         icon: '🌪️',
               stats: { dmg: 19, cd: 0.13, count: 2, pierce: 2, speed: 23 }, desc: 'A torrent of piercing rounds.' },
   shotgun:  { needs: 'vitality',  name: "Dragon's Breath", icon: '🐉',
@@ -340,6 +359,7 @@ PH.BOSSES = {
   kraken:   { name: 'Kraken',   icon: '🐙', hp: [1150, 3350, 7800], speed: 3.3, attacks: ['lightning', 'slam', 'burst'] },
   behemoth: { name: 'Behemoth', icon: '🦖', hp: [1440, 3900, 9000], speed: 3.2, attacks: ['roll', 'slam', 'dash'] },
   goliath:  { name: 'Goliath',  icon: '🦍', hp: [1260, 3550, 8300], speed: 3.5, attacks: ['leap', 'dash', 'slam'] },
+  wyvern:   { name: 'Wyvern',   icon: '🐉', hp: [1080, 3150, 7400], speed: 3.7, attacks: ['dive', 'burst', 'dash'] },
 };
 PH.BOSS_ATTACKS = {
   dash:  { telegraph: 0.85, length: 10, speed: 15, dmg: 26 },
@@ -350,6 +370,8 @@ PH.BOSS_ATTACKS = {
   lightning: { telegraph: 0.85, count: 3, delay: 1.0, stagger: 0.2, r: 2.1, dmg: 13, spread: 3.4 },   // Kraken: bolts on and around you
   warp:      { telegraph: 0.6, delay: 0.8, r: 2.8, dmg: 18, beside: 2.8 },          // Wraith: vanishes, re-forms beside you, detonates
   leap:      { telegraph: 0.8, air: 0.8, r: 3.2, dmg: 22, height: 5 },             // Goliath: leaps onto where you were and smashes
+  dive:      { telegraph: 0.85, length: 13, speed: 19, dmg: 20, height: 2.4,         // Wyvern: swoops along a line, leaving fire
+               fire: { life: 2.6, r: 1.15, dps: 11 } },
   contact: 18,
   closeIn: 11,              // beyond this distance a boss's next attack is always a dash at you
   restBetween: [1.6, 2.6],
@@ -393,6 +415,8 @@ PH.MONSTERS = {
               ability: { id: 'lightning', name: 'Lightning Strike', icon: '⚡', cd: 5.5, range: 12, r: 2.6, dmg: 38, delay: 0.5 } },
   wraith:   { name: 'Wraith',   icon: '👻', role: 'Assassin', blurb: 'Warps in and explodes.', hp: 0.8, speed: 1.05,
               ability: { id: 'warp', name: 'Warp Blast', icon: '🌀', cd: 6.5, dist: 7, r: 3.0, dmg: 34 } },
+  wyvern:   { name: 'Wyvern',   icon: '🐉', role: 'Skirmisher', blurb: 'Dives in on wings of fire.', hp: 0.9, speed: 1.03,
+              ability: { id: 'dive', name: 'Fire Dive', icon: '🔥', cd: 7, dist: 9, dur: 0.45, dmg: 30, fire: { life: 2.6, r: 1.1, dps: 15 } } },
   behemoth: { name: 'Behemoth', icon: '🦖', role: 'Tank',     blurb: 'Rolls through everything.', hp: 1.35, speed: 0.93,
               ability: { id: 'roll', name: 'Rolling Charge', icon: '🪨', cd: 7, dur: 1.1, speed: 13, dmg: 32, knock: 9 } },
 };
@@ -413,6 +437,8 @@ PH.MUTATIONS = {
   phantom:    { for: 'wraith',   icon: '🫥', name: 'Phantom',         desc: 'After a warp you stay unseen for 2.5s, even in the open.', dur: 2.5 },
   // Behemoth
   scorched:   { for: 'behemoth', icon: '🔥', name: 'Scorched Earth',  desc: 'Rolling Charge leaves a burning trail for 4s.', life: 4, r: 1.2, dps: 22 },
+  inferno:    { for: 'wyvern',   icon: '🔥', name: 'Inferno',         desc: "Fire Dive's flames burn twice as long and spread wider.", life: 2, r: 1.4 },
+  skyborne:   { for: 'wyvern',   icon: '🪽', name: 'Skyborne',        desc: 'Dive 50% further, and Fire Dive recharges 25% faster.', dist: 1.5, cd: 0.75 },
   juggernaut: { for: 'behemoth', icon: '🛡️', name: 'Juggernaut',      desc: 'Roll 50% longer and take 40% less damage while rolling.', dur: 1.5, guard: 0.4 },
   // Any monster
   thickhide:  { icon: '🪨', name: 'Thick Hide',       desc: '+25% armour, and it grows back 50% faster in the grass.', armor: 1.25, regen: 1.5 },
@@ -435,6 +461,7 @@ PH.HUNTER_AI = {
   trapper: { hp: 140, range: 7, shot: { vis: 'harpoon', dmg: 9, cd: 3.2, speed: 20, slow: 0.35, slowT: 1.1 },
              arena: { cd: 40, first: 40, r: 13, dur: 16 } },
   medic:   { hp: 125, range: 8, shot: { vis: 'pellet',  dmg: 4, cd: 0.9, speed: 15 }, heal: { hps: 10, range: 9 } },
+  ranger:  { hp: 135, range: 9, shot: { vis: 'bolt',    dmg: 15, cd: 1.1, speed: 24 } },
   support: { hp: 150, range: 7, shot: { vis: 'bolt',    dmg: 6, cd: 0.6, speed: 16 },
              shield: { cd: 9, dur: 3, guard: 0.7 }, strike: { cd: 13, delay: 1.6, r: 3, dmg: 45 } },
 };
@@ -455,6 +482,8 @@ PH.HUNT_MODE = {
                desc: 'Drop a dome around you. A monster inside cannot get out.' },
     medic:   { name: 'Healing Burst', icon: '💖', cd: 16, heal: 60, r: 10,
                desc: 'Heal everyone nearby by 60 and revive the downed close to you.' },
+    ranger:  { name: 'Tracking Dart', icon: '🎯', cd: 18, dur: 7, range: 15, bonus: 0.15,
+               desc: 'Tag the monster: the squad sees it for 7s and hits it 15% harder.' },
     support: { name: 'Orbital Strike', icon: '☄️', cd: 10, r: 3.4, dmg: 90, delay: 1.2,
                desc: 'Call a strike on the monster - or where it was last seen.' },
   },

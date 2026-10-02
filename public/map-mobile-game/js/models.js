@@ -22,6 +22,7 @@ window.PH = window.PH || {};
     trapper: { file: 'kenney/characters/character-male-b.glb', gun: 'kenney/blasters/blaster-g.glb', gunLen: 0.56 },   // bearded trapper, harpoon launcher
     medic:   { file: 'kenney/characters/character-female-e.glb', gun: 'kenney/blasters/blaster-q.glb', gunLen: 0.42 }, // doctor, dart sprayer
     support: { file: 'kenney/characters/character-female-a.glb', gun: 'kenney/blasters/blaster-l.glb', gunLen: 0.48 }, // engineer, heavy blaster
+    ranger:  { file: 'kenney/characters/character-female-c.glb', gun: 'kenney/blasters/blaster-e.glb', gunLen: 0.7, portrait: 'ranger-standard' }, // marksman, long rifle
   };
   const HEIGHT = 1.65;         // in-game height of every hunter
 
@@ -86,6 +87,7 @@ window.PH = window.PH || {};
     kraken:   { custom: 'kraken',   glow: 0x9966ff, fit: [[7.54, 5.74], [10.18, 7.74], [12.83, 9.75]] },
     wraith:   { custom: 'wraith',   glow: 0xcc66ff, fit: [[4.08, 4.75], [5.5, 6.41], [6.93, 8.07]] },
     behemoth: { custom: 'behemoth', glow: 0xff8800, fit: [[5.9, 3.65], [7.97, 4.77], [10.04, 6.34]] },
+    wyvern:   { custom: 'wyvern',   glow: 0xffaa33, fit: [[4.6, 4.4], [6.2, 5.8], [7.8, 7.2]] },
   };
   // For GLB monsters: gentler than the old models' glow, since textures are
   // light and the same intensity washed them out to the glow colour.

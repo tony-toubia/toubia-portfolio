@@ -75,6 +75,9 @@ window.PH = window.PH || {};
       const types = Object.keys(PH.MONSTERS);
       this.myClass = cls;
       this.revealed = false;
+      this.tagT = 0;
+      // A class outside the usual four takes the assault's place in the squad.
+      this.squadOrder = ['assault', 'trapper', 'medic', 'support'].includes(cls) ? null : [cls, 'trapper', 'medic', 'support'];
       super.newRun(types[(seed >>> 3) % types.length], seed);   // the seed picks the monster too, so runs replay
       const me = this.hunters.find((h) => h.cls === cls);
       Object.assign(me, {
@@ -111,7 +114,7 @@ window.PH = window.PH || {};
     /** Can anyone on the squad see it right now? That is what you see too. */
     monsterVisible() {
       const mon = this.mon, me = this.me;
-      if (this.spotted || mon.evolveT > 0 || this.zones.some((z) => z.kind === 'arena')) return true;
+      if (this.spotted || this.tagT > 0 || mon.evolveT > 0 || this.zones.some((z) => z.kind === 'arena')) return true;
       return me && (me.state === 'up' || me.state === 'down') && dist2(me.x, me.z, mon.x, mon.z) < PH.HUNT_MODE.seeClose ** 2;
     }
 
@@ -120,7 +123,7 @@ window.PH = window.PH || {};
       if (!v) return;
       v.x = mon.x; v.z = mon.z; v.facing = mon.facing; v.moving = mon.moving || mon.evolveT > 0;
       v.radius = mon.radius; v.lift = mon.lift;
-      v.attackT = mon.attackT; v.leapT = mon.leapT; v.rollT = mon.rollT; v.evolveT = mon.evolveT; v.dashT = mon.dashT;
+      v.attackT = mon.attackT; v.leapT = mon.leapT; v.rollT = mon.rollT; v.evolveT = mon.evolveT; v.dashT = mon.dashT; v.diveT = mon.diveT;
       v.hidden = !this.monsterVisible();
       if (!v.hidden && !this.revealed) {
         this.revealed = true;
@@ -136,6 +139,11 @@ window.PH = window.PH || {};
         me.dodgeCd = Math.max(0, me.dodgeCd - dt);
         if (me.iframes > 0) me.iframes -= dt;
         if (me.overdrive > 0) me.overdrive -= dt;
+      }
+      if (this.tagT > 0) {
+        // Tagged by the Ranger's dart: the squad always knows where it is.
+        this.tagT -= dt;
+        this.team.known = { x: this.mon.x, z: this.mon.z, t: this.time };
       }
       super.update(dt);
       if (me && me.state !== me.lastState) {
@@ -232,6 +240,14 @@ window.PH = window.PH || {};
         this.fx.shockwave(me.x, me.z, A.r, 0x7dffb0, 0.5);
         this.fx.burst(me.x, 1, me.z, 30, 0x7dffb0, 4, 0.35, 0.7, -1, 0.8);
         this.sfx('heal');
+      } else if (me.cls === 'ranger') {
+        // A tracking dart: it has to be close enough to hit.
+        const d = Math.hypot(mon.x - me.x, mon.z - me.z);
+        if (d > A.range) { this.toast('Too far - get closer to tag it'); return false; }
+        this.tagT = A.dur;
+        this.fx.dashTrail(me.x, me.z, (mon.x - me.x) / (d || 1), (mon.z - me.z) / (d || 1), d);
+        this.fx.shockwave(mon.x, mon.z, 2.5, 0xa55eea, 0.4);
+        this.banner('MONSTER TAGGED', 'win');
       } else if (me.cls === 'support') {
         // On the monster if anyone can see it, else where it was last known.
         let x, z;
@@ -282,6 +298,7 @@ window.PH = window.PH || {};
 
     damageMonster(dmg) {
       const before = this.mon.hp + this.mon.armor;
+      if (this.tagT > 0) dmg *= 1 + PH.HUNT_MODE.abilities.ranger.bonus;   // a tagged monster takes more
       super.damageMonster(dmg);
       const dealt = before - (this.mon.hp + this.mon.armor);
       if (dealt > 0 && this.hooks.onDamage && this.monsterVisible()) this.hooks.onDamage(this.mon.x, 2.6, this.mon.z, dealt, dealt >= 40);

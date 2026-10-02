@@ -1273,7 +1273,7 @@ window.PH = window.PH || {};
     monsterAnimState(v, e, extra) {
       if ((e.attackT || 0) > v.lastAtk + 0.25) v.attackN++;
       v.lastAtk = e.attackT || 0;
-      return { moving: e.moving, fast: e.rollT > 0 || e.dashT > 0, leap: e.leapT > 0, evolving: e.evolveT > 0, blink: e.iframes > 0, attack: v.attackN, ...extra };
+      return { moving: e.moving, fast: e.rollT > 0 || e.dashT > 0, leap: e.leapT > 0 || e.diveT > 0, evolving: e.evolveT > 0, blink: e.iframes > 0, attack: v.attackN, ...extra };
     }
 
     /** The first moments after the monster uses its ability: a casting pose. */
@@ -1371,13 +1371,6 @@ window.PH = window.PH || {};
         this.trackBatch.add(k.x + Math.cos(k.angle) * side, 0.025, k.z - Math.sin(k.angle) * side, k.angle, s, 1, s);
       }
       this.trackBatch.end();
-      // Scorched Earth: the Behemoth's burning trail, flickering as it dies down.
-      const fire = game.fireTrail || [];
-      for (let i = 0; i < fire.length; i++) {
-        const f = fire[i], a = Math.min(1, f.life / 1.2), fl = (0.75 + 0.25 * Math.sin(t * 17 + i * 2.3)) * a;
-        const s = (2.6 + 0.5 * Math.sin(t * 11 + i)) * (0.6 + 0.4 * a);
-        this.halos.add(f.x, 0.25, f.z, 0, s, s, s, 1.0 * fl, 0.36 * fl, 0.05 * fl);
-      }
       // Birds
       this.birdBatch.begin();
       for (let i = this.flocks.length - 1; i >= 0; i--) {
@@ -1534,9 +1527,11 @@ window.PH = window.PH || {};
 
     /** The class-coloured ring the hand-built hunters stand in, for the real models. */
     classRing(cls) {
-      const mats = this.chars.hunterMaterials[cls] || this.chars.hunterMaterials.assault;
+      const mats = this.chars.hunterMaterials[cls];
+      // Classes the old models never had (the Ranger) take their colour from the config.
+      const color = mats ? mats.accent.color : new THREE.Color(PH.CLASSES[cls] ? PH.CLASSES[cls].color : '#ff4757');
       const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.55, 24),
-        new THREE.MeshBasicMaterial({ color: mats.accent.color, side: THREE.DoubleSide, transparent: true, opacity: 0.7 }));
+        new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: 0.7 }));
       ring.rotation.x = -Math.PI / 2;
       ring.position.y = 0.03;
       return ring;
@@ -2035,6 +2030,8 @@ window.PH = window.PH || {};
       this.updateEffects(dt, t);
       if (this.monsterMode && game.hunters) this.drawMonsterMode(game, dt, t);
       this.drawZones(game, dt);
+      this.drawFire(game, t);
+      this.drawDecoy(game, t);
       this.drawWaves(dt);
       this.ambientMotes(game, dt);
 
@@ -2054,6 +2051,17 @@ window.PH = window.PH || {};
       else LU.push2.value.w = 0;
       if (this.grade) { this.grade.setStage(this.biome); this.grade.render(this.scene, this.camera, this.time); }
       else this.renderer.render(this.scene, this.camera);
+    }
+
+    /** The Ranger's decoy: a flickering purple hologram with a lure ring. */
+    drawDecoy(game, t) {
+      for (const z of game.zones || []) {
+        if (z.kind !== 'decoy') continue;
+        const left = z.dur - z.t, blink = left < 1 && Math.floor(t * 12) % 2 ? 0.4 : 1, k = (0.8 + Math.sin(t * 9) * 0.2) * blink;
+        this.halos.add(z.x, 1, z.z, 0, 2.2, 3.2, 2.2, 0.55 * k, 0.3 * k, 0.9 * k);
+        this.halos.add(z.x, 0.2, z.z, 0, z.r * 2, z.r * 2, z.r * 2, 0.2 * k, 0.1 * k, 0.35 * k);
+        if (Math.floor(t * 2) !== Math.floor((t - 1 / 60) * 2)) this.shockwave(z.x, z.z, 2.5, 0xa55eea, 0.5);
+      }
     }
 
     /**
@@ -2157,6 +2165,16 @@ window.PH = window.PH || {};
         P.max[k] = P.life[k] = 2 + Math.random() * 1.5;
         P.size[k] = 0.09 + Math.random() * 0.08;
         P.r[k] = cr; P.g[k] = cg; P.b[k] = cb; P.grav[k] = 0;
+      }
+    }
+
+    /** Fire on the ground (Scorched Earth, the Wyvern's dive), flickering as it dies down. */
+    drawFire(game, t) {
+      const fire = game.fireTrail || [];
+      for (let i = 0; i < fire.length; i++) {
+        const f = fire[i], a = Math.min(1, f.life / 1.2), fl = (0.75 + 0.25 * Math.sin(t * 17 + i * 2.3)) * a;
+        const s = (2.3 * (f.r || 1.1) + 0.5 * Math.sin(t * 11 + i)) * (0.6 + 0.4 * a);
+        this.halos.add(f.x, 0.25, f.z, 0, s, s, s, 1.0 * fl, 0.36 * fl, 0.05 * fl);
       }
     }
 
