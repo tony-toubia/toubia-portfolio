@@ -115,6 +115,11 @@ window.PH = window.PH || {};
       tap('btn-daily-back', () => this.show('menu'));
       tap('btn-daily-go', () => this.startDaily());
       tap('btn-lodge', () => this.openLodge());
+      tap('btn-apex', () => this.startApex());
+      tap('tab-daily', () => this.boardTab('daily'));
+      tap('tab-apex', () => this.boardTab('apex'));
+      $('apex-form').addEventListener('submit', (e) => { e.preventDefault(); this.submitApex(); });
+      $('apex-initials').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3); });
       tap('btn-lodge-back', () => this.toMenu());
       for (const b of document.querySelectorAll('.lodge-tabs .lt')) tap(b, () => { this.lodgeTab = b.dataset.tab; this.renderLodge(); });
       $('daily-form').addEventListener('submit', (e) => { e.preventDefault(); this.submitDaily(); });
@@ -192,6 +197,7 @@ window.PH = window.PH || {};
     /** Shared by both modes: point the UI and main loop at a game, reset the HUD. */
     enterMode(game) {
       this.game = game;
+      $('apex-chip').hidden = true;
       document.body.classList.toggle('mode-monster', game.mode === 'monster');
       document.body.classList.toggle('mode-hunt', game.mode === 'hunt');
       this.releaseStick();
@@ -276,6 +282,7 @@ window.PH = window.PH || {};
 
     /** The daily screen: today's hunter, the board, your standing. */
     openDaily() {
+      this.boardTab('daily');
       const t = PH.Daily.today(), cls = PH.CLASSES[t.classId];
       $('daily-title').textContent = `DAILY HUNT #${t.number}`;
       const date = new Date(t.day + 'T12:00:00Z').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
@@ -475,6 +482,101 @@ window.PH = window.PH || {};
       P.markSeen();
     }
 
+    /* ── Apex Hunt ──────────────────────────────────────────── */
+
+    startApex() {
+      if (!this.survival.continueApex()) return;
+      $('btn-apex').hidden = true;
+      this.hideScreens();
+      this.el.hud.hidden = false;
+      this.cache = {};
+      this.buildLoadout();
+    }
+
+    /** The results of an Apex Hunt: waves cleared, the board, a form to join it. */
+    apexOver(r) {
+      $('over-daily').hidden = true;
+      $('btn-apex').hidden = true;
+      const w = r.apex.waves;
+      const title = $('over-title');
+      title.textContent = 'APEX HUNT OVER';
+      title.className = 'win';
+      $('over-sub').textContent = w ? `You cleared ${w} wave${w === 1 ? '' : 's'} of the Apex Hunt.` : 'The Apex Hunt was too much this time.';
+      $('over-stats').innerHTML = [
+        [fmtTime(r.time), 'TIME'], [r.level, 'LEVEL'], [r.kills.toLocaleString(), 'KILLS'], [w, 'WAVES CLEARED'],
+      ].map(([v, l]) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('');
+      const isBest = !this.best || r.score > this.best.score;
+      if (isBest) { this.best = { score: r.score, victory: true, time: r.time }; store.set('best', this.best); }
+      $('over-score').innerHTML = `Score ${r.score.toLocaleString()}` + (isBest ? ' <span class="newbest">· NEW BEST</span>' : '');
+      // Only the Apex part of the run earns XP now; the win was booked already.
+      const a = r.apex;
+      this.showProgress({ mode: 'apex', score: r.score - a.score, kills: r.kills - a.kills, bossKills: r.bossKills - a.bosses, waves: w, classId: r.classId });
+      const prev = PH.Daily.apexBest();
+      const improved = !prev || r.score > prev.score;
+      if (improved) PH.Daily.setApexBest({ score: r.score, waves: w, submitted: false, run: r });
+      const best = PH.Daily.apexBest();
+      $('over-apex').hidden = false;
+      $('apex-form').hidden = !!best.submitted;
+      $('apex-initials').value = PH.Daily.initials();
+      $('btn-apex-submit').disabled = false;
+      const st = $('apex-status');
+      st.className = 'daily-status';
+      st.textContent = improved ? (prev ? `New Apex best: ${r.score.toLocaleString()}` : '') : `Your Apex best is ${best.score.toLocaleString()} (${best.waves} wave${best.waves === 1 ? '' : 's'}).`;
+      $('over-apex-board').innerHTML = '<div class="empty">Loading the board…</div>';
+      PH.Daily.apexBoard().then((b) => this.renderApexBoard($('over-apex-board'), b, 5));
+      this.sfx('defeat');
+      setTimeout(() => this.show('over'), 900);
+    }
+
+    async submitApex() {
+      const name = $('apex-initials').value.toUpperCase();
+      const st = $('apex-status');
+      if (!/^[A-Z0-9]{3}$/.test(name)) { st.className = 'daily-status err'; st.textContent = 'Three letters or digits, please.'; return; }
+      PH.Daily.setInitials(name);
+      const r = PH.Daily.apexBest().run;
+      $('btn-apex-submit').disabled = true;
+      st.className = 'daily-status'; st.textContent = 'Submitting…';
+      const res = await PH.Daily.apexSubmit({ name, classId: r.classId, score: r.score, time: Math.round(r.time * 100) / 100,
+        kills: r.kills, level: r.level, bosses: r.bossKills, waves: r.apex.waves, bonus: r.bonus || 0 });
+      if (res.offline) { st.className = 'daily-status err'; st.textContent = 'The leaderboard is offline. Your best is saved on this device.'; $('btn-apex-submit').disabled = false; return; }
+      if (res.error) { st.className = 'daily-status err'; st.textContent = `Not accepted: ${res.error}.`; $('btn-apex-submit').disabled = false; return; }
+      PH.Daily.setApexBest({ submitted: true, name });
+      $('apex-form').hidden = true;
+      st.className = 'daily-status ok';
+      st.textContent = res.me ? `You're #${res.me.rank} of ${res.total} all time!` : 'Submitted.';
+      this.renderApexBoard($('over-apex-board'), res, 5);
+      this.sfx('levelup');
+    }
+
+    renderApexBoard(el, b, limit) {
+      if (b.offline) { el.innerHTML = '<div class="empty">The leaderboard is offline right now. Your best is still saved on this device.</div>'; return; }
+      if (b.error) { el.innerHTML = `<div class="empty">Could not load the board (${b.error}).</div>`; return; }
+      if (!b.top || !b.top.length) { el.innerHTML = '<div class="empty">Nobody has made it onto the Apex board yet. Be the first.</div>'; return; }
+      const meIdx = b.me ? b.me.rank - 1 : -1;
+      el.innerHTML = b.top.slice(0, limit).map((r, i) => `<div class="row${i === meIdx ? ' me' : ''}"><span class="rk">${i + 1}</span>`
+        + `<span class="nm">${r.name}</span><span class="tm">${PH.CLASSES[r.classId] ? PH.CLASSES[r.classId].icon : ''} ⚔️ ${r.waves}</span>`
+        + `<span class="sc">${r.score.toLocaleString()}</span></div>`).join('')
+        + (b.me && b.me.rank > limit ? `<div class="row me"><span class="rk">${b.me.rank}</span><span class="nm">YOU</span><span class="tm">⚔️ ${b.me.waves}</span><span class="sc">${b.me.score.toLocaleString()}</span></div>` : '');
+    }
+
+    /** The leaderboard screen's two tabs: today's daily, and the all-time Apex board. */
+    boardTab(which) {
+      $('tab-daily').classList.toggle('active', which === 'daily');
+      $('tab-apex').classList.toggle('active', which === 'apex');
+      $('daily-today').hidden = which !== 'daily';
+      $('daily-apex').hidden = which !== 'apex';
+      if (which !== 'apex') return;
+      $('apex-board').innerHTML = '<div class="empty">Loading the board…</div>';
+      const mine = PH.Daily.apexBest();
+      $('apex-me').textContent = '';
+      PH.Daily.apexBoard().then((b) => {
+        this.renderApexBoard($('apex-board'), b, 10);
+        const waves = (n) => `${n} wave${n === 1 ? '' : 's'}`;
+        $('apex-me').textContent = b.me ? `Your best: ${b.me.score.toLocaleString()} · ${waves(b.me.waves)} · #${b.me.rank} of ${b.total}`
+          : mine ? `Your best: ${mine.score.toLocaleString()} · ${waves(mine.waves)}${mine.submitted ? '' : ' (not on the board yet)'}` : 'Win a Survival run to enter the Apex Hunt.';
+      });
+    }
+
     toMenu() {
       this.daily = null;
       $('daily-chip').hidden = true;
@@ -573,6 +675,8 @@ window.PH = window.PH || {};
       if (b) parts.push(`Survival best ${b.score.toLocaleString()}${b.victory ? ' 👑' : ''}`);
       if (this.bestHunt) parts.push(`Squad best ${this.bestHunt.score.toLocaleString()}${this.bestHunt.victory ? ' 👑' : ''}`);
       if (m) parts.push(`Monster best ${m.score.toLocaleString()}${m.victory ? ' 👑' : ''}`);
+      const ab = PH.Daily && PH.Daily.apexBest();
+      if (ab) parts.push(`Apex best ${ab.waves} wave${ab.waves === 1 ? '' : 's'}`);
       $('best-line').textContent = parts.join('  ·  ');
       this.refreshRank();
       if (PH.Daily) {
@@ -623,7 +727,7 @@ window.PH = window.PH || {};
 
     huntOver(r) {
       this.releaseStick();
-      $('over-daily').hidden = true;
+      $('over-daily').hidden = true; $('over-apex').hidden = true; $('btn-apex').hidden = true;
       const m = PH.MONSTERS[r.monsterType];
       const title = $('over-title');
       title.textContent = r.victory ? 'MONSTER SLAIN' : r.how === 'apex' ? 'SQUAD WIPED OUT' : 'IT GOT AWAY';
@@ -644,7 +748,7 @@ window.PH = window.PH || {};
 
     monsterOver(r) {
       this.releaseStick();
-      $('over-daily').hidden = true;
+      $('over-daily').hidden = true; $('over-apex').hidden = true; $('btn-apex').hidden = true;
       const m = PH.MONSTERS[r.monsterType];
       const title = $('over-title');
       title.textContent = r.victory ? (r.how === 'apex' ? 'APEX PREDATOR' : 'YOU SURVIVED') : 'YOU WERE HUNTED';
@@ -748,11 +852,15 @@ window.PH = window.PH || {};
 
     gameOver(r) {
       this.releaseStick();
+      if (r.apex) return this.apexOver(r);
+      $('over-apex').hidden = true;
+      // A win (outside the daily) can carry on into the Apex Hunt.
+      $('btn-apex').hidden = !(r.victory && !this.daily);
       const title = $('over-title');
       title.textContent = r.victory ? 'VICTORY' : 'YOU FELL';
       title.className = r.victory ? 'win' : 'lose';
       $('over-sub').textContent = r.victory
-        ? (r.bossKills >= 3 ? 'All three monsters slain. The hunt is over.' : 'The final monster is slain. The hunt is over.')
+        ? (r.bossKills >= 3 ? 'All three monsters slain. The hunt is over - unless you keep going.' : 'The final monster is slain. The hunt is over.')
         : r.bossKills ? `${r.bossKills} of 3 monsters slain.` : 'The swarm got you.';
       $('over-stats').innerHTML = [
         [fmtTime(r.time), 'TIME'], [r.level, 'LEVEL'], [r.kills.toLocaleString(), 'KILLS'], [`${r.bossKills}/3`, 'MONSTERS'],
@@ -873,6 +981,7 @@ window.PH = window.PH || {};
       this.set('lvl', g.level, (v) => { E.lvl.textContent = `LV ${v}`; });
       this.set('t', Math.floor(g.time), (v) => { E.timer.textContent = fmtTime(v); });
       this.set('k', g.kills, (v) => { E.kills.textContent = v.toLocaleString(); });
+      this.set('apex', g.apex ? g.apex.wave : -1, (v) => { const c = $('apex-chip'); c.hidden = v < 0; c.textContent = v > 0 ? `⚔️ WAVE ${v}` : '⚔️ APEX'; });
       const hp = Math.max(0, Math.round((pl.hp / pl.maxHp) * 100));
       this.set('hp', hp, (v) => { E.hpfill.style.width = v + '%'; E.hpfill.classList.toggle('low', v < 30); });
       const ac = g.abilityMax ? g.abilityCd / g.abilityMax : 0;

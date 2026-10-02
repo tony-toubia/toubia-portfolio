@@ -131,6 +131,7 @@ window.PH = window.PH || {};
    */
   // Light for each time of day comes from the current biome (world.js).
   const stages = () => PH.World.biome.stages;
+  const AFFIX_GLOW = { swift: [0.35, 0.75, 1], titanic: [1, 0.75, 0.35], volatile: [1, 0.3, 0.08], brood: [0.6, 1, 0.3] };
   const _ca = new THREE.Color(), _cb = new THREE.Color();
   const mixHex = (out, a, b, k) => out.copy(_ca.setHex(a)).lerp(_cb.setHex(b), k);
   const easeOut = (k) => 1 - Math.pow(1 - k, 3);
@@ -1597,9 +1598,11 @@ window.PH = window.PH || {};
       for (const m of [...tmp.children]) tmp.remove(m);
     }
 
-    addBoss(id, monsterType, stage) {
-      const mv = this.monsterModel(monsterType, stage);
+    /** `variant`: a colourway (Apex Hunt monsters); `size`: an extra scale (Titanic). */
+    addBoss(id, monsterType, stage, variant = null, size = 1) {
+      const mv = this.monsterModel(monsterType, stage, variant);
       if (mv) {
+        if (size && size !== 1) { mv.root.scale.setScalar(size); mv.radius *= size; mv.height *= size; }
         this.scene.add(mv.root);
         this.bosses.set(id, { ...mv, flash: 0 });
         return { radius: mv.radius, height: mv.height };
@@ -1872,6 +1875,11 @@ window.PH = window.PH || {};
           mats.primaryMaterial.emissiveIntensity = vb.baseGlow + vb.flash * 0.45;
         }
         this.shadows.add(bs.x, 0.02, bs.z, 0, bs.radius * 1.2, 1, bs.radius * 1.2);
+        // Apex Hunt monsters carry an aura in their mutation's colour.
+        if (bs.affix) {
+          const c = AFFIX_GLOW[bs.affix] || AFFIX_GLOW.swift, k = 0.3 + Math.sin(t * 5 + bs.id) * 0.08, r = bs.radius * 3.4;
+          this.halos.add(bs.x, 0.35, bs.z, 0, r, r, r, c[0] * k, c[1] * k, c[2] * k);
+        }
       }
 
       // Projectiles

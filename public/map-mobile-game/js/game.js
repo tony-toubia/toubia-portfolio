@@ -93,6 +93,7 @@ window.PH = window.PH || {};
       this.nextElite = PH.ELITE_EVERY;
       this.nextId = 1;
       this.victoryAt = 0;
+      this.apex = null;
       this.timeScale = 1;
       this.slowmo = 0;
       this.hitstop = 0;
@@ -330,6 +331,7 @@ window.PH = window.PH || {};
       const pl = this.player;
       if (pl.iframes > 0 || this.state !== 'playing') return;
       let d = amount * (1 - pl.armor);
+      if (this.apex) d *= 1 + PH.APEX.dmg * this.apex.wave;      // the Apex Hunt hits harder every wave
       if (this.zones.some((z) => z.kind === 'dome')) d *= 1 - PH.ABILITIES.dome.guard;
       if (amount >= 20) this.hitstop = Math.max(this.hitstop, 0.07);   // boss attacks land hard
       pl.hp -= d;
@@ -539,7 +541,9 @@ window.PH = window.PH || {};
     director(dt) {
       const wave = this.waveAt(this.time);
       const bossUp = this.bosses.length > 0;
-      this.spawnAcc += wave.rate * (bossUp ? 0.55 : 1) * dt;
+      const apexK = this.apex ? 1 + PH.APEX.swarm * this.apex.wave : 1;
+      this.spawnAcc += wave.rate * apexK * (bossUp ? 0.55 : 1) * dt;
+      if (this.apex) this.updateApex();
       while (this.spawnAcc >= 1) {
         this.spawnAcc -= 1;
         const p = this.spawnPoint();
@@ -730,23 +734,26 @@ window.PH = window.PH || {};
 
     /* ── Bosses ─────────────────────────────────────────────── */
 
-    spawnBoss(type, stage, final) {
+    /** `opts` (Apex Hunt): { hp: multiplier, affix: id, variant: colourway, quiet } */
+    spawnBoss(type, stage, final, opts = {}) {
       const def = PH.BOSSES[type];
       const p = this.spawnPoint();
       const id = this.nextId++;
-      const vis = this.fx.addBoss(id, type, stage);
-      const hp = def.hp[stage - 1];
+      const affix = opts.affix ? PH.APEX.affixes[opts.affix] : null;
+      const vis = this.fx.addBoss(id, type, stage, opts.variant, affix && affix.size);
+      const hp = def.hp[stage - 1] * (opts.hp || 1) * (affix && affix.hp ? affix.hp : 1);
       const b = {
-        id, boss: true, alive: true, type, stage, final, name: def.name, icon: def.icon,
+        id, boss: true, alive: true, type, stage, final, name: affix ? `${affix.name} ${def.name}` : def.name, icon: def.icon,
         x: p.x, z: p.z, hp, maxHp: hp, radius: Math.max(1.1, vis.radius), facing: 0, moving: true,
         state: 'chase', timer: 2.2, attack: null, dash: null, summonT: PH.BOSS_ATTACKS.summonEvery,
-        speed: def.speed * (1 + (stage - 1) * 0.12), droneT: new Float32Array(8).fill(-1), slowT: 0,
+        speed: def.speed * (1 + (stage - 1) * 0.12) * (affix && affix.speed ? affix.speed : 1), droneT: new Float32Array(8).fill(-1), slowT: 0,
+        affix: opts.affix || null, apex: !!opts.apex, volT: affix && affix.every ? affix.every : 0,
       };
       this.bosses.push(b);
       this.fx.bossArrival(b.x, b.z, stage, type);
       this.fx.zoomPunch(0.18);
       this.fx.addShake(0.6);
-      this.banner(`THE ${def.name.toUpperCase()} HAS EMERGED`, 'boss');
+      if (!opts.quiet) this.banner(`THE ${b.name.toUpperCase()} HAS EMERGED`, 'boss');
       this.sfx('roar');
       this.hooks.onBoss && this.hooks.onBoss(this.bosses);
     }
@@ -758,6 +765,14 @@ window.PH = window.PH || {};
         b.timer -= dt;
         b.moving = false;
         if (b.iframes > 0) b.iframes -= dt;
+        if (b.volT > 0 && (b.volT -= dt) <= 0) {
+          // Volatile: a ring of orbs every few seconds.
+          const V = PH.APEX.affixes.volatile;
+          b.volT = V.every;
+          const off = this.rand() * TAU;
+          for (let i = 0; i < V.orbs; i++) { const a = off + (i / V.orbs) * TAU; this.fireHostile(b.x, b.z, Math.cos(a), Math.sin(a), 4.5, V.dmg, 1, 0.45, 0.2); }
+          this.fx.shockwave(b.x, b.z, 2.5, 0xff6a3d, 0.3);
+        }
         let slow = 1;
         if (b.slowT > 0) { b.slowT -= dt; slow = PH.ABILITIES.snare.bossSlow; }
 
@@ -767,9 +782,11 @@ window.PH = window.PH || {};
           b.facing = Math.atan2(dx, dz);
           b.summonT -= dt;
           if (b.summonT <= 0) {
-            b.summonT = A.summonEvery;
-            for (let i = 0; i < A.summonCount + b.stage * 2; i++) {
-              const a = (i / (A.summonCount + b.stage * 2)) * TAU;
+            const brood = b.affix === 'brood' ? PH.APEX.affixes.brood : null;
+            b.summonT = A.summonEvery * (brood ? brood.summon : 1);
+            const count = A.summonCount + b.stage * 2 + (brood ? brood.extra : 0);
+            for (let i = 0; i < count; i++) {
+              const a = (i / count) * TAU;
               this.spawnEnemy('critter', b.x + Math.cos(a) * 2.5, b.z + Math.sin(a) * 2.5);
             }
           }
@@ -932,7 +949,7 @@ window.PH = window.PH || {};
     restBoss(b) {
       const [lo, hi] = PH.BOSS_ATTACKS.restBetween;
       b.state = 'rest';
-      b.timer = lo + this.rand() * (hi - lo);
+      b.timer = (lo + this.rand() * (hi - lo)) * (b.affix === 'swift' ? PH.APEX.affixes.swift.rest : 1);
       b.dash = null;
     }
 
@@ -961,9 +978,57 @@ window.PH = window.PH || {};
       this.dropPickup('chest', b.x, b.z);
       this.banner(`${b.name.toUpperCase()} SLAIN`, 'win');
       this.sfx('victory');
+      if (b.affix === 'volatile') {
+        // A volatile monster bursts as it dies: one last ring of orbs.
+        const V = PH.APEX.affixes.volatile;
+        for (let i = 0; i < V.deathOrbs; i++) { const a = (i / V.deathOrbs) * TAU; this.fireHostile(b.x, b.z, Math.cos(a), Math.sin(a), 5, V.dmg, 1, 0.45, 0.2); }
+      }
       this.hooks.onBoss && this.hooks.onBoss(this.bosses);
-      if (b.final) this.victoryAt = this.time + 3;
+      if (b.final && !this.apex) this.victoryAt = this.time + 3;
     }
+
+    /* ── Apex Hunt ──────────────────────────────────────────── */
+
+    /** After a win: carry on with the same build into endless waves of monsters. */
+    continueApex() {
+      if (this.state !== 'over' || !this.victory || this.apex) return false;
+      this.apex = { wave: 0, next: this.time + PH.APEX.first, live: false, base: { score: this.score(), kills: this.kills, bosses: this.bossKills } };
+      this.victoryAt = 0;
+      this.player.hp = this.player.maxHp;
+      this.state = 'playing';
+      this.banner('THE APEX HUNT BEGINS', 'boss');
+      this.sfx('roar');
+      return true;
+    }
+
+    updateApex() {
+      const A = this.apex, X = PH.APEX;
+      if (A.live) {
+        if (this.bosses.some((b) => b.apex)) return;
+        A.live = false;
+        A.cleared = A.wave;
+        A.next = this.time + X.rest;
+        this.banner(`WAVE ${A.wave} CLEARED`, 'win');
+        this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.maxHp * 0.25);
+        return;
+      }
+      if (this.time < A.next) return;
+      A.wave++;
+      A.live = true;
+      const types = Object.keys(PH.BOSSES), affixes = Object.keys(X.affixes);
+      const n = A.wave >= X.trioFrom ? 3 : A.wave >= X.pairFrom ? 2 : 1;
+      const colors = PH.Progress ? PH.Progress.COLORS : [];
+      for (let i = 0; i < n; i++) {
+        const type = types[Math.floor(this.rand() * types.length)];
+        const affix = affixes[Math.floor(this.rand() * affixes.length)];
+        const looks = colors.filter((c) => c.for === type);
+        const variant = looks.length ? looks[Math.floor(this.rand() * looks.length)].variant : null;
+        this.spawnBoss(type, 3, false, { hp: X.hp[0] + X.hp[1] * A.wave, affix, variant, apex: true, quiet: true });
+      }
+      const names = this.bosses.filter((b) => b.apex).map((b) => b.name.toUpperCase());
+      this.banner(`WAVE ${A.wave}: ${names.join(' + ')}`, 'boss');
+    }
+
 
     /* ── Weapons ────────────────────────────────────────────── */
 
@@ -1387,10 +1452,12 @@ window.PH = window.PH || {};
 
     end(victory) {
       this.state = 'over';
-      this.victory = victory;
+      // Falling in the Apex Hunt still counts the win that started it.
+      this.victory = victory || !!this.apex;
       this.hooks.onEnd && this.hooks.onEnd({
-        victory, time: this.time, kills: this.kills, level: this.level,
+        victory: this.victory, time: this.time, kills: this.kills, level: this.level,
         bossKills: this.bossKills, score: this.score(), classId: this.classId, bonus: this.bonusScore || 0,
+        apex: this.apex ? { waves: this.apex.cleared || 0, ...this.apex.base } : null,
       });
     }
   }

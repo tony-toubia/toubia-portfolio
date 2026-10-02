@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#14182a">
   <title>Primal Hunt</title>
   <meta name="description" content="Survive the swarm. Hunt the monster. A one-thumb arena game by Tony Toubia.">
-  <link rel="stylesheet" href="/map-mobile-game/css/game.css?v=22">
+  <link rel="stylesheet" href="/map-mobile-game/css/game.css?v=23">
 </head>
 <body>
   <!--
@@ -27,6 +27,7 @@
     <div id="xpbar"><div id="xpfill"></div><span id="lvl">LV 1</span></div>
     <div id="topline">
       <span id="daily-chip" hidden>📅 DAILY</span>
+      <span id="apex-chip" hidden>⚔️ WAVE 1</span>
       <span id="timer">0:00</span>
       <span id="kills">0</span>
     </div>
@@ -132,12 +133,24 @@
         <button class="icon-btn" id="btn-daily-back" aria-label="Back">←</button>
         <h2 id="daily-title">DAILY HUNT</h2>
       </div>
-      <div class="daily-hunter" id="daily-hunter"></div>
-      <p class="hint">Today's run is the same for everyone - the same swarm, the same monsters, the same upgrades on offer. Play as often as you like; your best score goes on the board. A new hunt every day at midnight UTC.</p>
-      <h3 class="board-title">TODAY'S TOP HUNTERS</h3>
-      <div class="board" id="daily-board"></div>
-      <p class="daily-me" id="daily-me"></p>
-      <button class="btn primary" id="btn-daily-go">START TODAY'S HUNT</button>
+      <div class="board-tabs" role="tablist">
+        <button class="lt active" id="tab-daily" role="tab">📅 TODAY</button>
+        <button class="lt" id="tab-apex" role="tab">⚔️ APEX · ALL TIME</button>
+      </div>
+      <div id="daily-today">
+        <div class="daily-hunter" id="daily-hunter"></div>
+        <p class="hint">Today's run is the same for everyone - the same swarm, the same monsters, the same upgrades on offer. Play as often as you like; your best score goes on the board. A new hunt every day at midnight UTC.</p>
+        <h3 class="board-title">TODAY'S TOP HUNTERS</h3>
+        <div class="board" id="daily-board"></div>
+        <p class="daily-me" id="daily-me"></p>
+        <button class="btn primary" id="btn-daily-go">START TODAY'S HUNT</button>
+      </div>
+      <div id="daily-apex" hidden>
+        <p class="hint">Win a Survival run, then choose <b>Apex Hunt</b> to keep going: endless waves of mutated monsters, two and then three at a time, harder every wave. Your best run goes on this board.</p>
+        <h3 class="board-title">APEX HUNTERS · ALL TIME</h3>
+        <div class="board" id="apex-board"></div>
+        <p class="daily-me" id="apex-me"></p>
+      </div>
     </div>
   </section>
 
@@ -201,6 +214,18 @@
         <p class="daily-status" id="daily-status"></p>
         <div class="board compact" id="over-board"></div>
       </div>
+      <div id="over-apex" hidden>
+        <form id="apex-form" autocomplete="off">
+          <label for="apex-initials">Your initials for the Apex board</label>
+          <div class="daily-entry">
+            <input id="apex-initials" maxlength="3" autocapitalize="characters" spellcheck="false" placeholder="AAA" aria-label="Initials">
+            <button class="btn" id="btn-apex-submit" type="submit">SUBMIT</button>
+          </div>
+        </form>
+        <p class="daily-status" id="apex-status"></p>
+        <div class="board compact" id="over-apex-board"></div>
+      </div>
+      <button class="btn apex-btn" id="btn-apex" hidden>⚔️ APEX HUNT · KEEP GOING</button>
       <button class="btn primary" id="btn-again">HUNT AGAIN</button>
       <button class="btn ghost" id="btn-menu">MENU</button>
     </div>
@@ -215,25 +240,25 @@
   </section>
 
   <script src="/map-mobile-game/vendor/three.min.js?v=r128"></script>
-  <script src="/map-mobile-game/js/config.js?v=22"></script>
-  <script src="/map-mobile-game/js/world.js?v=22"></script>
-  <script src="/map-mobile-game/js/progress.js?v=22"></script>
-  <script src="/map-mobile-game/js/audio.js?v=22"></script>
-  <script src="/map-mobile-game/js/music.js?v=22"></script>
-  <script src="/map-mobile-game/js/engine3d/Characters3D.js?v=22"></script>
-  <script src="/map-mobile-game/js/engine3d/Effects3D.js?v=22"></script>
+  <script src="/map-mobile-game/js/config.js?v=23"></script>
+  <script src="/map-mobile-game/js/world.js?v=23"></script>
+  <script src="/map-mobile-game/js/progress.js?v=23"></script>
+  <script src="/map-mobile-game/js/audio.js?v=23"></script>
+  <script src="/map-mobile-game/js/music.js?v=23"></script>
+  <script src="/map-mobile-game/js/engine3d/Characters3D.js?v=23"></script>
+  <script src="/map-mobile-game/js/engine3d/Effects3D.js?v=23"></script>
   <script src="/map-mobile-game/vendor/GLTFLoader.js?v=r128"></script>
   <script src="/map-mobile-game/vendor/SkeletonUtils.js?v=r128"></script>
-  <script src="/map-mobile-game/js/look.js?v=22"></script>
-  <script src="/map-mobile-game/js/models.js?v=22"></script>
-  <script src="/map-mobile-game/js/creatures.js?v=22"></script>
-  <script src="/map-mobile-game/js/swarm.js?v=22"></script>
-  <script src="/map-mobile-game/js/render.js?v=22"></script>
-  <script src="/map-mobile-game/js/game.js?v=22"></script>
-  <script src="/map-mobile-game/js/monster.js?v=22"></script>
-  <script src="/map-mobile-game/js/hunt.js?v=22"></script>
-  <script src="/map-mobile-game/js/daily.js?v=22"></script>
-  <script src="/map-mobile-game/js/ui.js?v=22"></script>
-  <script src="/map-mobile-game/js/main.js?v=22"></script>
+  <script src="/map-mobile-game/js/look.js?v=23"></script>
+  <script src="/map-mobile-game/js/models.js?v=23"></script>
+  <script src="/map-mobile-game/js/creatures.js?v=23"></script>
+  <script src="/map-mobile-game/js/swarm.js?v=23"></script>
+  <script src="/map-mobile-game/js/render.js?v=23"></script>
+  <script src="/map-mobile-game/js/game.js?v=23"></script>
+  <script src="/map-mobile-game/js/monster.js?v=23"></script>
+  <script src="/map-mobile-game/js/hunt.js?v=23"></script>
+  <script src="/map-mobile-game/js/daily.js?v=23"></script>
+  <script src="/map-mobile-game/js/ui.js?v=23"></script>
+  <script src="/map-mobile-game/js/main.js?v=23"></script>
 </body>
 </html>
