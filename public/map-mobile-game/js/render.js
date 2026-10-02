@@ -52,6 +52,8 @@ window.PH = window.PH || {};
       scene.add(this.mesh);
     }
     begin() { this.n = 0; }
+    /** Per-instance animation phase for the last instance added (the swarm's shader uses it). */
+    phase(v) { const a = this.mesh.geometry.attributes.aPhase; if (a && this.n > 0) a.array[this.n - 1] = v; }
     add(x, y, z, rotY, sx, sy, sz, r = 1, g = 1, b = 1) {
       if (this.n >= this.max) return;
       _p.set(x, y, z);
@@ -78,6 +80,8 @@ window.PH = window.PH || {};
     }
     end() {
       this.mesh.count = this.n;
+      const ph = this.mesh.geometry.attributes.aPhase;
+      if (ph && ph.isInstancedBufferAttribute) ph.needsUpdate = true;
       this.mesh.visible = this.n > 0;
       this.mesh.instanceMatrix.needsUpdate = true;
       if (this.colors && this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
@@ -487,7 +491,17 @@ window.PH = window.PH || {};
       this.swarm = {};
       this.swarmOutline = {};
       const mat = PH.Look.toonMaterial({ vertexColors: true });
+      this.swarmAnimated = !!PH.Swarm;
       for (const [type, def] of Object.entries(PH.ENEMIES)) {
+        if (this.swarmAnimated && PH.Swarm.has(type)) {
+          // Custom creatures, animated in the vertex shader; the outline shares
+          // the geometry (and so the per-instance phase) and pushes out along normals.
+          const geo = PH.Swarm.geometry(type, def);
+          geo.setAttribute('aPhase', new THREE.InstancedBufferAttribute(new Float32Array(PH.CONFIG.maxEnemies), 1));
+          this.swarm[type] = new Batch(this.scene, geo, PH.Swarm.material, PH.CONFIG.maxEnemies, true);
+          this.swarmOutline[type] = new Batch(this.scene, geo, PH.Swarm.outlineMaterial, PH.CONFIG.maxEnemies);
+          continue;
+        }
         const geo = this.bakeWildlife(def.geo, def.colors);
         this.swarm[type] = new Batch(this.scene, geo, mat, PH.CONFIG.maxEnemies, true);
         // Outlines as a second instanced draw: the same shape, slightly larger, back faces only.
@@ -1447,6 +1461,7 @@ window.PH = window.PH || {};
       }
 
       // Swarm
+      if (PH.Swarm) PH.Swarm.uniforms.uTime.value = t;
       for (const type in this.swarm) { this.swarm[type].begin(); this.swarmOutline[type].begin(); }
       this.eliteRings.begin();
       const E = game.enemies;
@@ -1455,8 +1470,10 @@ window.PH = window.PH || {};
         if (!e.alive) continue;
         const def = PH.ENEMIES[e.type];
         const s = def.scale * e.scale;
-        const bob = Math.abs(Math.sin(t * 9 + e.phase)) * 0.12 * s;
-        const squash = 1 + Math.sin(t * 18 + e.phase) * 0.06;
+        // The animated creatures walk on their own legs; the old ones hopped.
+        const hop = this.swarmAnimated ? 0.25 : 1;
+        const bob = Math.abs(Math.sin(t * 9 + e.phase)) * 0.12 * s * hop;
+        const squash = 1 + Math.sin(t * 18 + e.phase) * 0.06 * hop;
         let r = 1, g = 1, b = 1;
         if (e.elite) {
           r = 1.25; g = 1.15; b = 0.9;
@@ -1465,8 +1482,9 @@ window.PH = window.PH || {};
         }
         if (e.flash > 0) { r = g = b = 4; }
         this.swarm[e.type].add(e.x, bob, e.z, e.facing, s, s * squash, s, r, g, b);
-        const os = s * 1.13;
-        this.swarmOutline[e.type].add(e.x, bob - 0.03, e.z, e.facing, os, s * squash * 1.08, os);
+        this.swarm[e.type].phase(e.phase || 0);
+        if (this.swarmAnimated) this.swarmOutline[e.type].add(e.x, bob, e.z, e.facing, s, s * squash, s);
+        else { const os = s * 1.13; this.swarmOutline[e.type].add(e.x, bob - 0.03, e.z, e.facing, os, s * squash * 1.08, os); }
         this.shadows.add(e.x, 0.02, e.z, 0, def.radius * e.scale * 1.15, 1, def.radius * e.scale * 1.15);
       }
       // Death pops: a flash and a squash, drawn in the same instanced batches.
@@ -1477,6 +1495,7 @@ window.PH = window.PH || {};
         if (k >= 1) { this.pops.splice(i, 1); continue; }
         const w = d.s * (1 + k * 0.45), f = 3.2 - k * 2.2;
         this.swarm[d.type].add(d.x, 0, d.z, d.facing, w, d.s * (1 - k * 0.85), w, f, f, f);
+        this.swarm[d.type].phase(0);
       }
       for (const type in this.swarm) { this.swarm[type].end(); this.swarmOutline[type].end(); }
       this.eliteRings.end();

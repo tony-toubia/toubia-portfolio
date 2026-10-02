@@ -50,14 +50,10 @@ window.PH = window.PH || {};
         .replace('#include <project_vertex>', `#include <project_vertex>\n  mvPosition.z -= ${push.toFixed(4)};\n  gl_Position = projectionMatrix * mvPosition;`);
     };
     m.customProgramCacheKey = () => 'ph-skin-outline-' + key;
-    m.visible = outlinesOn;
+    PH.Look.registerOutline(m);    // weak devices drop outlines first; these go with the rest
     outlines.set(key, m);
     return m;
   };
-  // Weak devices drop outlines first; the skinned ones go with the rest.
-  let outlinesOn = true;
-  const setOutlines = PH.Look.setOutlines;
-  PH.Look.setOutlines = (on) => { setOutlines(on); outlinesOn = on; for (const m of outlines.values()) m.visible = on; };
 
   /** Toon shading plus skinned outline shells on every skinned mesh of a model. */
   const styleSkinned = (model, thick, push) => {
