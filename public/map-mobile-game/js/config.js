@@ -277,15 +277,22 @@ PH.ELITE_EVERY = 40;      // seconds between elite creatures, which drop a chest
    `attacks` is ordered: a boss knows one attack per evolution stage, so the
    first encounter is learnable and the last one uses everything. */
 PH.BOSSES = {
-  wraith:   { name: 'Wraith',   icon: '👻', hp: [980, 2900, 6900],  speed: 3.9, attacks: ['dash', 'burst'] },
-  kraken:   { name: 'Kraken',   icon: '🐙', hp: [1150, 3350, 7800], speed: 3.3, attacks: ['slam', 'burst'] },
-  behemoth: { name: 'Behemoth', icon: '🦖', hp: [1440, 3900, 9000], speed: 3.2, attacks: ['slam', 'dash'] },
-  goliath:  { name: 'Goliath',  icon: '🦍', hp: [1260, 3550, 8300], speed: 3.5, attacks: ['dash', 'slam', 'burst'] },
+  // Each boss leads with its signature move (the one its model is built
+  // for), which is also how it closes distance when you run.
+  wraith:   { name: 'Wraith',   icon: '👻', hp: [980, 2900, 6900],  speed: 3.9, attacks: ['warp', 'dash', 'burst'] },
+  kraken:   { name: 'Kraken',   icon: '🐙', hp: [1150, 3350, 7800], speed: 3.3, attacks: ['lightning', 'slam', 'burst'] },
+  behemoth: { name: 'Behemoth', icon: '🦖', hp: [1440, 3900, 9000], speed: 3.2, attacks: ['roll', 'slam', 'dash'] },
+  goliath:  { name: 'Goliath',  icon: '🦍', hp: [1260, 3550, 8300], speed: 3.5, attacks: ['leap', 'dash', 'slam'] },
 };
 PH.BOSS_ATTACKS = {
   dash:  { telegraph: 0.85, length: 10, speed: 15, dmg: 26 },
   slam:  { telegraph: 1.0,  radius: 4.2, dmg: 30 },
   burst: { telegraph: 0.6,  count: 14, speed: 5.5, dmg: 11 },
+  // Signature moves.
+  roll:      { telegraph: 0.95, dur: 1.4, speed: 11.5, turn: 1.1, dmg: 18 },            // Behemoth: curls up and rolls at you, steering
+  lightning: { telegraph: 0.85, count: 3, delay: 1.0, stagger: 0.2, r: 2.1, dmg: 13, spread: 3.4 },   // Kraken: bolts on and around you
+  warp:      { telegraph: 0.6, delay: 0.8, r: 2.8, dmg: 18, beside: 2.8 },          // Wraith: vanishes, re-forms beside you, detonates
+  leap:      { telegraph: 0.8, air: 0.8, r: 3.2, dmg: 22, height: 5 },             // Goliath: leaps onto where you were and smashes
   contact: 18,
   closeIn: 11,              // beyond this distance a boss's next attack is always a dash at you
   restBetween: [1.6, 2.6],

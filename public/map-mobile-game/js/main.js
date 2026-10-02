@@ -25,7 +25,8 @@
   const ui = new PH.UI(game, render, monster, hunt);
   game.hooks = ui.hooks();
   monster.hooks = ui.hooks();
-  render.sfx = (n) => ui.sfx(n);    // the storm's thunder comes from the renderer
+  render.sfx = (n) => ui.sfx(n);
+  render.haptic = (a) => ui.haptic(Math.round(20 + a * 70));   // big hits rumble    // the storm's thunder comes from the renderer
   hunt.hooks = ui.hooks();
 
   // Browsers only allow audio after a user gesture.

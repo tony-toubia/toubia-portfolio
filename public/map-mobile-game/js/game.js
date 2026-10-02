@@ -682,6 +682,7 @@ window.PH = window.PH || {};
         const dx = pl.x - b.x, dz = pl.z - b.z, d = Math.hypot(dx, dz) || 0.001;
         b.timer -= dt;
         b.moving = false;
+        if (b.iframes > 0) b.iframes -= dt;
         let slow = 1;
         if (b.slowT > 0) { b.slowT -= dt; slow = PH.ABILITIES.snare.bossSlow; }
 
@@ -706,6 +707,35 @@ window.PH = window.PH || {};
           if (dist2(b.x, b.z, pl.x, pl.z) < (b.radius + pl.radius) ** 2) this.damagePlayer(A.dash.dmg);
           if (Math.floor(b.timer * 30) % 2 === 0) this.fx.burst(b.x, 0.3, b.z, 2, 0xc9b38f, 2, 0.35, 0.4, 2, 0.3);
           if (b.timer <= 0) this.restBoss(b);
+        } else if (b.state === 'roll') {
+          // Curled into a ball: barrel at you, steering a little, flattening the brood.
+          const S = A.roll, want = Math.atan2(dx, dz), cur = Math.atan2(b.rollX, b.rollZ);
+          let turn = want - cur;
+          while (turn > Math.PI) turn -= TAU;
+          while (turn < -Math.PI) turn += TAU;
+          const na = cur + Math.max(-S.turn * dt, Math.min(S.turn * dt, turn));
+          b.rollX = Math.sin(na); b.rollZ = Math.cos(na); b.facing = na;
+          b.moving = true; b.rollT = b.timer;
+          b.x += b.rollX * S.speed * slow * dt; b.z += b.rollZ * S.speed * slow * dt;
+          if (!b.rollHit && dist2(b.x, b.z, pl.x, pl.z) < (b.radius + pl.radius) ** 2) { b.rollHit = true; this.damagePlayer(S.dmg); this.fx.addShake(0.6); }
+          this.query(b.x, b.z, b.radius, (e) => this.hitEnemy(e, 40, b.rollX, b.rollZ, 6));
+          if (Math.floor(b.timer * 30) % 2 === 0) this.fx.burst(b.x, 0.3, b.z, 3, 0xc9b38f, 2.5, 0.4, 0.4, 3, 0.4);
+          if (b.timer <= 0) { b.rollT = 0; this.restBoss(b); }
+        } else if (b.state === 'leap') {
+          const S = A.leap, L = b.leap;
+          b.leapT -= dt;
+          const k = 1 - Math.max(0, b.leapT) / S.air;
+          b.x = L.sx + (L.tx - L.sx) * k; b.z = L.sz + (L.tz - L.sz) * k;
+          b.lift = Math.sin(k * Math.PI) * S.height;
+          if (b.leapT <= 0) {
+            b.lift = 0; b.leapT = 0;
+            this.fx.bossSlam(b.x, b.z, L.r);
+            this.fx.shockwave(b.x, b.z, L.r, 0xff5533, 0.45);
+            this.fx.addShake(1.0);
+            if (dist2(b.x, b.z, pl.x, pl.z) < (L.r + pl.radius) ** 2) this.damagePlayer(S.dmg);
+            this.query(b.x, b.z, L.r, (e) => this.hitEnemy(e, 60, 0, 0, 0));
+            this.restBoss(b);
+          }
         } else if (b.state === 'rest') {
           if (b.timer <= 0) { b.state = 'chase'; b.timer = 0.6; }
         }
@@ -719,12 +749,14 @@ window.PH = window.PH || {};
     }
 
     beginAttack(b, dx, dz, d) {
-      const A = PH.BOSS_ATTACKS, def = PH.BOSSES[b.type];
+      const A = PH.BOSS_ATTACKS, def = PH.BOSSES[b.type], pl = this.player;
       const options = def.attacks.slice(0, Math.max(1, b.stage));
       // Running away is answered with a charge, so kiting buys time, not safety.
       // A boss that cannot dash yet just keeps walking at you instead.
       const canDash = options.includes('dash') || b.stage >= 2;
-      b.attack = d > A.closeIn && canDash ? 'dash' : options[Math.floor(this.rand() * options.length)];
+      // The signature move doubles as the closer (the Kraken's lightning reaches you anyway).
+      const closer = options.find((a) => a === 'roll' || a === 'leap' || a === 'warp' || a === 'lightning') || (canDash ? 'dash' : null);
+      b.attack = d > A.closeIn && closer ? closer : options[Math.floor(this.rand() * options.length)];
       b.state = 'tele';
       b.facing = Math.atan2(dx, dz);
       const spec = A[b.attack];
@@ -736,6 +768,15 @@ window.PH = window.PH || {};
         const r = A.slam.radius * (1 + (b.stage - 1) * 0.18);
         b.slamR = r;
         this.telegraphs.push({ shape: 'circle', x: b.x, z: b.z, r, t: 0, dur: b.timer, owner: b });
+      } else if (b.attack === 'roll') {
+        this.telegraphs.push({ shape: 'rect', x: b.x, z: b.z, angle: Math.atan2(dx, dz), w: b.radius * 1.6, len: A.roll.speed * A.roll.dur * 0.55, t: 0, dur: b.timer, owner: b, color: 0xff8800 });
+      } else if (b.attack === 'lightning') {
+        this.telegraphs.push({ shape: 'circle', x: b.x, z: b.z, r: b.radius * 1.3, t: 0, dur: b.timer, owner: b, color: 0x6fb7ff });
+      } else if (b.attack === 'warp') {
+        this.telegraphs.push({ shape: 'circle', x: b.x, z: b.z, r: b.radius * 1.4, t: 0, dur: b.timer, owner: b, color: 0xb06cff });
+      } else if (b.attack === 'leap') {
+        // The landing follows you during the wind-up and locks when it jumps.
+        this.telegraphs.push({ shape: 'circle', x: pl.x, z: pl.z, r: A.leap.r * (1 + (b.stage - 1) * 0.12), t: 0, dur: b.timer + A.leap.air, owner: b, follow: pl, color: 0xff5533 });
       } else {
         this.telegraphs.push({ shape: 'circle', x: b.x, z: b.z, r: b.radius * 1.6, t: 0, dur: b.timer, owner: b, color: 0xc77dff });
       }
@@ -744,7 +785,51 @@ window.PH = window.PH || {};
 
     releaseAttack(b) {
       const A = PH.BOSS_ATTACKS, pl = this.player;
+      const landing = this.telegraphs.find((t) => t.owner === b && t.follow);
       this.telegraphs = this.telegraphs.filter((t) => t.owner !== b);
+      if (b.attack === 'roll') {
+        b.state = 'roll';
+        b.timer = A.roll.dur * (b.stage === 3 ? 1.2 : 1);
+        b.rollX = Math.sin(b.facing); b.rollZ = Math.cos(b.facing); b.rollHit = false;
+        this.sfx('roar');
+        return;
+      }
+      if (b.attack === 'lightning') {
+        // Bolts on you and around you, a beat apart: keep moving.
+        const S = A.lightning, n = S.count + (b.stage - 1);
+        for (let k = 0; k < n; k++) {
+          const a = this.rand() * TAU, r = k === 0 ? 0 : S.spread * (0.5 + this.rand() * 0.5);
+          this.telegraphs.push({ shape: 'circle', x: pl.x + Math.cos(a) * r, z: pl.z + Math.sin(a) * r, r: S.r, t: 0, dur: S.delay + k * S.stagger, color: 0x6fb7ff, bolt: S.dmg });
+        }
+        this.fx.lightningChain([{ x: b.x, z: b.z }, { x: b.x + 0.4, z: b.z - 3 }], 0x9be7ff);
+        this.sfx('ability');
+        this.restBoss(b);
+        return;
+      }
+      if (b.attack === 'warp') {
+        // Collapse to smoke, re-form beside you, then go off.
+        const S = A.warp, a = this.rand() * TAU;
+        this.fx.burst(b.x, 1, b.z, 24, 0xb06cff, 4, 0.35, 0.5, 0, 0.6);
+        b.x = pl.x + Math.cos(a) * S.beside; b.z = pl.z + Math.sin(a) * S.beside;
+        b.facing = Math.atan2(pl.x - b.x, pl.z - b.z);
+        b.iframes = 0.35;
+        this.fx.burst(b.x, 1, b.z, 18, 0xb06cff, 3, 0.35, 0.5, 0, 0.6);
+        this.telegraphs.push({ shape: 'circle', x: b.x, z: b.z, r: S.r * (1 + (b.stage - 1) * 0.12), t: 0, dur: S.delay, color: 0xb06cff, blast: S.dmg, by: b });
+        this.restBoss(b);
+        b.timer += S.delay;
+        return;
+      }
+      if (b.attack === 'leap') {
+        const S = A.leap, tx = landing ? landing.x : pl.x, tz = landing ? landing.z : pl.z;
+        b.state = 'leap';
+        b.leap = { sx: b.x, sz: b.z, tx, tz, r: landing ? landing.r : S.r };
+        b.leapT = S.air;
+        b.facing = Math.atan2(tx - b.x, tz - b.z);
+        // Keep showing where it will land while it is in the air.
+        this.telegraphs.push({ shape: 'circle', x: tx, z: tz, r: b.leap.r, t: 0, dur: S.air, color: 0xff5533, by: b });
+        this.sfx('roar');
+        return;
+      }
       if (b.attack === 'dash') {
         b.state = 'dash';
         b.timer = A.dash.length / A.dash.speed;
@@ -1060,8 +1145,18 @@ window.PH = window.PH || {};
       for (let i = this.telegraphs.length - 1; i >= 0; i--) {
         const t = this.telegraphs[i];
         t.t += dt;
-        // Boss telegraphs follow the boss until they fire.
-        if (t.owner) { t.x = t.owner.x; t.z = t.owner.z; }
+        // Boss telegraphs follow the boss until they fire (the Goliath's landing follows you).
+        if (t.follow) { t.x = t.follow.x; t.z = t.follow.z; }
+        else if (t.owner) { t.x = t.owner.x; t.z = t.owner.z; }
+        if ((t.bolt || t.blast) && t.t >= t.dur) {
+          const pl = this.player;
+          if (t.bolt) { this.fx.strike({ x: t.x, z: t.z }); this.fx.addShake(0.35); }
+          else { this.fx.explosion(t.x, t.z, t.r, 0xb06cff); this.fx.shockwave(t.x, t.z, t.r, 0xb06cff, 0.4); this.fx.addShake(0.5); }
+          if (dist2(t.x, t.z, pl.x, pl.z) < (t.r + pl.radius * 0.5) ** 2) this.damagePlayer(t.bolt || t.blast);
+          this.telegraphs.splice(i, 1);
+          continue;
+        }
+        if (t.by && t.t >= t.dur) { this.telegraphs.splice(i, 1); continue; }
         if (t.strike && t.t >= t.dur) {
           this.blast(t.x, t.z, t.r, t.strike, 0x4ecdc4);
           this.fx.burst(t.x, 3, t.z, 12, 0xbff8ff, 1, 0.5, 0.35, -8, -2);

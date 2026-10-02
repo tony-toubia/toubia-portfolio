@@ -14,6 +14,11 @@ window.PH = window.PH || {};
 
 (() => {
   const $ = (id) => document.getElementById(id);
+  // What each sound feels like. Frequent ones (shots, kills, gems) stay silent.
+  const HAPTICS = {
+    damage: 45, dash: 18, heal: 12, click: 8, ability: 15, roar: 30, thunder: 22,
+    levelup: [25, 40, 25], evolve: [30, 50, 70], victory: [60, 60, 140], defeat: [220],
+  };
   const store = {
     get(k, d) { try { const v = localStorage.getItem('ph.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
     set(k, v) { try { localStorage.setItem('ph.' + k, JSON.stringify(v)); } catch { /* private mode: fine */ } },
@@ -34,6 +39,10 @@ window.PH = window.PH || {};
       this.bestMonster = store.get('bestMonster', null);
       this.selectedClass = store.get('class', null);
       this.muted = store.get('muted', false);
+      // Vibration on phones that support it (iOS Safari does not, so the toggle hides there).
+      this.haptics = store.get('haptics', true);
+      this.canVibrate = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
+      this.hapticUntil = 0; this.hapticLen = 0;
       this.best = store.get('best', null);
 
       this.pointerId = null;
@@ -74,6 +83,7 @@ window.PH = window.PH || {};
       this.bindScreens();
       this.bindInput();
       this.applyMute();
+      this.applyHaptics();
       this.refreshBest();
     }
 
@@ -108,6 +118,8 @@ window.PH = window.PH || {};
       tap('btn-menu', () => this.toMenu());
       tap('btn-mute', () => this.toggleMute());
       tap('btn-pause-mute', () => this.toggleMute());
+      tap('btn-haptics', () => this.toggleHaptics());
+      tap('btn-pause-haptics', () => this.toggleHaptics());
     }
 
     buildClassGrid() {
@@ -279,6 +291,37 @@ window.PH = window.PH || {};
       this.applyMute();
     }
 
+    toggleHaptics() {
+      this.haptics = !this.haptics;
+      store.set('haptics', this.haptics);
+      this.applyHaptics();
+      if (this.haptics) this.haptic(30);
+    }
+
+    applyHaptics() {
+      const label = this.haptics ? '📳 Vibration on' : '📴 Vibration off';
+      for (const id of ['btn-haptics', 'btn-pause-haptics']) {
+        const b = $(id);
+        if (!b) continue;
+        b.textContent = label;
+        b.hidden = !this.canVibrate;
+      }
+    }
+
+    /**
+     * A buzz, in ms or a [on, off, on...] pattern. A weaker buzz never cuts
+     * off a stronger one still playing, so a slam is not swallowed by a hit.
+     */
+    haptic(pattern) {
+      if (!this.haptics || !this.canVibrate) return;
+      const len = Array.isArray(pattern) ? pattern.reduce((a, b) => a + b, 0) : pattern;
+      const now = performance.now();
+      if (now < this.hapticUntil && len <= this.hapticLen) return;
+      try { navigator.vibrate(pattern); } catch { /* not allowed yet (no tap so far) */ }
+      this.hapticUntil = now + len + 40;
+      this.hapticLen = len;
+    }
+
     applyMute() {
       if (window.Sfx) window.Sfx.setMuted(this.muted);
       const label = this.muted ? '🔇 Sound off' : '🔊 Sound on';
@@ -295,7 +338,11 @@ window.PH = window.PH || {};
       $('best-line').textContent = parts.join('  ·  ');
     }
 
-    sfx(name) { if (window.Sfx && !this.muted) window.Sfx.play(name); }
+    sfx(name) {
+      if (window.Sfx && !this.muted) window.Sfx.play(name);
+      const h = HAPTICS[name];
+      if (h) this.haptic(h);
+    }
 
     /* ── Hooks from the game ────────────────────────────────── */
 

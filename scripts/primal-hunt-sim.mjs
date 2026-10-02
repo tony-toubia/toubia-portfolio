@@ -95,7 +95,8 @@ function run(classId, seed, idle) {
         // Dodge a boss attack that is about to land on us - about half the time.
         if (g.dodgeCd <= 0 && Math.floor(g.time * 10) % 2 === 0) {
           for (const t of g.telegraphs) {
-            if (!t.owner || t.t / t.dur < 0.6) continue;
+            // Boss telegraphs, and the strikes bosses call down (lightning, warp blasts).
+            if (!(t.owner || t.bolt || t.blast) || t.t / t.dur < 0.6) continue;
             let inside, ax = pl.x - t.x, az = pl.z - t.z;
             if (t.shape === 'circle') inside = Math.hypot(ax, az) < t.r + 0.5;
             else {
