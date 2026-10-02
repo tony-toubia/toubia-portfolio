@@ -67,6 +67,8 @@ window.PH = window.PH || {};
     fieldRadius() { return 0; }
     stageDef() { return PH.MONSTER_MODE.stages[this.stage - 1]; }
     def() { return PH.MONSTERS[this.monsterType]; }
+    /** A mutation's numbers if the monster has it, else null. */
+    mut(id) { return this.muts && this.muts.has(id) ? PH.MUTATIONS[id] : null; }
     sfx(n) { this.hooks.sfx && this.hooks.sfx(n); }
     banner(text, kind = 'warn') { this.hooks.onBanner && this.hooks.onBanner(text, kind); }
     toast(text) { (this.hooks.onToast || this.hooks.onBanner || (() => {}))(text, 'info'); }
@@ -90,6 +92,8 @@ window.PH = window.PH || {};
       this.aliveEnemies = 0;
       this.spotted = false;
       this.evolveNotified = false;
+      this.muts = new Set();
+      this.fireTrail = []; this.fireFx = 0;
 
       const def = this.def();
       this.monAbilityMax = def.ability.cd;
@@ -105,6 +109,7 @@ window.PH = window.PH || {};
         hp: S.hp * def.hp, maxHp: S.hp * def.hp, armor: S.armor * def.hp, maxArmor: S.armor * def.hp,
         dashT: 0, dashX: 0, dashZ: 0, lift: 0, slowT: 0, slowK: 0, rollT: 0, rollX: 0, rollZ: 0, leap: null, leapT: 0,
         evolveT: 0, lastHit: -99, attackT: 0.5, trackAcc: 0, hidden: false, damageTaken: 0, lastHurtFx: -9,
+        phantomT: 0, trailT: 0,
       };
       this.team = { landed: false, known: null, waypoint: null, respawnAt: 0, arenaCd: PH.HUNTER_AI.trapper.arena.first, strikeCd: 8, shieldCd: 0,
         scanT: PH.HUNTER_AI.scan.every, sweep: null };
@@ -176,6 +181,7 @@ window.PH = window.PH || {};
       this.updateHunters(dt);
       this.updateProjectiles(dt);
       this.updateTelegraphs(dt);
+      this.updateFireTrail(dt);
       if (this.state !== 'playing') return;
       for (let i = this.zones.length - 1; i >= 0; i--) { const z = this.zones[i]; z.t += dt; if (z.t >= z.dur) this.zones.splice(i, 1); }
       const life = PH.MONSTER_MODE.trackLife;
@@ -209,6 +215,8 @@ window.PH = window.PH || {};
           pl.lift = 0;
           this.aoe(L.tx, L.tz, A.r, A.dmg * this.abilityMult(), 7, 0xff9f43);
           this.fx.bossSlam(L.tx, L.tz, A.r);
+          const Q = this.mut('aftershock');
+          if (Q) this.telegraphs.push({ shape: 'circle', x: L.tx, z: L.tz, r: A.r * Q.r, t: 0, dur: Q.delay, color: 0xff6a3d, monster: true, quake: A.dmg * this.abilityMult() * Q.dmg });
         }
       } else if (pl.rollT > 0) {
         const A = def.ability;
@@ -229,6 +237,12 @@ window.PH = window.PH || {};
           this.damagePrey(e, dmg);
         }
         if (Math.floor(pl.rollT * 30) % 2 === 0) this.fx.burst(pl.x, 0.3, pl.z, 3, 0xc9b38f, 2.5, 0.4, 0.4, 3, 0.4);
+        const F = this.mut('scorched');
+        if (F && (pl.trailT -= dt) <= 0) {
+          pl.trailT = 0.1;
+          this.fireTrail.push({ x: pl.x, z: pl.z, life: F.life });
+          if (this.fireTrail.length > 80) this.fireTrail.shift();
+        }
       } else if (pl.dashT > 0) {
         const P = M.pounce, v = P.dist / P.dur;
         pl.dashT -= dt;
@@ -238,7 +252,8 @@ window.PH = window.PH || {};
         const mag = Math.min(1, Math.hypot(inp.x, inp.z));
         if (mag > 0.08) {
           const slow = pl.slowT > 0 ? 1 - pl.slowK : 1;
-          const k = S.speed * def.speed * slow * mag / Math.hypot(inp.x, inp.z);
+          const stride = this.mut('stride');
+          const k = S.speed * def.speed * slow * (stride ? stride.speed : 1) * mag / Math.hypot(inp.x, inp.z);
           pl.x += inp.x * k * dt; pl.z += inp.z * k * dt;
           pl.facing = Math.atan2(inp.x, inp.z);
           pl.moving = true;
@@ -253,9 +268,10 @@ window.PH = window.PH || {};
         if (d > R) { pl.x = dome.x + dx / d * R; pl.z = dome.z + dz / d * R; }
       }
 
-      pl.hidden = !dome && this.inGrass(pl.x, pl.z);
+      if (pl.phantomT > 0) pl.phantomT -= dt;
+      pl.hidden = !dome && (pl.phantomT > 0 || this.inGrass(pl.x, pl.z));
       const moved = Math.hypot(pl.x - ox, pl.z - oz);
-      if (!pl.hidden && moved > 0 && pl.lift === 0) {
+      if (!pl.hidden && moved > 0 && pl.lift === 0 && !this.mut('silent')) {
         pl.trackAcc += moved;
         if (pl.trackAcc >= M.trackEvery) {
           pl.trackAcc = 0;
@@ -263,16 +279,21 @@ window.PH = window.PH || {};
           if (this.tracks.length > 160) this.tracks.shift();
         }
       }
-      if (pl.hidden && this.time - pl.lastHit > M.outOfCombat) {
-        pl.armor = Math.min(pl.maxArmor, pl.armor + M.armorRegenHidden * dt);
+      const calm = this.time - pl.lastHit > M.outOfCombat;
+      if (pl.hidden && calm) {
+        const hide = this.mut('thickhide');
+        pl.armor = Math.min(pl.maxArmor, pl.armor + M.armorRegenHidden * (hide ? hide.regen : 1) * dt);
       }
+      const regen = this.mut('regen');
+      if (regen && calm && pl.evolveT <= 0) pl.hp = Math.min(pl.maxHp, pl.hp + regen.hps * dt);
 
       // Claws: automatic, like the hunters' weapons in survival.
       if (pl.evolveT <= 0 && pl.leapT <= 0 && pl.rollT <= 0) {
         pl.attackT -= dt;
         if (pl.attackT <= 0) {
           const t = this.clawTarget();
-          if (t) { this.claw(t); pl.attackT = M.attackCd; } else pl.attackT = 0.1;
+          const rend = this.mut('rending');
+          if (t) { this.claw(t); pl.attackT = M.attackCd * (rend ? rend.rate : 1); } else pl.attackT = 0.1;
         }
       }
     }
@@ -297,9 +318,13 @@ window.PH = window.PH || {};
     }
 
     claw(t) {
-      const pl = this.mon, dmg = this.stageDef().dmg;
+      const pl = this.mon, rend = this.mut('rending'), lust = this.mut('bloodlust');
+      const dmg = this.stageDef().dmg * (rend ? rend.dmg : 1) * (lust ? lust.dmg : 1);
       if (!pl.moving) pl.facing = Math.atan2(t.x - pl.x, t.z - pl.z);
-      if (t.cls) this.damageHunter(t, dmg); else this.damagePrey(t, dmg);
+      if (t.cls) {
+        this.damageHunter(t, dmg);
+        if (lust) pl.hp = Math.min(pl.maxHp, pl.hp + dmg * lust.leech);
+      } else this.damagePrey(t, dmg);
       // A little splash, so a swipe into a huddle hits more than one.
       for (const e of this.enemies) if (e.alive && e !== t && dist2(e.x, e.z, t.x, t.z) < 1.7) this.damagePrey(e, dmg * 0.5);
       for (const h of this.hunters) if (h !== t && h.state === 'up' && dist2(h.x, h.z, t.x, t.z) < 1.7) this.damageHunter(h, dmg * 0.5);
@@ -321,8 +346,10 @@ window.PH = window.PH || {};
       const pl = this.mon;
       if (this.state !== 'playing' || this.monAbilityCd > 0 || pl.evolveT > 0 || pl.leapT > 0 || pl.rollT > 0) return false;
       const A = this.def().ability, d = this.aimDir(), mult = this.abilityMult();
+      const meteor = this.mut('meteor');
       if (A.id === 'leap') {
-        const t = { x: pl.x + d.x * A.dist, z: pl.z + d.z * A.dist };
+        const reach = A.dist * (meteor ? meteor.dist : 1);
+        const t = { x: pl.x + d.x * reach, z: pl.z + d.z * reach };
         this.clampArena(t, pl.radius);
         pl.leap = { sx: pl.x, sz: pl.z, tx: t.x, tz: t.z };
         pl.leapT = A.air; pl.iframes = Math.max(pl.iframes, A.air);
@@ -336,20 +363,34 @@ window.PH = window.PH || {};
           if (dd < bd) { bd = dd; target = h; }
         }
         const x = target ? target.x : pl.x + d.x * 6, z = target ? target.z : pl.z + d.z * 6;
-        this.telegraphs.push({ shape: 'circle', x, z, r: A.r, t: 0, dur: A.delay, color: 0x6fb7ff, monster: true, bolt: A.dmg * mult });
+        const chain = !!this.mut('chain'), cell = this.mut('stormcell');
+        this.telegraphs.push({ shape: 'circle', x, z, r: A.r, t: 0, dur: A.delay, color: 0x6fb7ff, monster: true, bolt: A.dmg * mult, chain });
+        if (cell) {
+          for (let i = 0; i < cell.extra; i++) {
+            const a = this.rand() * TAU, rr = cell.spread * (0.6 + this.rand() * 0.4);
+            const b = { x: x + Math.cos(a) * rr, z: z + Math.sin(a) * rr };
+            this.clampArena(b, 1);
+            this.telegraphs.push({ shape: 'circle', x: b.x, z: b.z, r: A.r * 0.85, t: 0, dur: A.delay + cell.stagger * (i + 1), color: 0x6fb7ff, monster: true, bolt: A.dmg * mult * cell.dmg, chain });
+          }
+        }
       } else if (A.id === 'warp') {
         this.fx.burst(pl.x, 1, pl.z, 24, 0xb06cff, 4, 0.35, 0.5, 0, 0.6);
+        const echo = this.mut('echo'), ghost = this.mut('phantom');
+        if (echo) this.aoe(pl.x, pl.z, A.r, A.dmg * mult * echo.dmg, 3, 0xb06cff);
+        if (ghost) pl.phantomT = ghost.dur;
         const t = { x: pl.x + d.x * A.dist, z: pl.z + d.z * A.dist };
         this.clampArena(t, pl.radius);
         pl.x = t.x; pl.z = t.z; pl.facing = Math.atan2(d.x, d.z);
         pl.iframes = Math.max(pl.iframes, 0.3);
         this.aoe(pl.x, pl.z, A.r, A.dmg * mult, 5, 0xb06cff);
       } else if (A.id === 'roll') {
-        pl.rollT = A.dur; pl.rollX = d.x; pl.rollZ = d.z; pl.rollHit = new Set();
+        const jug = this.mut('juggernaut');
+        pl.rollT = A.dur * (jug ? jug.dur : 1); pl.rollX = d.x; pl.rollZ = d.z; pl.rollHit = new Set(); pl.trailT = 0;
         pl.facing = Math.atan2(d.x, d.z);
       }
-      this.monAbilityMax = A.cd;
-      this.monAbilityCd = A.cd;
+      const cd = A.cd * (meteor ? meteor.cd : 1);
+      this.monAbilityMax = cd;
+      this.monAbilityCd = cd;
       this.abilityUses++;
       this.fx.addShake(0.2);
       this.sfx('ability');
@@ -364,7 +405,8 @@ window.PH = window.PH || {};
       pl.dashX = d.x; pl.dashZ = d.z; pl.dashT = P.dur;
       pl.facing = Math.atan2(d.x, d.z);
       pl.iframes = Math.max(pl.iframes, P.iframes);
-      this.monDodgeCd = P.cd;
+      const stride = this.mut('stride');
+      this.monDodgeCd = P.cd * (stride ? stride.pounce : 1);
       this.dodges++;
       this.fx.dashTrail(pl.x, pl.z, d.x, d.z, P.dist);
       this.sfx('dash');
@@ -399,7 +441,8 @@ window.PH = window.PH || {};
       this.evolveNotified = false;
       pl.maxHp = S.hp * def.hp;
       pl.hp = Math.min(pl.maxHp, pl.hp + (S.hp - old.hp) * def.hp);
-      pl.maxArmor = S.armor * def.hp;
+      const hide = this.mut('thickhide');
+      pl.maxArmor = S.armor * def.hp * (hide ? hide.armor : 1);
       pl.armor = pl.maxArmor;
       this.onMonsterStage();
       this.fx.bossArrival(pl.x, pl.z, this.stage, this.monsterType);
@@ -408,12 +451,72 @@ window.PH = window.PH || {};
       this.hitstop = 0.12;
       this.banner(this.stage === 3 ? 'STAGE 3 - HUNT THEM DOWN' : `STAGE ${this.stage}`, 'win');
       this.sfx('roar');
+      this.offerMutations();
+    }
+
+    /**
+     * Each evolution offers three mutations: one for this monster's signature
+     * move and two general ones. The player picks; an AI monster picks at random.
+     */
+    offerMutations() {
+      const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(this.rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+      const open = Object.keys(PH.MUTATIONS).filter((id) => !this.muts.has(id));
+      const sig = shuffle(open.filter((id) => PH.MUTATIONS[id].for === this.monsterType));
+      const gen = shuffle(open.filter((id) => !PH.MUTATIONS[id].for));
+      const choices = [sig[0], gen[0], gen[1]].filter(Boolean).map((id) => ({ type: 'mutation', id, signature: !!PH.MUTATIONS[id].for }));
+      if (!choices.length) return;
+      if (this.aiMonster) {
+        const c = choices[Math.floor(this.rand() * choices.length)];
+        this.applyMutation(c.id);
+        this.toast(`🧬 It mutated: ${PH.MUTATIONS[c.id].name}`);
+        return;
+      }
+      this.state = 'choice';
+      this.currentChoices = choices;
+      this.hooks.onChoice && this.hooks.onChoice(choices, 'mutation');
+    }
+
+    applyMutation(id) {
+      const m = PH.MUTATIONS[id];
+      if (!m || this.muts.has(id)) return;
+      this.muts.add(id);
+      const pl = this.mon;
+      if (id === 'thickhide') { pl.maxArmor *= m.armor; pl.armor = pl.maxArmor; }
+    }
+
+    choose(c) {
+      if (this.state !== 'choice') return;
+      this.applyMutation(c.id);
+      this.state = 'playing';
+      this.fx.burst(this.mon.x, 1.5, this.mon.z, 30, 0x7dff9a, 3, 0.4, 0.8, -2, 0.8);
+      this.sfx('levelup');
+    }
+
+    /** Scorched Earth: the trail burns hunters who stand in it. */
+    updateFireTrail(dt) {
+      if (!this.fireTrail.length) return;
+      const F = PH.MUTATIONS.scorched, dps = F.dps * this.abilityMult();
+      for (let i = this.fireTrail.length - 1; i >= 0; i--) { const f = this.fireTrail[i]; f.life -= dt; if (f.life <= 0) this.fireTrail.splice(i, 1); }
+      for (const h of this.hunters) {
+        if (h.state !== 'up') continue;
+        if (this.fireTrail.some((f) => dist2(f.x, f.z, h.x, h.z) < (F.r + HUNTER_R) ** 2)) {
+          h.burn = (h.burn || 0) + dps * dt;
+          if (h.burn >= 6) { const b = h.burn; h.burn = 0; this.damageHunter(h, b); }
+        }
+      }
+      if ((this.fireFx -= dt) <= 0) {
+        this.fireFx = 0.08;
+        const f = this.fireTrail[Math.floor(this.rand() * this.fireTrail.length)];
+        if (f) this.fx.burst(f.x + (this.rand() - 0.5) * 0.8, 0.2, f.z + (this.rand() - 0.5) * 0.8, 3, this.rand() < 0.5 ? 0xff7a1a : 0xffc23a, 1.2, 0.35, 0.5, -3, 0.4);
+      }
     }
 
     damageMonster(dmg) {
       const pl = this.mon;
       if (pl.iframes > 0 || this.state !== 'playing') return;
       if (pl.evolveT > 0) dmg *= 1.25;           // caught mid-evolution
+      const jug = this.mut('juggernaut');
+      if (jug && pl.rollT > 0) dmg *= 1 - jug.guard;
       pl.lastHit = this.time;
       const absorbed = Math.min(pl.armor, dmg);
       pl.armor -= absorbed;
@@ -565,11 +668,12 @@ window.PH = window.PH || {};
       e.alive = false;
       this.aliveEnemies--;
       this.eaten++;
-      if (this.stage < 3) this.food = Math.min(this.stageDef().food, this.food + def.food);
+      const fr = this.mut('frenzy'), k = fr ? fr.food : 1;
+      if (this.stage < 3) this.food = Math.min(this.stageDef().food, this.food + def.food * k);
       // Armour first; what does not fit heals at half rate.
-      const room = pl.maxArmor - pl.armor;
-      pl.armor = Math.min(pl.maxArmor, pl.armor + def.armor);
-      if (def.armor > room) pl.hp = Math.min(pl.maxHp, pl.hp + (def.armor - room) * 0.5);
+      const room = pl.maxArmor - pl.armor, gain = def.armor * k;
+      pl.armor = Math.min(pl.maxArmor, pl.armor + gain);
+      if (gain > room) pl.hp = Math.min(pl.maxHp, pl.hp + (gain - room) * 0.5);
       this.fx.enemyDeath(e);
       this.fx.burst(e.x, 0.5, e.z, 12, 0x9b1b1b, 3, 0.3, 0.5);
       this.sfx('gem');
@@ -583,6 +687,8 @@ window.PH = window.PH || {};
 
     /** Scattered birds tell the hunters roughly where you are. */
     maybeBirds(x, z, chance) {
+      const quiet = this.mut('silent');
+      if (quiet) chance *= quiet.birds;
       if (!this.team.landed || this.rand() >= chance) return;
       const n = PH.MONSTER_MODE.birds.noise;
       const T = this.team;
@@ -918,8 +1024,26 @@ window.PH = window.PH || {};
         } else if (t.bolt) {
           this.fx.lightningChain([{ x: t.x + 0.5, z: t.z - 3 }, { x: t.x, z: t.z }], 0x9be7ff);
           this.aoe(t.x, t.z, t.r, t.bolt, 5, 0x6fb7ff);
+          if (t.chain) this.chainLightning(t);
+        } else if (t.quake) {
+          this.aoe(t.x, t.z, t.r, t.quake, 4, 0xff6a3d);
+          this.fx.bossSlam(t.x, t.z, t.r);
         }
       }
+    }
+
+    /** Chain Lightning: the bolt arcs on to the nearest hunters outside its circle. */
+    chainLightning(t) {
+      const C = PH.MUTATIONS.chain;
+      const outside = this.hunters.filter((h) => h.state === 'up' && dist2(h.x, h.z, t.x, t.z) > (t.r + HUNTER_R) ** 2
+        && dist2(h.x, h.z, t.x, t.z) < C.range * C.range);
+      outside.sort((a, b) => dist2(a.x, a.z, t.x, t.z) - dist2(b.x, b.z, t.x, t.z));
+      const pts = [{ x: t.x, z: t.z }];
+      for (const h of outside.slice(0, C.jumps)) {
+        pts.push({ x: h.x, z: h.z });
+        this.damageHunter(h, t.bolt * C.dmg);
+      }
+      if (pts.length > 1) this.fx.lightningChain(pts, 0x9be7ff);
     }
 
     score() {
