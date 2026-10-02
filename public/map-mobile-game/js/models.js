@@ -26,6 +26,7 @@ window.PH = window.PH || {};
   const HEIGHT = 1.65;         // in-game height of every hunter
 
   const cache = new Map();     // file -> loaded gltf
+  const pending = new Map();   // file -> promise, for skins loaded on demand
   let loading = null;
 
   /** Split a clip into the arm tracks and everything else. */
@@ -92,7 +93,22 @@ window.PH = window.PH || {};
 
   const Models = {
     HUNTERS, HEIGHT, MONSTERS,
-    has(cls) { const h = HUNTERS[cls]; return !!h && cache.has(h.file) && (!h.gun || cache.has(h.gun)); },
+    /** Whether a hunter can be built now; `file` is a skin's character model. */
+    has(cls, file) { const h = HUNTERS[cls]; return !!h && cache.has(file || h.file) && (!h.gun || cache.has(h.gun)); },
+    hasFile(file) { return cache.has(file); },
+
+    /** Load one more model (a skin), on demand. Resolves true once it is ready. */
+    loadFile(file) {
+      if (cache.has(file)) return Promise.resolve(true);
+      if (pending.has(file)) return pending.get(file);
+      if (!THREE.GLTFLoader) return Promise.resolve(false);
+      const p = new Promise((res) => {
+        new THREE.GLTFLoader().load(BASE + file, (g) => { cache.set(file, g); res(true); }, undefined,
+          (e) => { console.warn('model failed', file, e); pending.delete(file); res(false); });
+      });
+      pending.set(file, p);
+      return p;
+    },
     hasMonster(type) {
       const m = MONSTERS[type];
       if (!m) return false;
@@ -115,10 +131,11 @@ window.PH = window.PH || {};
     /**
      * A ready-to-place hunter: a group whose feet sit at y = 0 facing +z,
      * with its own animation mixer. Call `update(dt, state)` each frame.
+     * `file` swaps in a skin: another Mini Character on the same skeleton.
      */
-    createHunter(cls) {
+    createHunter(cls, file) {
       const def = HUNTERS[cls];
-      const src = cache.get(def.file);
+      const src = cache.get(file && cache.has(file) ? file : def.file);
       const model = THREE.SkeletonUtils.clone(src.scene);
       // Scale to the game's hunter height.
       const box = new THREE.Box3().setFromObject(model);
@@ -206,11 +223,12 @@ window.PH = window.PH || {};
      * footprint. Returns the group (feet at y = 0, facing +z), the material
      * whose emissive carries the stage glow and hit flashes, and an animator.
      * `update(dt, s)` takes { moving, fast, windup, attack, leap, evolving, dead }:
-     * `attack` is a count that goes up by one per bite.
+     * `attack` is a count that goes up by one per bite. `variant` is a
+     * colourway for the custom monsters (see PH.Progress.COLORS).
      */
-    createMonster(type, stage) {
+    createMonster(type, stage, variant) {
       const def = MONSTERS[type];
-      if (def.custom) return PH.Creatures[def.custom](stage, def, def.fit[Math.max(0, Math.min(2, stage - 1))], { skinnedOutline });
+      if (def.custom) return PH.Creatures[def.custom](stage, def, def.fit[Math.max(0, Math.min(2, stage - 1))], { skinnedOutline, variant });
       const src = cache.get(def.file);
       const [w, h] = def.fit[Math.max(0, Math.min(2, stage - 1))];
       const model = THREE.SkeletonUtils.clone(src.scene);
