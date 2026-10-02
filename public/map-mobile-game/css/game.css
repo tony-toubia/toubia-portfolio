@@ -406,6 +406,40 @@ body.big-hud #banner { font-size: 1.5em; }
 #night-veil { position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(circle at var(--vx, 50%) var(--vy, 50%), rgba(2, 3, 8, 0) 0, rgba(2, 3, 8, 0) 20vmin, rgba(2, 3, 8, 0.86) 44vmin, rgba(2, 3, 8, 0.94) 80vmin); }
 
+/* ── Online co-op ─────────────────────────────────────── */
+#coop { background: radial-gradient(ellipse at 50% 35%, rgba(20, 24, 42, 0.35), rgba(10, 12, 22, 0.85)); }
+.coop-panel { max-width: 460px; }
+#coop-start[hidden], #coop-lobby[hidden], #btn-coop-go[hidden] { display: none; }
+.coop-label { display: block; text-align: left; color: var(--muted); font-size: 0.78rem; margin: 12px 0 4px; }
+.coop-input { width: 100%; padding: 12px 14px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); border: 2px solid rgba(255, 255, 255, 0.12);
+  color: var(--text); font-size: 1rem; font-weight: 700; }
+.coop-input.code { text-transform: uppercase; letter-spacing: 0.3em; font-family: ui-monospace, Menlo, monospace; text-align: center; }
+.coop-or { color: var(--muted); font-size: 0.78rem; margin: 14px 0 8px; letter-spacing: 0.1em; text-transform: uppercase; }
+.coop-room { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-radius: 14px;
+  background: rgba(78, 205, 196, 0.1); border: 2px solid rgba(78, 205, 196, 0.4); }
+.coop-room .cr-l { display: block; color: var(--muted); font-size: 0.68rem; letter-spacing: 0.16em; text-align: left; }
+.coop-room b { font-size: 1.8rem; letter-spacing: 0.25em; font-family: ui-monospace, Menlo, monospace; color: var(--teal); }
+.coop-invite { width: auto; margin: 0; padding: 10px 14px; font-size: 0.8rem; }
+#coop-players { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px; }
+.coop-slot { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); text-align: left; min-width: 0; }
+.coop-slot .ci { font-size: 1.3rem; }
+.coop-slot .cn { font-weight: 800; font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.coop-slot small { display: block; color: var(--muted); font-size: 0.68rem; }
+.coop-slot.ai { opacity: 0.55; }
+.coop-slot.me { box-shadow: 0 0 0 2px var(--teal) inset; }
+.coop-classes { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.coop-classes button { padding: 8px 2px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); border: 2px solid rgba(255, 255, 255, 0.08); font-size: 0.62rem; font-weight: 800; color: var(--text); }
+.coop-classes button .ci { display: block; font-size: 1.4rem; }
+.coop-classes button.on { border-color: var(--accent); background: rgba(255, 255, 255, 0.1); }
+.coop-classes button:disabled { opacity: 0.3; }
+.coop-slot.beast { grid-column: 1 / -1; background: rgba(176, 108, 255, 0.12); }
+.coop-slot.beast.ai { background: rgba(255, 255, 255, 0.04); }
+.coop-monster { margin-top: 8px; }
+.coop-monster:empty { display: none; }
+.coop-monster .cm-toggle { width: 100%; margin: 0; padding: 10px; font-size: 0.8rem; }
+.coop-monster .cm-toggle.on { border-color: #b06cff; background: rgba(176, 108, 255, 0.18); }
+.coop-monster .coop-classes { margin-top: 6px; }
+
 /* ── Pause & game over ────────────────────────────────── */
 .small-panel { max-width: 360px; }
 .small-panel p { color: var(--muted); margin-top: 8px; }

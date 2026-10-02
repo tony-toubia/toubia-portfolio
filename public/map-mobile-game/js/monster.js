@@ -269,6 +269,12 @@ window.PH = window.PH || {};
           if (this.fireTrail.length > 120) this.fireTrail.shift();
         }
         if (pl.diveT <= 0) pl.lift = 0;
+      } else if (pl.netX != null) {
+        // Co-op: a friend plays the monster. Their device walks it (and flies
+        // its pounce); we take where it says it is.
+        if (pl.dashT > 0) pl.dashT -= dt;
+        pl.x = pl.netX; pl.z = pl.netZ; pl.facing = pl.netF;
+        pl.moving = Math.hypot(pl.x - ox, pl.z - oz) > 0.001;
       } else if (pl.dashT > 0) {
         const P = M.pounce, v = P.dist / P.dur;
         pl.dashT -= dt;
@@ -491,11 +497,7 @@ window.PH = window.PH || {};
      * move and two general ones. The player picks; an AI monster picks at random.
      */
     offerMutations() {
-      const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(this.rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-      const open = Object.keys(PH.MUTATIONS).filter((id) => !this.muts.has(id));
-      const sig = shuffle(open.filter((id) => PH.MUTATIONS[id].for === this.monsterType));
-      const gen = shuffle(open.filter((id) => !PH.MUTATIONS[id].for));
-      const choices = [sig[0], gen[0], gen[1]].filter(Boolean).map((id) => ({ type: 'mutation', id, signature: !!PH.MUTATIONS[id].for }));
+      const choices = this.mutationChoices();
       if (!choices.length) return;
       if (this.aiMonster) {
         const c = choices[Math.floor(this.rand() * choices.length)];
@@ -506,6 +508,14 @@ window.PH = window.PH || {};
       this.state = 'choice';
       this.currentChoices = choices;
       this.hooks.onChoice && this.hooks.onChoice(choices, 'mutation');
+    }
+
+    mutationChoices() {
+      const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(this.rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+      const open = Object.keys(PH.MUTATIONS).filter((id) => !this.muts.has(id));
+      const sig = shuffle(open.filter((id) => PH.MUTATIONS[id].for === this.monsterType));
+      const gen = shuffle(open.filter((id) => !PH.MUTATIONS[id].for));
+      return [sig[0], gen[0], gen[1]].filter(Boolean).map((id) => ({ type: 'mutation', id, signature: !!PH.MUTATIONS[id].for }));
     }
 
     applyMutation(id) {

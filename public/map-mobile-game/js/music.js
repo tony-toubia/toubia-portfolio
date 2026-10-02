@@ -320,6 +320,8 @@ window.PH = window.PH || {};
       m.threat = Math.min(1, (game.aliveEnemies || 0) / 140);
       m.boss = (game.bosses && game.bosses.length) ? 1 : 0;
     }
+    // Never hand the audio graph a NaN (a mirror before its first snapshot, say).
+    for (const k of ['threat', 'boss', 'hp', 'stage', 'muffle']) if (!Number.isFinite(m[k])) m[k] = k === 'hp' ? 1 : 0;
     return m;
   };
 
