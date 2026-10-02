@@ -16,6 +16,7 @@
  *   node scripts/primal-hunt-sim.mjs --hunt          # hunter mode, a bot playing each class
  *   node scripts/primal-hunt-sim.mjs --starter       # Survival with each class's unlockable starting weapon
  *   node scripts/primal-hunt-sim.mjs --class support --weapon grenade   # any starting weapon
+ *   node scripts/primal-hunt-sim.mjs --apex          # wins carry on into the Apex Hunt
  *
  * By default the bot fires its special when it is crowded or near a monster,
  * and dodges about half of the boss attacks it is standing in - roughly how a
@@ -39,12 +40,18 @@ for (const f of ['config.js', 'render.js', 'game.js', 'monster.js', 'hunt.js', '
 }
 const PH = ctx.PH;
 const STARTER = process.argv.includes('--starter');
+const APEX = process.argv.includes('--apex');
 
 function run(classId, seed, idle) {
   const log = { levels: [], bosses: [], events: [] };
-  let ended = null;
+  let ended = null, apexAt = null;
+  const setTimeout0 = [];
   const g = new PH.Game(new PH.NullRender(), {
-    onEnd: (r) => { ended = r; },
+    onEnd: (r) => {
+      // --apex: a win carries on into the Apex Hunt (once) until the bot falls.
+      if (APEX && r.victory && !g.apex) { apexAt = g.time; setTimeout0.push(() => g.continueApex()); return; }
+      ended = r;
+    },
     onChoice: (choices) => {
       // Prefer: owned weapon upgrades, new weapons, damage/cooldown passives.
       const rank = (c) => (c.type === 'evolve' ? -1 : c.type === 'weapon' && c.level > 1 ? 0 : c.type === 'weapon' ? 1
@@ -59,7 +66,8 @@ function run(classId, seed, idle) {
   g.newRun(classId, seed, arg('--weapon') || (STARTER ? PH.Progress.STARTERS.find((s) => s.for === classId).weapon : null));
   const dt = PH.CONFIG.step;
   let orbit = 0, maxAlive = 0;
-  while (g.state !== 'over' && g.time < 420) {
+  while ((g.state !== 'over' || setTimeout0.length) && g.time < (APEX ? 1500 : 420)) {
+    while (setTimeout0.length) setTimeout0.shift()();
     if (!idle) {
       // A casual player: drift toward gems, step away from anything close,
       // hold a boss at mid range. No deliberate dodging of telegraphs.
@@ -121,7 +129,7 @@ function run(classId, seed, idle) {
     maxAlive = Math.max(maxAlive, g.aliveEnemies);
     if (g.state === 'choice') { /* handled synchronously in onChoice */ }
   }
-  return { classId, seed, bossOrder: g.bossOrder.join('>'), uses: g.abilityUses, dodges: g.dodges, evos: g.weapons.filter((w) => w.level > 5).length, ...(ended || { victory: false, time: g.time, kills: g.kills, level: g.level, bossKills: g.bossKills, score: g.score() }), maxAlive, dmgTaken: Math.round(g.player.damageTaken), log };
+  return { classId, seed, bossOrder: g.bossOrder.join('>'), uses: g.abilityUses, dodges: g.dodges, evos: g.weapons.filter((w) => w.level > 5).length, ...(ended || { victory: false, time: g.time, kills: g.kills, level: g.level, bossKills: g.bossKills, score: g.score() }), maxAlive, dmgTaken: Math.round(g.player.damageTaken), apexWaves: g.apex ? g.apex.cleared || 0 : null, apexTime: apexAt === null ? null : g.time - apexAt, log };
 }
 
 /**
@@ -259,6 +267,8 @@ for (const c of classes) {
   const wins = rs.filter((r) => r.victory).length;
   const avgT = rs.reduce((a, r) => a + r.time, 0) / rs.length;
   console.log(`  ${c.padEnd(9)} win ${wins}/${rs.length}, mean run ${fmt(avgT)}, mean bosses ${(rs.reduce((a, r) => a + r.bossKills, 0) / rs.length).toFixed(1)}`);
+  const ap = rs.filter((r) => r.apexWaves !== null);
+  if (ap.length) console.log(`            apex: waves cleared ${ap.map((r) => r.apexWaves).join(',')} (mean ${(ap.reduce((x, r) => x + r.apexWaves, 0) / ap.length).toFixed(1)}), mean apex time ${fmt(ap.reduce((x, r) => x + r.apexTime, 0) / ap.length)}`);
 }
 if (verbose) {
   const r = rows[0];

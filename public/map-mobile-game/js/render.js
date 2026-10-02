@@ -134,6 +134,7 @@ window.PH = window.PH || {};
     { bg: 0x22132e, amb: 0x4a3560, ambI: 0.40, sky: 0xc07aa0, gnd: 0x2a2016, hemiI: 0.30, sun: 0xffa070, sunI: 0.72, tint: [1.12, 0.7, 1.3],  tuft: 0x2a2a26, mote: 0xffb35c, mist: 0xd6b8ff, mistA: 0.12, sunDir: [-1, 0.42, 0.3] },
     { bg: 0x12050a, amb: 0x3a1a2a, ambI: 0.42, sky: 0x9a2a3a, gnd: 0x200808, hemiI: 0.30, sun: 0xff5040, sunI: 0.52, tint: [1.08, 0.55, 0.62], tuft: 0x341216, mote: 0xff4a2a, mist: 0xff8a7a, mistA: 0.14, sunDir: [0.85, 0.62, -0.35] },
   ];
+  const AFFIX_GLOW = { swift: [0.35, 0.75, 1], titanic: [1, 0.75, 0.35], volatile: [1, 0.3, 0.08], brood: [0.6, 1, 0.3] };
   const _ca = new THREE.Color(), _cb = new THREE.Color();
   const mixHex = (out, a, b, k) => out.copy(_ca.setHex(a)).lerp(_cb.setHex(b), k);
   const easeOut = (k) => 1 - Math.pow(1 - k, 3);
@@ -1494,9 +1495,11 @@ window.PH = window.PH || {};
       for (const m of [...tmp.children]) tmp.remove(m);
     }
 
-    addBoss(id, monsterType, stage) {
-      const mv = this.monsterModel(monsterType, stage);
+    /** `variant`: a colourway (Apex Hunt monsters); `size`: an extra scale (Titanic). */
+    addBoss(id, monsterType, stage, variant = null, size = 1) {
+      const mv = this.monsterModel(monsterType, stage, variant);
       if (mv) {
+        if (size && size !== 1) { mv.root.scale.setScalar(size); mv.radius *= size; mv.height *= size; }
         this.scene.add(mv.root);
         this.bosses.set(id, { ...mv, flash: 0 });
         return { radius: mv.radius, height: mv.height };
@@ -1769,6 +1772,11 @@ window.PH = window.PH || {};
           mats.primaryMaterial.emissiveIntensity = vb.baseGlow + vb.flash * 0.45;
         }
         this.shadows.add(bs.x, 0.02, bs.z, 0, bs.radius * 1.2, 1, bs.radius * 1.2);
+        // Apex Hunt monsters carry an aura in their mutation's colour.
+        if (bs.affix) {
+          const c = AFFIX_GLOW[bs.affix] || AFFIX_GLOW.swift, k = 0.3 + Math.sin(t * 5 + bs.id) * 0.08, r = bs.radius * 3.4;
+          this.halos.add(bs.x, 0.35, bs.z, 0, r, r, r, c[0] * k, c[1] * k, c[2] * k);
+        }
       }
 
       // Projectiles

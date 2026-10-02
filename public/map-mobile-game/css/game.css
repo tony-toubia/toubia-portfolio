@@ -324,6 +324,16 @@ body.in-iframe .menu-foot { justify-content: center; }
 .unlock-chip .ue { font-size: 0.66rem; font-weight: 800; letter-spacing: 0.1em; padding: 4px 8px; border-radius: 6px; background: var(--gold); color: #3a2a00; }
 .unlock-chip.on .ue { background: var(--teal); color: #06302c; }
 
+/* ── Apex Hunt ────────────────────────────────────────── */
+#apex-chip { color: #ff6a5a; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.1em; margin-right: 10px; }
+.apex-btn { border-color: rgba(255, 90, 70, 0.6); color: #ff8a7a; background: rgba(255, 70, 50, 0.12); }
+.board-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.board-tabs .lt { flex: 1; padding: 9px 4px; border-radius: 10px; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em;
+  background: rgba(255, 255, 255, 0.05); border: 2px solid transparent; color: var(--muted); }
+.board-tabs .lt.active { border-color: var(--gold); color: var(--text); background: rgba(255, 215, 0, 0.1); }
+#over-apex[hidden], #daily-apex[hidden], #daily-today[hidden], #btn-apex[hidden], #apex-chip[hidden], #apex-form[hidden] { display: none; }
+#over-apex label { display: block; color: var(--muted); font-size: 0.8rem; margin: 12px 0 6px; }
+
 /* ── Pause & game over ────────────────────────────────── */
 .small-panel { max-width: 360px; }
 .small-panel p { color: var(--muted); margin-top: 8px; }

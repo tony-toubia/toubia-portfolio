@@ -56,6 +56,27 @@ window.PH = window.PH || {};
       } catch { return { offline: true }; }
     },
 
+    /** The all-time Apex Hunt board, and this device's best run on it. */
+    async apexBoard() {
+      try {
+        const r = await fetch(`/api/primal-hunt/apex?device=${this.deviceId()}`, { cache: 'no-store' });
+        if (r.status === 503) return { offline: true };
+        const j = await r.json();
+        return r.ok ? j : { error: j.error || 'unavailable' };
+      } catch { return { offline: true }; }
+    },
+    async apexSubmit(entry) {
+      try {
+        const r = await fetch('/api/primal-hunt/apex', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...entry, deviceId: this.deviceId() }) });
+        if (r.status === 503) return { offline: true };
+        const j = await r.json();
+        return r.ok ? j : { error: j.error || 'unavailable' };
+      } catch { return { offline: true }; }
+    },
+    apexBest() { return store.get('apexBest', null); },
+    setApexBest(data) { store.set('apexBest', { ...(this.apexBest() || {}), ...data }); },
+
     async submit(entry) {
       try {
         const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' },
