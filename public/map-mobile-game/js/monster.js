@@ -1063,6 +1063,7 @@ window.PH = window.PH || {};
       this.hooks.onEnd && this.hooks.onEnd({
         mode: 'monster', victory, how, time: this.time, stage: this.stage, huntersKilled: this.huntersKilled,
         eaten: this.eaten, score: this.score(), monsterType: this.monsterType,
+        biome: this.biomeId, mutations: this.muts ? this.muts.size : 0,
       });
     }
   }

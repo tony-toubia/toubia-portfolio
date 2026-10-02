@@ -120,6 +120,8 @@ window.PH = window.PH || {};
       tap('btn-pause-settings', () => this.openSettings('pause'));
       tap('btn-settings-back', () => this.show(this.settingsFrom || 'menu'));
       tap('btn-share', () => this.shareResult());
+      tap('btn-coach-skip', () => { if (this.game.skipTutorial) this.game.skipTutorial(); });
+      tap('btn-replay-tutorial', () => { store.set('tutorialDone', false); this.toast('The tutorial will run on your next Survival hunt'); });
       for (const b of document.querySelectorAll('#set-quality button')) tap(b, () => { PH.Settings.set('quality', b.dataset.v); this.applySettings(); this.render.applyQualitySetting(); });
       for (const b of document.querySelectorAll('.set-toggle')) tap(b, () => { PH.Settings.set(b.dataset.k, !PH.Settings.v[b.dataset.k]); this.applySettings(); });
       tap('btn-apex', () => this.startApex());
@@ -205,6 +207,7 @@ window.PH = window.PH || {};
     enterMode(game) {
       this.game = game;
       $('apex-chip').hidden = true;
+      this.coach(null);
       document.body.classList.toggle('mode-monster', game.mode === 'monster');
       document.body.classList.toggle('mode-hunt', game.mode === 'hunt');
       this.releaseStick();
@@ -273,7 +276,10 @@ window.PH = window.PH || {};
       this.releaseStick();
       this.cache = {};
       // Unlocked starting weapons, except in the daily: everyone starts alike there.
-      this.game.newRun(classId, daily ? daily.seed : undefined, daily || !PH.Progress ? null : PH.Progress.starter(classId));
+      // A first Survival run teaches the controls, in the meadow.
+      const tutorial = !daily && !store.get('tutorialDone', false);
+      this.game.newRun(classId, daily ? daily.seed : undefined, daily || !PH.Progress ? null : PH.Progress.starter(classId),
+        tutorial ? 'meadow' : null, { tutorial });
       this.hideScreens();
       this.el.hud.hidden = false;
       this.el.bossbar.hidden = true;
@@ -359,6 +365,7 @@ window.PH = window.PH || {};
       if (res.offline) { st.className = 'daily-status err'; st.textContent = 'The leaderboard is offline. Your best is saved on this device.'; $('btn-daily-submit').disabled = false; return; }
       if (res.error) { st.className = 'daily-status err'; st.textContent = `Not accepted: ${res.error}.`; $('btn-daily-submit').disabled = false; return; }
       PH.Daily.setBest(d.day, { submitted: true, name });
+      if (res.me && res.me.rank <= 10 && PH.Progress) this.noted(PH.Progress.note('dailyTop'));
       $('daily-form').hidden = true;
       st.className = 'daily-status ok';
       st.textContent = res.me ? `You're #${res.me.rank} of ${res.total} today!` : 'Submitted.';
@@ -376,7 +383,7 @@ window.PH = window.PH || {};
       $('rank-badge').textContent = r.rank;
       $('rank-title').textContent = `${r.title.toUpperCase()} · RANK ${r.rank}`;
       $('rank-fill').style.width = (r.max ? 100 : Math.round((r.into / Math.max(1, r.need)) * 100)) + '%';
-      $('rank-new').hidden = P.unseen().length === 0;
+      $('rank-new').hidden = P.unseen().length === 0 && P.unseenAchievements().length === 0;
     }
 
     /** XP, rank and anything unlocked, on the results screen. */
@@ -413,7 +420,64 @@ window.PH = window.PH || {};
         });
         list.appendChild(chip);
       }
-      if (res.rankUp || res.unlocks.length) setTimeout(() => this.sfx('levelup'), 1200);
+      for (const a of res.achievements || []) {
+        const chip = document.createElement('div');
+        chip.className = 'unlock-chip award';
+        chip.innerHTML = `<span class="ui">${a.icon}</span><span class="ub"><b>ACHIEVEMENT: ${a.name.toUpperCase()}</b><small>${a.desc}</small></span>`;
+        list.appendChild(chip);
+      }
+      if (res.rankUp || res.unlocks.length || (res.achievements || []).length) setTimeout(() => this.sfx('levelup'), 1200);
+    }
+
+    /** The Lodge's awards tab: every achievement, earned or with how close you are. */
+    renderAwards() {
+      const P = PH.Progress, p = P.profile, all = P.ACHIEVEMENTS, got = all.filter((a) => p.ach[a.id]).length;
+      const fresh = new Set(P.unseenAchievements().map((a) => a.id));
+      $('lodge-note').textContent = `${got} of ${all.length} earned`;
+      const list = $('lodge-list');
+      list.innerHTML = '<div class="ach-grid"></div>';
+      const grid = list.firstChild;
+      // Earned first (newest first), then the rest in order.
+      const order = [...all].sort((a, b) => (p.ach[b.id] || 0) - (p.ach[a.id] || 0));
+      for (const a of order) {
+        const el = document.createElement('div');
+        const has = !!p.ach[a.id];
+        el.className = 'ach' + (has ? ' got' : '') + (fresh.has(a.id) ? ' fresh' : '');
+        let bar = '';
+        if (!has && a.progress) { const [x, n] = a.progress(p); bar = `<span class="lp"><i style="width:${Math.round((x / n) * 100)}%"></i></span><small>${x.toLocaleString()} / ${n.toLocaleString()}</small>`; }
+        el.innerHTML = `<span class="ai">${a.icon}</span><span class="ab"><b>${a.name}</b><small>${a.desc}</small>${bar}</span>`;
+        grid.appendChild(el);
+      }
+      P.markAchievementsSeen();
+    }
+
+    /** Achievements earned outside a run (a board placing, a share): a toast each. */
+    noted(list) { list.forEach((a, i) => setTimeout(() => { this.toast(`${a.icon} Achievement: ${a.name}`); this.sfx('levelup'); }, i * 2800)); }
+
+    /** The tutorial's coach card; `null` hides it. */
+    coach(step) {
+      const el = $('coach'), desktop = window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches;
+      for (const b of [this.el.ability, this.el.dodge]) b.classList.remove('coach-ring');
+      if (!step) { el.hidden = true; return; }
+      if (step === 'done') {
+        el.hidden = true;
+        store.set('tutorialDone', true);
+        this.toast('Survive the swarm and slay three monsters. Good luck!');
+        return;
+      }
+      const T = {
+        move: desktop ? '⌨️ Move with WASD or the arrow keys<small>(or drag anywhere)</small>' : '👆 Drag anywhere on the screen to move',
+        kill: '🔫 Your weapon fires on its own<small>Get close to the creatures</small>',
+        gems: '💎 Pick up the gems they drop<small>Fill the bar at the top to level up</small>',
+        special: desktop ? '⚡ Your special is charged<small>Press Space</small>' : '⚡ Your special is charged<small>Tap the big button</small>',
+        dodge: desktop ? '💨 Dodge roll with Shift<small>Nothing can hit you mid-roll</small>' : '💨 Tap the small button to dodge roll<small>Nothing can hit you mid-roll</small>',
+      };
+      $('coach-text').innerHTML = T[step];
+      el.hidden = false;
+      el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+      if (step === 'special') this.el.ability.classList.add('coach-ring');
+      if (step === 'dodge') this.el.dodge.classList.add('coach-ring');
+      this.sfx('click');
     }
 
     openLodge() {
@@ -435,6 +499,7 @@ window.PH = window.PH || {};
       ].map(([v, l]) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('');
       for (const b of document.querySelectorAll('.lodge-tabs .lt')) b.classList.toggle('active', b.dataset.tab === this.lodgeTab);
       const tab = this.lodgeTab;
+      if (tab === 'ach') { this.renderAwards(); P.markSeen(); return; }
       $('lodge-note').textContent = tab === 'skin' ? 'Your look in Survival and Hunter Squad, the Daily Hunt included.'
         : tab === 'color' ? 'Your monster\'s colours in Monster mode.' : 'Your first weapon in Survival. The Daily Hunt always uses the standard one.';
       const groups = tab === 'color' ? Object.keys(PH.MONSTERS) : Object.keys(PH.CLASSES);
@@ -548,6 +613,7 @@ window.PH = window.PH || {};
       if (res.offline) { st.className = 'daily-status err'; st.textContent = 'The leaderboard is offline. Your best is saved on this device.'; $('btn-apex-submit').disabled = false; return; }
       if (res.error) { st.className = 'daily-status err'; st.textContent = `Not accepted: ${res.error}.`; $('btn-apex-submit').disabled = false; return; }
       PH.Daily.setApexBest({ submitted: true, name });
+      if (PH.Progress) this.noted(PH.Progress.note('apexBoard'));
       $('apex-form').hidden = true;
       st.className = 'daily-status ok';
       st.textContent = res.me ? `You're #${res.me.rank} of ${res.total} all time!` : 'Submitted.';
@@ -621,12 +687,14 @@ window.PH = window.PH || {};
         const file = new File([blob], 'primal-hunt.png', { type: 'image/png' });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           await navigator.share({ files: [file], title: 'Primal Hunt', text: `${text} ${url}` });
+          if (PH.Progress) this.noted(PH.Progress.note('shared'));
         } else {
           const a = document.createElement('a');
           a.href = URL.createObjectURL(blob); a.download = 'primal-hunt.png';
           document.body.appendChild(a); a.click(); a.remove();
           setTimeout(() => URL.revokeObjectURL(a.href), 4000);
           try { await navigator.clipboard.writeText(`${text} ${url}`); this.toast('Image saved, and the message copied'); } catch { this.toast('Image saved'); }
+          if (PH.Progress) this.noted(PH.Progress.note('shared'));
         }
       } catch (e) {
         if (!(e && e.name === 'AbortError')) this.toast('Could not share that');
@@ -832,6 +900,7 @@ window.PH = window.PH || {};
         onLoadout: () => this.buildLoadout(),
         onEnd: (r) => { this.lastResult = r; return r.mode === 'monster' ? this.monsterOver(r) : r.mode === 'hunt' ? this.huntOver(r) : this.gameOver(r); },
         onBossIntro: (b, wave) => this.bossCard(b, wave),
+        onTutorial: (step) => this.coach(step),
         onToast: (text) => this.toast(text),
         onEvolveReady: () => { if (navigator.vibrate) { try { navigator.vibrate([40, 60, 40]); } catch { /* iframe */ } } },
       };
@@ -912,6 +981,7 @@ window.PH = window.PH || {};
     openChoice(choices, kind) {
       this.releaseStick();
       const chest = kind === 'chest', mutation = kind === 'mutation';
+      if (this.game.tutorial && !$('coach').hidden) $('coach-text').innerHTML = '⬆️ Level up!<small>Pick an upgrade - your build grows every level</small>';
       $('choice-title').textContent = mutation ? '🧬 MUTATION' : chest ? '🎁 SUPPLY DROP' : `LEVEL ${this.game.level}`;
       $('choice-sub').textContent = mutation ? `Stage ${this.game.stage}: choose how you evolve` : chest ? 'A free upgrade - choose one' : 'Choose an upgrade';
       const wrap = $('choice-cards');
@@ -972,6 +1042,7 @@ window.PH = window.PH || {};
 
     gameOver(r) {
       this.releaseStick();
+      this.coach(null);
       if (r.apex) return this.apexOver(r);
       $('over-apex').hidden = true;
       // A win (outside the daily) can carry on into the Apex Hunt.

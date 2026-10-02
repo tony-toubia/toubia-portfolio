@@ -73,8 +73,10 @@ window.PH = window.PH || {};
      * `starter` replaces the class's starting weapon (an unlock; never in the
      * Daily Hunt). The biome comes from the seed unless one is given.
      */
-    newRun(classId, seed = (Math.random() * 1e9) | 0, starter = null, biome = null) {
+    newRun(classId, seed = (Math.random() * 1e9) | 0, starter = null, biome = null, opts = {}) {
       this.rand = mulberry32(seed);
+      // A first run teaches the controls, with the clock stopped until it is done.
+      this.tutorial = opts.tutorial ? { step: -1, moved: 0, mark: 0 } : null;
       this.biomeId = biome && PH.World.BIOMES[biome] ? biome : PH.World.fromSeed(seed);
       PH.World.set(this.biomeId);
       this.poolList = null; this.poolT = 0; this.lavaT = 0; this.hazTick = 0; this.hazardDmg = 0;
@@ -218,7 +220,8 @@ window.PH = window.PH || {};
       // It is what makes a hit feel like it connected.
       if (this.hitstop > 0) { this.hitstop -= dt; return; }
       if (this.slowmo > 0) { this.slowmo -= dt; dt *= 0.35; }
-      this.time += dt;
+      if (this.tutorial) this.updateTutorial(dt);
+      else this.time += dt;
 
       this.abilityCd = Math.max(0, this.abilityCd - dt);
       this.dodgeCd = Math.max(0, this.dodgeCd - dt);
@@ -542,7 +545,8 @@ window.PH = window.PH || {};
       const wave = this.waveAt(this.time);
       const bossUp = this.bosses.length > 0;
       const apexK = this.apex ? 1 + PH.APEX.swarm * this.apex.wave : 1;
-      this.spawnAcc += wave.rate * apexK * (bossUp ? 0.55 : 1) * dt;
+      const tut = this.tutorial ? (this.tutorial.step <= 0 ? 0 : 0.5) : 1;   // a quiet field while you learn
+      this.spawnAcc += wave.rate * apexK * tut * (bossUp ? 0.55 : 1) * dt;
       if (this.apex) this.updateApex();
       while (this.spawnAcc >= 1) {
         this.spawnAcc -= 1;
@@ -994,6 +998,45 @@ window.PH = window.PH || {};
       }
       this.hooks.onBoss && this.hooks.onBoss(this.bosses);
       if (b.final && !this.apex) this.victoryAt = this.time + 3;
+    }
+
+    /* ── Tutorial ───────────────────────────────────────────── */
+
+    /**
+     * Five steps, each waiting for you to do the thing: move, kill, level up,
+     * use your special, dodge. Then the clock starts and the run is a normal one.
+     */
+    updateTutorial(dt) {
+      const T = this.tutorial, pl = this.player;
+      const go = (step) => {
+        T.step = step;
+        T.mark = step === 1 ? this.kills : step === 3 ? this.abilityUses : step === 4 ? this.dodges : 0;
+        if (step === 1 || step === 3) {
+          // Something to practise on: a loose ring of critters.
+          for (let i = 0; i < 12; i++) { const a = (i / 12) * TAU; this.spawnEnemy('critter', pl.x + Math.cos(a) * 9, pl.z + Math.sin(a) * 9); }
+        }
+        if (step === 3) this.abilityCd = 0;
+        if (step === 4) this.dodgeCd = 0;
+        if (step === 5) {
+          this.tutorial = null;
+          this.banner('THE HUNT BEGINS', 'boss');
+          this.hooks.onTutorial && this.hooks.onTutorial('done');
+          return;
+        }
+        this.hooks.onTutorial && this.hooks.onTutorial(['move', 'kill', 'gems', 'special', 'dodge'][step]);
+      };
+      if (T.step < 0) return go(0);
+      if (T.step === 0) { if (pl.moving) T.moved += pl.speed * dt; if (T.moved > 7) go(1); }
+      else if (T.step === 1) { if (this.kills >= T.mark + 6) go(2); }
+      else if (T.step === 2) { if (this.level >= 2 && this.state === 'playing' && !this.pending.length) go(3); }
+      else if (T.step === 3) { if (this.abilityUses > T.mark) go(4); }
+      else if (T.step === 4) { if (this.dodges > T.mark) go(5); }
+    }
+
+    skipTutorial() {
+      if (!this.tutorial) return;
+      this.tutorial = null;
+      this.hooks.onTutorial && this.hooks.onTutorial('done');
     }
 
     /* ── Apex Hunt ──────────────────────────────────────────── */
@@ -1467,6 +1510,8 @@ window.PH = window.PH || {};
         victory: this.victory, time: this.time, kills: this.kills, level: this.level,
         bossKills: this.bossKills, score: this.score(), classId: this.classId, bonus: this.bonusScore || 0,
         apex: this.apex ? { waves: this.apex.cleared || 0, ...this.apex.base } : null,
+        biome: this.biomeId, dodges: this.dodges, damageTaken: Math.round(this.player.damageTaken),
+        evolved: this.weapons.filter((w) => w.level > 5).length,
       });
     }
   }
