@@ -93,6 +93,7 @@ window.PH = window.PH || {};
       this.spotted = false;
       this.evolveNotified = false;
       this.muts = new Set();
+      this.brain = null;
       this.fireTrail = []; this.fireFx = 0;
 
       const def = this.def();
@@ -587,54 +588,218 @@ window.PH = window.PH || {};
     }
 
     /**
-     * The monster's brain, for hunter mode and the balance sim. It can smell
-     * the squad (like the radar in monster mode): it eats and lies low while
-     * weak, flees toward grass away from hunters, evolves when nobody is near,
-     * and turns on the squad once it is strong.
+     * The monster's brain, for Hunter Squad and the balance sim. It can smell
+     * the squad (like the radar in monster mode). A few times a second it
+     * weighs what it could do and commits to the best plan for a while:
+     *   feed    eat wildlife to grow, away from where the squad is;
+     *   hide    sit in grass far from them while its armour grows back;
+     *   ambush  hidden and unseen with hunters walking closer: keep still,
+     *           then spring on the first one in reach;
+     *   fight   go after one hunter - the hurt, the isolated, the medic, a
+     *           downed one nobody is guarding - with its special and pounce,
+     *           until that hunter drops or the fight has cost too much;
+     *   flee    break away toward grass, using its special to escape.
+     * A trapped monster fights, and a lone hunter who runs ahead of the squad
+     * gets turned on. How eager it is depends on the monster (config `ai`),
+     * its stage, its health and how many hunters are close, with a little
+     * chance in every choice, so no two hunts play out the same.
      */
     aiControl() {
-      const pl = this.mon, inp = this.monInput;
-      const d = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+      const pl = this.mon, inp = this.monInput, P = this.def().ai, A = this.def().ability;
+      if (!this.brain) {
+        this.brain = { mode: 'feed', think: 0, lock: 0, target: null, start: 0, startTough: 1, fightCd: this.time + 8, at: this.time,
+          stats: { fights: 0, downs: 0, time: {} } };
+      }
+      const B = this.brain;
+      B.stats.time[B.mode] = (B.stats.time[B.mode] || 0) + (this.time - B.at);
+      B.at = this.time;
+      const d = (a, b = pl) => Math.hypot(a.x - b.x, a.z - b.z);
       const ups = this.hunters.filter((h) => h.state === 'up');
-      const downs = this.hunters.filter((h) => h.state === 'down');
-      const near = ups.filter((h) => d(h, pl) < 11);
-      const strong = this.stage === 3 || (this.stage === 2 && pl.hp > pl.maxHp * 0.55 && near.length <= 2);
+      if (this.time >= B.think) { B.think = this.time + 0.3 + this.rand() * 0.2; this.aiThink(ups); }
+
+      // Evolving is loud and leaves it rooted: only with nobody close.
+      if (this.canEvolve() && !ups.some((h) => d(h) < 13)) this.monsterEvolve();
+
+      const aim = (x, z) => { const m = Math.hypot(x, z) || 1; inp.x = x / m; inp.z = z / m; };
+      const dome = this.zones.find((z) => z.kind === 'arena');
       let ix = 0, iz = 0;
-      if (this.canEvolve() && near.length === 0) this.monsterEvolve();
-      if (strong && (ups.length || downs.length)) {
-        const targets = downs.length && downs.some((h) => d(h, pl) < 8) ? downs : ups.length ? ups : downs;
-        let t = targets[0];
-        for (const h of targets) if (d(h, pl) < d(t, pl)) t = h;
-        ix = t.x - pl.x; iz = t.z - pl.z;
-        if (d(t, pl) < 7) this.monsterAbility();
-      } else if (near.length) {
-        // Run for the grass patch that is furthest from the squad, relative to us.
+      let nearest = null;
+      for (const h of ups) if (!nearest || d(h) < d(nearest)) nearest = h;
+
+      if (B.mode === 'fight' || B.mode === 'ambush') {
+        const t = B.target;
+        const valid = t && (t.state === 'up' || t.state === 'down');
+        if (!valid) { B.think = 0; }
+        if (B.mode === 'ambush') {
+          // Hold still in the grass; spring when one walks into reach.
+          const reach = this.stageDef().reach + pl.radius + 2.2;
+          if (nearest && (d(nearest) < reach || (this.monAbilityCd <= 0 && this.inAbilityRange(nearest, d(nearest))))) {
+            this.startFight(nearest, true);
+          }
+        }
+        if (B.mode === 'fight' && valid) {
+          const dist = d(t), dx = (t.x - pl.x) / (dist || 1), dz = (t.z - pl.z) / (dist || 1);
+          const keep = P.keep && t.state === 'up' && !dome && this.stage < 3 ? P.keep : 0;
+          if (keep && dist < keep - 1.5) { ix = -dx - dz * 0.6; iz = -dz + dx * 0.6; }        // a caster backs off, circling
+          else if (keep && dist < keep + 1) { ix = -dz; iz = dx; }
+          else { ix = dx; iz = dz; }
+          if (this.monAbilityCd <= 0 && t.state === 'up' && this.inAbilityRange(t, dist)) { aim(dx, dz); this.monsterAbility(); }
+          const reach = this.stageDef().reach + pl.radius;
+          if (!keep && this.monDodgeCd <= 0 && dist > reach + 0.8 && dist < 6.5) { aim(dx, dz); this.monsterPounce(); }
+        }
+      }
+
+      if (B.mode === 'flee' || B.mode === 'hide') {
+        // Head for the grass patch furthest from the squad, relative to us.
         const away = { x: 0, z: 0 };
-        for (const h of near) { const dd = d(h, pl) || 1; away.x -= (h.x - pl.x) / dd; away.z -= (h.z - pl.z) / dd; }
+        for (const h of ups) { const dd = d(h) || 1, w = 1 / Math.max(3, dd); away.x -= (h.x - pl.x) / dd * w; away.z -= (h.z - pl.z) / dd * w; }
         let best = null, bs = -Infinity;
         for (const gr of this.grass) {
-          const dd = d(gr, pl) || 1, dir = ((gr.x - pl.x) * away.x + (gr.z - pl.z) * away.z) / dd;
-          const score = dir * 2 - dd * 0.15;
+          let threat = 0;
+          for (const h of ups) threat += 1 / Math.max(2, d(gr, h));
+          const dd = d(gr) || 1, dir = ((gr.x - pl.x) * away.x + (gr.z - pl.z) * away.z) / dd;
+          const score = (B.mode === 'flee' ? dir * 6 : 0) - dd * (B.mode === 'flee' ? 0.12 : 0.06) - threat * 9;
           if (score > bs) { bs = score; best = gr; }
         }
-        ix = away.x; iz = away.z;
-        if (best) { const dd = d(best, pl) || 1; ix += (best.x - pl.x) / dd * 1.2; iz += (best.z - pl.z) / dd * 1.2; }
-        if (near.some((h) => d(h, pl) < 3.5)) this.monsterAbility();
-        if (near.some((h) => d(h, pl) < 5)) this.monsterPounce();
-      } else if (pl.armor < pl.maxArmor * 0.6 && this.stage < 3) {
-        // Armour stripped and unseen: lie low in grass until it grows back.
-        let best = null;
-        for (const gr of this.grass) if (!best || d(gr, pl) < d(best, pl)) best = gr;
-        if (best && d(best, pl) > best.r * 0.5) { ix = best.x - pl.x; iz = best.z - pl.z; }
-      } else {
-        let best = null;
-        for (const e of this.enemies) if (e.alive && (!best || d(e, pl) < d(best, pl))) best = e;
+        if (best && d(best) > best.r * 0.45) { ix = best.x - pl.x; iz = best.z - pl.z; }
+        if (B.mode === 'flee') {
+          const am = Math.hypot(away.x, away.z);
+          if (am > 0.001) { const m = Math.hypot(ix, iz) || 1; ix = ix / m + away.x / am * 1.2; iz = iz / m + away.z / am * 1.2; }
+          const nd = nearest ? d(nearest) : 99;
+          if (nd < 4.5 && this.monDodgeCd <= 0) { aim(ix, iz); this.monsterPounce(); }
+          // Its special as a way out: jump, warp, dive or roll clear - or a bolt at whoever is closest.
+          if (nd < 5.5 && this.monAbilityCd <= 0 && (pl.hp + pl.armor) / (pl.maxHp + pl.maxArmor) < 0.3) {
+            if (A.id === 'lightning') this.monsterAbility();
+            else { aim(ix, iz); this.monsterAbility(); }
+          }
+        }
+      } else if (B.mode === 'feed') {
+        // The nearest prey, but not if the squad is standing around it.
+        let best = null, bs = Infinity;
+        for (const e of this.enemies) {
+          if (!e.alive) continue;
+          let risk = 0;
+          for (const h of ups) risk += Math.max(0, 14 - d(e, h));
+          const s = d(e) + risk * 1.5;
+          if (s < bs) { bs = s; best = e; }
+        }
         if (best) { ix = best.x - pl.x; iz = best.z - pl.z; }
       }
+
       const r = Math.hypot(pl.x, pl.z);
-      if (r > PH.MONSTER_MODE.arena - 4) { ix -= pl.x / r * 0.6; iz -= pl.z / r * 0.6; }
+      if (r > PH.MONSTER_MODE.arena - 4 && !(B.mode === 'fight' && dome)) { const m = Math.hypot(ix, iz) || 1; ix = ix / m - pl.x / r * 0.6; iz = iz / m - pl.z / r * 0.6; }
       const m = Math.hypot(ix, iz);
       inp.x = m > 0.001 ? ix / m : 0; inp.z = m > 0.001 ? iz / m : 0;
+    }
+
+    /** Would its special land on a hunter this far away, aimed straight at them? */
+    inAbilityRange(t, dist) {
+      const A = this.def().ability;
+      if (A.id === 'lightning') return dist < A.range;
+      if (A.id === 'leap') { const meteor = this.mut('meteor'), reach = A.dist * (meteor ? meteor.dist : 1); return Math.abs(dist - reach) < A.r * 0.9; }
+      if (A.id === 'warp') return Math.abs(dist - A.dist) < A.r * 0.9;
+      if (A.id === 'dive') { const sky = this.mut('skyborne'); return dist < A.dist * (sky ? sky.dist : 1) * 0.85; }
+      if (A.id === 'roll') return dist < A.dur * A.speed * 0.6;
+      return false;
+    }
+
+    startFight(t, fromAmbush) {
+      const B = this.brain, pl = this.mon;
+      if (B.mode !== 'fight') { B.start = this.time; B.startTough = (pl.hp + pl.armor) / (pl.maxHp + pl.maxArmor); B.stats.fights++; }
+      this.setMode('fight');
+      B.target = t;
+      B.ambushed = !!fromAmbush;
+    }
+
+    /** The planner: score each plan, keep the current one unless another is clearly better. */
+    aiThink(ups) {
+      const B = this.brain, pl = this.mon, P = this.def().ai, M = PH.MONSTER_MODE;
+      const d = (a, b = pl) => Math.hypot(a.x - b.x, a.z - b.z);
+      const tough = (pl.hp + pl.armor) / (pl.maxHp + pl.maxArmor);
+      const downs = this.hunters.filter((h) => h.state === 'down');
+      const near = ups.filter((h) => d(h) < 10), close = ups.filter((h) => d(h) < 6);
+      const dome = this.zones.find((z) => z.kind === 'arena');
+      const trapped = !!dome && d(dome) < dome.r;
+      const endgame = this.time > M.duration - 50 && this.stage < 3;
+      const ready = this.monAbilityCd <= 0;
+      const noise = () => (this.rand() - 0.5) * 0.18;
+      const S = this.stage - 1;
+
+      // A fight that has cost too much, or dragged on, ends (unless there is no way out).
+      if (B.mode === 'fight') {
+        const lost = B.startTough - tough;
+        const budget = P.burst * [0.16, 0.2, 0.4][S];
+        const long = this.time - B.start > [6, 7, 18][S];
+        const finishing = B.target && B.target.state === 'up' && B.target.hp / B.target.maxHp < 0.25;
+        if ((lost > budget || long) && !finishing) { this.endFight(); this.setMode(near.length || trapped ? 'flee' : 'hide'); return; }
+        // Hit and run: before stage 3 it usually takes the down and gets out.
+        const dropped = B.target && B.target.state === 'down' && B.target !== B.finishing;
+        if (dropped && this.stage < 3 && !trapped && this.rand() < 0.65) { this.endFight(); this.setMode('flee'); return; }
+      }
+      // A plan, once made, holds for a moment - unless its target is gone or a dome just closed on it.
+      const targetGone = B.mode === 'fight' && !(B.target && (B.target.state === 'up' || (B.target.state === 'down' && B.target === B.finishing)));
+      if (this.time < B.lock && !targetGone && !(trapped && B.mode !== 'fight' && B.mode !== 'flee')) return;
+
+      // Who is worth going after: hurt, alone, a healer or the trapper, or downed and unguarded.
+      const PRIORITY = { medic: 0.3, trapper: dome ? 0.3 : 0.15, support: 0.1, ranger: 0.08, assault: 0 };
+      let best = null, bs = -Infinity;
+      for (const h of [...ups, ...downs]) {
+        if (trapped && d(h, dome) > dome.r) continue;     // it cannot get at anyone outside the dome
+        let s;
+        if (h.state === 'down') {
+          const guards = ups.filter((o) => d(o, h) < 5).length;
+          s = 0.7 - d(h) / 14 - guards * 0.5;
+        } else {
+          let iso = 20;
+          for (const o of ups) if (o !== h) iso = Math.min(iso, d(o, h));
+          s = (1 - h.hp / h.maxHp) * 0.6 + Math.min(1, iso / 12) * 0.55 + PRIORITY[h.cls] - d(h) / 18;
+        }
+        if (h === B.target) s += 0.15;
+        if (s > bs) { bs = s; best = h; }
+      }
+      B.finishing = best && best.state === 'down' ? best : null;    // a downed target was chosen, not inherited
+      let danger = 0;
+      for (const h of near) danger += h.hp / h.maxHp;
+      const lone = !trapped && close.length === 1 && near.length === 1;     // one hunter ran ahead of the rest
+      const strike = best && best.state === 'up' && ready && this.inAbilityRange(best, d(best));
+      const stageAggro = [0, 0.06, 0.5][S];
+      let nearestD = 99;
+      for (const h of ups) nearestD = Math.min(nearestD, d(h));
+
+      const sc = {
+        fight: best ? P.aggro + stageAggro + bs * 0.45 + (ready ? 0.12 : 0) + (strike ? 0.2 : 0) + (trapped ? 0.45 : 0) + (lone ? 0.35 : 0)
+          - Math.max(0, danger - 1.5) * 0.12 - Math.max(0, 0.45 - tough) * 2.2 - (endgame ? 0.25 : 0)
+          - (this.time < B.fightCd && !trapped && !lone ? 0.55 : 0) + noise() : -9,
+        // Trapped, fleeing is only keeping away from them inside the dome.
+        flee: near.length ? 0.32 + danger * 0.12 + (1 - tough) * 0.7 + (endgame ? 0.2 : 0) - (trapped ? 0.35 : 0) + noise() : -9,
+        hide: !near.length ? 0.15 + (1 - pl.armor / pl.maxArmor) * 0.5 + (endgame ? 0.35 : 0) - (this.spotted ? 0.3 : 0) + noise() : -9,
+        feed: !near.length && this.stage < 3 ? 0.5 + noise() : -9,
+        ambush: pl.hidden && !this.spotted && !trapped && nearestD < 11 && tough > 0.4
+          ? 0.5 + P.aggro * 0.5 + stageAggro + (downs.some((h) => d(h) < 10) ? 0.25 : 0) - (endgame ? 0.2 : 0)
+            - (this.time < B.fightCd ? 0.5 : 0) + noise() : -9,
+      };
+      if (sc[B.mode] > -9) sc[B.mode] += 0.15;          // stick with a plan unless another is clearly better
+      let mode = 'feed', top = -Infinity;
+      for (const k in sc) if (sc[k] > top) { top = sc[k]; mode = k; }
+      if (top <= -9) mode = this.stage < 3 ? 'feed' : 'hide';
+      if (mode === 'fight') this.startFight(best, false);
+      else {
+        if (B.mode === 'fight') this.endFight();
+        this.setMode(mode);
+      }
+    }
+
+    setMode(mode) {
+      const B = this.brain;
+      if (B.mode !== mode) B.lock = this.time + ({ fight: 3, flee: 2.5, hide: 3, feed: 2, ambush: 2 })[mode];
+      B.mode = mode;
+      if (mode === 'ambush') B.target = null;
+    }
+
+    endFight() {
+      const B = this.brain;
+      B.fightCd = this.time + 9 + this.rand() * 9;
+      B.target = null;
     }
 
     /* ── Prey ───────────────────────────────────────────────── */
@@ -1006,6 +1171,7 @@ window.PH = window.PH || {};
       if (h.iframes > 0) return;
       if (h.state === 'up') {
         if (h.shieldT > 0) dmg *= 1 - PH.HUNTER_AI.support.shield.guard;
+        if (this.aiMonster) dmg *= PH.HUNT_MODE.aiDamage * (this.def().ai.dmg || 1);     // the AI monster fights, so it hits a little softer
         h.hp -= dmg;
         h.lastHit = this.time;
         h.flash = 0.1;
@@ -1015,12 +1181,20 @@ window.PH = window.PH || {};
         if (this.onHunterHurt) this.onHunterHurt(h, dmg);
         if (h.hp <= 0) {
           h.hp = 0; h.state = 'down'; h.downT = PH.HUNTER_AI.bleedOut; h.reviveT = 0;
+          if (this.brain) this.brain.stats.downs++;
           this.banner(`${h.cls.toUpperCase()} IS DOWN`, 'win');
           this.fx.burst(h.x, 1, h.z, 20, 0xff4757, 4, 0.3, 0.6);
           this.sfx('defeat');
         }
       } else if (h.state === 'down') {
-        this.killHunter(h, 'killed');
+        // Against the AI monster (Hunter Squad), finishing a downed hunter takes
+        // a few hits, so the squad has a moment to save them. A player monster
+        // finishes them with one.
+        if (this.aiMonster) {
+          h.downT -= PH.HUNT_MODE.execute;
+          h.flash = 0.1;
+          if (h.downT <= 0) this.killHunter(h, 'killed');
+        } else this.killHunter(h, 'killed');
       }
     }
 

@@ -407,17 +407,25 @@ PH.MONSTER_MODE = {
 };
 
 /* The four monsters from the original game, each with one signature attack.
-   Ability damage grows 35% per evolution stage. */
+   Ability damage grows 35% per evolution stage. `ai` is how its brain plays
+   it in Hunter Squad: `aggro`, how eager it is to fight; `burst`, how much a
+   fight may cost it before it breaks off; `keep`, a caster's preferred range;
+   `dmg`, an extra scale on its damage to hunters there. */
 PH.MONSTERS = {
   goliath:  { name: 'Goliath',  icon: '🦍', role: 'Brawler',  blurb: 'Leaps into the fight.', hp: 1.08, speed: 0.97,
+              ai: { aggro: 0.44, burst: 0.95, keep: 0, dmg: 0.9 },
               ability: { id: 'leap', name: 'Leap Smash', icon: '💥', cd: 8, dist: 7, r: 3.2, dmg: 40, air: 0.45 } },
   kraken:   { name: 'Kraken',   icon: '🐙', role: 'Caster',   blurb: 'Calls lightning from range.', hp: 0.95, speed: 1.0,
+              ai: { aggro: 0.55, burst: 1.0, keep: 0 },
               ability: { id: 'lightning', name: 'Lightning Strike', icon: '⚡', cd: 5.5, range: 12, r: 2.6, dmg: 38, delay: 0.5 } },
   wraith:   { name: 'Wraith',   icon: '👻', role: 'Assassin', blurb: 'Warps in and explodes.', hp: 0.8, speed: 1.05,
+              ai: { aggro: 0.3, burst: 0.5, keep: 0, dmg: 0.7 },
               ability: { id: 'warp', name: 'Warp Blast', icon: '🌀', cd: 6.5, dist: 7, r: 3.0, dmg: 34 } },
   wyvern:   { name: 'Wyvern',   icon: '🐉', role: 'Skirmisher', blurb: 'Dives in on wings of fire.', hp: 0.9, speed: 1.03,
+              ai: { aggro: 0.3, burst: 0.55, keep: 0, dmg: 0.8 },
               ability: { id: 'dive', name: 'Fire Dive', icon: '🔥', cd: 7, dist: 9, dur: 0.45, dmg: 30, fire: { life: 2.6, r: 1.1, dps: 15 } } },
   behemoth: { name: 'Behemoth', icon: '🦖', role: 'Tank',     blurb: 'Rolls through everything.', hp: 1.35, speed: 0.93,
+              ai: { aggro: 0.5, burst: 1.1, keep: 0 },
               ability: { id: 'roll', name: 'Rolling Charge', icon: '🪨', cd: 7, dur: 1.1, speed: 13, dmg: 32, knock: 9 } },
 };
 
@@ -475,6 +483,8 @@ PH.HUNT_MODE = {
   speed: 4.3,               // a little quicker than the AI squad, so you can lead
   dodge: { cd: 2.6, dist: 4.2, dur: 0.2, iframes: 0.3 },   // jetpack burst
   seeClose: 5,              // you always see the monster this close, grass or not
+  aiDamage: 0.8,            // the AI monster's damage to hunters: it picks its fights well, so it hits softer
+  execute: 5,               // a downed hunter's bleed-out each monster hit takes away (one hit kills in monster mode)
   abilities: {
     assault: { name: 'Overdrive', icon: '🔥', cd: 16, dur: 5, rate: 2, dmg: 0.25,
                desc: 'Fire twice as fast and 25% harder for 5s.' },

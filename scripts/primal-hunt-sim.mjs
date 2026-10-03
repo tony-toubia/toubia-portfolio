@@ -14,6 +14,7 @@
  *   node scripts/primal-hunt-sim.mjs --monster       # monster mode, every monster
  *   node scripts/primal-hunt-sim.mjs --monster kraken --seeds 20
  *   node scripts/primal-hunt-sim.mjs --hunt          # hunter mode, a bot playing each class
+ *   node scripts/primal-hunt-sim.mjs --hunt --vs all --seeds 4   # ...against every monster
  *   node scripts/primal-hunt-sim.mjs --starter       # Survival with each class's unlockable starting weapon
  *   node scripts/primal-hunt-sim.mjs --class support --weapon grenade   # any starting weapon
  *   node scripts/primal-hunt-sim.mjs --biome volcanic  # Survival in a biome (default: meadow, so runs compare)
@@ -169,7 +170,7 @@ function runMonster(type, seed) {
     }
   }
   return { type, seed, ...(ended || { victory: false, how: 'timeout', time: g.time, stage: g.stage, huntersKilled: g.huntersKilled, eaten: g.eaten }),
-    firstSeen, armorLeft: Math.round(g.player.armor), hpLeft: Math.round(g.player.hp), muts: [...(g.muts || [])].join('+') };
+    firstSeen, armorLeft: Math.round(g.player.armor), hpLeft: Math.round(g.player.hp), muts: [...(g.muts || [])].join('+'), brain: g.brain && g.brain.stats };
 }
 
 /**
@@ -178,11 +179,12 @@ function runMonster(type, seed) {
  * monster is visible, revives teammates it passes, and jetpacks out of
  * telegraphed attacks about half the time.
  */
-function runHunt(cls, seed) {
+function runHunt(cls, seed, monster) {
   let ended = null;
   const g = new PH.HuntGame(new PH.NullRender(), { onEnd: (r) => { ended = r; } });
-  g.newRun(cls, seed);
+  g.newRun(cls, seed, monster ? { monster } : {});
   const dt = PH.CONFIG.step;
+  const evolvedAt = {};
   while (g.state !== 'over' && g.time < 400) {
     const me = g.me, mon = g.mon, T = g.team;
     let ix = 0, iz = 0;
@@ -211,9 +213,31 @@ function runHunt(cls, seed) {
     }
     const m = Math.hypot(ix, iz);
     g.input.x = m > 0.001 ? ix / m : 0; g.input.z = m > 0.001 ? iz / m : 0;
+    const before = g.hunters.map((h) => h.state).join(), mode = g.brain && g.brain.mode, stage = g.stage;
     g.update(dt);
+    if (g.stage !== stage) evolvedAt[g.stage] = g.time;
+    if (process.env.TRACE && g.brain) {
+      // TRACE=1: the monster's plans and the squad's states as they change.
+      const after = g.hunters.map((h) => h.state).join();
+      if (g.brain.mode !== mode || after !== before) {
+        const pl = g.mon, near = g.hunters.filter((h) => h.state === 'up' && Math.hypot(h.x - pl.x, h.z - pl.z) < 10).length;
+        console.log(`t=${g.time.toFixed(1).padStart(5)} st${g.stage} ${g.brain.mode.padEnd(6)} tough=${((pl.hp + pl.armor) / (pl.maxHp + pl.maxArmor)).toFixed(2)} near=${near} dome=${g.zones.some((z) => z.kind === 'arena') ? 1 : 0} target=${g.brain.target ? g.brain.target.cls + ':' + g.brain.target.state : '-'} squad=${after}`);
+      }
+    }
   }
-  return { cls, seed, ...(ended || { victory: false, how: 'timeout', time: g.time, stage: g.stage, downs: g.me.downs, huntersLost: g.huntersKilled }), monster: g.monsterType };
+  return { cls, seed, ...(ended || { victory: false, how: 'timeout', time: g.time, stage: g.stage, downs: g.me.downs, huntersLost: g.huntersKilled }), monster: g.monsterType, brain: g.brain && g.brain.stats, evolvedAt };
+}
+
+
+/** How the AI monster spent its runs: fights started, hunters it downed, and its share of time in each plan. */
+function brainSummary(rows) {
+  const st = rows.map((r) => r.brain).filter(Boolean);
+  if (!st.length) return;
+  const time = {};
+  let total = 0;
+  for (const b of st) for (const [k, v] of Object.entries(b.time)) { time[k] = (time[k] || 0) + v; total += v; }
+  const pct = Object.entries(time).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${Math.round((v / total) * 100)}%`).join(', ');
+  console.log(`\n  monster brain: ${(st.reduce((a, b) => a + b.fights, 0) / st.length).toFixed(1)} fights/run, ${(st.reduce((a, b) => a + b.downs, 0) / st.length).toFixed(1)} downs/run; time: ${pct}`);
 }
 
 if (process.argv.includes('--hunt')) {
@@ -222,7 +246,10 @@ if (process.argv.includes('--hunt')) {
   const seeds = Number(arg('--seeds', 5));
   const t0 = Date.now();
   const rows = [];
-  for (const c of classes) for (let s = 1; s <= seeds; s++) rows.push(runHunt(c, s * 7919));
+  // --vs all: every class against every monster; --vs kraken: one monster. Otherwise the seed picks.
+  const vs = arg('--vs');
+  const mons = vs === 'all' ? Object.keys(PH.MONSTERS) : vs && PH.MONSTERS[vs] ? [vs] : [null];
+  for (const c of classes) for (const mo of mons) for (let s = 1; s <= seeds; s++) rows.push(runHunt(c, s * 7919, mo));
   const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
   console.log(`${rows.length} hunter-mode runs in ${((Date.now() - t0) / 1000).toFixed(1)}s\n`);
   console.log('class      seed   result           time  monster   stage  downs  lost');
@@ -233,6 +260,16 @@ if (process.argv.includes('--hunt')) {
     const rs = rows.filter((r) => r.cls === c);
     console.log(`  ${c.padEnd(9)} win ${rs.filter((r) => r.victory).length}/${rs.length}, mean monster stage ${(rs.reduce((a, r) => a + r.stage, 0) / rs.length).toFixed(1)}, mean time ${fmt(rs.reduce((a, r) => a + r.time, 0) / rs.length)}`);
   }
+  for (const m of Object.keys(PH.MONSTERS)) {
+    const rs = rows.filter((r) => r.monster === m);
+    if (rs.length) console.log(`  vs ${m.padEnd(9)} hunters win ${rs.filter((r) => r.victory).length}/${rs.length}`);
+  }
+  console.log(`  overall hunters win ${rows.filter((r) => r.victory).length}/${rows.length}`);
+  for (const st of [2, 3]) {
+    const ts = rows.map((r) => r.evolvedAt[st]).filter((t) => t !== undefined);
+    console.log(`  reached stage ${st} in ${ts.length}/${rows.length} runs${ts.length ? `, at ${fmt(ts.reduce((a, t) => a + t, 0) / ts.length)} on average` : ''}`);
+  }
+  brainSummary(rows);
   process.exit(0);
 }
 
@@ -254,6 +291,7 @@ if (process.argv.includes('--monster')) {
     const w = rs.filter((r) => r.victory);
     console.log(`  ${t.padEnd(9)} win ${w.length}/${rs.length} (apex ${w.filter((r) => r.how === 'apex').length}, survived ${w.filter((r) => r.how === 'survived').length}), mean stage ${(rs.reduce((a, r) => a + r.stage, 0) / rs.length).toFixed(1)}, mean kills ${(rs.reduce((a, r) => a + r.huntersKilled, 0) / rs.length).toFixed(1)}`);
   }
+  brainSummary(rows);
   process.exit(0);
 }
 
