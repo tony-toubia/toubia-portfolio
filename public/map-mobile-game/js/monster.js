@@ -61,6 +61,9 @@ window.PH = window.PH || {};
     useAbility() { return this.monsterAbility(); }
     dodge() { return this.monsterPounce(); }
     evolve() { return this.monsterEvolve(); }
+    roar() { return this.monsterRoar(); }
+    get roarCd() { return this.monRoarCd; }
+    roarUnlocked() { return this.stage >= PH.MONSTER_MODE.roar.stage; }
 
     /** The renderer darkens the world by monsters slain; here, by evolution. */
     get bossKills() { return this.state === 'menu' ? 0 : this.stage - 1; }
@@ -100,6 +103,9 @@ window.PH = window.PH || {};
       this.monAbilityMax = def.ability.cd;
       this.monAbilityCd = 2;
       this.monDodgeCd = 0;
+      this.monRoarCd = 0;
+      this.revealT = 0;
+      this.kit = { roars: 0, staggers: 0, snares: 0 };     // how often the fight kit came into play (the sim reads it)
       this.abilityUses = 0; this.dodges = 0;
 
       this.grass = this.makeGrass();
@@ -110,9 +116,9 @@ window.PH = window.PH || {};
         hp: S.hp * def.hp, maxHp: S.hp * def.hp, armor: S.armor * def.hp, maxArmor: S.armor * def.hp,
         dashT: 0, dashX: 0, dashZ: 0, lift: 0, slowT: 0, slowK: 0, rollT: 0, rollX: 0, rollZ: 0, leap: null, leapT: 0,
         evolveT: 0, lastHit: -99, attackT: 0.5, trackAcc: 0, hidden: false, damageTaken: 0, lastHurtFx: -9,
-        phantomT: 0, trailT: 0, diveT: 0,
+        phantomT: 0, trailT: 0, diveT: 0, staggerT: 0, staggerAcc: 0, staggerImmune: 0, staggerFx: 0, rootT: 0,
       };
-      this.team = { landed: false, known: null, waypoint: null, respawnAt: 0, arenaCd: PH.HUNTER_AI.trapper.arena.first, strikeCd: 8, shieldCd: 0,
+      this.team = { landed: false, known: null, waypoint: null, respawnAt: 0, arenaCd: PH.HUNTER_AI.trapper.arena.first, strikeCd: 8, shieldCd: 0, snareCd: 15,
         scanT: PH.HUNTER_AI.scan.every, sweep: null };
       // Hunter Squad swaps in your class if it is not one of the usual four.
       this.hunters = (this.squadOrder || HUNTER_ORDER).map((cls, id) => {
@@ -179,6 +185,9 @@ window.PH = window.PH || {};
       this.time += dt;
       this.monAbilityCd = Math.max(0, this.monAbilityCd - dt);
       this.monDodgeCd = Math.max(0, this.monDodgeCd - dt);
+      this.monRoarCd = Math.max(0, this.monRoarCd - dt);
+      if (this.revealT > 0) this.revealT -= dt;
+      this.mon.staggerAcc *= Math.exp(-dt / PH.MONSTER_MODE.stagger.window);
       if (this.aiMonster) this.aiControl();
 
       this.updateMonster(dt);
@@ -204,9 +213,14 @@ window.PH = window.PH || {};
       const ox = pl.x, oz = pl.z;
       if (pl.iframes > 0) pl.iframes -= dt;
       if (pl.slowT > 0) pl.slowT -= dt;
+      if (pl.rootT > 0) pl.rootT -= dt;
       pl.moving = false;
 
-      if (pl.evolveT > 0) {
+      if (pl.staggerT > 0) {
+        // Staggered: reeling, with stars over its head.
+        pl.staggerT -= dt;
+        if ((pl.staggerFx -= dt) <= 0) { pl.staggerFx = 0.22; this.fx.burst(pl.x, 2.2 + pl.radius, pl.z, 5, 0xffe066, 2.2, 0.3, 0.45, -1, 0.6); }
+      } else if (pl.evolveT > 0) {
         // Evolving: rooted in place and loud, the most dangerous three seconds of a run.
         pl.evolveT -= dt;
         if (pl.evolveT <= 0) this.finishEvolve();
@@ -270,6 +284,9 @@ window.PH = window.PH || {};
           if (this.fireTrail.length > 120) this.fireTrail.shift();
         }
         if (pl.diveT <= 0) pl.lift = 0;
+      } else if (pl.rootT > 0) {
+        // Snared: held fast where it stands.
+        pl.dashT = 0;
       } else if (pl.netX != null) {
         // Co-op: a friend plays the monster. Their device walks it (and flies
         // its pounce); we take where it says it is.
@@ -320,8 +337,10 @@ window.PH = window.PH || {};
       const regen = this.mut('regen');
       if (regen && calm && pl.evolveT <= 0) pl.hp = Math.min(pl.maxHp, pl.hp + regen.hps * dt);
 
+      this.checkSnares();
+
       // Claws: automatic, like the hunters' weapons in survival.
-      if (pl.evolveT <= 0 && pl.leapT <= 0 && pl.rollT <= 0 && pl.diveT <= 0) {
+      if (pl.evolveT <= 0 && pl.leapT <= 0 && pl.rollT <= 0 && pl.diveT <= 0 && pl.staggerT <= 0) {
         pl.attackT -= dt;
         if (pl.attackT <= 0) {
           const t = this.clawTarget();
@@ -377,8 +396,9 @@ window.PH = window.PH || {};
 
     monsterAbility() {
       const pl = this.mon;
-      if (this.state !== 'playing' || this.monAbilityCd > 0 || pl.evolveT > 0 || pl.leapT > 0 || pl.rollT > 0 || pl.diveT > 0) return false;
+      if (this.state !== 'playing' || this.monAbilityCd > 0 || pl.evolveT > 0 || pl.leapT > 0 || pl.rollT > 0 || pl.diveT > 0 || pl.staggerT > 0) return false;
       const A = this.def().ability, d = this.aimDir(), mult = this.abilityMult();
+      if (pl.rootT > 0 && A.id !== 'lightning') return false;      // snared: no leaping, warping, diving or rolling out
       const meteor = this.mut('meteor');
       if (A.id === 'leap') {
         const reach = A.dist * (meteor ? meteor.dist : 1);
@@ -439,7 +459,7 @@ window.PH = window.PH || {};
     /** Pounce: a quick lunge. Out in the open, it can send birds up. */
     monsterPounce() {
       const pl = this.mon, P = PH.MONSTER_MODE.pounce;
-      if (this.state !== 'playing' || this.monDodgeCd > 0 || pl.evolveT > 0 || pl.leapT > 0 || pl.rollT > 0 || pl.diveT > 0) return false;
+      if (this.state !== 'playing' || this.monDodgeCd > 0 || pl.evolveT > 0 || pl.leapT > 0 || pl.rollT > 0 || pl.diveT > 0 || pl.staggerT > 0 || pl.rootT > 0) return false;
       const d = this.aimDir();
       pl.dashX = d.x; pl.dashZ = d.z; pl.dashT = P.dur;
       pl.facing = Math.atan2(d.x, d.z);
@@ -453,9 +473,79 @@ window.PH = window.PH || {};
       return true;
     }
 
+    /** Roar: shove back everyone close, jam their weapons, break their revives. Loud. */
+    monsterRoar() {
+      const pl = this.mon, R = PH.MONSTER_MODE.roar;
+      if (this.state !== 'playing' || this.stage < R.stage || this.monRoarCd > 0 || pl.evolveT > 0 || pl.leapT > 0 || pl.diveT > 0 || pl.staggerT > 0) return false;
+      this.monRoarCd = R.cd;
+      this.kit.roars++;
+      this.team.known = { x: pl.x, z: pl.z, t: this.time };
+      for (const h of this.hunters) {
+        const dx = h.x - pl.x, dz = h.z - pl.z, d = Math.hypot(dx, dz) || 0.01;
+        if (d > R.r + HUNTER_R) continue;
+        if (h.state === 'down') { h.reviveT = 0; continue; }
+        if (h.state !== 'up') continue;
+        this.damageHunter(h, R.dmg);
+        const push = R.knock * (1 - 0.4 * d / R.r);
+        h.x += dx / d * push; h.z += dz / d * push;
+        this.clampArena(h, HUNTER_R);
+        h.shotT = Math.max(h.shotT || 0, R.jam);
+        h.shieldT = 0;
+        for (const o of this.hunters) if (o.state === 'down' && dist2(o.x, o.z, h.x, h.z) < 9) o.reviveT = 0;
+        if (this.onHunterKnock) this.onHunterKnock(h);
+      }
+      this.fx.shockwave(pl.x, pl.z, R.r, 0xffc94d, 0.5);
+      this.fx.shockwave(pl.x, pl.z, R.r * 0.6, 0xff8a3d, 0.35);
+      this.fx.burst(pl.x, 1.6, pl.z, 26, 0xffd27a, 6, 0.35, 0.6, 0, 1);
+      this.fx.addShake(0.5);
+      this.fx.zoomPunch(0.06);
+      this.sfx('roar');
+      return true;
+    }
+
+    /** Enough damage in a burst knocks it reeling. */
+    stagger() {
+      const pl = this.mon, G = PH.MONSTER_MODE.stagger;
+      pl.staggerT = G.dur;
+      pl.staggerImmune = this.time + G.dur + G.immune;
+      pl.staggerAcc = 0;
+      pl.rollT = 0; pl.dashT = 0; pl.staggerFx = 0;
+      this.kit.staggers++;
+      this.fx.shockwave(pl.x, pl.z, 3, 0xffe066, 0.4);
+      this.fx.burst(pl.x, 2, pl.z, 24, 0xffe066, 4, 0.35, 0.6, -2, 0.8);
+      this.fx.addShake(0.4);
+      this.banner('STAGGERED', 'warn');
+      this.sfx('damage');
+      // Punished mid-fight, the AI often thinks better of it.
+      const B = this.brain;
+      if (B && B.mode === 'fight' && this.rand() < 0.6) { this.endFight(); this.setMode('flee'); }
+    }
+
+    /** Snares on the ground: stepping in one roots it, hurts it, and shows it to the squad. */
+    checkSnares() {
+      const pl = this.mon;
+      if (pl.lift > 0 || pl.leapT > 0 || pl.diveT > 0) return;
+      for (let i = this.zones.length - 1; i >= 0; i--) {
+        const z = this.zones[i];
+        if (z.kind !== 'snare' || z.t < 0.5 || dist2(z.x, z.z, pl.x, pl.z) > (z.r + pl.radius * 0.5) ** 2) continue;
+        const SN = PH.HUNTER_AI.trapper.snare;
+        this.zones.splice(i, 1);
+        this.kit.snares++;
+        pl.rootT = SN.root; pl.dashT = 0; pl.rollT = 0; pl.phantomT = 0;
+        this.revealT = SN.reveal;
+        this.team.known = { x: pl.x, z: pl.z, t: this.time };
+        this.fx.shockwave(z.x, z.z, 2.2, 0x4ecdc4, 0.4);
+        this.fx.burst(z.x, 0.6, z.z, 18, 0x4ecdc4, 3, 0.3, 0.5, 0, 0.6);
+        this.banner('SNARED - THEY KNOW WHERE YOU ARE', 'warn');
+        this.sfx('hit');
+        this.damageMonster(SN.dmg);
+        return;
+      }
+    }
+
     canEvolve() {
       const pl = this.mon;
-      return this.state === 'playing' && this.stage < 3 && this.food >= this.stageDef().food && pl.evolveT <= 0 && pl.leapT <= 0 && pl.rollT <= 0 && pl.diveT <= 0;
+      return this.state === 'playing' && this.stage < 3 && this.food >= this.stageDef().food && pl.evolveT <= 0 && pl.leapT <= 0 && pl.rollT <= 0 && pl.diveT <= 0 && pl.staggerT <= 0;
     }
 
     monsterEvolve() {
@@ -490,6 +580,7 @@ window.PH = window.PH || {};
       this.hitstop = 0.12;
       this.banner(this.stage === 3 ? 'STAGE 3 - HUNT THEM DOWN' : `STAGE ${this.stage}`, 'win');
       this.sfx('roar');
+      if (this.stage === PH.MONSTER_MODE.roar.stage) this.toast('📣 Roar unlocked: knock back the hunters around you');
       this.offerMutations();
     }
 
@@ -559,6 +650,7 @@ window.PH = window.PH || {};
       const pl = this.mon;
       if (pl.iframes > 0 || this.state !== 'playing') return;
       if (pl.evolveT > 0) dmg *= 1.25;           // caught mid-evolution
+      if (pl.staggerT > 0) dmg *= 1 + PH.MONSTER_MODE.stagger.vuln;
       const jug = this.mut('juggernaut');
       if (jug && pl.rollT > 0) dmg *= 1 - jug.guard;
       pl.lastHit = this.time;
@@ -572,7 +664,11 @@ window.PH = window.PH || {};
         this.hooks.onPlayerHit && this.hooks.onPlayerHit(dmg - absorbed);
       }
       if (dmg >= 20) { this.hitstop = Math.max(this.hitstop, 0.06); this.fx.addShake(0.3); }
-      if (pl.hp <= 0) this.end(false, 'slain');
+      if (pl.hp <= 0) return this.end(false, 'slain');
+      pl.staggerAcc += dmg;
+      this.kit.peak = Math.max(this.kit.peak || 0, pl.staggerAcc / (this.stageDef().stagger * this.def().hp));
+      if (pl.staggerAcc >= this.stageDef().stagger * this.def().hp && this.time >= pl.staggerImmune && pl.staggerT <= 0
+        && pl.evolveT <= 0 && pl.leapT <= 0 && pl.diveT <= 0) this.stagger();
     }
 
     aoe(x, z, r, dmg, shake, color) {
@@ -684,6 +780,25 @@ window.PH = window.PH || {};
           if (s < bs) { bs = s; best = e; }
         }
         if (best) { ix = best.x - pl.x; iz = best.z - pl.z; }
+      }
+
+      // Roar when crowded, when someone is reviving a hunter it downed, or to shake off a chaser.
+      const R = PH.MONSTER_MODE.roar;
+      if (this.stage >= R.stage && this.monRoarCd <= 0) {
+        const inRoar = ups.filter((h) => d(h) < R.r);
+        const reviving = inRoar.some((h) => this.hunters.some((o) => o.state === 'down' && o.reviveT > 0.4 && d(o, h) < 2));
+        if (inRoar.length >= 2 || reviving || (B.mode === 'flee' && nearest && d(nearest) < 3.5)) this.monsterRoar();
+      }
+
+      // Snares: it notices some as it comes near (about half), and steps around those.
+      for (const z of this.zones) {
+        if (z.kind !== 'snare') continue;
+        const zd = d(z);
+        if (zd > 4) continue;
+        if (z.noticed === undefined) z.noticed = this.rand() < 0.5;
+        if (!z.noticed || zd < 0.01) continue;
+        const m = Math.hypot(ix, iz) || 1, w = (4 - zd) / 4 * 1.6;
+        ix = ix / m + (pl.x - z.x) / zd * w; iz = iz / m + (pl.z - z.z) / zd * w;
       }
 
       const r = Math.hypot(pl.x, pl.z);
@@ -964,7 +1079,7 @@ window.PH = window.PH || {};
       const up = this.hunters.filter((h) => h.state === 'up');
       let seen = false;
       for (const h of up) {
-        let range = dome ? 99 : pl.hidden ? (pl.moving ? M.sightRustle : M.sightHidden) : M.sight;
+        let range = dome || this.revealT > 0 ? 99 : pl.hidden ? (pl.moving ? M.sightRustle : M.sightHidden) : M.sight;
         if (pl.evolveT > 0) range *= 1.6;
         h.sees = dist2(h.x, h.z, pl.x, pl.z) < (range + pl.radius) ** 2;
         if (h.sees) seen = true;
@@ -973,6 +1088,7 @@ window.PH = window.PH || {};
       this.spotted = seen;
       const age = T.known ? this.time - T.known.t : Infinity;
       const engage = age < 2.5;
+      this.laySnares(dt, engage, up);
 
       // Sound spikes: no sighting for a while, and the trapper gets a rough fix.
       T.scanT -= dt;
@@ -1149,6 +1265,26 @@ window.PH = window.PH || {};
           }
         }
       }
+    }
+
+    /** The trapper lays a snare on the trail while the squad is tracking (not fighting). */
+    laySnares(dt, engage, up) {
+      const T = this.team, SN = PH.HUNTER_AI.trapper.snare;
+      if ((T.snareCd -= dt) > 0) return;
+      const trapper = up.find((h) => h.cls === 'trapper');
+      if (!trapper || engage) { T.snareCd = 2; return; }
+      const traps = this.zones.filter((z) => z.kind === 'snare');
+      if (traps.length >= SN.max) { T.snareCd = 3; return; }
+      // The freshest footprint within throwing range, else at its feet if the trail is warm.
+      let spot = null;
+      for (let i = this.tracks.length - 1; i >= Math.max(0, this.tracks.length - 14); i--) {
+        const k = this.tracks[i];
+        if (dist2(k.x, k.z, trapper.x, trapper.z) < 100) { spot = k; break; }
+      }
+      if (!spot && T.known && dist2(T.known.x, T.known.z, trapper.x, trapper.z) < 225) spot = trapper;
+      if (!spot || traps.some((z) => dist2(z.x, z.z, spot.x, spot.z) < 25)) { T.snareCd = 2; return; }
+      this.zones.push({ kind: 'snare', x: spot.x, z: spot.z, r: SN.r, t: 0, dur: SN.life });
+      T.snareCd = SN.cd;
     }
 
     fireAt(h, shot) {

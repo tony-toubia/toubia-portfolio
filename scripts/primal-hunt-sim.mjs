@@ -170,7 +170,7 @@ function runMonster(type, seed) {
     }
   }
   return { type, seed, ...(ended || { victory: false, how: 'timeout', time: g.time, stage: g.stage, huntersKilled: g.huntersKilled, eaten: g.eaten }),
-    firstSeen, armorLeft: Math.round(g.player.armor), hpLeft: Math.round(g.player.hp), muts: [...(g.muts || [])].join('+'), brain: g.brain && g.brain.stats };
+    firstSeen, armorLeft: Math.round(g.player.armor), hpLeft: Math.round(g.player.hp), muts: [...(g.muts || [])].join('+'), brain: g.brain && g.brain.stats, kit: g.kit };
 }
 
 /**
@@ -225,7 +225,7 @@ function runHunt(cls, seed, monster) {
       }
     }
   }
-  return { cls, seed, ...(ended || { victory: false, how: 'timeout', time: g.time, stage: g.stage, downs: g.me.downs, huntersLost: g.huntersKilled }), monster: g.monsterType, brain: g.brain && g.brain.stats, evolvedAt };
+  return { cls, seed, ...(ended || { victory: false, how: 'timeout', time: g.time, stage: g.stage, downs: g.me.downs, huntersLost: g.huntersKilled }), monster: g.monsterType, brain: g.brain && g.brain.stats, kit: g.kit, evolvedAt };
 }
 
 
@@ -237,7 +237,9 @@ function brainSummary(rows) {
   let total = 0;
   for (const b of st) for (const [k, v] of Object.entries(b.time)) { time[k] = (time[k] || 0) + v; total += v; }
   const pct = Object.entries(time).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${Math.round((v / total) * 100)}%`).join(', ');
-  console.log(`\n  monster brain: ${(st.reduce((a, b) => a + b.fights, 0) / st.length).toFixed(1)} fights/run, ${(st.reduce((a, b) => a + b.downs, 0) / st.length).toFixed(1)} downs/run; time: ${pct}`);
+  const kits = rows.map((r) => r.kit).filter(Boolean), per = (k) => (kits.reduce((a, x) => a + x[k], 0) / kits.length).toFixed(1);
+  console.log(`\n  fight kit per run: ${per('roars')} roars, ${per('staggers')} staggers, ${per('snares')} snares sprung; peak burst ${(kits.reduce((a, x) => a + (x.peak || 0), 0) / kits.length).toFixed(2)} of the stagger threshold`);
+  console.log(`  monster brain: ${(st.reduce((a, b) => a + b.fights, 0) / st.length).toFixed(1)} fights/run, ${(st.reduce((a, b) => a + b.downs, 0) / st.length).toFixed(1)} downs/run; time: ${pct}`);
 }
 
 if (process.argv.includes('--hunt')) {

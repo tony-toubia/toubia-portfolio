@@ -2189,7 +2189,8 @@ window.PH = window.PH || {};
           m.position.x = z.x; m.position.z = z.z;
           m.scale.set(z.r, 1, z.r);
           m.rotation.y = z.t * 0.4;
-          m.material.opacity = 0.75 * fade;
+          // Playing the monster, the squad's snares are hard to spot.
+          m.material.opacity = 0.75 * fade * (game.mode === 'monster' && z.kind === 'snare' && game.hunters ? 0.3 : 1);
         } else if (z.kind === 'dome' || z.kind === 'arena') {
           const d = this.dome, pulse = 1 + Math.sin(this.time * 6) * 0.015, arena = z.kind === 'arena';
           d.children[0].material.color.setHex(arena ? 0xd6801f : 0x3f8fd6);
