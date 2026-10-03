@@ -63,6 +63,12 @@ window.PH = window.PH || {};
       this.onRemoteHurt = (h, dmg) => this.room.send(h.remote, { t: 'hurt', dmg: r2(dmg) });
     }
 
+    /** A roar moves a guest's hunter, which their own device steers: tell it where it landed. */
+    onHunterKnock(h) {
+      super.onHunterKnock(h);
+      if (h.remote) this.room.send(h.remote, { t: 'knock', x: r2(h.x), z: r2(h.z) });
+    }
+
     /**
      * players: [{ pid, name, cls, host }] - the host's own entry has host: true.
      * AI hunters fill the squad up to four from the classes nobody picked.
@@ -138,6 +144,7 @@ window.PH = window.PH || {};
         }
         inp.x = 0; inp.z = 0;
       } else if (m.t === 'evolve') this.monsterEvolve();
+      else if (m.t === 'roar') { if (this.monRoarCd < 0.35) this.monRoarCd = 0; this.monsterRoar(); }
       else if (m.t === 'mut') this.pickMutation(m.id);
     }
 
@@ -194,7 +201,8 @@ window.PH = window.PH || {};
         t: 's', time: r2(this.time), st: this.state, stage: this.stage, food: Math.round(this.food), rev: this.revealed ? 1 : 0,
         sp: this.spotted ? 1 : 0, tag: this.tagT > 0 ? 1 : 0, mcd: r2(this.monAbilityCd),
         mon: [r2(mon.x), r2(mon.z), r2(mon.facing), mon.moving ? 1 : 0, r2(mon.lift || 0), Math.round(mon.hp), Math.round(mon.maxHp), Math.round(mon.armor),
-          Math.round(mon.maxArmor), r2(mon.radius), r2(mon.evolveT), r2(mon.attackT), r2(mon.leapT), r2(mon.rollT), r2(mon.diveT || 0), r2(mon.dashT)],
+          Math.round(mon.maxArmor), r2(mon.radius), r2(mon.evolveT), r2(mon.attackT), r2(mon.leapT), r2(mon.rollT), r2(mon.diveT || 0), r2(mon.dashT),
+          r2(mon.staggerT || 0), r2(mon.rootT || 0)],
         team: [T.known ? [r2(T.known.x), r2(T.known.z), r2(T.known.t)] : 0, r2(T.respawnAt || 0)],
         H: this.hunters.map((h) => [h.id, r2(h.x), r2(h.z), r2(h.facing), h.moving ? 1 : 0, STATES.indexOf(h.state), Math.round(h.hp), h.maxHp,
           r2(h.flash || 0), r2(h.shieldT || 0), r2(h.downT || 0), r2(h.reviveT || 0), r2(h.abilityCd || 0), r2(h.abilityMax || 0), r2(h.overdrive || 0)]),
@@ -207,7 +215,7 @@ window.PH = window.PH || {};
         K: tracks.map((k) => [r2(k.x), r2(k.z), r2(k.angle), r2(k.t)]),
         // What only the monster's own HUD needs.
         mx: this.monPid ? [r2(this.monDodgeCd), r2(this.monAbilityMax), mon.hidden ? 1 : 0, this.huntersKilled, this.eaten, r2(mon.slowT || 0), r2(mon.slowK || 0),
-          this.mseq, [...this.muts]] : 0,
+          this.mseq, [...this.muts], r2(this.monRoarCd)] : 0,
       }, true);
       if (this.fxLog.length || this.evLog.length) {
         R.broadcast({ t: 'ev', fx: this.fxLog.splice(0), ev: this.evLog.splice(0) });
@@ -322,7 +330,7 @@ window.PH = window.PH || {};
       if (s.rev && !this.revealed) this.revealed = true;
       const M = s.mon, mon = this.mon;
       Object.assign(mon, { tx: M[0], tz: M[1], facing: M[2], moving: !!M[3], lift: M[4], hp: M[5], maxHp: M[6], armor: M[7], maxArmor: M[8],
-        radius: M[9], evolveT: M[10], attackT: M[11], leapT: M[12], rollT: M[13], diveT: M[14], dashT: M[15] });
+        radius: M[9], evolveT: M[10], attackT: M[11], leapT: M[12], rollT: M[13], diveT: M[14], dashT: M[15], staggerT: M[16] || 0, rootT: M[17] || 0 });
       if (this.snapAt === 0) { mon.x = mon.tx; mon.z = mon.tz; }
       this.team.known = s.team[0] ? { x: s.team[0][0], z: s.team[0][1], t: s.team[0][2] } : null;
       this.team.respawnAt = s.team[1];
@@ -402,6 +410,17 @@ window.PH = window.PH || {};
       if (this.hooks.onPlayerHit) this.hooks.onPlayerHit(dmg);
       this.fx.addShake(0.25);
     }
+
+    /** The host's roar threw our hunter back. */
+    knock(x, z) {
+      if (!this.me) return;
+      this.me.x = x; this.me.z = z; this.me.dashT = 0;
+      this.hooks.onToast && this.hooks.onToast('😱 Its roar threw you back - weapon jammed');
+    }
+
+    roar() { return false; }
+    get roarCd() { return 0; }
+    roarUnlocked() { return false; }
 
     monsterVisible() {
       const mon = this.mon, me = this.me;
@@ -524,7 +543,16 @@ window.PH = window.PH || {};
     get overdrive() { return 0; }
     abilityReady() { return this.abilityCd <= 0; }
     mut(id) { return this.muts.has(id) ? PH.MUTATIONS[id] : null; }
-    busy() { const m = this.mon; return m.evolveT > 0 || m.leapT > 0 || m.rollT > 0 || m.diveT > 0; }
+    busy() { const m = this.mon; return m.evolveT > 0 || m.leapT > 0 || m.rollT > 0 || m.diveT > 0 || m.staggerT > 0 || m.rootT > 0; }
+    get roarCd() { return this.roarCdLeft || 0; }
+    roarUnlocked() { return this.stage >= PH.MONSTER_MODE.roar.stage; }
+
+    roar() {
+      if (this.state !== 'playing' || !this.roarUnlocked() || this.roarCdLeft > 0 || this.mon.staggerT > 0) return false;
+      this.room.toHost({ t: 'roar' });
+      this.roarCdLeft = PH.MONSTER_MODE.roar.cd;
+      return true;
+    }
     canEvolve() {
       return this.state === 'playing' && this.stage < 3 && this.food >= this.stageDef().food && !this.busy() && !(this.evolveAsk > 0);
     }
@@ -560,6 +588,7 @@ window.PH = window.PH || {};
         this.huntersKilled = X[3]; this.eaten = X[4]; this.slowT = X[5]; this.slowK = X[6];
         if (X[7] !== this.mseq) { this.mseq = X[7]; this.followT = 0.2; }   // the host moved it: catch up first
         this.muts = new Set(X[8]);
+        this.roarCdLeft = X[9] || 0;
       }
       // Walking, the monster is ours: keep where we have it, not where the host last heard.
       if (!first && !this.busy() && !(this.followT > 0) && !this.driven) Object.assign(mon, own);
@@ -569,6 +598,7 @@ window.PH = window.PH || {};
       const mon = this.mon, M = PH.MONSTER_MODE, inp = this.input;
       this.monCd = Math.max(0, this.monCd - dt);
       this.monDodge = Math.max(0, this.monDodge - dt);
+      if (this.roarCdLeft > 0) this.roarCdLeft -= dt;
       if (this.slowT > 0) this.slowT -= dt;
       if (this.evolveAsk > 0) this.evolveAsk -= dt;
       if (this.followT > 0) this.followT -= dt;

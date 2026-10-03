@@ -399,10 +399,19 @@ PH.MONSTER_MODE = {
   outOfCombat: 4,
   evolveTime: 3,
   pounce: { cd: 3.5, dist: 5, dur: 0.22, iframes: 0.25 },
+  // Roar, every monster's second skill from stage 2: knocks back the hunters
+  // close by, jams their weapons, strips shields and breaks off revives - and
+  // tells the squad exactly where it is.
+  roar: { stage: 2, cd: 16, r: 6.5, knock: 4.5, dmg: 12, jam: 1.6 },
+  // Stagger: this much damage in a short burst (`stagger` per stage, times the
+  // monster's hp scale; it fades over `window` seconds) stuns the monster for
+  // `dur`: no moving, attacking or skills, and it takes `vuln` more damage.
+  // Then it cannot be staggered again for `immune` seconds.
+  stagger: { window: 3, dur: 1.4, immune: 14, vuln: 0.25 },
   stages: [
-    { hp: 640,  armor: 300, dmg: 16, reach: 2.0, speed: 4.7, food: 220, view: 1.4 },
-    { hp: 1000, armor: 460, dmg: 25, reach: 2.4, speed: 4.85, food: 360, view: 1.6 },
-    { hp: 1350, armor: 560, dmg: 32, reach: 2.9, speed: 5.0, food: 0,   view: 1.85 },
+    { hp: 640,  armor: 300, dmg: 16, reach: 2.0, speed: 4.7, food: 220, view: 1.4,  stagger: 100 },
+    { hp: 1000, armor: 460, dmg: 25, reach: 2.4, speed: 4.85, food: 360, view: 1.6, stagger: 140 },
+    { hp: 1350, armor: 560, dmg: 32, reach: 2.9, speed: 5.0, food: 0,   view: 1.85, stagger: 180 },
   ],
 };
 
@@ -413,10 +422,10 @@ PH.MONSTER_MODE = {
    `dmg`, an extra scale on its damage to hunters there. */
 PH.MONSTERS = {
   goliath:  { name: 'Goliath',  icon: '🦍', role: 'Brawler',  blurb: 'Leaps into the fight.', hp: 1.08, speed: 0.97,
-              ai: { aggro: 0.44, burst: 0.95, keep: 0, dmg: 0.9 },
+              ai: { aggro: 0.44, burst: 0.95, keep: 0 },
               ability: { id: 'leap', name: 'Leap Smash', icon: '💥', cd: 8, dist: 7, r: 3.2, dmg: 40, air: 0.45 } },
   kraken:   { name: 'Kraken',   icon: '🐙', role: 'Caster',   blurb: 'Calls lightning from range.', hp: 0.95, speed: 1.0,
-              ai: { aggro: 0.55, burst: 1.0, keep: 0 },
+              ai: { aggro: 0.4, burst: 1.1, keep: 0, dmg: 1.3 },
               ability: { id: 'lightning', name: 'Lightning Strike', icon: '⚡', cd: 5.5, range: 12, r: 2.6, dmg: 38, delay: 0.5 } },
   wraith:   { name: 'Wraith',   icon: '👻', role: 'Assassin', blurb: 'Warps in and explodes.', hp: 0.8, speed: 1.05,
               ai: { aggro: 0.3, burst: 0.5, keep: 0, dmg: 0.7 },
@@ -467,7 +476,10 @@ PH.HUNTER_AI = {
   bleedOut: 20, reviveTime: 3, reviveHp: 0.4,
   assault: { hp: 160, range: 5, shot: { vis: 'bolt',    dmg: 5, cd: 0.3, speed: 17 } },
   trapper: { hp: 140, range: 7, shot: { vis: 'harpoon', dmg: 9, cd: 3.2, speed: 20, slow: 0.35, slowT: 1.1 },
-             arena: { cd: 40, first: 40, r: 13, dur: 16 } },
+             arena: { cd: 40, first: 40, r: 13, dur: 16 },
+             // Snares, laid on the trail while the squad tracks: one roots the
+             // monster, hurts it and shows it to the whole squad for a moment.
+             snare: { cd: 12, max: 3, life: 45, r: 1.3, root: 1.6, dmg: 30, reveal: 3 } },
   medic:   { hp: 125, range: 8, shot: { vis: 'pellet',  dmg: 4, cd: 0.9, speed: 15 }, heal: { hps: 10, range: 9 } },
   ranger:  { hp: 135, range: 9, shot: { vis: 'bolt',    dmg: 15, cd: 1.1, speed: 24 } },
   support: { hp: 150, range: 7, shot: { vis: 'bolt',    dmg: 6, cd: 0.6, speed: 16 },

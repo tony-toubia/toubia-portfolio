@@ -30,6 +30,9 @@ window.PH = window.PH || {};
     [/Birds scattered - the hunters heard that/, '🐦 Birds scattered - the monster is close'],
     [/Sound spike - they have a rough fix on you/, '📡 Sound spike - rough fix on the monster'],
     [/^Eat wildlife.*$/, null],
+    [/^STAGGERED$/, 'MONSTER STAGGERED - HIT IT NOW'],
+    [/^SNARED - THEY KNOW WHERE YOU ARE$/, 'MONSTER SNARED!'],
+    [/^📣 Roar unlocked.*$/, "📣 It can roar now - don't crowd it"],
   ];
   const retell = (text) => {
     for (const [re, out] of SAY) if (re.test(text)) return out === null ? null : text.replace(re, out);
@@ -59,6 +62,8 @@ window.PH = window.PH || {};
     set overdrive(v) { /* likewise */ }
     abilityReady() { return this.abilityCd <= 0; }
     evolve() { return false; }
+    roar() { return false; }              // the monster's roar is its AI's to use
+    roarUnlocked() { return false; }
 
     banner(text, kind) {
       // Your own class's "IS DOWN" / "KILLED" lines are about you.
@@ -310,6 +315,11 @@ window.PH = window.PH || {};
       this.fx.dashTrail(me.x, me.z, me.dashX, me.dashZ, D.dist);
       this.sfx('dash');
       return true;
+    }
+
+    /** A roar threw this hunter back and jammed their weapon. */
+    onHunterKnock(h) {
+      if (h === this.me) this.ownToast('😱 Its roar threw you back - weapon jammed');
     }
 
     onHunterHurt(h, dmg) {

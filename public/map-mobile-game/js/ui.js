@@ -63,7 +63,7 @@ window.PH = window.PH || {};
         ability: $('btn-ability'), abilityIcon: $('ability-icon'), dodge: $('btn-dodge'),
         mstage: $('mstage'), marmor: $('marmorfill'), mhp: $('mhpfill'), mfood: $('mfood'), mfoodfill: $('mfoodfill'),
         mfoodlabel: $('mfoodlabel'), mstatus: $('mstatus'), squad: $('squad'), radar: $('radar'), hbars: $('hbars'),
-        evolve: $('btn-evolve'), toast: $('toast'),
+        evolve: $('btn-evolve'), roar: $('btn-roar'), toast: $('toast'),
       };
       this.radarCtx = this.el.radar.getContext('2d');
       this.hbars = [];
@@ -823,6 +823,7 @@ window.PH = window.PH || {};
       else if (m.t === 's' && this.game.coop) this.game.snap(m);
       else if (m.t === 'ev' && this.game.coop) this.game.events(m);
       else if (m.t === 'hurt' && this.game.coop) this.game.hurt(m.dmg);
+      else if (m.t === 'knock' && this.game.knock) this.game.knock(m.x, m.z);
       else if (m.t === 'end' && this.game.coop) { this.game.state = 'over'; this.lastResult = m.result; if (m.result.mode === 'monster') this.monsterOver(m.result); else this.huntOver(m.result); }
       else if (m.t === 'mut' && this.game.offer) this.game.offer(m.choices);
       else if (m.t === 'mutdone' && this.game.choosing) {
@@ -1433,6 +1434,7 @@ window.PH = window.PH || {};
       press(this.el.ability, () => this.useAbility());
       press(this.el.dodge, () => this.game.dodge());
       press(this.el.evolve, () => { if (this.game.evolve && this.game.evolve()) this.el.evolve.hidden = true; });
+      press(this.el.roar, () => this.game.roar && this.game.roar());
 
       const KEYS = { KeyW: [0, -1], ArrowUp: [0, -1], KeyS: [0, 1], ArrowDown: [0, 1], KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0] };
       this.KEYS = KEYS;
@@ -1444,6 +1446,7 @@ window.PH = window.PH || {};
           if (e.code === 'Space' || e.code === 'KeyE') { e.preventDefault(); this.useAbility(); }
           if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyQ') { e.preventDefault(); this.game.dodge(); }
           if (e.code === 'KeyF' && this.game.evolve) { e.preventDefault(); this.game.evolve(); }
+          if (e.code === 'KeyR' && this.game.roar) { e.preventDefault(); this.game.roar(); }
         }
         if (e.code === 'Escape' || e.code === 'KeyP') { if (this.game.state === 'playing') this.pause(); else if (this.game.state === 'paused') this.resume(); }
       });
@@ -1546,6 +1549,9 @@ window.PH = window.PH || {};
     this.set('acd', Math.ceil(ac * 60), (v) => { E.ability.style.setProperty('--cd', v / 60); });
     this.set('aready', ac <= 0, (v) => { E.ability.classList.toggle('ready', v); });
     this.set('dcd', Math.ceil((g.dodgeCd / M.pounce.cd) * 30), (v) => { E.dodge.style.setProperty('--cd', v / 30); });
+    // Roar, from stage 2.
+    this.set('roarOn', !!(g.roarUnlocked && g.roarUnlocked()), (v) => { E.roar.hidden = !v; });
+    this.set('rcd', Math.ceil(((g.roarCd || 0) / M.roar.cd) * 30), (v) => { E.roar.style.setProperty('--cd', v / 30); E.roar.classList.toggle('ready', v === 0); });
 
     // Squad roster.
     g.hunters.forEach((h, i) => {
