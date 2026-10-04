@@ -3,13 +3,24 @@ import ContactWindow from './ContactWindow';
 
 const speakingEngagements = [
   {
+    title: 'Agentic AI: Redefining the Retail Customer Experience',
+    event: 'Salesforce Connections 2026 · Chicago',
+    type: 'Conference Session',
+    with: 'Chris Seger, VP, Solutions Engineering, Salesforce',
+    description: 'How Merkle and Salesforce help leading retailers deploy AI Retail Advisor, an agentic solution built inside Agentforce that engages shoppers, recovers abandoned carts, and personalizes 1:1 at scale.',
+    topics: ['Agentic AI', 'Retail CX', 'Agentforce'],
+    link: 'https://www.merkle.com/en/merkle-now/events/salesforce-connections/session-agentic-ai-redefining-the-retail-customer-experience.html',
+    slides: 'https://go.merkle.com/rs/442-SZV-721/images/Salesforce-Connections-Agentic-AI-Luxury.pdf?version=0',
+    featured: true,
+  },
+  {
     title: 'Forget FOMU: The Business Case for Enterprise Agentforce',
-    event: 'Salesforce Connections',
+    event: 'Salesforce Connections 2025',
     type: 'Conference Session',
     description: 'Addressing the "Fear of Messing Up" that stalls AI adoption. Practical frameworks for moving from analysis paralysis to actionable execution.',
     topics: ['Agentic AI', 'Business Case', 'Enterprise Adoption'],
     link: 'https://www.merkle.com/en/merkle-now/events/salesforce-connections/forget-fomu-business-case-for-enterprise-agentforce-session.html',
-    featured: true,
+    featured: false,
   },
   {
     title: 'Building the Future of Advertising with Data 360',
@@ -77,7 +88,10 @@ export default function SpeakingWindow() {
             </span>
 
             <h3 className="font-bold text-sm m-0 mb-1">{engagement.title}</h3>
-            <p className="text-xs opacity-70 m-0 mb-2">{engagement.event}</p>
+            <p className="text-xs opacity-70 m-0 mb-2">
+              {engagement.event}
+              {engagement.with && <><br />with {engagement.with}</>}
+            </p>
             <p className="text-xs leading-relaxed m-0 mb-3">{engagement.description}</p>
 
             <div className="flex flex-wrap gap-1 mb-3">
@@ -91,16 +105,28 @@ export default function SpeakingWindow() {
               ))}
             </div>
 
-            {engagement.link && (
-              <a
-                href={engagement.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="retro-link text-xs"
-              >
-                ▶️ Watch Recording
-              </a>
-            )}
+            <div className="flex flex-wrap gap-3">
+              {engagement.link && (
+                <a
+                  href={engagement.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="retro-link text-xs"
+                >
+                  ▶️ Watch Recording
+                </a>
+              )}
+              {engagement.slides && (
+                <a
+                  href={engagement.slides}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="retro-link text-xs"
+                >
+                  📄 Download Slides
+                </a>
+              )}
+            </div>
           </div>
         ))}
       </div>
