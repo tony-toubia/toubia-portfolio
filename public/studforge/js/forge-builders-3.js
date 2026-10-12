@@ -22,7 +22,8 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
     H.transplant = (dst, src, dx, dy, dz) => {
         for (const c of src.cells.values()) dst.set(c.x + dx, c.y + dy, c.z + dz, c.color, { noBrick: c.noBrick });
         for (const k of src.res) { const [x, y, z] = unkey(k); const kk = key(x + dx, y + dy, z + dz); dst.cells.delete(kk); dst.res.add(kk); }
-        for (const p of src.parts) dst.parts.push({ ...p, x: p.x + dx, y: p.y + dy * PLATE, z: p.z + dz, layer: p.layer + dy, fp: { ...p.fp, x0: p.fp.x0 + dx, z0: p.fp.z0 + dz, y0: p.fp.y0 + dy } });
+        // Links (a wheel's axle pin, a clip's bar, a hinge top's base) name cells of other parts, so they move too.
+        for (const p of src.parts) dst.parts.push({ ...p, x: p.x + dx, y: p.y + dy * PLATE, z: p.z + dz, layer: p.layer + dy, links: p.links && p.links.map(([x, y, z]) => [x + dx, y + dy, z + dz]), fp: { ...p.fp, x0: p.fp.x0 + dx, z0: p.fp.z0 + dz, y0: p.fp.y0 + dy } });
     };
 
     /** The colour of a grid's base plate (its corner cell), or `fallback`. */
@@ -572,14 +573,17 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             // Planets, out from the sun: [name, orbit fraction, angle, build].
             const fr = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.08];
             const RX = cx - 2, RZ = cz - 2;
-            const small = (x, z, c1, c2) => { g.part('4073', c1, x, z, 1); g.part('3062', c1, x, z, 2); g.part('98138', c2 || c1, x, z, 5); };
-            const big = (x, z, c1, c2, band) => { g.part('4032', c1, x, z, 1); g.part('3941', c1, x, z, 2); if (band) { g.part('4032', band, x, z, 5); g.part('3941', c1, x, z, 6); g.part('553', c2 || c1, x, z, 9); } else g.part('553', c2 || c1, x, z, 5); };
+            // Each planet rises from the base on a stack of bars (`n` of them, the outer planets higher), the planet's
+            // bottom part linked to the bar top: a round brick or plate on a bar, as an orrery would do it.
+            const mast = (x, z, n) => { for (let i = 0; i < n; i++) g.part('30374', 'DARK_GREY', x, z, 1 + 4 * i, { w: 1, l: 1, hp: 4, links: [[x, 4 * i, z]] }); return 1 + 4 * n; };
+            const small = (x, z, c1, c2, n) => { const y = mast(x, z, n); g.part('3062', c1, x, z, y, { links: [[x, y - 1, z]] }); g.part('98138', c2 || c1, x, z, y + 3); };
+            const big = (x, z, c1, c2, band, n) => { const y = mast(x, z, n); g.part('4032', c1, x, z, y, { links: [[x, y - 1, z]] }); g.part('3941', c1, x, z, y + 1); if (band) { g.part('4032', band, x, z, y + 4); g.part('3941', c1, x, z, y + 5); g.part('553', c2 || c1, x, z, y + 8); } else g.part('553', c2 || c1, x, z, y + 4); };
             const planets = [
-                ['Mercury', 0, 0.3, (x, z) => small(x, z, 'LIGHT_GREY')], ['Venus', 1, 2.4, (x, z) => small(x, z, 'TAN', 'ORANGE')], ['Earth', 2, 4.2, (x, z) => { g.part('4032', 'BLUE', x, z, 1); g.part('3941', 'BLUE', x, z, 2); g.part('4032', 'GREEN', x, z, 5); g.part('98138', 'WHITE', x, z, 6); }],
-                ['Mars', 3, 1.1, (x, z) => small(x, z, 'RED', 'DARK_RED')], ['Jupiter', 4, 3.6, (x, z) => big(x, z, 'ORANGE', 'TAN', 'TAN')], ['Saturn', 5, 5.5, (x, z) => { g.part('4032', 'TAN', x, z, 1); g.part('3941', 'TAN', x, z, 2); g.part('3031', 'GOLD', x - 1, z - 1, 5, { w: 4, l: 4 }); g.part('3941', 'TAN', x, z, 6); g.part('553', 'TAN', x, z, 9); }],
-                ['Uranus', 6, 0.9, (x, z) => big(x, z, 'TRANS_BLUE', 'TRANS_BLUE')], ['Neptune', 7, 2.9, (x, z) => big(x, z, 'DARK_BLUE', 'BLUE')],
+                ['Mercury', 0, 0.3, (x, z) => small(x, z, 'LIGHT_GREY', null, 1)], ['Venus', 1, 2.4, (x, z) => small(x, z, 'TAN', 'ORANGE', 1)], ['Earth', 2, 4.2, (x, z) => { const y = mast(x, z, 2); g.part('4032', 'BLUE', x, z, y, { links: [[x, y - 1, z]] }); g.part('3941', 'BLUE', x, z, y + 1); g.part('4032', 'GREEN', x, z, y + 4); g.part('98138', 'WHITE', x, z, y + 5); }],
+                ['Mars', 3, 1.1, (x, z) => small(x, z, 'RED', 'DARK_RED', 1)], ['Jupiter', 4, 3.6, (x, z) => big(x, z, 'ORANGE', 'TAN', 'TAN', 2)], ['Saturn', 5, 5.5, (x, z) => { const y = mast(x, z, 2); g.part('4032', 'TAN', x, z, y, { links: [[x, y - 1, z]] }); g.part('3941', 'TAN', x, z, y + 1); g.part('3960', 'GOLD', x - 1, z - 1, y + 4, { w: 4, l: 4, hp: 2 }); g.part('3941', 'TAN', x, z, y + 6); g.part('553', 'TAN', x, z, y + 9); }],
+                ['Uranus', 6, 0.9, (x, z) => big(x, z, 'TRANS_BLUE', 'TRANS_BLUE', null, 3)], ['Neptune', 7, 2.9, (x, z) => big(x, z, 'DARK_BLUE', 'BLUE', null, 3)],
             ];
-            if (pluto) planets.push(['Pluto', 8, 4.8, (x, z) => { g.part('4073', 'TAN', x, z, 1); g.part('98138', 'LIGHT_GREY', x, z, 2); }]);
+            if (pluto) planets.push(['Pluto', 8, 4.8, (x, z) => { const y = mast(x, z, 2); g.part('4073', 'TAN', x, z, y, { links: [[x, y - 1, z]] }); g.part('98138', 'LIGHT_GREY', x, z, y + 1); }]);
             // Each planet claims its orbit spot plus a one-stud margin; one that would touch another is nudged along.
             const taken = new Set();
             const claim = (x, z, m) => { for (let ddx = -m; ddx <= 1 + m; ddx++) for (let ddz = -m; ddz <= 1 + m; ddz++) taken.add(`${x + ddx},${z + ddz}`); };
@@ -607,7 +611,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             planets.forEach(([, , , build], i) => build(spots[i][0], spots[i][1]));
             // A rim of tiles and a brass name plaque.
             g.part('3069', 'GOLD', cx - 1, D - 1, 1, { rotY: PI / 2, w: 2, l: 1 });
-            return { title: 'Solar System', features: ['a blazing sun with cheese-slope flares', `${pluto ? 'nine' : 'eight'} planets sized and coloured to match`, 'ringed Saturn and banded Jupiter', rings ? 'dashed orbit rings on a black base' : 'a black space base', 'a brass name plaque'] };
+            return { title: 'Solar System', features: ['a blazing sun with cheese-slope flares', `${pluto ? 'nine' : 'eight'} planets on bar masts, sized and coloured to match`, 'dish-ringed Saturn and banded Jupiter', rings ? 'dashed orbit rings on a black base' : 'a black space base', 'a brass name plaque'] };
         }
     });
 
@@ -644,17 +648,17 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             }
             // Tiny arms off the front rib.
             g.part('3023', bone, -1, zHip + 2, ySp, { rotY: PI / 2, w: 2, l: 1 }); g.part('3023', bone, 2, zHip + 2, ySp, { rotY: PI / 2, w: 2, l: 1 });
-            // The neck steps up and forward, plate over plate, then the skull with eye sockets, a jaw and teeth.
+            // The neck steps up and forward, plate over plate; a hinged lower jaw stands on its last plate and carries
+            // the skull (eye sockets, teeth on the jaw's tip under the snout).
             let ny = ySp, nz = L - 2;
             for (let i = 0; i < neck; i++) { ny += 1; nz += 1; g.part('3023', bone, 1, nz, ny, { rotY: 0 }); }
-            const sz = nz + 1, sy = ny + 1;
+            const jaw = H.hingeJaw(ctx, 1, nz + 1, ny + 1, { length: 4, width: 1, color: bone, teeth: bone, open: 0.4, face: 'front' });
+            const sz = nz, sy = ny + 6;
             H.slab(ctx, 0, 2, sz, sz + 3, sy, bone); g.box(0, 2, sz, sz + 3, sy + 2, sy + 2, bone);
             g.set(0, sy + 2, sz + 2, 'BLACK'); g.set(2, sy + 2, sz + 2, 'BLACK');
-            g.part('3710', bone, 1, sz + 1, sy - 1, { rotY: 0 });
-            for (const z of [sz + 2, sz + 4]) g.part('54200', bone, 1, z, sy - 3);
             // The tail steps down and back from the hip.
             for (let i = 1; i <= tail && ySp - i >= 3; i++) g.part('3023', bone, 1, -i, ySp - i, { rotY: 0 });
-            return { title: longneck ? 'Sauropod Skeleton' : 'T-Rex Skeleton', features: ['a museum plinth with a brass plaque', 'a bony spine with hanging ribs', `a ${longneck ? 'long stepped' : 'stepped'} neck and a toothy skull`, 'a tapering tail', 'a spotlight'] };
+            return { title: longneck ? 'Sauropod Skeleton' : 'T-Rex Skeleton', features: ['a museum plinth with a brass plaque', 'a bony spine with hanging ribs', `a ${longneck ? 'long stepped' : 'stepped'} neck and a skull with ${jaw.feats[0]}`, 'a tapering tail', 'a spotlight'] };
         }
     });
 })();
