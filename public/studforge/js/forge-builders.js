@@ -177,17 +177,25 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
         kind: 'house', category: 'Architecture', icon: '🏡',
         keys: ['house', 'home', 'cottage', 'cabin', 'villa', 'mansion', 'bungalow', 'hut', 'shack', 'farmhouse', 'barn', 'shop', 'store', 'cafe', 'coffee shop', 'bakery', 'diner', 'pub', 'tavern', 'inn', 'school', 'office', 'garage', 'chalet', 'lodge', 'library', 'bookshop', 'hotel', 'motel', 'apartment', 'townhouse', 'warehouse', 'factory', 'workshop', 'stable', 'greenhouse', 'church', 'chapel', 'treehouse', 'tree house'],
         build(ctx) {
-            const { g, P, sc, chance, pick, match, has } = ctx;
+            const { g, P, sc, chance, pick, match, has, declare } = ctx;
             const big = ['mansion', 'villa', 'hotel', 'school', 'office', 'factory', 'warehouse', 'apartment', 'library'].includes(match);
             const tiny = ['hut', 'shack', 'cabin', 'garage', 'stable', 'greenhouse'].includes(match);
             const W = sc(big ? 12 : tiny ? 6 : 8 + (chance(0.5) ? 2 : 0));
             const D = sc(match === 'barn' ? 12 : big ? 12 : tiny ? 6 : 10 + (chance(0.4) ? 2 : 0));
             let stories = big ? (match === 'office' || match === 'apartment' || match === 'hotel' ? 3 : 2) : tiny || match === 'barn' ? 1 : (has('two-story', 'two story', '2 story', 'tall', 'two floor') || chance(0.4) ? 2 : 1);
             if (has('three story', '3 story', 'three-story')) stories = 3;
+            // Tweakable dials: each defaults to what the prompt alone would build.
+            const flatDflt = ctx.style === 'modern' || match === 'office' || match === 'garage' || match === 'warehouse' || match === 'factory' || match === 'apartment';
+            const flat = declare({ id: 'roof', label: 'Roof', type: 'choice', choices: ['gable', 'flat'], default: flatDflt ? 'flat' : 'gable' }) === 'flat';
+            stories = Math.max(1, Math.min(3, parseInt(declare({ id: 'stories', label: 'Stories', type: 'choice', choices: ['1', '2', '3'], default: String(stories) }), 10) || stories));
+            const chimney = declare({ id: 'chimney', label: 'Chimney', type: 'bool', default: true });
+            const garden = declare({ id: 'garden', label: 'Garden', type: 'bool', default: true });
             const SH = 7, m = 3;   // six plates of wall and a ceiling
             const doorX = Math.floor(W / 2) - 1;
             ctx.avoidX = [doorX - 1, doorX, doorX + 1, doorX + 2];
-            const feats = H.garden(ctx, 0, W - 1, 0, D - 1, m, 0);
+            let feats = [];
+            if (garden) feats = H.garden(ctx, 0, W - 1, 0, D - 1, m, 0);
+            else g.box(-1, W, -1, D - 1 + m, 0, 0, P.ground);   // just a lawn under the house and its path
             const wall = match === 'greenhouse' ? P.glass : match === 'barn' ? 'DARK_RED' : P.primary;
             const timber = ctx.style === 'cozy' || ctx.style === 'medieval' || match === 'cabin' || match === 'chalet' || match === 'lodge';
             // Stone footing, then the walls story by story.
@@ -212,7 +220,6 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 }
             }
             const top = 2 + stories * SH;
-            const flat = ctx.style === 'modern' || match === 'office' || match === 'garage' || match === 'warehouse' || match === 'factory' || match === 'apartment';
             let roofDesc;
             if (flat) { H.flatRoof(ctx, 0, W - 1, 0, D - 1, top, P.roof === 'DARK_RED' ? P.dark : P.roof); roofDesc = 'a flat roof with rooftop plant'; }
             else {
@@ -220,10 +227,12 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 const axis = W >= D ? 'x' : 'z';
                 const r = H.gableRoof(ctx, -1, W, -1, D, top + 1, P.roof, axis);
                 // Chimney on the ridge.
-                const cx = axis === 'x' ? W - 2 : Math.floor((r.a + r.b) / 2), cz = axis === 'x' ? Math.floor((r.a + r.b) / 2) : D - 2;
-                g.box(cx, cx, cz, cz, r.y + 1, r.y + 6, P.dark);
-                g.part('4073', P.metal, cx, cz, r.y + 7);
-                roofDesc = `a pitched ${window.LEGO_COLORS[P.roof].name.toLowerCase()} roof and a chimney`;
+                if (chimney) {
+                    const cx = axis === 'x' ? W - 2 : Math.floor((r.a + r.b) / 2), cz = axis === 'x' ? Math.floor((r.a + r.b) / 2) : D - 2;
+                    g.box(cx, cx, cz, cz, r.y + 1, r.y + 6, P.dark);
+                    g.part('4073', P.metal, cx, cz, r.y + 7);
+                }
+                roofDesc = `a pitched ${window.LEGO_COLORS[P.roof].name.toLowerCase()} roof${chimney ? ' and a chimney' : ''}`;
             }
             if (match === 'church' || match === 'chapel') {
                 // A bell tower at the back corner.
@@ -241,15 +250,18 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
         kind: 'castle', category: 'Castle & Fantasy', icon: '🏰',
         keys: ['castle', 'fortress', 'keep', 'citadel', 'stronghold', 'bastion', 'palace', 'fort'],
         build(ctx) {
-            const { g, P, sc, chance } = ctx;
+            const { g, P, sc, chance, declare } = ctx;
             const W = sc(14), D = sc(14);
             const stone = P.primary === 'RED' || ctx.explicitColors.length === 0 ? 'LIGHT_GREY' : P.primary;
             const dark = 'DARK_GREY';
-            const moat = chance(0.5);
+            // Dials: the moat is a coin toss by default (the toss is made either way, so the seed's other choices don't shift).
+            const moat = declare({ id: 'moat', label: 'Moat', type: 'bool', default: chance(0.5) });
+            const tallTowers = declare({ id: 'towers', label: 'Towers', type: 'choice', choices: ['standard', 'tall'], default: 'standard' }) === 'tall';
+            const banner = declare({ id: 'flag', label: 'Banner', type: 'bool', default: true });
             g.box(-3, W + 2, -3, D + 2, 0, 0, moat ? P.water : P.ground);
             if (moat) { g.box(-1, W, -1, D, 1, 1, P.ground); g.part('3020', P.wood, Math.floor(W / 2) - 1, D + 1, 1, { rotY: PI / 2 }); }
             const base = moat ? 2 : 1;
-            const wallH = 9, towerH = 5;
+            const wallH = 9, towerH = tallTowers ? 7 : 5;
             // Corner towers of round 2x2 bricks.
             const corners = [[0, 0], [W - 2, 0], [0, D - 2], [W - 2, D - 2]];
             for (const [tx, tz] of corners) {
@@ -274,10 +286,10 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             H.ceiling(ctx, kx, kx + 3, kz, kz + 3, base + keepH, dark);
             H.crenellate(ctx, kx, kx + 3, kz, kz + 3, base + keepH + 1, stone);
             H.window(ctx, kx + 1, kz + 3, base + 7, 'front', 'TRANS_ORANGE'); H.window(ctx, kx + 1, kz + 3, base + 13, 'front', 'TRANS_ORANGE');
-            H.flag(ctx, kx + 1, kz + 1, base + keepH + 1, P.accent);
+            if (banner) H.flag(ctx, kx + 1, kz + 1, base + keepH + 1, P.accent);
             // A well and a tree in the courtyard.
             if (W >= 14) { g.part('3941', stone, 2, D - 5, base); g.part('4032', P.water, 2, D - 5, base + 3); H.tree(ctx, W - 4, 3, base, 'round'); }
-            return { title: ctx.match === 'palace' ? 'Royal Palace' : 'Castle', features: ['four round corner towers', 'crenellated curtain walls', 'a gatehouse with torches', 'a central keep flying a banner', moat ? 'a moat and drawbridge' : 'a courtyard well'] };
+            return { title: ctx.match === 'palace' ? 'Royal Palace' : 'Castle', features: [`four ${tallTowers ? 'tall ' : ''}round corner towers`, 'crenellated curtain walls', 'a gatehouse with torches', banner ? 'a central keep flying a banner' : 'a central keep', moat ? 'a moat and drawbridge' : 'a courtyard well'] };
         }
     });
 
@@ -285,10 +297,11 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
         kind: 'tower', category: 'Architecture', icon: '🗼',
         keys: ['tower', 'skyscraper', 'lighthouse', 'pagoda', 'windmill', 'obelisk', 'watchtower', 'clock tower', 'bell tower', 'minaret', 'water tower', 'spire', 'tall building', 'high-rise', 'highrise', 'office tower', 'eiffel tower', 'big ben', 'radio tower'],
         build(ctx) {
-            const { g, P, sc, chance, match } = ctx;
+            const { g, P, sc, chance, match, declare } = ctx;
             const feats = [];
             if (match === 'lighthouse') {
                 const R = sc(4.5);
+                const cottage = declare({ id: 'cottage', label: "Keeper's cottage", type: 'bool', default: true });
                 g.box(-R - 1, R + 2, -R - 1, R + 2, 0, 0, P.water);
                 // Rocks: stacked, shrinking discs with a shelf for the keeper's cottage.
                 g.disc(0.5, 0.5, R, 1, 1, 'DARK_GREY'); g.disc(0.5, 0.5, R - 1, 2, 2, 'DARK_GREY'); g.disc(0, 0, R - 2.4, 3, 3, 'LIGHT_GREY');
@@ -303,13 +316,16 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 g.part('3022', 'BLACK', 0, 0, yG + 4);
                 g.part('3942', c1, 0, 0, yG + 5);
                 // Keeper's cottage on the shelf, and a little boat.
-                g.shell(3, 5, -1, 1, 2, 7, 'WHITE'); H.window(ctx, 4, 1, 4, 'front'); H.gableRoof(ctx, 3, 5, -1, 1, 8, 'DARK_RED', 'z');
+                if (cottage) { g.shell(3, 5, -1, 1, 2, 7, 'WHITE'); H.window(ctx, 4, 1, 4, 'front'); H.gableRoof(ctx, 3, 5, -1, 1, 8, 'DARK_RED', 'z'); }
                 g.part('3020', P.accent, -R - 1, R - 1, 1); g.part('3004', 'WHITE', -R, R - 1, 2, { rotY: 0 });
-                feats.push(`${bands} banded tiers`, 'a railed gallery and glass lantern room', "a keeper's cottage on the rocks", 'a rowing boat');
+                feats.push(`${bands} banded tiers`, 'a railed gallery and glass lantern room');
+                if (cottage) feats.push("a keeper's cottage on the rocks");
+                feats.push('a rowing boat');
                 return { title: 'Lighthouse on a Rocky Shore', features: feats };
             }
             if (match === 'pagoda') {
-                const tiers = Math.max(3, Math.min(6, sc(4) + (chance(0.5) ? 1 : 0)));
+                const tiersDflt = Math.max(3, Math.min(6, sc(4) + (chance(0.5) ? 1 : 0)));
+                const tiers = Math.max(3, Math.min(6, parseInt(declare({ id: 'tiers', label: 'Tiers', type: 'choice', choices: ['3', '4', '5', '6'], default: String(tiersDflt) }), 10) || tiersDflt));
                 g.box(-4, 7, -4, 7, 0, 0, P.ground);
                 g.box(-2, 5, -2, 5, 1, 2, 'DARK_GREY'); g.part('3710', 'LIGHT_GREY', 0, 6, 1, { rotY: PI / 2 });
                 let y = 3;
@@ -400,7 +416,12 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             H.ceiling(ctx, 0, 3, 0, 3, yT, 'DARK_GREY'); g.shell(-1, 4, -1, 4, yT, yT, clock || bell ? 'DARK_GREY' : P.wood, { noBrick: true });
             if (clock) { g.shell(-1, 4, -1, 4, yT + 1, yT + 6, 'DARK_GREY'); H.ceiling(ctx, -1, 4, -1, 4, yT + 7, 'DARK_GREY'); g.part('14769', 'WHITE', 1, 1, yT + 8); H.gableRoof(ctx, -1, 4, -1, 4, yT + 9, P.roof, 'x'); feats.push('a four-faced clock stage', 'a steep spire roof'); }
             else if (bell) { for (const [x, z] of [[-1, -1], [4, -1], [-1, 4], [4, 4]]) g.box(x, x, z, z, yT + 1, yT + 6, P.dark); H.ceiling(ctx, -1, 4, -1, 4, yT + 7, P.roof); g.part('4589', 'GOLD', 1, 1, yT + 1); g.part('3942', P.roof, 1, 1, yT + 8); feats.push('an open belfry with a gold bell', 'a conical roof'); }
-            else { H.crenellate(ctx, -1, 4, -1, 4, yT + 1, P.primary === 'RED' ? 'LIGHT_GREY' : P.primary); H.flag(ctx, 1, 1, yT + 1, P.accent); feats.push('an overhanging timber platform', 'crenellations and a banner'); }
+            else {
+                const banner = declare({ id: 'flag', label: 'Banner', type: 'bool', default: true });
+                H.crenellate(ctx, -1, 4, -1, 4, yT + 1, P.primary === 'RED' ? 'LIGHT_GREY' : P.primary);
+                if (banner) H.flag(ctx, 1, 1, yT + 1, P.accent);
+                feats.push('an overhanging timber platform', banner ? 'crenellations and a banner' : 'crenellations');
+            }
             H.tree(ctx, -2, 5, 1, 'pine');
             return { title: clock ? 'Clock Tower' : bell ? 'Bell Tower' : 'Watchtower', features: [`a ${Hb}-brick stone shaft`, ...feats] };
         }
@@ -473,10 +494,12 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
         kind: 'car', category: 'Vehicles', icon: '🚗',
         keys: ['car', 'coupe', 'sports car', 'race car', 'racing car', 'supercar', 'hot rod', 'sedan', 'taxi', 'cab', 'police car', 'hatchback', 'convertible', 'limo', 'limousine', 'van', 'truck', 'pickup', 'pickup truck', 'lorry', 'semi', 'fire truck', 'fire engine', 'ambulance', 'bus', 'school bus', 'jeep', 'suv', '4x4', 'monster truck', 'tractor', 'go-kart', 'kart', 'buggy', 'muscle car', 'roadster', 'camper', 'rv', 'ice cream truck', 'food truck', 'dump truck', 'garbage truck', 'tow truck', 'delivery van', 'vehicle', 'automobile', 'formula 1', 'f1 car', 'rally car'],
         build(ctx) {
-            const { g, P, sc, chance, match, has } = ctx;
+            const { g, P, sc, chance, match, has, declare } = ctx;
             const truck = ['truck', 'lorry', 'semi', 'fire truck', 'fire engine', 'ambulance', 'pickup', 'pickup truck', 'dump truck', 'garbage truck', 'tow truck', 'ice cream truck', 'food truck', 'delivery van', 'van', 'camper', 'rv'].includes(match);
             const bus = ['bus', 'school bus', 'limo', 'limousine'].includes(match);
             const monster = match === 'monster truck', tractor = match === 'tractor', open = ['convertible', 'roadster', 'go-kart', 'kart', 'buggy', 'formula 1', 'f1 car', 'jeep'].includes(match);
+            // Dial: monster wheels lift the chassis on any vehicle (the tractor keeps its own wheel set).
+            const bigWheels = !tractor && declare({ id: 'wheels', label: 'Wheels', type: 'choice', choices: ['standard', 'monster'], default: monster ? 'monster' : 'standard' }) === 'monster';
             const W = 6, L = bus ? sc(14) : truck ? sc(12) : tractor ? sc(8) : sc(9);
             let body = P.primary;
             if (!P.explicit) body = { taxi: 'YELLOW', cab: 'YELLOW', 'police car': 'WHITE', ambulance: 'WHITE', 'fire truck': 'RED', 'fire engine': 'RED', 'school bus': 'YELLOW', tractor: 'GREEN', 'ice cream truck': 'WHITE', 'garbage truck': 'GREEN' }[match] || body;
@@ -484,10 +507,10 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             // A road plate with a centre line, so the model has a stage.
             g.box(-3, W + 2, -2, L + 1, 0, 0, 'DARK_GREY', { noBrick: true });
             for (let z = -1; z <= L; z += 3) g.part('3069', 'YELLOW', -3, z, 1, { rotY: 0 });
-            const yC = monster ? 5 : tractor ? 3 : 2;      // the chassis sits above the wheel hubs
+            const yC = bigWheels ? 5 : tractor ? 3 : 2;      // the chassis sits above the wheel hubs
             const wz = bus ? [1, L - 4] : truck ? [1, 4, L - 3] : tractor ? [1, 5] : [1, L - 3];
             if (tractor) { g.part('3941', 'BLACK', -2, 0, 1, { rotZ: PI / 2, w: 2, l: 2, hp: 5, lie: true }); g.part('3941', 'BLACK', W, 0, 1, { rotZ: PI / 2, w: 2, l: 2, hp: 5, lie: true }); g.part('4032', 'BLACK', -1, L - 2, 1, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true }); g.part('4032', 'BLACK', W, L - 2, 1, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true }); }
-            else H.wheels(ctx, 0, W - 1, wz, 1, monster);
+            else H.wheels(ctx, 0, W - 1, wz, 1, bigWheels);
             g.box(0, W - 1, 0, L - 1, yC, yC, 'BLACK', { noBrick: true });
             // Trim plate: lights at the corners, a bumper front and back.
             g.box(0, W - 1, 0, L - 1, yC + 1, yC + 1, body, { noBrick: true });
@@ -508,7 +531,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 g.box(0, W - 1, cabZ, L - 1, yB, yB + 2, body);
                 for (let x = 0; x < W; x += 2) { g.part('3039', body, x, L - 2, yB + 3, { rotY: 0 }); g.part('3039', P.glass, x, cabZ, yB + 3, { rotY: 0 }); }
                 g.box(0, W - 1, cabZ, cabZ, yB + 6, yB + 6, body, { noBrick: true });
-                const cargo = match === 'pickup' || match === 'pickup truck' ? 'bed' : match === 'tow truck' ? 'tow' : 'box';
+                const cargo = declare({ id: 'cargo', label: 'Cargo', type: 'choice', choices: ['box', 'bed', 'tow'], default: match === 'pickup' || match === 'pickup truck' ? 'bed' : match === 'tow truck' ? 'tow' : 'box' });
                 if (cargo === 'box') {
                     g.shell(0, W - 1, 0, cabZ - 2, yB, yB + 8, match === 'ambulance' || match === 'ice cream truck' || match === 'delivery van' || match === 'van' || match === 'camper' || match === 'rv' ? 'WHITE' : P.secondary);
                     H.ceiling(ctx, 0, W - 1, 0, cabZ - 2, yB + 9, 'LIGHT_GREY');
@@ -546,8 +569,10 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                     g.box(0, W - 1, 0, cabZ - 1, yB + 3, yB + 5, body);
                     H.window(ctx, 0, 1, yB + 3, 'left'); H.window(ctx, W - 1, 1, yB + 3, 'right');
                     g.box(0, W - 1, 0, cabZ, yB + 6, yB + 6, body, { noBrick: true });
-                    if (has('stripe', 'stripes', 'racing', 'race') || match === 'sports car' || match === 'muscle car' || match === 'rally car') { g.box(2, 3, 0, cabZ, yB + 6, yB + 6, P.secondary, { noBrick: true }); feats.push('a racing stripe'); }
-                    if (match === 'sports car' || match === 'supercar' || match === 'race car' || match === 'racing car' || match === 'muscle car' || match === 'rally car' || chance(0.4)) {
+                    const stripeDflt = has('stripe', 'stripes', 'racing', 'race') || match === 'sports car' || match === 'muscle car' || match === 'rally car';
+                    if (declare({ id: 'stripe', label: 'Racing stripe', type: 'bool', default: stripeDflt })) { g.box(2, 3, 0, cabZ, yB + 6, yB + 6, P.secondary, { noBrick: true }); feats.push('a racing stripe'); }
+                    const spoilerDflt = match === 'sports car' || match === 'supercar' || match === 'race car' || match === 'racing car' || match === 'muscle car' || match === 'rally car' || chance(0.4);
+                    if (declare({ id: 'spoiler', label: 'Rear spoiler', type: 'bool', default: spoilerDflt })) {
                         g.part('3024', 'BLACK', 0, 0, yB + 7); g.part('3024', 'BLACK', W - 1, 0, yB + 7); g.part('3666', 'BLACK', 0, 0, yB + 8, { rotY: PI / 2, w: 6, l: 1 }); feats.push('a rear spoiler');
                     }
                     if (match === 'police car') { g.part('3069', 'TRANS_BLUE', 1, 2, yB + 7, { rotY: PI / 2 }); g.part('3069', 'TRANS_RED', 3, 2, yB + 7, { rotY: PI / 2 }); g.box(0, W - 1, 0, L - 1, yB, yB, 'BLACK', { noBrick: true }); feats.push('a blue light bar'); }
@@ -690,7 +715,8 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             // Lower fuselage, then the wing layer through it, then the upper fuselage.
             g.box(0, 1, 0, L - 1, Y, Y + 2, body);
             g.box(0, 1, 0, L - 1, Y + 3, Y + 3, body, { noBrick: true });
-            if (jet) {
+            const swept = ctx.declare({ id: 'wings', label: 'Wings', type: 'choice', choices: ['straight', 'swept'], default: jet ? 'swept' : 'straight' }) === 'swept';
+            if (swept) {
                 // Swept wings: plates stepping back from root to tip.
                 for (let i = 0; i < span; i += 2) { const yy = Y + 3 - (i % 4 === 2 ? 1 : 0); g.part('3020', body, -2 - i, wz - i / 2, yy, { rotY: PI / 2, w: 4, l: 2 }); g.part('3020', body, i === 0 ? 2 : i, wz - i / 2, yy, { rotY: PI / 2, w: 4, l: 2 }); }
                 g.part('3062', 'DARK_GREY', -1, wz - 1, Y + 4, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3062', 'DARK_GREY', 2, wz - 1, Y + 4, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true });
@@ -698,7 +724,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             } else {
                 g.part('3795', body, -span, wz, Y + 3, { rotY: PI / 2, w: span, l: 2 }); g.part('3795', body, 2, wz, Y + 3, { rotY: PI / 2, w: span, l: 2 });
                 if (match === 'biplane') { g.part('3795', body, -span, wz, Y + 9, { rotY: PI / 2, w: span, l: 2 }); g.part('3795', body, 2, wz, Y + 9, { rotY: PI / 2, w: span, l: 2 }); g.part('3062', P.metal, -span + 1, wz, Y + 4); g.part('3062', P.metal, span, wz, Y + 4); g.part('3062', P.metal, -span + 1, wz, Y + 7, { hp: 2 }); g.part('3062', P.metal, span, wz, Y + 7, { hp: 2 }); feats.push('double wings with struts'); }
-                else if (match === 'airliner' || match === 'jumbo jet') { g.part('3062', 'DARK_GREY', -3, wz, Y + 4, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3062', 'DARK_GREY', 4, wz, Y + 4, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); feats.push('wing-mounted engines'); }
+                else if (match === 'airliner' || match === 'jumbo jet' || jet) { g.part('3062', 'DARK_GREY', -3, wz, Y + 4, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3062', 'DARK_GREY', 4, wz, Y + 4, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); feats.push('wing-mounted engines'); }   // a jet on straight wings borrows the airliner's engines, which also pin the wings down
                 else feats.push('straight wings');
                 g.part('4032', P.dark, 0, L, Y + 1, { rotX: PI / 2, w: 2, l: 1, hp: 5, lie: true }); feats.push('a nose propeller');
             }
@@ -761,7 +787,12 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             }
             if (sail) {
                 const sails = P.explicit && ctx.explicitColors.length > 1 ? P.secondary : match === 'pirate ship' ? 'DARK_RED' : match === 'viking ship' || match === 'longship' ? 'RED' : 'WHITE';
-                const masts = match === 'galleon' || match === 'frigate' || match === 'schooner' || match === 'pirate ship' ? 2 : 1;
+                const mastsDflt = match === 'galleon' || match === 'frigate' || match === 'schooner' || match === 'pirate ship' ? 2 : 1;
+                const masts = parseInt(ctx.declare({ id: 'masts', label: 'Masts', type: 'choice', choices: ['1', '2'], default: String(mastsDflt) }), 10) === 2 ? 2 : 1;
+                const sternFlag = ctx.declare({ id: 'flag', label: 'Stern flag', type: 'bool', default: true });
+                // Longships and rafts never had a cabin, so only ships that do get the dial.
+                const cabinDflt = !['viking ship', 'longship', 'ark', 'catamaran'].includes(match);
+                const cabin = cabinDflt ? ctx.declare({ id: 'cabin', label: 'Stern cabin', type: 'bool', default: true }) : false;
                 const mx = Math.floor(W / 2);
                 for (let m = 0; m < masts; m++) {
                     const mz = masts === 1 ? Math.floor(L / 2) - 1 : m === 0 ? Math.floor(L / 3) : Math.floor(2 * L / 3);
@@ -771,10 +802,12 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                     g.part('4032', P.wood, mx - 1, mz - 1, yD + 18);
                     if (match === 'pirate ship') g.part('98138', 'WHITE', mx + 1, mz, yD + 12);
                 }
-                H.flag(ctx, mx, 1, yD + 4, match === 'pirate ship' ? 'BLACK' : P.accent);
-                if (!['viking ship', 'longship', 'ark', 'catamaran'].includes(match)) { g.shell(0, W - 1, 0, 2, yD, yD + 2, hull); g.box(0, W - 1, 0, 2, yD + 3, yD + 3, deck, { noBrick: true }); H.window(ctx, 1, 0, yD, 'back', 'TRANS_ORANGE'); feats.push('a raised stern cabin'); }
+                // The flag stands on the cabin roof; with the cabin removed it drops to the deck.
+                if (sternFlag) H.flag(ctx, mx, 1, cabinDflt && !cabin ? yD : yD + 4, match === 'pirate ship' ? 'BLACK' : P.accent);
+                if (cabin) { g.shell(0, W - 1, 0, 2, yD, yD + 2, hull); g.box(0, W - 1, 0, 2, yD + 3, yD + 3, deck, { noBrick: true }); H.window(ctx, 1, 0, yD, 'back', 'TRANS_ORANGE'); feats.push('a raised stern cabin'); }
                 if (match === 'viking ship' || match === 'longship') { for (let z = 2; z < L - 3; z += 2) { g.part('98138', P.accent, 0, z, yD); g.part('98138', P.secondary, W - 1, z, yD); } g.part('4589', 'GOLD', 0, L - 2, 5); feats.push('a row of shields along the gunwales', 'a dragon-head prow'); }
-                feats.push(`${masts} mast${masts > 1 ? 's' : ''} with ${window.LEGO_COLORS[sails].name.toLowerCase()} sails`, "a crow's nest", 'a stern flag');
+                feats.push(`${masts} mast${masts > 1 ? 's' : ''} with ${window.LEGO_COLORS[sails].name.toLowerCase()} sails`, "a crow's nest");
+                if (sternFlag) feats.push('a stern flag');
                 return { title: { 'pirate ship': 'Pirate Ship', galleon: 'Galleon', frigate: 'Frigate', schooner: 'Schooner', sailboat: 'Sailboat', 'sailing ship': 'Tall Ship', yacht: 'Sailing Yacht', 'viking ship': 'Viking Longship', longship: 'Viking Longship', ark: 'Wooden Ark', catamaran: 'Catamaran' }[match], features: feats };
             }
             // Motor ships: a superstructure, bridge and funnel(s); warships get turrets.
@@ -804,7 +837,9 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             const { g, P, sc, match, chance } = ctx;
             const feats = [];
             if (['rocket', 'moon rocket', 'saturn v', 'spacex', 'falcon'].includes(match)) {
-                const stages = sc(5), white = P.explicit ? P.primary : 'WHITE';
+                const stagesDflt = sc(5), white = P.explicit ? P.primary : 'WHITE';
+                const stages = Math.max(3, Math.min(9, parseInt(ctx.declare({ id: 'stages', label: 'Stages', type: 'choice', choices: ['3', '4', '5', '6', '7', '8', '9'], default: String(stagesDflt) }), 10) || stagesDflt));
+                const gantry = ctx.declare({ id: 'gantry', label: 'Gantry tower', type: 'bool', default: true });
                 g.box(-4, 6, -4, 5, 0, 0, 'DARK_GREY', { noBrick: true });
                 g.box(-2, 3, -2, 3, 1, 1, 'DARK_GREY', { noBrick: true }); g.box(-1, 2, -1, 2, 2, 2, 'LIGHT_GREY', { noBrick: true });
                 for (const [x, z] of [[-1, -1], [2, -1], [-1, 2], [2, 2]]) g.part('4589', 'DARK_GREY', x, z, 3);
@@ -813,11 +848,14 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 g.part('3942', white, 0, 0, yTop); g.part('3062', 'LIGHT_GREY', 0, 0, yTop + 6); g.part('4589', P.accent, 0, 0, yTop + 9);
                 for (const [x, z, r] of [[-1, 0, -PI / 2], [2, 1, PI / 2], [0, -1, PI], [1, 2, 0]]) g.part('54200', P.accent, x, z, 3, { rotY: r });
                 // Gantry tower with service arms.
-                for (let i = 0; i < stages + 1; i++) g.box(-4, -3, -1, 0, 1 + i * 3, 3 + i * 3, 'RED');
-                for (let i = 1; i < stages; i += 2) g.part('3623', 'RED', -3, 0, 3 + i * 3, { rotY: PI / 2, w: 3, l: 1 });
-                g.part('3022', 'DARK_GREY', -4, -1, 4 + (stages + 1) * 3); g.part('98138', 'TRANS_RED', -4, -1, 5 + (stages + 1) * 3);
+                if (gantry) {
+                    for (let i = 0; i < stages + 1; i++) g.box(-4, -3, -1, 0, 1 + i * 3, 3 + i * 3, 'RED');
+                    for (let i = 1; i < stages; i += 2) g.part('3623', 'RED', -3, 0, 3 + i * 3, { rotY: PI / 2, w: 3, l: 1 });
+                    g.part('3022', 'DARK_GREY', -4, -1, 4 + (stages + 1) * 3); g.part('98138', 'TRANS_RED', -4, -1, 5 + (stages + 1) * 3);
+                }
                 g.part('3062', 'TRANS_ORANGE', 4, 3, 1); g.part('4589', 'TRANS_ORANGE', 4, 3, 4);
-                return { title: match === 'saturn v' || match === 'moon rocket' ? 'Moon Rocket & Gantry' : 'Launch Rocket & Gantry', features: [`a ${stages}-stage round-brick booster`, 'four engine bells and fins', 'a command capsule and escape tower', 'a red gantry with service arms', 'a flame deflector pad'] };
+                const title = (match === 'saturn v' || match === 'moon rocket' ? 'Moon Rocket' : 'Launch Rocket') + (gantry ? ' & Gantry' : '');
+                return { title, features: [`a ${stages}-stage round-brick booster`, 'four engine bells and fins', 'a command capsule and escape tower', ...(gantry ? ['a red gantry with service arms'] : []), 'a flame deflector pad'] };
             }
             if (['ufo', 'flying saucer', 'saucer', 'alien ship', 'mothership'].includes(match)) {
                 const R = sc(4.5), hull = P.explicit ? P.primary : 'LIGHT_GREY';
@@ -900,8 +938,10 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
         kind: 'mech', category: 'Space & Sci-Fi', icon: '🤖',
         keys: ['robot', 'mech', 'mecha', 'droid', 'android', 'bot', 'walker', 'golem', 'cyborg', 'gundam', 'exosuit', 'automaton', 'battle mech', 'iron giant', 'transformer', 'power loader'],
         build(ctx) {
-            const { g, P, sc, chance, match } = ctx;
+            const { g, P, sc, chance, match, declare } = ctx;
             const big = ctx.S > 1.2 || match === 'iron giant' || match === 'gundam' || match === 'battle mech';
+            // Dial: 'auto' keeps the seed's own claw-or-cannon toss per arm.
+            const armsMode = declare({ id: 'arms', label: 'Arms', type: 'choice', choices: ['auto', 'claws', 'cannons'], default: 'auto' });
             const T = big ? 6 : 4;   // torso width
             const legX = big ? [0, T - 2] : [0, T - 2];
             g.box(-4, T + 3, -3, 5, 0, 0, 'DARK_GREY', { noBrick: true });
@@ -920,11 +960,16 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 const ax = side < 0 ? -2 : T + 1;
                 g.part('3022', P.dark, side < 0 ? -2 : T, 0, 15); g.box(side < 0 ? -2 : T, side < 0 ? -1 : T + 1, 0, 1, 16, 18, P.secondary);
                 g.part('3062', P.metal, ax, 0, 12); g.part('3062', P.metal, ax, 0, 9); g.part('3062', P.metal, ax, 0, 6, { hp: 3 });
-                if (chance(0.5) || match === 'battle mech') { g.part('3062', P.dark, ax, 1, 9, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); }
-                else { g.part('54200', P.dark, ax, 1, 6, { rotY: 0 }); }
+                const cannon = armsMode === 'auto' ? (chance(0.5) || match === 'battle mech') : armsMode === 'cannons';
+                if (cannon) { g.part('3062', P.dark, ax, 1, 9, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); }
+                else {
+                    if (armsMode === 'claws') g.part('3023', P.metal, ax, 0, 5, { rotY: 0 });   // a wrist plate under the chosen claw, so it has studs to sit on
+                    g.part('54200', P.dark, ax, 1, 6, { rotY: 0 });
+                }
             }
-            if (big || chance(0.5)) { g.part('3062', P.dark, -1, 1, 19, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3062', P.dark, T, 1, 19, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); }
-            return { title: { robot: 'Robot', droid: 'Service Droid', android: 'Android', golem: 'Stone Golem', gundam: 'Battle Mech', 'battle mech': 'Battle Mech', walker: 'Assault Walker', exosuit: 'Exosuit', 'iron giant': 'Iron Giant', cyborg: 'Cyborg', automaton: 'Clockwork Automaton', 'power loader': 'Power Loader', transformer: 'Transforming Robot', bot: 'Bot' }[match] || 'Mech Walker', features: ['hydraulic legs on wide footpads', 'an armoured torso with a glowing chest plate', 'a visored head and antenna', 'piston arms with claws or cannons', big ? 'shoulder-mounted guns' : 'a dark hip joint'] };
+            const guns = declare({ id: 'guns', label: 'Shoulder guns', type: 'bool', default: big || chance(0.5) });
+            if (guns) { g.part('3062', P.dark, -1, 1, 19, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3062', P.dark, T, 1, 19, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); }
+            return { title: { robot: 'Robot', droid: 'Service Droid', android: 'Android', golem: 'Stone Golem', gundam: 'Battle Mech', 'battle mech': 'Battle Mech', walker: 'Assault Walker', exosuit: 'Exosuit', 'iron giant': 'Iron Giant', cyborg: 'Cyborg', automaton: 'Clockwork Automaton', 'power loader': 'Power Loader', transformer: 'Transforming Robot', bot: 'Bot' }[match] || 'Mech Walker', features: ['hydraulic legs on wide footpads', 'an armoured torso with a glowing chest plate', 'a visored head and antenna', armsMode === 'claws' ? 'piston arms with claws' : armsMode === 'cannons' ? 'piston arms with cannons' : 'piston arms with claws or cannons', guns ? 'shoulder-mounted guns' : 'a dark hip joint'] };
         }
     });
 })();
