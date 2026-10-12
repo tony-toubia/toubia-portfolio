@@ -207,14 +207,6 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
         return { y: y + 1 };
     };
 
-    /** Four wheels (2x2 round plates on their sides) outside a body spanning x0..x1. */
-    H.wheels = (ctx, x0, x1, zs, y, big) => {
-        for (const z of zs) {
-            if (big) { ctx.g.part('3941', 'BLACK', x0 - 2, z, y, { rotZ: PI / 2, w: 2, l: 2, hp: 5, lie: true }); ctx.g.part('3941', 'BLACK', x1 + 1, z, y, { rotZ: PI / 2, w: 2, l: 2, hp: 5, lie: true }); }
-            else { ctx.g.part('4032', 'BLACK', x0 - 1, z, y, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true }); ctx.g.part('4032', 'BLACK', x1 + 1, z, y, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true }); }
-        }
-    };
-
     /** A garden around a footprint: trees in the corners, flowers at the front, a lamp. */
     H.garden = (ctx, x0, x1, z0, z1, m, y) => {
         const { g, P, chance } = ctx;
@@ -549,98 +541,198 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
 
     /* ── vehicles ─────────────────────────────────────────────── */
 
+    /**
+     * Where the axles of a wheeled vehicle go: wheels of `size` as far forward and back as the body
+     * (length L) allows, a middle axle on a long truck. Returns { axles, minL } for H.chassis.
+     */
+    const axleRows = (size, L, three) => {
+        const env = H.axle.envelope(size), l = env.l, off = Math.floor((l - 2) / 2);   // an axle at z puts its wheel at z-off .. z-off+l-1
+        const over = size === 'large' ? 1 : 0;                                          // big tyres may poke a stud past the body ends
+        const rear = 1 - over + off, front = L - 1 - l + over + off;
+        const axles = [rear];
+        if (three && front - l >= rear + l) axles.push(rear + l);
+        axles.push(front);
+        return axles;
+    };
+    /** Headlight bricks at both front corners and tail lights at the back of a body W wide at plate y. */
+    const carLights = (ctx, W, zFront, zBack, y, color) => {
+        const feats = [];
+        for (const x of [0, W - 1]) {
+            if (zFront !== null) feats.push(...H.headlight(ctx, x, zFront, y, { face: 'front', color }).feats);
+            if (zBack !== null) H.headlight(ctx, x, zBack, y, { face: 'back', color, lens: 'TRANS_RED' });
+        }
+        return feats.length ? ['headlights and tail lights on headlight bricks'] : [];
+    };
+    /** Grille tiles hanging on brackets across the front of a body W wide (the bracket plate sits at plate y). */
+    const carGrille = (ctx, W, z, y, color, dir) => {
+        for (let x = 1; x + 1 <= W - 2; x += 2) H.bracketMount(ctx, x, z, y, { face: 'front', part: '2412', color, partColor: 'DARK_GREY', dir });
+        return ['a bracket-mounted grille'];
+    };
+
     reg({
         kind: 'car', category: 'Vehicles', icon: '🚗',
         keys: ['car', 'coupe', 'sports car', 'race car', 'racing car', 'supercar', 'hot rod', 'sedan', 'taxi', 'cab', 'police car', 'hatchback', 'convertible', 'limo', 'limousine', 'van', 'truck', 'pickup', 'pickup truck', 'lorry', 'semi', 'fire truck', 'fire engine', 'ambulance', 'bus', 'school bus', 'jeep', 'suv', '4x4', 'monster truck', 'tractor', 'go-kart', 'kart', 'buggy', 'muscle car', 'roadster', 'camper', 'rv', 'ice cream truck', 'food truck', 'dump truck', 'garbage truck', 'tow truck', 'delivery van', 'vehicle', 'automobile', 'formula 1', 'f1 car', 'rally car'],
         build(ctx) {
             const { g, P, sc, chance, match, has, declare } = ctx;
-            const truck = ['truck', 'lorry', 'semi', 'fire truck', 'fire engine', 'ambulance', 'pickup', 'pickup truck', 'dump truck', 'garbage truck', 'tow truck', 'ice cream truck', 'food truck', 'delivery van', 'van', 'camper', 'rv'].includes(match);
+            const monster = match === 'monster truck', tractor = match === 'tractor';
+            const truck = monster || ['truck', 'lorry', 'semi', 'fire truck', 'fire engine', 'ambulance', 'pickup', 'pickup truck', 'dump truck', 'garbage truck', 'tow truck', 'ice cream truck', 'food truck', 'delivery van', 'van', 'camper', 'rv'].includes(match);
             const bus = ['bus', 'school bus', 'limo', 'limousine'].includes(match);
-            const monster = match === 'monster truck', tractor = match === 'tractor', open = ['convertible', 'roadster', 'go-kart', 'kart', 'buggy', 'formula 1', 'f1 car', 'jeep'].includes(match);
-            // Dial: monster wheels lift the chassis on any vehicle (the tractor keeps its own wheel set).
+            const open = ['convertible', 'roadster', 'go-kart', 'kart', 'buggy', 'formula 1', 'f1 car', 'jeep'].includes(match), f1 = match === 'formula 1' || match === 'f1 car';
+            const sporty = ['sports car', 'supercar', 'race car', 'racing car', 'muscle car', 'rally car', 'hot rod', 'coupe'].includes(match);
+            // Dial: monster wheels put any vehicle on the big 43 mm tyres (the tractor keeps its own pair of sizes).
             const bigWheels = !tractor && declare({ id: 'wheels', label: 'Wheels', type: 'choice', choices: ['standard', 'monster'], default: monster ? 'monster' : 'standard' }) === 'monster';
-            const W = 6, L = bus ? sc(14) : truck ? sc(12) : tractor ? sc(8) : sc(9);
+            const heavy = truck || bus;
+            // Cars are four wide on the small 15 mm tyres, trucks and buses six wide on 21 mm tyres, monster trucks on 43 mm.
+            const W = heavy || tractor ? 6 : 4, size = bigWheels ? 'large' : heavy || tractor ? 'medium' : 'small';
+            // Real wheels need room: two axles of the chosen size (three on a long truck), the front and rear tyres at the body ends.
+            const minL = Math.max(open ? 8 : 0, tractor ? 10 : { small: 6, medium: 8, large: 10 }[size]);
+            const L = Math.max(minL, 2 * Math.round((bus ? sc(14) : truck ? sc(12) : tractor ? sc(8) : sc(9)) / 2));
             let body = P.primary;
             if (!P.explicit) body = { taxi: 'YELLOW', cab: 'YELLOW', 'police car': 'WHITE', ambulance: 'WHITE', 'fire truck': 'RED', 'fire engine': 'RED', 'school bus': 'YELLOW', tractor: 'GREEN', 'ice cream truck': 'WHITE', 'garbage truck': 'GREEN' }[match] || body;
             const feats = [];
             // A road plate with a centre line, so the model has a stage.
             g.box(-3, W + 2, -2, L + 1, 0, 0, 'DARK_GREY', { noBrick: true });
             for (let z = -1; z <= L; z += 3) g.part('3069', 'YELLOW', -3, z, 1, { rotY: 0 });
-            const yC = bigWheels ? 5 : tractor ? 3 : 2;      // the chassis sits above the wheel hubs
-            const wz = bus ? [1, L - 4] : truck ? (L - 3 >= 6 ? [1, 4, L - 3] : [1, L - 3]) : tractor ? [1, 5] : [1, L - 3];   // a micro truck has no room for a middle axle
-            if (tractor) { g.part('3941', 'BLACK', -2, 0, 1, { rotZ: PI / 2, w: 2, l: 2, hp: 5, lie: true }); g.part('3941', 'BLACK', W, 0, 1, { rotZ: PI / 2, w: 2, l: 2, hp: 5, lie: true }); g.part('4032', 'BLACK', -1, L - 2, 1, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true }); g.part('4032', 'BLACK', W, L - 2, 1, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true }); }
-            else H.wheels(ctx, 0, W - 1, wz, 1, bigWheels);
-            g.box(0, W - 1, 0, L - 1, yC, yC, 'BLACK', { noBrick: true });
-            // Trim plate: lights at the corners, a bumper front and back.
-            g.box(0, W - 1, 0, L - 1, yC + 1, yC + 1, body, { noBrick: true });
-            g.set(0, yC + 1, L - 1, 'TRANS_CLEAR', { noBrick: true }); g.set(W - 1, yC + 1, L - 1, 'TRANS_CLEAR', { noBrick: true });
-            g.set(0, yC + 1, 0, 'TRANS_RED', { noBrick: true }); g.set(W - 1, yC + 1, 0, 'TRANS_RED', { noBrick: true });
-            g.box(1, W - 2, L - 1, L - 1, yC + 1, yC + 1, 'DARK_GREY', { noBrick: true }); g.box(1, W - 2, 0, 0, yC + 1, yC + 1, 'DARK_GREY', { noBrick: true });
-            const yB = yC + 2;   // body bricks start here
+            // The chassis: axle plates with wheels and tyres, two cross-bonded plate layers, the body on top.
+            let ch, wheels;
+            if (tractor) {
+                // Big rear wheels on the chassis axle, small front wheels on a dropped axle under a brick pillar.
+                const rows = axleRows('large', L, false), zF = axleRows('medium', L, false)[1];
+                ch = H.chassis(ctx, 0, 0, W, L, 1, { axles: [rows[0]], size: 'large', color: 'BLACK' });
+                H.axle(ctx, 0, zF, 1 + H.axle.clearance('medium'), { width: W, size: 'medium', color: 'BLACK' });
+                g.box(1, 4, zF, zF + 1, 2 + H.axle.clearance('medium'), ch.yAxle - 1, 'BLACK');
+                wheels = 4; feats.push('big rear wheels and small front wheels on axle plates');
+            } else {
+                const axles = axleRows(size, L, truck && !bus);
+                ch = H.chassis(ctx, 0, 0, W, L, 1, { axles, size, color: 'BLACK' });
+                wheels = ch.axles.length * 2; feats.push(...ch.feats);
+            }
+            const T = ch.top;
+            // A locked two-layer plate slab over the chassis (its layer joints never line up), the body on that.
+            H.slab(ctx, 0, W - 1, 0, L - 1, T, body);
+            const B = T + 2;   // body bricks start here
             if (bus) {
-                g.box(0, W - 1, 0, L - 1, yB, yB + 2, body);
-                g.shell(0, W - 1, 0, L - 1, yB + 3, yB + 5, body);
-                for (let z = 1; z + 1 <= L - 3; z += 3) { H.window(ctx, 0, z, yB + 3, 'left'); H.window(ctx, W - 1, z, yB + 3, 'right'); }
-                H.window(ctx, 1, L - 1, yB + 3, 'front'); H.window(ctx, 1, 0, yB + 3, 'back');
-                H.ceiling(ctx, 0, W - 1, 0, L - 1, yB + 6, match === 'school bus' ? 'BLACK' : body);
-                if (match === 'school bus') { g.part('98138', 'TRANS_RED', 0, L - 1, yB + 7); g.part('98138', 'TRANS_RED', W - 1, L - 1, yB + 7); }
-                feats.push('a full row of side windows', 'a wraparound windscreen');
+                g.box(0, W - 1, 0, L - 1, B, B + 2, body);
+                feats.push(...carLights(ctx, W, L - 1, 0, B, body), ...carGrille(ctx, W, L - 1, B + 2, body));
+                // A two-brick wall with real window frames along both sides, a wraparound windscreen and rear window.
+                g.shell(0, W - 1, 0, L - 1, B + 3, B + 8, body);
+                const frame = match === 'school bus' ? 'BLACK' : P.trim === body ? 'WHITE' : P.trim;
+                const win = (x, z, face) => H.realWindow(ctx, x, z, B + 3, { size: '1x2x2', face, frameColor: frame, glassColor: P.glass });
+                for (let z = 1; z + 1 <= L - 2; z += 3) { win(0, z, 'left'); win(W - 1, z + 1, 'right'); }
+                win(1, L - 1, 'front'); win(3, L - 1, 'front'); win(4, 0, 'back'); win(2, 0, 'back');
+                H.ceiling(ctx, 0, W - 1, 0, L - 1, B + 9, match === 'school bus' ? 'BLACK' : body);
+                if (match === 'school bus') {
+                    g.part('98138', 'TRANS_RED', 0, L - 1, B + 10); g.part('98138', 'TRANS_RED', W - 1, L - 1, B + 10);
+                    if (L >= 10 && !bigWheels) { H.bracketMount(ctx, 0, 4, B + 2, { face: 'left', part: '3069', color: body, partColor: 'RED' }); feats.push('a swing-out stop sign'); }
+                } else { g.part('3069', P.accent, 2, L - 2, B + 10, { rotY: PI / 2, w: 2, l: 1 }); feats.push('a destination board'); }
+                feats.push('rows of real window frames with glass', 'a wraparound windscreen');
             } else if (truck) {
                 const cabZ = L - 4;
-                g.box(0, W - 1, cabZ, L - 1, yB, yB + 2, body);
-                for (let x = 0; x < W; x += 2) { g.part('3039', body, x, L - 2, yB + 3, { rotY: 0 }); g.part('3039', P.glass, x, cabZ, yB + 3, { rotY: 0 }); }
-                g.box(0, W - 1, cabZ, cabZ, yB + 6, yB + 6, body, { noBrick: true });
-                const cargo = declare({ id: 'cargo', label: 'Cargo', type: 'choice', choices: ['box', 'bed', 'tow'], default: match === 'pickup' || match === 'pickup truck' ? 'bed' : match === 'tow truck' ? 'tow' : 'box' });
+                g.box(0, W - 1, cabZ - 1, L - 1, B, B + 2, body);   // the cab and the row behind it that carries the cargo's front
+                feats.push(...carLights(ctx, W, L - 1, null, B, body), ...carGrille(ctx, W, L - 1, B + 2, body));
+                // Cab: a curved bonnet, a glass windscreen, a roof plate with marker lights.
+                H.curvedRoof(ctx, 0, L - 2, B + 3, { width: W, color: body, face: 'front' });
+                for (let x = 0; x < W; x += 2) g.part('3039', P.glass, x, cabZ, B + 3, { rotY: 0 });
+                g.box(0, W - 1, cabZ, cabZ, B + 6, B + 6, body, { noBrick: true });
+                g.part('98138', 'TRANS_ORANGE', 0, cabZ, B + 7); g.part('98138', 'TRANS_ORANGE', W - 1, cabZ, B + 7);
+                const cargo = declare({ id: 'cargo', label: 'Cargo', type: 'choice', choices: ['box', 'bed', 'tow'], default: monster || match === 'pickup' || match === 'pickup truck' ? 'bed' : match === 'tow truck' ? 'tow' : 'box' });
                 if (cargo === 'box') {
-                    g.shell(0, W - 1, 0, cabZ - 2, yB, yB + 8, match === 'ambulance' || match === 'ice cream truck' || match === 'delivery van' || match === 'van' || match === 'camper' || match === 'rv' ? 'WHITE' : P.secondary);
-                    H.ceiling(ctx, 0, W - 1, 0, cabZ - 2, yB + 9, 'LIGHT_GREY');
-                    if (match === 'ambulance') { g.part('3070', 'RED', 2, cabZ - 3, yB + 10); g.part('3070', 'RED', 3, cabZ - 3, yB + 10); g.part('98138', 'TRANS_BLUE', 2, cabZ, yB + 7); g.part('98138', 'TRANS_RED', 3, cabZ, yB + 7); feats.push('a red cross and emergency lights'); }
-                    if (match === 'fire truck' || match === 'fire engine') { if (cabZ >= 5) { g.part('3005', 'LIGHT_GREY', 0, 1, yB + 10); g.part('3005', 'LIGHT_GREY', 0, cabZ - 3, yB + 10); g.part('3460', 'LIGHT_GREY', 0, 0, yB + 13, { rotY: 0, l: Math.min(8, cabZ - 2) }); feats.push('a roof-mounted ladder'); } g.part('98138', 'TRANS_BLUE', 2, cabZ, yB + 7); feats.push('a blue beacon'); }
-                    if (match === 'ice cream truck' || match === 'food truck') { g.part('3069', P.accent, 2, cabZ - 3, yB + 10); g.part('59900', 'PINK', 1, 0, yB + 10); g.part('98138', 'WHITE', 2, 0, yB + 10); feats.push('a serving hatch and a giant ice cream'); }
+                    const boxColor = match === 'ambulance' || match === 'ice cream truck' || match === 'delivery van' || match === 'van' || match === 'camper' || match === 'rv' ? 'WHITE' : match === 'fire truck' || match === 'fire engine' ? body : P.secondary;
+                    g.shell(0, W - 1, 0, cabZ - 2, B, B + 8, boxColor);
+                    H.ceiling(ctx, 0, W - 1, 0, cabZ - 2, B + 9, 'LIGHT_GREY');
+                    carLights(ctx, W, null, 0, B, boxColor);
+                    if (match === 'ambulance') { g.part('3070', 'RED', 2, cabZ - 3, B + 10); g.part('3070', 'RED', 3, cabZ - 3, B + 10); g.part('98138', 'TRANS_BLUE', 2, cabZ, B + 7); g.part('98138', 'TRANS_RED', 3, cabZ, B + 7); feats.push('a red cross and emergency lights'); }
+                    if (match === 'fire truck' || match === 'fire engine') {
+                        // A two-rail ladder on 1x2 crossbars along the roof, a blue beacon on the cab.
+                        const n = [8, 6, 4, 3].find((l) => l <= cabZ - 2);
+                        if (n) {
+                            for (const z of [0, n - 1]) g.part('3004', 'LIGHT_GREY', 0, z, B + 10, { rotY: PI / 2, w: 2, l: 1 });
+                            for (const x of [0, 1]) g.part(PLATES.one[n], 'LIGHT_GREY', x, 0, B + 13, { rotY: 0, w: 1, l: n });
+                            feats.push('a roof-mounted ladder');
+                        }
+                        g.part('98138', 'TRANS_BLUE', 2, cabZ, B + 7); g.part('98138', 'TRANS_BLUE', 3, cabZ, B + 7);
+                        g.part('14769', 'LIGHT_GREY', 4, cabZ - 3, B + 10); feats.push('a blue beacon and a hose reel');
+                    }
+                    if (match === 'ice cream truck' || match === 'food truck') { g.part('3069', P.accent, 2, cabZ - 3, B + 10); g.part('59900', 'PINK', 1, 0, B + 10); g.part('98138', 'WHITE', 2, 0, B + 10); feats.push('a serving hatch and a giant ice cream'); }
                     feats.push('a tall cargo box');
                 } else if (cargo === 'bed') {
-                    g.shell(0, W - 1, 0, cabZ - 2, yB, yB + 2, body); g.box(1, W - 2, 1, cabZ - 3, yB, yB, 'BLACK', { noBrick: true });
-                    g.part('3941', 'TAN', 1, 1, yB + 1); feats.push('an open cargo bed with a load');
+                    g.shell(0, W - 1, 0, cabZ - 2, B, B + 2, body); g.box(1, W - 2, 1, cabZ - 3, B, B, 'BLACK', { noBrick: true });
+                    carLights(ctx, W, null, 0, B, body);
+                    g.part('3941', 'TAN', 1, 1, B + 1); feats.push('an open cargo bed with a load');
+                    if (monster) {
+                        // A light bar over the cab and chrome exhaust stacks behind it.
+                        for (let x = 1; x <= W - 2; x++) g.part('98138', 'TRANS_CLEAR', x, cabZ, B + 7);
+                        for (const x of [0, W - 1]) { g.part('3062', 'LIGHT_GREY', x, cabZ - 1, B + 3); g.part('3062', 'LIGHT_GREY', x, cabZ - 1, B + 6); }
+                        feats.push('a roof light bar and twin exhaust stacks');
+                    }
                 } else {
-                    g.box(0, W - 1, 0, cabZ - 2, yB, yB + 2, body); g.box(1, 2, 0, 1, yB + 3, yB + 8, P.dark); g.part('3710', P.metal, 1, -2, yB + 9, { rotY: 0 }); g.part('4073', 'BLACK', 1, -2, yB + 10); feats.push('a tow boom and hook');
+                    g.box(0, W - 1, 0, cabZ - 2, B, B + 2, body); carLights(ctx, W, null, 0, B, body);
+                    g.box(1, 2, 0, 1, B + 3, B + 8, P.dark); g.part('3710', P.metal, 1, -2, B + 9, { rotY: 0 }); g.part('4073', 'BLACK', 1, -2, B + 10); feats.push('a tow boom and hook');
                 }
-                if (truck && L > 9) { g.part('98138', 'TRANS_ORANGE', 0, L - 2, yB + 6); g.part('98138', 'TRANS_ORANGE', W - 1, L - 2, yB + 6); }
             } else if (tractor) {
-                g.box(0, W - 1, 2, L - 1, yB, yB + 2, body);
-                g.box(2, 3, 4, L - 1, yB + 3, yB + 5, body);
-                g.part('3062', 'LIGHT_GREY', 1, L - 2, yB + 3); g.part('3062', 'LIGHT_GREY', 1, L - 2, yB + 6);
-                g.box(0, W - 1, 0, 1, yB, yB + 2, 'BLACK'); g.part('3070', 'BLACK', 2, 2, yB + 3); g.part('98138', 'BLACK', 3, 3, yB + 3);
-                g.box(0, 0, 1, 1, yB + 3, yB + 8, 'BLACK'); g.box(W - 1, W - 1, 1, 1, yB + 3, yB + 8, 'BLACK'); g.part('3032', body, 0, 0, yB + 9, { w: 6, l: 4, rotY: PI / 2 });
-                g.part('3023', 'YELLOW', 2, L - 1, yB + 6, { rotY: PI / 2 });
-                feats.push('big rear wheels', 'an exhaust stack', 'a canopy cab');
+                // A bonnet between the big wheels' tops, an exhaust stack, an open cab under a canopy on four pillars.
+                g.box(1, 4, 4, L - 1, B, B + 2, body);
+                H.curvedRoof(ctx, 1, L - 2, B + 3, { width: 4, color: body, face: 'front' });
+                for (const x of [1, 4]) H.headlight(ctx, x, L - 1, B, { face: 'front', color: body });
+                H.bracketMount(ctx, 2, L - 1, B + 2, { face: 'front', part: '2412', color: body, partColor: 'DARK_GREY' });
+                g.part('3062', 'LIGHT_GREY', 1, 4, B + 3); g.part('3062', 'LIGHT_GREY', 1, 4, B + 6);
+                g.box(0, W - 1, 1, 3, B, B + 2, body);
+                g.part('3070', 'BLACK', 2, 2, B + 3); g.part('98138', 'BLACK', 3, 3, B + 3);
+                for (const [x, z] of [[0, 1], [W - 1, 1], [0, 3], [W - 1, 3]]) { g.part('3005', 'BLACK', x, z, B + 3); g.part('3005', 'BLACK', x, z, B + 6); }
+                g.part('3032', body, 0, 0, B + 9, { w: 6, l: 4, rotY: PI / 2 });
+                g.part('3023', 'YELLOW', 2, 1, B + 10, { rotY: PI / 2, w: 2, l: 1 });
+                feats.push('an exhaust stack', 'a canopy cab on four pillars', 'a bracket-mounted grille');
             } else {
-                // A car: hood slope, windscreen, cabin, roof, rear.
+                // A car: lights and a grille on the front, a curved bonnet, a glass windscreen, a cabin, a roof, a boot.
                 const cabZ = L - 5;
-                g.box(0, W - 1, 0, L - 1, yB, yB + 2, body);
-                g.part('3037', body, 0, L - 2, yB + 3, { rotY: 0 }); g.part('3039', body, 4, L - 2, yB + 3, { rotY: 0 });
-                for (let x = 0; x < W; x += 2) g.part('3039', P.glass, x, cabZ, yB + 3, { rotY: 0 });
+                g.box(0, W - 1, 0, L - 1, B, B + 2, body);
+                if (sporty) {
+                    // A low wedge-plate nose with pop-up lights on its tips, the grille raised on inverted brackets.
+                    H.wedgeNose(ctx, 0, L - 1, B, { width: W, color: body, face: 'front' });
+                    g.part('98138', 'TRANS_CLEAR', 0, L, B + 1); g.part('98138', 'TRANS_CLEAR', W - 1, L, B + 1);
+                    feats.push(...carGrille(ctx, W, L - 1, B + 1, body, 'up'), 'a wedge-plate nose with pop-up lights');
+                    carLights(ctx, W, null, 0, B, body);
+                } else if (!f1) feats.push(...carLights(ctx, W, L - 1, 0, B, body), ...carGrille(ctx, W, L - 1, B + 2, body));
+                if (!f1) {
+                    H.curvedRoof(ctx, 0, L - 2, B + 3, { width: W, color: body, face: 'front' });
+                    g.box(0, W - 1, cabZ + 2, L - 3, B + 3, B + 3, body, { noBrick: true });
+                    feats.push('a curved-slope bonnet');
+                }
+                for (let x = 0; x < W; x += 2) g.part('3039', P.glass, x, cabZ, B + 3, { rotY: 0 });
                 if (open) {
-                    g.box(0, W - 1, 1, cabZ - 1, yB + 3, yB + 3, body, { noBrick: true });
-                    g.part('3070', 'BLACK', 1, cabZ - 2, yB + 4); g.part('3070', 'BLACK', 2, cabZ - 2, yB + 4); g.part('3070', 'BLACK', 3, cabZ - 2, yB + 4); g.part('3070', 'BLACK', 4, cabZ - 2, yB + 4); g.part('98138', 'BLACK', 2, cabZ - 1, yB + 4);
-                    if (match === 'formula 1' || match === 'f1 car') { g.part('3666', P.secondary, 0, 0, yB + 6, { rotY: PI / 2, w: 6, l: 1 }); g.box(0, 0, 0, 0, yB + 3, yB + 5, 'BLACK'); g.box(W - 1, W - 1, 0, 0, yB + 3, yB + 5, 'BLACK'); g.part('3666', P.secondary, 0, L - 1, yB + 3, { rotY: PI / 2, w: 6, l: 1 }); }
+                    g.box(0, W - 1, 1, cabZ - 1, B + 3, B + 3, body, { noBrick: true });
+                    g.part('3070', 'BLACK', 1, cabZ - 2, B + 4); g.part('3070', 'BLACK', 2, cabZ - 2, B + 4); g.part('98138', 'BLACK', 1, cabZ - 1, B + 4);
+                    if (f1) {
+                        // Wings front and back, a cheese-slope nose cone, the engine cover behind the driver.
+                        g.box(0, W - 1, cabZ + 2, L - 1, B + 3, B + 3, body, { noBrick: true });
+                        g.part('3666', P.secondary, -1, L - 1, B + 4, { rotY: PI / 2, w: 6, l: 1 });
+                        g.part('54200', body, 1, L - 2, B + 4); g.part('54200', body, 2, L - 2, B + 4);
+                        g.box(0, 0, 0, 0, B + 3, B + 5, 'BLACK'); g.box(W - 1, W - 1, 0, 0, B + 3, B + 5, 'BLACK'); g.part('3666', P.secondary, -1, 0, B + 6, { rotY: PI / 2, w: 6, l: 1 });
+                        feats.push('front and rear wings', 'a cheese-slope nose cone');
+                    }
                     feats.push('an open cockpit with seats');
                 } else {
-                    g.box(0, W - 1, 0, cabZ - 1, yB + 3, yB + 5, body);
-                    if (cabZ >= 3) { H.window(ctx, 0, 1, yB + 3, 'left'); H.window(ctx, W - 1, 1, yB + 3, 'right'); }   // a micro cab has no room beside the windscreen
-                    g.box(0, W - 1, 0, cabZ, yB + 6, yB + 6, body, { noBrick: true });
+                    // A sedan long enough gets a boot behind the cabin with the spoiler on its lid; a short one is a hatchback.
+                    const boot = cabZ >= 4, cab0 = boot ? 2 : 0;
+                    g.box(0, W - 1, cab0, cabZ - 1, B + 3, B + 5, body);
+                    if (cabZ - cab0 >= 2) { H.window(ctx, 0, cab0 + (cabZ - cab0 > 2 ? 1 : 0), B + 3, 'left'); H.window(ctx, W - 1, cab0 + (cabZ - cab0 > 2 ? 1 : 0), B + 3, 'right'); }
+                    g.box(0, W - 1, cab0, cabZ, B + 6, B + 6, body, { noBrick: true });
                     const stripeDflt = has('stripe', 'stripes', 'racing', 'race') || match === 'sports car' || match === 'muscle car' || match === 'rally car';
-                    if (declare({ id: 'stripe', label: 'Racing stripe', type: 'bool', default: stripeDflt })) { g.box(2, 3, 0, cabZ, yB + 6, yB + 6, P.secondary, { noBrick: true }); feats.push('a racing stripe'); }
+                    if (declare({ id: 'stripe', label: 'Racing stripe', type: 'bool', default: stripeDflt })) { g.box(1, 2, cab0, cabZ, B + 6, B + 6, P.secondary, { noBrick: true }); if (!f1) g.box(1, 2, cabZ + 2, L - 3, B + 3, B + 3, P.secondary, { noBrick: true }); feats.push('a racing stripe'); }
+                    if (boot) { g.box(0, W - 1, 0, 1, B + 3, B + 3, body, { noBrick: true }); H.curvedRoof(ctx, W - 1, 3, B + 6, { width: W, color: body, face: 'back' }); feats.push('a curved rear roofline'); }
                     const spoilerDflt = match === 'sports car' || match === 'supercar' || match === 'race car' || match === 'racing car' || match === 'muscle car' || match === 'rally car' || chance(0.4);
                     if (declare({ id: 'spoiler', label: 'Rear spoiler', type: 'bool', default: spoilerDflt })) {
-                        g.part('3024', 'BLACK', 0, 0, yB + 7); g.part('3024', 'BLACK', W - 1, 0, yB + 7); g.part('3666', 'BLACK', 0, 0, yB + 8, { rotY: PI / 2, w: 6, l: 1 }); feats.push('a rear spoiler');
+                        const ys = boot ? B + 4 : B + 7;
+                        g.part('3024', 'BLACK', 0, 0, ys); g.part('3024', 'BLACK', W - 1, 0, ys); g.part(PLATES.one[W], 'BLACK', 0, 0, ys + 1, { rotY: PI / 2, w: W, l: 1 }); feats.push('a rear spoiler');
                     }
-                    if (match === 'police car') { g.part('3069', 'TRANS_BLUE', 1, 2, yB + 7, { rotY: PI / 2 }); g.part('3069', 'TRANS_RED', 3, 2, yB + 7, { rotY: PI / 2 }); g.box(0, W - 1, 0, L - 1, yB, yB, 'BLACK', { noBrick: true }); feats.push('a blue light bar'); }
-                    if (match === 'taxi' || match === 'cab') { g.part('3069', 'BLACK', 2, 2, yB + 7, { rotY: PI / 2 }); feats.push('a roof sign'); }
+                    const lightZ = boot ? 4 : Math.min(2, cabZ);
+                    if (match === 'police car') { g.part('3069', 'TRANS_BLUE', 0, lightZ, B + 7, { rotY: PI / 2, w: 2, l: 1 }); g.part('3069', 'TRANS_RED', 2, lightZ, B + 7, { rotY: PI / 2, w: 2, l: 1 }); feats.push('a blue and red light bar'); }
+                    if (match === 'taxi' || match === 'cab') { g.part('3069', 'BLACK', 1, lightZ, B + 7, { rotY: PI / 2, w: 2, l: 1 }); feats.push('a roof sign'); }
                 }
-                feats.push('a sloped hood and glass windscreen', 'headlights and tail lights');
+                feats.push('a glass windscreen');
             }
             const names = { 'sports car': 'Sports Car', supercar: 'Supercar', 'race car': 'Race Car', 'racing car': 'Race Car', 'hot rod': 'Hot Rod', taxi: 'City Taxi', cab: 'City Taxi', 'police car': 'Police Cruiser', 'fire truck': 'Fire Engine', 'fire engine': 'Fire Engine', ambulance: 'Ambulance', bus: 'City Bus', 'school bus': 'School Bus', 'monster truck': 'Monster Truck', tractor: 'Farm Tractor', pickup: 'Pickup Truck', 'pickup truck': 'Pickup Truck', truck: 'Box Truck', lorry: 'Lorry', semi: 'Semi Truck', jeep: 'Off-Road Jeep', suv: 'SUV', '4x4': 'Off-Roader', convertible: 'Convertible', roadster: 'Roadster', limo: 'Stretch Limo', limousine: 'Stretch Limo', 'muscle car': 'Muscle Car', 'go-kart': 'Go-Kart', kart: 'Go-Kart', buggy: 'Dune Buggy', camper: 'Camper Van', rv: 'Motorhome', 'ice cream truck': 'Ice Cream Truck', 'food truck': 'Food Truck', 'dump truck': 'Dump Truck', 'garbage truck': 'Garbage Truck', 'tow truck': 'Tow Truck', 'delivery van': 'Delivery Van', van: 'Panel Van', 'formula 1': 'Formula Racer', 'f1 car': 'Formula Racer', 'rally car': 'Rally Car' };
-            return { title: names[match] || 'Coupe', features: [...feats, `${wz.length * 2} wheels`, 'a road base with lane markings'] };
+            return { title: names[match] || 'Coupe', features: [...feats, `${wheels} wheels with rubber tyres`, 'a road base with lane markings'] };
         }
     });
 
@@ -649,15 +741,29 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
         keys: ['motorcycle', 'motorbike', 'bike', 'bicycle', 'scooter', 'moped', 'chopper bike', 'dirt bike'],
         build(ctx) {
             const { g, P } = ctx;
+            const cycle = ctx.match === 'bicycle';
             g.box(-2, 3, -2, 7, 0, 0, 'DARK_GREY', { noBrick: true });
             for (let x = -2; x <= 3; x++) g.part('3070', 'LIGHT_GREY', x, -2, 1);
-            g.part('4032', 'BLACK', 0, 0, 1, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true }); g.part('4032', 'BLACK', 0, 4, 1, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true });
-            g.part('3623', 'BLACK', 0, 1, 6, { rotY: 0, l: 3 });
-            g.box(0, 0, 2, 3, 7, 9, P.primary);
-            g.part('3070', 'BLACK', 0, 1, 7); g.part('3024', 'LIGHT_GREY', 0, 4, 7); g.part('98138', 'TRANS_CLEAR', 0, 4, 8);
-            g.part('3023', 'BLACK', 0, 0, 6, { rotY: PI / 2, w: 2, l: 1 }); g.part('3062', 'LIGHT_GREY', 1, 0, 7, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true });   // the exhaust on a bracket over the front wheel
-            g.part('3024', P.accent, 0, 2, 10);
-            return { title: ctx.match === 'bicycle' ? 'Bicycle' : ctx.match === 'scooter' || ctx.match === 'moped' ? 'Scooter' : 'Motorcycle', features: ['two round-plate wheels', 'a fuel tank and saddle', 'a headlight and side exhaust', 'a tiled display plinth'] };
+            // Two small wheels in line, each between a pair of 1x1 fork bricks hanging from a cross plate; the wheel
+            // pins into the fork (a link), the spine plate ties the two forks together.
+            const wheel = (z) => {
+                const wd = window.LEGO_PARTS['4624'], td = window.LEGO_PARTS['3641'];
+                g.part('4624', 'LIGHT_GREY', 0, z, 1, { w: 1, l: 2, hp: 5, dy: (5 - wd.height / 0.4) / 2, links: [[-1, 4, z]] });
+                g.part('3641', 'BLACK', 0, z, 1, { w: 1, l: 2, hp: 5, dy: (5 - td.height / 0.4) / 2, links: [[0, 3, z]] });
+                for (const x of [-1, 1]) g.part('3005', P.dark, x, z, 3);
+                g.part('3623', P.dark, -1, z, 6, { rotY: PI / 2, w: 3, l: 1 });
+            };
+            wheel(0); wheel(4);
+            g.part('3666', P.dark, 0, 0, 7, { rotY: 0, w: 1, l: 6 });
+            // Tank and saddle on the spine, a steering head with handlebars, a headlight brick facing forward.
+            g.box(0, 0, 2, 3, 8, 10, P.primary);
+            g.part('3069', 'BLACK', 0, 0, 8, { rotY: 0 });
+            g.part('3005', P.dark, 0, 4, 8);
+            g.part('3623', 'BLACK', -1, 4, 11, { rotY: PI / 2, w: 3, l: 1 });
+            H.headlight(ctx, 0, 5, 8, { face: 'front', color: P.dark });
+            if (!cycle) g.part('3062', 'LIGHT_GREY', 1, 0, 7, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true });   // the exhaust along the rear fork
+            g.part('3024', P.accent, 0, 2, 11);
+            return { title: cycle ? 'Bicycle' : ctx.match === 'scooter' || ctx.match === 'moped' ? 'Scooter' : 'Motorcycle', features: ['two small wheels with rubber tyres on forks', 'a fuel tank and saddle', 'handlebars and a headlight brick', cycle ? 'a tiled display plinth' : 'a side exhaust'] };
         }
     });
 
@@ -666,32 +772,46 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
         keys: ['train', 'locomotive', 'steam train', 'steam engine', 'tram', 'streetcar', 'monorail', 'subway', 'metro', 'bullet train', 'freight train'],
         build(ctx) {
             const { g, P, sc, match } = ctx;
-            const L = sc(12), modern = ['bullet train', 'monorail', 'subway', 'metro', 'tram', 'streetcar'].includes(match);
-            // Track: sleepers and rails.
-            g.box(-2, 5, -2, L + 3, 0, 0, 'TAN', { noBrick: true });
-            for (let z = -1; z <= L + 2; z += 2) g.part('3710', 'BROWN', 0, z, 1, { rotY: PI / 2 });
-            for (let z = -1; z <= L + 2; z += 4) { g.part('2431', 'DARK_GREY', 0, z, 2, { rotY: 0 }); g.part('2431', 'DARK_GREY', 3, z, 2, { rotY: 0 }); }
+            const modern = ['bullet train', 'monorail', 'subway', 'metro', 'tram', 'streetcar'].includes(match);
+            const L = Math.max(modern ? 8 : 10, sc(12));
+            // Track: sleepers across, rail tiles under the wheels (gauge 6: the wheels run outside the 4-wide body).
+            g.box(-3, 6, -2, L + 3, 0, 0, 'TAN', { noBrick: true });
+            for (let z = -1; z <= L + 2; z += 2) g.part('3666', 'BROWN', -1, z, 1, { rotY: PI / 2, w: 6, l: 1 });
+            for (let z = -1; z <= L + 2; z += 4) { g.part('2431', 'DARK_GREY', -1, z, 2, { rotY: 0 }); g.part('2431', 'DARK_GREY', 4, z, 2, { rotY: 0 }); }
             const body = P.explicit ? P.primary : modern ? 'WHITE' : 'DARK_GREEN' in window.LEGO_COLORS ? 'DARK_GREEN' : 'GREEN';
-            for (const z of [1, 4, L - 3]) { g.part('4032', 'BLACK', -1, z, 2, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true }); g.part('4032', 'BLACK', 4, z, 2, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true }); }
-            g.box(0, 3, 0, L - 1, 3, 3, 'BLACK', { noBrick: true }); g.box(0, 3, 0, L - 1, 4, 4, body, { noBrick: true });
+            const ch = H.chassis(ctx, 0, 0, 4, L, 3, { axles: modern || L < 9 ? [1, L - 3] : [1, 4, L - 3], size: 'train', color: 'BLACK' });
+            const T = ch.top;
+            H.slab(ctx, 0, 3, 0, modern ? L - 1 : L, T, body);   // the running board, locked; the locomotive's reaches one stud past the smokebox
+            const B = T + 2;
             if (modern) {
-                g.shell(0, 3, 0, L - 1, 5, 10, body);
-                for (let z = 2; z + 1 <= L - 4; z += 3) { H.window(ctx, 0, z, 7, 'left'); H.window(ctx, 3, z, 7, 'right'); }
-                g.part('3039', P.glass, 0, L - 2, 5, { rotY: 0 }); g.part('3039', P.glass, 2, L - 2, 5, { rotY: 0 });
-                H.ceiling(ctx, 0, 3, 0, L - 3, 11, P.secondary); g.shell(0, 3, 0, L - 1, 8, 8, P.accent, { noBrick: true });
-                return { title: match === 'tram' || match === 'streetcar' ? 'City Tram' : 'Bullet Train', features: ['a streamlined glass nose', 'a row of windows', 'a livery stripe', 'rails and sleepers'] };
+                // A brick band, a two-brick wall of real windows, glass nose slopes and curved slopes over them.
+                g.box(0, 3, 0, L - 1, B, B + 2, body);
+                g.shell(0, 3, 0, L - 3, B + 3, B + 8, body);
+                for (let z = 1; z + 1 <= L - 4; z += 3) { H.realWindow(ctx, 0, z, B + 3, { face: 'left', frameColor: P.secondary, glassColor: P.glass }); H.realWindow(ctx, 3, z + 1, B + 3, { face: 'right', frameColor: P.secondary, glassColor: P.glass }); }
+                g.part('3039', P.glass, 0, L - 2, B + 3, { rotY: 0 }); g.part('3039', P.glass, 2, L - 2, B + 3, { rotY: 0 });
+                g.box(0, 3, L - 3, L - 3, B + 6, B + 6, body, { noBrick: true });
+                H.curvedRoof(ctx, 0, L - 3, B + 7, { width: 4, color: body, face: 'front' });
+                H.ceiling(ctx, 0, 3, 0, L - 4, B + 9, P.secondary);
+                H.headlight(ctx, 0, L - 1, B, { face: 'front', color: body }); H.headlight(ctx, 3, L - 1, B, { face: 'front', color: body });
+                g.box(0, 3, 0, L - 1, B + 2, B + 2, P.accent, { noBrick: true });
+                return { title: match === 'tram' || match === 'streetcar' ? 'City Tram' : 'Bullet Train', features: ['a streamlined glass nose with curved slopes', 'real window frames along both sides', 'headlight bricks', 'a livery stripe', 'flanged train wheels on rails'] };
             }
-            // Steam locomotive: boiler, cab, funnel, cow-catcher, tender.
+            // Steam locomotive: a black boiler cradle on the running board, a boiler of lying round bricks laid from the
+            // smokebox back, a cab with real windows, funnel, dome, cow-catcher on the slab's overhanging front row, a tender.
             const cabZ = 2;
-            g.box(0, 3, cabZ + 4, L - 1, 5, 5, body, { noBrick: true });
-            for (let z = cabZ + 4; z <= L - 4; z += 2) g.part('3941', body, 1, z, 6, { rotX: PI / 2, w: 2, l: 2, hp: 5, lie: true });
-            g.part('3941', 'BLACK', 1, L - 2, 6, { rotX: PI / 2, w: 2, l: 2, hp: 5, lie: true });
-            g.part('3062', 'BLACK', 1, L - 3, 11); g.part('59900', 'BLACK', 1, L - 3, 14); g.part('3062', 'GOLD', 2, cabZ + 5, 11);
-            g.part('3040', 'DARK_GREY', 1, L - 1, 3, { rotY: PI / 2, w: 2, l: 1 });
-            g.shell(0, 3, cabZ, cabZ + 3, 5, 10, body); H.window(ctx, 0, cabZ + 1, 7, 'left'); H.window(ctx, 3, cabZ + 1, 7, 'right');
-            g.box(0, 3, cabZ, cabZ + 3, 11, 11, 'BLACK', { noBrick: true });
-            g.shell(0, 3, 0, cabZ - 1, 5, 7, body); g.box(1, 2, 0, 0, 5, 7, 'BLACK');
-            return { title: 'Steam Locomotive', features: ['a round boiler with a smokestack', 'a driver\'s cab with windows', 'a coal tender', 'six wheels on laid track'] };
+            g.box(0, 3, cabZ + 4, L - 1, B, B, 'BLACK', { noBrick: true });
+            const segs = [];
+            for (let z = L - 4; z >= cabZ + 4; z -= 2) { g.part('3941', body, 1, z, B + 1, { rotX: PI / 2, w: 2, l: 2, hp: 5, lie: true }); segs.push(z); }
+            if ((L - 4 - (cabZ + 4)) % 2 === 1) g.box(1, 2, cabZ + 4, cabZ + 4, B + 1, B + 3, body);   // an odd gap by the cab
+            g.part('3941', 'BLACK', 1, L - 2, B + 1, { rotX: PI / 2, w: 2, l: 2, hp: 5, lie: true });
+            g.part('3062', 'BLACK', 1, L - 3, B + 6); g.part('59900', 'BLACK', 1, L - 3, B + 9); g.part('3062', 'GOLD', 2, (segs.length ? segs[segs.length - 1] : cabZ + 4) + 1, B + 6);
+            g.part('98138', 'TRANS_ORANGE', 2, L - 2, B + 6);
+            g.part('3040', 'DARK_GREY', 1, L, B, { rotY: PI / 2, w: 2, l: 1 });
+            g.shell(0, 3, cabZ, cabZ + 3, B, B + 5, body);
+            H.realWindow(ctx, 0, cabZ + 1, B, { face: 'left', frameColor: P.dark, glassColor: P.glass }); H.realWindow(ctx, 3, cabZ + 2, B, { face: 'right', frameColor: P.dark, glassColor: P.glass });
+            g.box(0, 3, cabZ, cabZ + 3, B + 6, B + 6, 'BLACK', { noBrick: true });
+            g.shell(0, 3, 0, cabZ - 1, B, B + 2, body); g.box(1, 2, 0, 1, B + 3, B + 3, 'BLACK', { noBrick: true });
+            return { title: 'Steam Locomotive', features: ['a round boiler with a smokestack', 'a driver\'s cab with real windows', 'a coal tender', `${ch.axles.length * 2} flanged wheels on laid track`] };
         }
     });
 
@@ -700,19 +820,19 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
         keys: ['tank', 'battle tank', 'apc', 'armored car', 'armoured car', 'artillery', 'howitzer', 'military truck', 'humvee'],
         build(ctx) {
             const { g, P, sc } = ctx;
-            const L = sc(10), body = P.explicit ? P.primary : 'GREEN';
+            const L = Math.max(8, sc(10)), body = P.explicit ? P.primary : 'GREEN';
             g.box(-2, 7, -2, L + 1, 0, 0, 'TAN', { noBrick: true });
-            // Tracks: dark plate blocks with tile tops either side of the hull.
-            for (const x of [0, 5]) { g.box(x, x, 0, L - 1, 1, 4, 'DARK_GREY'); g.box(x, x, 0, L - 1, 5, 5, 'BLACK', { noBrick: true }); }
-            g.box(1, 4, 0, L - 1, 3, 5, body);
+            // Tracks: dark plate blocks with grille-tile tops either side of the hull.
+            for (const x of [0, 5]) { g.box(x, x, 0, L - 1, 1, 4, 'DARK_GREY'); for (let z = 0; z + 1 <= L - 1; z += 2) g.part('2412', 'BLACK', x, z, 5, { rotY: 0 }); if (L % 2) g.part('3070', 'BLACK', x, L - 1, 5); }
+            g.box(1, 4, 0, L - 1, 1, 5, body);
             g.part('3037', body, 1, L - 2, 6, { rotY: 0 });
             g.box(1, 4, 0, L - 3, 6, 6, body, { noBrick: true });
-            // Turret and barrel.
-            g.part('3031', 'DARK_GREY', 1, 2, 7); g.box(2, 3, 3, 4, 8, 10, body); g.part('3068', body, 2, 3, 11);
-            g.part('3710', 'DARK_GREY', 2, 5, 8, { rotY: 0, w: 1, l: 4 });   // the barrel's mount plate
-            for (let i = 0; i < 2; i++) g.part('3062', 'DARK_GREY', 2, 5 + i * 2, 9, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true });
-            g.part('3957', 'BLACK', 3, 2, 8); g.part('98138', 'TRANS_ORANGE', 2, 2, 8);
-            return { title: 'Battle Tank', features: ['studded tracks either side', 'a sloped glacis plate', 'a rotating turret with a long barrel', 'a radio antenna'] };
+            H.grilleBumper(ctx, 1, 0, 7, { width: 4, color: P.dark, face: 'front' });   // engine deck grilles at the back
+            for (const x of [1, 4]) H.headlight(ctx, x, L - 1, 3, { face: 'front', color: body });
+            // A turntable turret with a bar barrel, a hatch and an antenna on top.
+            const t = H.turret(ctx, 2, 3, 7, { size: 4, color: body, baseColor: P.dark, barrelColor: P.dark, face: 'front' });
+            g.part('98138', 'TRANS_ORANGE', 2, 4, t.top); g.part('3957', 'BLACK', 3, 2, t.top);
+            return { title: 'Battle Tank', features: ['grille-tiled tracks either side', 'a sloped glacis plate with headlight bricks', ...t.feats, 'engine deck grilles and a radio antenna'] };
         }
     });
 
@@ -726,28 +846,31 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             const heli = ['helicopter', 'chopper', 'gunship'].includes(match), drone = match === 'drone' || match === 'quadcopter';
             const feats = [];
             if (match === 'airship' || match === 'blimp' || match === 'zeppelin' || match === 'hot air balloon' || match === 'balloon') {
-                const L = sc(12), env = P.explicit ? P.primary : ctx.style === 'steampunk' ? 'TAN' : 'LIGHT_GREY';
+                const L = Math.max(10, sc(12)), env = P.explicit ? P.primary : ctx.style === 'steampunk' ? 'TAN' : 'LIGHT_GREY';
                 g.box(-4, 7, -3, L + 2, 0, 0, 'DARK_GREY', { noBrick: true });
                 // Gondola on the ground, a clear cradle, the envelope resting on it.
                 g.box(0, 3, 3, L - 5, 1, 1, P.wood, { noBrick: true }); g.shell(0, 3, 3, L - 5, 2, 4, P.wood); H.window(ctx, 1, L - 5, 2, 'front', 'TRANS_ORANGE');
                 H.ceiling(ctx, 0, 3, 3, L - 5, 5, P.wood);
                 g.box(1, 2, 0, L - 1, 6, 8, 'TRANS_CLEAR');   // a clear cradle the envelope rests on
-                g.box(0, 3, 0, L - 1, 9, 9, env, { noBrick: true }); g.box(-1, 4, 1, L - 2, 10, 12, env); g.box(-1, 4, 2, L - 3, 13, 15, env); g.box(0, 3, 3, L - 4, 16, 16, env, { noBrick: true });
+                g.box(0, 3, 0, L - 1, 9, 9, env, { noBrick: true }); H.slab(ctx, -1, 4, 1, L - 2, 10, env); g.box(-1, 4, 1, L - 2, 12, 12, env, { noBrick: true }); g.box(-1, 4, 2, L - 3, 13, 15, env); g.box(0, 3, 3, L - 4, 16, 16, env, { noBrick: true });
                 g.part('3039', env, 0, L - 1, 10, { rotY: 0 }); g.part('3039', env, 2, L - 1, 10, { rotY: 0 }); g.part('3039', env, 0, -1, 10, { rotY: PI }); g.part('3039', env, 2, -1, 10, { rotY: PI });
                 g.part('54200', P.accent, 1, 2, 16, { rotY: PI }); g.part('54200', P.accent, 2, 2, 16, { rotY: PI }); g.part('3023', P.accent, -2, 2, 13, { rotY: PI / 2, w: 2, l: 1 }); g.part('3023', P.accent, 4, 2, 13, { rotY: PI / 2, w: 2, l: 1 });
-                g.part('4032', P.dark, 1, -2, 2, { rotX: PI / 2, w: 2, l: 1, hp: 5, lie: true });
+                // A propeller on a pin out of the gondola's stern.
+                feats.push(...H.propeller(ctx, 1, 3, 2, { face: 'back', mount: 'pin', color: P.dark, hubColor: P.metal, floor: 1 }).feats);
                 g.box(0, 3, 4, L - 6, 10, 10, P.accent, { noBrick: true });
-                return { title: match === 'hot air balloon' || match === 'balloon' ? 'Hot Air Balloon' : 'Airship', features: ['a tapered envelope with tail fins', 'a timber gondola with a window', 'a stern propeller', 'clear rigging struts'] };
+                return { title: match === 'hot air balloon' || match === 'balloon' ? 'Hot Air Balloon' : 'Airship', features: ['a tapered envelope with tail fins', 'a timber gondola with a window', ...feats, 'clear rigging struts'] };
             }
             if (drone) {
-                g.box(-5, 6, -5, 6, 0, 0, 'DARK_GREY', { noBrick: true });
-                for (const [x, z] of [[0, 0], [1, 1]]) g.part('3062', P.dark, x, z, 1);
+                g.box(-6, 7, -6, 7, 0, 0, 'DARK_GREY', { noBrick: true });
+                // Four 1x6 arms pinwheeled under the hub plate, standing on two round-plate legs; a round brick and a
+                // flat propeller at the end of each.
+                for (const [x, z] of [[0, 0], [1, 1]]) { g.part('4073', P.dark, x, z, 1); g.part('4073', P.dark, x, z, 2); }
+                g.part('3666', P.primary, -5, 0, 3, { rotY: PI / 2, w: 6, l: 1 }); g.part('3666', P.primary, 1, 1, 3, { rotY: PI / 2, w: 6, l: 1 });
+                g.part('3666', P.primary, 1, -5, 3, { rotY: 0, w: 1, l: 6 }); g.part('3666', P.primary, 0, 1, 3, { rotY: 0, w: 1, l: 6 });
                 g.part('3031', P.dark, -1, -1, 4); g.box(0, 1, 0, 1, 5, 7, P.primary); g.part('98138', 'TRANS_RED', 0, 0, 8); g.part('98138', 'TRANS_BLUE', 1, 1, 8);
-                g.part('3710', P.primary, -5, 0, 4, { rotY: PI / 2 }); g.part('3710', P.primary, 3, 1, 4, { rotY: PI / 2 });
-                g.part('3710', P.primary, 1, -5, 4, { rotY: 0 }); g.part('3710', P.primary, 0, 3, 4, { rotY: 0 });
-                for (const [x, z] of [[-5, 0], [5, 1], [1, -5], [0, 5]]) { g.part('3062', P.dark, x, z, 5); g.part('4032', P.metal, x - (x < 0 ? 0 : 1), z - (z < 0 ? 0 : 1), 8); }
+                for (const [x, z] of [[-5, 0], [6, 1], [1, -5], [0, 6]]) { g.part('3062', P.dark, x, z, 4); if (z === 0 || z === 1) g.part('4617', P.metal, x - 1, z, 7, { rotY: PI / 2, w: 4, l: 1, hp: 1, dx: -0.5 }); else g.part('4617', P.metal, x, z - 1, 7, { rotY: 0, w: 1, l: 4, hp: 1, dz: -0.5 }); }
                 g.part('98138', 'TRANS_CLEAR', 0, 2, 5);
-                return { title: 'Quadcopter Drone', features: ['four rotor arms', 'spinning rotor discs', 'a camera gimbal', 'navigation lights'] };
+                return { title: 'Quadcopter Drone', features: ['four rotor arms', 'three-blade propellers', 'a camera gimbal', 'navigation lights'] };
             }
             if (heli) {
                 const L = sc(6);
@@ -757,40 +880,53 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 g.box(0, 1, 0, L - 1, 3, 5, P.primary);
                 g.part('3040', P.glass, 0, L - 2, 6, { rotY: 0 }); g.part('3040', P.glass, 1, L - 2, 6, { rotY: 0 });
                 g.box(0, 1, 0, L - 3, 6, 8, P.primary);
-                H.window(ctx, 0, 1, 6, 'left'); H.window(ctx, 1, 1, 6, 'right');
+                if (L >= 5) { H.window(ctx, 0, 1, 6, 'left'); H.window(ctx, 1, 1, 6, 'right'); }
                 g.box(0, 1, 0, L - 3, 9, 9, P.secondary, { noBrick: true });
-                g.part('3062', P.dark, 0, 1, 10); g.part('4477', 'LIGHT_GREY', 0, -4, 13, { rotY: 0, l: 10 }); g.part('4477', 'LIGHT_GREY', -4, 1, 14, { rotY: PI / 2, w: 10, l: 1 });
-                // Tail boom and rotor.
+                // Main rotor on a bar mast, the tail boom on an inverted slope, a standing tail rotor on a headlight brick.
+                feats.push(...H.rotorMast(ctx, 0, 1, 10, { color: P.dark, bladeColor: P.metal, blades: 4 }).feats);
                 g.part('4477', P.primary, 0, -9, 6, { rotY: 0, l: 10 }); g.part('3005', P.primary, 0, -9, 7); g.part('54200', P.accent, 0, -9, 10);
-                g.part('3023', P.primary, 0, -8, 7, { rotY: PI / 2, w: 2, l: 1 });   // a bracket on the boom carries the tail rotor
-                g.part('4032', P.metal, 1, -8, 8, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true });
-                feats.push('a bubble canopy', 'a two-blade main rotor', 'a tail boom with fin and tail rotor', 'landing skids');
+                H.overhang(ctx, 0, -1, 3, { width: 1, color: P.primary, face: 'back' });
+                feats.push(...H.propeller(ctx, 0, -8, 7, { face: 'right', color: P.metal, hubColor: P.primary, blades: 'vertical' }).feats.map(() => 'a tail rotor on a headlight-brick stud'));
+                feats.push('a bubble canopy', 'a tail boom with fin', 'landing skids');
                 return { title: match === 'gunship' ? 'Attack Helicopter' : 'Helicopter', features: feats };
             }
-            const L = sc(match === 'airliner' || match === 'jumbo jet' || match === 'concorde' ? 16 : 12), Y = 4;
+            const L = sc(match === 'airliner' || match === 'jumbo jet' || match === 'concorde' ? 16 : 12), Y = 4;   // the fuselage floor slab; the axle plates under it put the wheels on the apron
             const jet = ['jet', 'fighter', 'fighter jet', 'stealth bomber', 'concorde', 'space shuttle', 'shuttle'].includes(match);
             const span = sc(jet ? 5 : 6), wz = Math.floor(L / 2) - 1;
             const body = P.explicit ? P.primary : (match === 'airliner' || match === 'jumbo jet' || match === 'concorde' || match === 'space shuttle' || match === 'shuttle' ? 'WHITE' : match === 'stealth bomber' ? 'BLACK' : P.primary);
             g.box(-span - 2, span + 3, -3, L + 2, 0, 0, 'DARK_GREY', { noBrick: true });
-            H.stand(ctx, 0, wz, 1, 1); H.stand(ctx, 1, wz, 1, 1);
-            // Lower fuselage, then the wing layer through it, then the upper fuselage.
-            g.box(0, 1, 0, L - 1, Y, Y + 2, body);
+            // Landing gear: axle plates under the floor slab, the nose wheels and the main wheels under the wing root.
+            const shuttle = match === 'space shuttle' || match === 'shuttle';
+            feats.push(...H.axle(ctx, 0, L - 3, Y - 1, { width: 2, size: 'small', color: P.dark }).feats.map(() => 'landing gear on axle plates'));
+            H.axle(ctx, 0, wz, Y - 1, { width: 2, size: 'small', color: P.dark });
+            // Lower fuselage: a locked slab on the axle plates and a plate row, then the wing layer, then the upper fuselage.
+            H.slab(ctx, 0, 1, 0, L - 1, Y, shuttle ? 'BLACK' : body);
+            g.box(0, 1, 0, L - 1, Y + 2, Y + 2, body, { noBrick: true });
             g.box(0, 1, 0, L - 1, Y + 3, Y + 3, body, { noBrick: true });
             const swept = ctx.declare({ id: 'wings', label: 'Wings', type: 'choice', choices: ['straight', 'swept'], default: jet ? 'swept' : 'straight' }) === 'swept';
             if (swept) {
-                // Swept wings: plates stepping back from root to tip.
-                for (let i = 0; i < span; i += 2) { const yy = Y + 3 - (i % 4 === 2 ? 1 : 0), off = i === 0 ? 0 : i - 1; g.part('3020', body, -3 - off, wz - i / 2, yy, { rotY: PI / 2, w: 4, l: 2 }); g.part('3020', body, 1 + off, wz - i / 2, yy, { rotY: PI / 2, w: 4, l: 2 }); }   // each wing roots one stud onto the fuselage and steps outward
-                g.part('3062', 'DARK_GREY', -1, wz - 1, Y + 4, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3062', 'DARK_GREY', 2, wz - 1, Y + 4, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true });
-                feats.push('swept delta wings', 'twin engine pods');
+                // Swept wings: plates stepping back from root to tip, a wedge plate at each tip.
+                const last = span - 1 - ((span - 1) % 2);
+                for (let i = 0; i < span; i += 2) {
+                    const yy = Y + 3 + (i % 4 === 2 ? 1 : 0), off = i === 0 ? 0 : i - 1, tip = i === last && i > 0;
+                    g.part(tip ? '41770' : '3020', body, -3 - off, wz - i / 2, yy, { rotY: tip ? -PI / 2 : PI / 2, w: 4, l: 2 }); g.part(tip ? '41769' : '3020', body, 1 + off, wz - i / 2, yy, { rotY: PI / 2, w: 4, l: 2 });   // each wing roots one stud onto the fuselage and steps outward
+                }
+                g.part('3062', 'DARK_GREY', -1, wz - 1, Y + 5, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3062', 'DARK_GREY', 2, wz - 1, Y + 5, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true });
+                feats.push('swept wings with wedge-plate tips', 'twin engine pods');
             } else {
                 // Wings are real 2x4 / 2x6 / 2x8 plates, rooted one stud into the fuselage.
                 const wl = span >= 8 ? 8 : span >= 6 ? 6 : 4, wid = { 8: '3034', 6: '3795', 4: '3020' }[wl];
                 g.part(wid, body, -wl + 1, wz, Y + 3, { rotY: PI / 2, w: wl, l: 2 }); g.part(wid, body, 1, wz, Y + 3, { rotY: PI / 2, w: wl, l: 2 });
-                if (match === 'biplane') { g.part(wid, body, -wl, wz, Y + 9, { rotY: PI / 2, w: wl, l: 2 }); g.part(wid, body, 1, wz, Y + 9, { rotY: PI / 2, w: wl, l: 2 }); g.part('3062', P.metal, -wl + 1, wz, Y + 4); g.part('3062', P.metal, wl, wz, Y + 4); for (const yy of [Y + 7, Y + 8]) { g.part('4073', P.metal, -wl + 1, wz, yy); g.part('4073', P.metal, wl, wz, yy); } feats.push('double wings with struts'); }
-                else if (match === 'airliner' || match === 'jumbo jet' || jet) { g.part('3062', 'DARK_GREY', -3, wz, Y + 4, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3062', 'DARK_GREY', 4, wz, Y + 4, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); feats.push('wing-mounted engines'); }   // a jet on straight wings borrows the airliner's engines, which also pin the wings down
+                if (match === 'biplane') {
+                    // The upper wing on round-brick struts at the tips and a cabane plate over the fuselage.
+                    g.part(wid, body, -wl, wz, Y + 9, { rotY: PI / 2, w: wl, l: 2 }); g.part(wid, body, 1, wz, Y + 9, { rotY: PI / 2, w: wl, l: 2 });
+                    g.part('3062', P.metal, -wl + 1, wz, Y + 4); g.part('3062', P.metal, wl, wz, Y + 4); for (const yy of [Y + 7, Y + 8]) { g.part('4073', P.metal, -wl + 1, wz, yy); g.part('4073', P.metal, wl, wz, yy); }
+                    g.part('4073', P.metal, 0, wz, Y + 8); g.part('3023', body, 0, wz, Y + 9, { rotY: 0 });
+                    feats.push('double wings with struts');
+                } else if (match === 'airliner' || match === 'jumbo jet' || jet) { g.part('3062', 'DARK_GREY', -3, wz, Y + 4, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3062', 'DARK_GREY', 4, wz, Y + 4, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); feats.push('wing-mounted engines'); }   // a jet on straight wings borrows the airliner's engines, which also pin the wings down
                 else feats.push('straight wings');
-                g.part('3023', body, 0, L - 1, Y, { rotY: 0 }); g.part('3023', body, 1, L - 1, Y, { rotY: 0 });   // nose plates carry the propeller
-                g.part('4032', P.dark, 0, L, Y + 1, { rotX: PI / 2, w: 2, l: 1, hp: 5, lie: true }); feats.push('a nose propeller');
+                // A three-blade propeller standing on a Technic pin out of the nose (gliders and jets go without).
+                if (!jet && match !== 'airliner' && match !== 'jumbo jet' && match !== 'glider') feats.push(...H.propeller(ctx, 0, L - 1, Y + 1, { face: 'front', mount: 'pin', color: P.dark, hubColor: P.metal, floor: 1 }).feats);
             }
             // Tail: stabilisers in the plate layer, a fin on top.
             g.part('3710', body, -3, 0, Y + 3, { rotY: PI / 2, w: 4, l: 1 }); g.part('3710', body, 1, 0, Y + 3, { rotY: PI / 2, w: 4, l: 1 });
@@ -800,8 +936,8 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             g.part('3040', P.glass, 0, L - 4, Y + 4, { rotY: 0 }); g.part('3040', P.glass, 1, L - 4, Y + 4, { rotY: 0 });
             g.part('3039', body, 0, L - 2, Y + 4, { rotY: 0 });
             g.box(0, 1, 2, L - 5, Y + 7, Y + 7, P.secondary, { noBrick: true });
-            if (match === 'space shuttle' || match === 'shuttle') { g.box(0, 1, 0, L - 1, Y, Y, 'BLACK', { noBrick: true }); for (const x of [0, 1]) { g.part('3623', 'BLACK', x, -2, Y, { rotY: 0, w: 1, l: 3 }); g.part('3062', 'DARK_GREY', x, -2, Y + 1, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); } feats.push('black heat-shield belly', 'main engine bells'); }   // engine mounts run into the belly
-            feats.push('a glass cockpit', 'a tail fin and stabilisers', 'a display stand');
+            if (shuttle) { for (const x of [0, 1]) { g.part('3623', 'BLACK', x, -2, Y - 1, { rotY: 0, w: 1, l: 3 }); g.part('3062', 'DARK_GREY', x, -2, Y, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); } feats.push('black heat-shield belly', 'main engine bells'); }   // engine mount plates run under the belly slab
+            feats.push('a glass cockpit', 'a tail fin and stabilisers');
             const names = { airliner: 'Airliner', 'jumbo jet': 'Jumbo Jet', biplane: 'Biplane', fighter: 'Fighter Jet', 'fighter jet': 'Fighter Jet', jet: 'Jet', bomber: 'Bomber', 'stealth bomber': 'Stealth Bomber', glider: 'Glider', seaplane: 'Seaplane', concorde: 'Supersonic Airliner', 'space shuttle': 'Space Shuttle', shuttle: 'Space Shuttle', spitfire: 'Warbird', 'crop duster': 'Crop Duster', cessna: 'Light Aircraft', 'propeller plane': 'Propeller Plane' };
             return { title: names[match] || 'Aeroplane', features: feats };
         }
@@ -816,7 +952,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             const { g, P, sc, match, chance } = ctx;
             const feats = [];
             if (match === 'submarine' || match === 'sub' || match === 'u-boat') {
-                const L = sc(12), hull = P.explicit ? P.primary : match === 'u-boat' ? 'DARK_GREY' : 'YELLOW';
+                const L = Math.max(8, sc(12)), hull = P.explicit ? P.primary : match === 'u-boat' ? 'DARK_GREY' : 'YELLOW';
                 g.box(-3, 5, -3, L + 2, 0, 0, P.water, { noBrick: true });
                 g.box(0, 1, 1, L - 2, 1, 1, hull, { noBrick: true });
                 g.box(0, 1, 0, L - 1, 2, 4, hull); g.box(-1, 2, 3, L - 4, 2, 4, hull);
@@ -826,29 +962,38 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 g.box(0, 1, 3, L - 4, 8, 8, hull, { noBrick: true });
                 const tz = Math.floor(L / 2) - 1;
                 g.box(0, 1, tz, tz + 1, 9, 11, hull); g.part('3022', P.dark, 0, tz, 12); g.part('3062', P.metal, 0, tz, 13); g.part('3062', P.metal, 0, tz, 16); g.part('4073', 'TRANS_BLUE', 0, tz, 19);
-                g.part('4032', P.dark, 0, -1, 3, { rotX: PI / 2, w: 2, l: 1, hp: 5, lie: true });
+                // A stern propeller on a Technic pin out of the hull.
+                feats.push(...H.propeller(ctx, 0, 0, 2, { face: 'back', mount: 'pin', color: P.dark, hubColor: P.metal, floor: 1 }).feats);
                 for (let z = 4; z <= L - 5; z += 3) g.part('98138', 'TRANS_BLUE', 1, z, 9);
-                return { title: match === 'u-boat' ? 'U-Boat' : 'Submarine', features: ['a wide-beam hull with dive planes', 'a conning tower and periscope', 'portholes along the deck', 'a stern propeller'] };
+                return { title: match === 'u-boat' ? 'U-Boat' : 'Submarine', features: ['a wide-beam hull with dive planes', 'a conning tower and periscope', 'portholes along the deck', ...feats] };
             }
             const sail = ['sailboat', 'sailing ship', 'pirate ship', 'galleon', 'viking ship', 'longship', 'frigate', 'schooner', 'yacht', 'ark', 'catamaran'].includes(match);
             const small = ['canoe', 'kayak', 'rowboat', 'raft', 'gondola', 'lifeboat', 'speedboat'].includes(match);
-            const W = small ? 2 : sc(4), L = small ? sc(8) : sc(14);
+            // Ships are an even number of studs wide so a wedge-plate bow fits; small boats are two.
+            const W = small ? 2 : Math.max(4, 2 * Math.round(sc(4) / 2)), L = small ? sc(8) : Math.max(8, sc(14));
             const hull = P.explicit ? P.primary : match === 'pirate ship' ? 'BLACK' : match === 'battleship' || match === 'destroyer' || match === 'warship' || match === 'aircraft carrier' ? 'LIGHT_GREY' : match === 'viking ship' || match === 'longship' || match === 'canoe' || match === 'raft' || match === 'ark' ? 'BROWN' : P.primary;
             g.box(-4, W + 3, -3, L + 3, 0, 0, P.water, { noBrick: true });
             // Hull: a plate keel, a brick row, a tapered bow with slopes, a deck.
-            g.box(0, W - 1, 1, L - 2, 1, 1, hull, { noBrick: true });
+            g.box(0, W - 1, 0, L - 2, 1, 1, hull, { noBrick: true });
             g.box(0, W - 1, 1, L - 3, 2, 4, hull);
-            if (W >= 4) { g.part('3039', hull, 0, L - 2, 2, { rotY: 0 }); g.part('3039', hull, W - 2, L - 2, 2, { rotY: 0 }); } else g.part('3039', hull, 0, L - 2, 2, { rotY: 0 });
+            if (W >= 4) { g.part('3039', hull, 0, L - 2, 2, { rotY: 0 }); g.part('3039', hull, W - 2, L - 2, 2, { rotY: 0 }); if (W > 4) g.box(2, W - 3, L - 2, L - 1, 2, 4, hull); } else g.part('3039', hull, 0, L - 2, 2, { rotY: 0 });
             g.part('3040', hull, 0, -1, 2, { rotY: PI, w: 1, l: 2 }); g.part('3040', hull, W - 1, -1, 2, { rotY: PI, w: 1, l: 2 });
             const deck = small ? hull : 'TAN';
             g.box(0, W - 1, 0, L - 3, 5, 5, deck, { noBrick: true });
             const yD = 6;
+            // A pointed deck over the bow from wedge plates (the row behind it sits inside the deck).
+            if (!small) feats.push(...H.wedgeNose(ctx, 0, L - 2, 5, { width: W, color: deck, face: 'front' }).feats.map(() => 'a wedge-plate bow'));
             if (small) {
-                g.part('3070', P.wood, 0, 2, yD); g.part('3070', P.wood, 1, 3, yD);
-                if (match === 'speedboat') { g.part('3040', P.glass, 0, L - 4, yD, { rotY: 0 }); g.part('3040', P.glass, 1, L - 4, yD, { rotY: 0 }); g.part('3062', P.dark, 0, -3, 2, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); feats.push('a windscreen and outboard motor'); }
-                else { g.part('3062', P.wood, 1, 1, yD); g.part('3710', P.wood, 1, -2, yD + 3, { rotY: 0 }); feats.push('a pair of oars'); }
+                if (match !== 'speedboat' || L >= 8) { g.part('3070', P.wood, 0, 2, yD); g.part('3070', P.wood, 1, 3, yD); }
+                if (match === 'speedboat') {
+                    // A windscreen, an engine cowl at the stern and a propeller on a pin out of it.
+                    g.part('3040', P.glass, 0, L - 4, yD, { rotY: 0 }); g.part('3040', P.glass, 1, L - 4, yD, { rotY: 0 });
+                    g.part('3004', P.dark, 0, 0, yD, { rotY: PI / 2, w: 2, l: 1 });
+                    feats.push('a windscreen', ...H.propeller(ctx, 0, 0, yD, { face: 'back', mount: 'pin', color: P.dark, hubColor: P.metal, floor: 1 }).feats.map(() => 'an outboard propeller on a pin'));
+                } else { g.part('3062', P.wood, 1, 1, yD); g.part('3710', P.wood, 1, -2, yD + 3, { rotY: 0 }); feats.push('a pair of oars'); }
                 return { title: { canoe: 'Canoe', kayak: 'Kayak', rowboat: 'Rowing Boat', raft: 'River Raft', gondola: 'Venetian Gondola', lifeboat: 'Lifeboat', speedboat: 'Speedboat' }[match], features: [...feats, 'a planked hull', 'a tapered bow'] };
             }
+            const mx = Math.floor(W / 2);
             if (sail) {
                 const sails = P.explicit && ctx.explicitColors.length > 1 ? P.secondary : match === 'pirate ship' ? 'DARK_RED' : match === 'viking ship' || match === 'longship' ? 'RED' : 'WHITE';
                 const mastsDflt = match === 'galleon' || match === 'frigate' || match === 'schooner' || match === 'pirate ship' ? 2 : 1;
@@ -857,37 +1002,37 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 // Longships and rafts never had a cabin, so only ships that do get the dial.
                 const cabinDflt = !['viking ship', 'longship', 'ark', 'catamaran'].includes(match);
                 const cabin = cabinDflt ? ctx.declare({ id: 'cabin', label: 'Stern cabin', type: 'bool', default: true }) : false;
-                const mx = Math.floor(W / 2);
                 for (let m = 0; m < masts; m++) {
-                    const mz = masts === 1 ? Math.floor(L / 2) - 1 : m === 0 ? Math.floor(L / 3) : Math.floor(2 * L / 3);
+                    const mz = masts === 1 ? Math.floor(L / 2) - 1 : m === 0 ? Math.max(3, Math.floor(L / 3)) : Math.floor(2 * L / 3);
                     g.part('3062', P.wood, mx, mz, yD); g.part('3062', P.wood, mx, mz, yD + 3);
                     g.box(mx - 2, mx + 1, mz, mz, yD + 6, yD + 11, sails);
                     g.part('3062', P.wood, mx, mz, yD + 12); g.part('3062', P.wood, mx, mz, yD + 15);
                     g.part('4032', P.wood, mx - 1, mz - 1, yD + 18);
                     if (match === 'pirate ship') g.part('98138', 'WHITE', mx + 1, mz, yD + 12);
                 }
-                // The flag stands on the cabin roof; with the cabin removed it drops to the deck.
-                if (sternFlag) H.flag(ctx, mx, 1, cabinDflt && cabin ? yD + 4 : yD, match === 'pirate ship' ? 'BLACK' : P.accent);
+                // The flag flies from a bar pole on the cabin roof's stern edge; with the cabin removed it drops to the deck.
+                if (sternFlag) feats.push(...H.flagPole(ctx, mx, 0, cabinDflt && cabin ? yD + 4 : yD, { height: 2, color: P.wood, flag: match === 'pirate ship' ? 'BLACK' : P.accent }).feats.map(() => 'a stern flag on a bar pole'));
                 if (cabin) { g.shell(0, W - 1, 0, 2, yD, yD + 2, hull); g.box(0, W - 1, 0, 2, yD + 3, yD + 3, deck, { noBrick: true }); H.window(ctx, 1, 0, yD, 'back', 'TRANS_ORANGE'); feats.push('a raised stern cabin'); }
-                if (match === 'viking ship' || match === 'longship') { for (let z = 2; z < L - 3; z += 2) { g.part('98138', P.accent, 0, z, yD); g.part('98138', P.secondary, W - 1, z, yD); } g.part('59900', 'GOLD', 0, L - 2, 5); feats.push('a row of shields along the gunwales', 'a dragon-head prow'); }
+                if (match === 'viking ship' || match === 'longship') { for (let z = 2; z < L - 3; z += 2) { g.part('98138', P.accent, 0, z, yD); g.part('98138', P.secondary, W - 1, z, yD); } g.part('59900', 'GOLD', 0, L - 1, 6); feats.push('a row of shields along the gunwales', 'a dragon-head prow'); }
                 feats.push(`${masts} mast${masts > 1 ? 's' : ''} with ${window.LEGO_COLORS[sails].name.toLowerCase()} sails`, "a crow's nest");
-                if (sternFlag) feats.push('a stern flag');
                 return { title: { 'pirate ship': 'Pirate Ship', galleon: 'Galleon', frigate: 'Frigate', schooner: 'Schooner', sailboat: 'Sailboat', 'sailing ship': 'Tall Ship', yacht: 'Sailing Yacht', 'viking ship': 'Viking Longship', longship: 'Viking Longship', ark: 'Wooden Ark', catamaran: 'Catamaran' }[match], features: feats };
             }
-            // Motor ships: a superstructure, bridge and funnel(s); warships get turrets.
+            // Motor ships: a superstructure, bridge, radar dish and funnel(s); warships get turrets.
             const war = ['battleship', 'destroyer', 'warship', 'aircraft carrier'].includes(match);
             const sz = Math.floor(L / 2) - 2;
-            if (match === 'aircraft carrier') { g.box(-1, W, 0, L - 3, yD, yD, 'DARK_GREY', { noBrick: true }); g.box(W, W, 4, 7, yD + 1, yD + 6, 'LIGHT_GREY'); g.part('3957', 'LIGHT_GREY', W, 5, yD + 7); for (let z = 2; z < L - 4; z += 4) g.part('3023', 'YELLOW', 0, z, yD + 1, { rotY: 0 }); feats.push('a flat flight deck with markings', 'an island superstructure'); }
+            if (match === 'aircraft carrier') { g.box(-1, W, 0, L - 3, yD, yD, 'DARK_GREY', { noBrick: true }); g.box(W, W, 4, 7, yD + 1, yD + 6, 'LIGHT_GREY'); feats.push(...H.dish(ctx, W, 5, yD + 7, { size: 2, color: P.metal, mastColor: P.dark }).feats); for (let z = 2; z < L - 4; z += 4) g.part('3023', 'YELLOW', 0, z, yD + 1, { rotY: 0 }); feats.push('a flat flight deck with markings', 'an island superstructure'); }
             else {
                 g.shell(1, W - 2, sz, sz + 3, yD, yD + 2, war ? 'LIGHT_GREY' : 'WHITE'); H.window(ctx, 1, sz + 3, yD, 'front'); g.box(1, W - 2, sz, sz + 3, yD + 3, yD + 3, war ? 'DARK_GREY' : 'WHITE', { noBrick: true });
                 g.box(1, W - 2, sz + 1, sz + 2, yD + 4, yD + 6, war ? 'LIGHT_GREY' : 'WHITE'); g.part('3022', P.dark, 1, sz + 1, yD + 7);
+                feats.push(...H.dish(ctx, 1, sz + 1, yD + 8, { size: 2, color: P.metal, mastColor: P.dark }).feats);
                 if (!war) { g.part('3062', P.accent, 1, sz - 1, yD); g.part('3062', 'BLACK', 1, sz - 1, yD + 3); }
                 if (match === 'cruise ship' || match === 'ferry') { for (let z = 1; z + 1 <= L - 4; z += 3) { H.window(ctx, 0, z, 2, 'left'); H.window(ctx, W - 1, z, 2, 'right'); } g.part('3062', P.accent, W - 2, sz - 1, yD); g.part('3062', 'BLACK', W - 2, sz - 1, yD + 3); feats.push('rows of cabin portholes', 'twin funnels'); }
-                if (war) { for (const z of [2, L - 5]) { g.part('3941', 'DARK_GREY', 1, z, yD); g.part('3062', 'DARK_GREY', 1, z + 2, yD + 1, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); } g.part('3957', 'LIGHT_GREY', 2, sz + 2, yD + 8); feats.push('fore and aft gun turrets', 'a radar mast'); }
+                if (war) { if (sz >= 3) { g.part('3941', 'DARK_GREY', 1, 1, yD); g.part('3062', 'DARK_GREY', 1, -1, yD, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); } if (sz + 8 <= L - 1) { g.part('3941', 'DARK_GREY', 1, sz + 5, yD); g.part('3062', 'DARK_GREY', 1, sz + 7, yD, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); } g.part('3957', 'LIGHT_GREY', 1, sz + 3, yD + 4); feats.push('gun turrets with round-brick barrels', 'a radio mast'); }
                 if (match === 'cargo ship' || match === 'container ship' || match === 'barge') { for (let z = 1; z < sz - 1; z += 3) { g.box(1, W - 2, z, z + 1, yD, yD + 2, ctx.pick(['RED', 'BLUE', 'GREEN', 'ORANGE'])); } feats.push('a deck stacked with containers'); }
                 if (match === 'tugboat' || match === 'tug' || match === 'fishing boat' || match === 'trawler') { for (let z = 1; z < L - 3; z += 3) { g.part('98138', 'BLACK', 0, z, 2); } g.part('3062', P.wood, W - 2, 2, yD); g.part('3710', P.wood, W - 2, 0, yD + 3, { rotY: 0 }); feats.push('tyre fenders along the hull', 'a boom crane'); }
                 feats.push('a wheelhouse with a bridge', 'a funnel');
             }
+            feats.push(...H.flagPole(ctx, 0, 0, match === 'aircraft carrier' ? yD + 1 : yD, { height: 2, color: P.dark, flag: P.accent }).feats.map(() => 'an ensign on a bar pole'));
             return { title: { ship: 'Cargo Ship', boat: 'Motor Launch', tugboat: 'Harbour Tug', tug: 'Harbour Tug', 'cruise ship': 'Cruise Liner', ferry: 'Ferry', steamboat: 'Paddle Steamer', steamship: 'Steamship', 'cargo ship': 'Cargo Ship', 'container ship': 'Container Ship', battleship: 'Battleship', destroyer: 'Destroyer', warship: 'Warship', 'aircraft carrier': 'Aircraft Carrier', 'fishing boat': 'Fishing Boat', trawler: 'Trawler', houseboat: 'Houseboat', barge: 'River Barge' }[match] || 'Ship', features: feats };
         }
     });
@@ -928,9 +1073,11 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 for (const [x, z] of [[-2, 0], [3, 0], [0, 3]]) { g.part('3062', 'TRANS_CLEAR', x, z, 1); g.part('3062', 'TRANS_CLEAR', x, z, 4); }
                 H.discSlab(ctx, 0.5, 0.5, R, 7, hull); g.disc(0.5, 0.5, R - 0.5, 9, 9, hull); g.disc(0.5, 0.5, R - 1.5, 10, 10, hull);
                 for (let i = 0; i < 8; i++) { const a = i / 8 * PI * 2, x = Math.round(0.5 + Math.cos(a) * (R - 1.4)), z = Math.round(0.5 + Math.sin(a) * (R - 1.4)); g.part('98138', i % 2 ? 'TRANS_ORANGE' : 'TRANS_RED', x, z, 10); }
-                g.part('3941', 'TRANS_BLUE', 0, 0, 11); g.part('553', 'TRANS_BLUE', 0, 0, 14);
-                g.part('3957', P.metal, 0, -1, 11);
-                return { title: match === 'mothership' ? 'Alien Mothership' : 'Flying Saucer', features: ['a stacked saucer hull', 'a ring of blinking rim lights', 'a transparent cockpit dome', 'three landing legs'] };
+                // The cockpit dome turns on a turntable; a radar dish on a round-brick mast at the rim.
+                const t = H.turret(ctx, 0, 0, 11, { size: 2, color: 'TRANS_BLUE', baseColor: P.dark, barrel: false });
+                g.part('553', 'TRANS_BLUE', 0, 0, t.top);
+                feats.push(...H.dish(ctx, 0, -3, g.top(0, -3) + 1, { size: 2, color: P.metal, mastColor: P.dark }).feats);
+                return { title: match === 'mothership' ? 'Alien Mothership' : 'Flying Saucer', features: ['a stacked saucer hull', 'a ring of blinking rim lights', 'a transparent cockpit dome on a turntable', ...feats, 'three landing legs'] };
             }
             if (match === 'space station' || match === 'satellite' || match === 'probe') {
                 g.box(-7, 8, -4, 5, 0, 0, 'DARK_GREY', { noBrick: true });
@@ -952,48 +1099,63 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 return { title: 'Lunar Lander', features: ['four gold landing legs with footpads', 'a gold descent stage', 'a domed ascent module', 'a planted flag'] };
             }
             if (['speeder', 'hover', 'hoverbike', 'hovercraft', 'podracer', 'pod racer'].includes(match)) {
-                const L = sc(9), body = P.explicit ? P.primary : ctx.style === 'cyberpunk' ? 'BLACK' : P.primary;
+                const L = Math.max(7, sc(9)), body = P.explicit ? P.primary : ctx.style === 'cyberpunk' ? 'BLACK' : P.primary;
                 g.box(-4, 5, -2, L + 1, 0, 0, 'DARK_GREY', { noBrick: true });
                 for (const z of [1, L - 3]) { H.stand(ctx, 0, z, 1, 1); H.stand(ctx, 1, z, 1, 1); }
-                g.box(0, 1, 0, L - 1, 4, 4, 'BLACK', { noBrick: true });
-                g.box(0, 1, 0, L - 1, 5, 7, body);
-                g.part('3039', body, 0, L - 2, 8, { rotY: 0 }); g.part('3040', P.glass, 0, L - 4, 8, { rotY: 0 }); g.part('3040', P.glass, 1, L - 4, 8, { rotY: 0 });
-                g.box(0, 1, 1, L - 5, 8, 8, P.accent, { noBrick: true });
-                // Repulsor pods either side, engines behind.
-                for (const x of [-2, 2]) { g.part('3023', body, x, 2, 5, { rotY: 0 }); g.part('3062', 'TRANS_BLUE', x, 2, 6, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); }
-                g.part('3062', 'TRANS_ORANGE', 0, -1, 5, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3062', 'TRANS_ORANGE', 1, -1, 5, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true });
-                g.part('98138', 'TRANS_BLUE', 0, 0, 8); g.part('98138', 'TRANS_BLUE', 1, 0, 8); g.part('3070', P.accent, 0, L - 5, 9);
-                return { title: match === 'hoverbike' ? 'Hover Bike' : match === 'podracer' || match === 'pod racer' ? 'Pod Racer' : 'Grav Speeder', features: ['a low wedge body', 'twin glowing repulsor pods', 'afterburner engines', 'a neon trim line', 'hovering on clear stands'] };
+                // A locked black belly slab on the stands, the body on it, a wedge-plate nose out of the body's front row.
+                H.slab(ctx, 0, 1, 0, L - 1, 4, 'BLACK');
+                g.box(0, 1, 0, L - 1, 6, 8, body);
+                feats.push(...H.wedgeNose(ctx, -1, L - 1, 6, { width: 4, color: body, face: 'front' }).feats);
+                g.part('3039', body, 0, L - 2, 9, { rotY: 0 }); g.part('3040', P.glass, 0, L - 4, 9, { rotY: 0 }); g.part('3040', P.glass, 1, L - 4, 9, { rotY: 0 });
+                g.box(0, 1, 1, L - 5, 9, 9, P.accent, { noBrick: true });
+                // Repulsor pods on a cross plate through the body, engines behind, grille vents over them.
+                g.part('3666', body, -2, 2, 6, { rotY: PI / 2, w: 6, l: 1 });
+                for (const x of [-2, 3]) g.part('3062', 'TRANS_BLUE', x, 2, 7, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true });
+                g.part('3062', 'TRANS_ORANGE', 0, -1, 6, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3062', 'TRANS_ORANGE', 1, -1, 6, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true });
+                H.grilleBumper(ctx, 1, 0, 9, { width: 2, color: P.dark, face: 'back' });
+                g.part('3070', P.accent, 0, L - 5, 10);
+                return { title: match === 'hoverbike' ? 'Hover Bike' : match === 'podracer' || match === 'pod racer' ? 'Pod Racer' : 'Grav Speeder', features: ['a low body with a wedge-plate nose', 'twin glowing repulsor pods', 'afterburner engines under grille vents', 'a neon trim line', 'hovering on clear stands'] };
             }
             if (['mars rover', 'rover', 'lunar rover', 'moon buggy'].includes(match)) {
                 g.box(-3, 6, -2, 8, 0, 0, 'TAN', { noBrick: true });
-                for (const z of [0, 3, 6]) { g.part('4032', 'BLACK', -1, z, 1, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true }); g.part('4032', 'BLACK', 4, z, 1, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true }); }
-                g.box(0, 3, 0, 7, 3, 3, 'LIGHT_GREY', { noBrick: true }); g.box(1, 2, 1, 6, 4, 6, 'WHITE');
-                g.part('3795', 'TRANS_BLUE', 0, 1, 7, { rotY: 0, l: 6, w: 2 }); g.part('3795', 'TRANS_BLUE', 2, 1, 7, { rotY: 0, l: 6, w: 2 });
-                g.part('3062', 'LIGHT_GREY', 1, 6, 8); g.part('3062', 'LIGHT_GREY', 1, 6, 11); g.part('4032', 'WHITE', 1, 6, 14); g.part('98138', 'TRANS_BLUE', 2, 6, 15); g.part('3957', P.metal, 2, 1, 8);
-                return { title: 'Planetary Rover', features: ['six off-road wheels', 'a solar panel deck', 'a mast camera and antenna'] };
+                // Six small wheels on three axle plates under a plate deck, a white body with solar panels, a camera mast and a dish.
+                const ch = H.chassis(ctx, 0, 0, 4, 8, 1, { axles: [0, 3, 6], size: 'small', color: 'LIGHT_GREY' });
+                const T = ch.top;
+                g.box(1, 2, 1, 6, T, T + 2, 'WHITE');
+                g.part('3795', 'TRANS_BLUE', 0, 1, T + 3, { rotY: 0, l: 6, w: 2 }); g.part('3795', 'TRANS_BLUE', 2, 1, T + 3, { rotY: 0, l: 6, w: 2 });
+                g.part('3062', 'LIGHT_GREY', 1, 6, T + 4); g.part('3062', 'LIGHT_GREY', 1, 6, T + 7); g.part('4032', 'WHITE', 1, 6, T + 10); g.part('98138', 'TRANS_BLUE', 2, 6, T + 11);
+                feats.push(...H.dish(ctx, 2, 1, T + 4, { size: 2, color: P.metal, mastColor: P.dark }).feats);
+                return { title: 'Planetary Rover', features: ['six off-road wheels on axle plates', 'a solar panel deck', 'a mast camera', ...feats] };
             }
             // Starfighters, cruisers, freighters.
-            const L = sc(10), body = P.explicit ? P.primary : match === 'tie fighter' ? 'DARK_GREY' : 'LIGHT_GREY';
+            const L = Math.max(8, sc(10)), body = P.explicit ? P.primary : match === 'tie fighter' ? 'DARK_GREY' : 'LIGHT_GREY';
             g.box(-6, 7, -3, L + 2, 0, 0, 'DARK_GREY', { noBrick: true });
             H.stand(ctx, 0, 3, 1, 2); H.stand(ctx, 1, 3, 1, 2);
-            g.box(0, 1, 0, L - 1, 7, 9, body);
-            g.box(0, 1, 0, L - 1, 10, 10, body, { noBrick: true });
             if (match === 'tie fighter') {
+                g.box(0, 1, 0, L - 1, 7, 9, body);
+                g.box(0, 1, 0, L - 1, 10, 10, body, { noBrick: true });
                 for (const x of [-3, 2]) { g.part('3795', 'BLACK', x, 1, 7, { rotY: 0, w: 2, l: 6 }); g.box(x, x + 1, 1, 6, 8, 11, 'BLACK'); }
                 H.slab(ctx, 0, 1, 0, L - 1, 10, body);   // a locked spine over the hull bricks
                 g.part('3020', body, -2, 1, 12, { rotY: PI / 2, w: 4, l: 2 }); g.part('3020', body, 0, 5, 12, { rotY: PI / 2, w: 4, l: 2 });   // wing spars from the spine onto each panel
                 g.part('3022', body, 0, 3, 12); g.part('3941', body, 0, 3, 13); g.part('98138', 'TRANS_BLUE', 0, 3, 16);
                 feats.push('two black solar wing panels', 'a round cockpit pod');
             } else {
-                for (let i = 0; i < 3; i++) { g.part('3020', body, -4 + i, 2 + i, 10 - (i % 2), { rotY: PI / 2, w: 4, l: 2 }); g.part('3020', body, 1 + i, 2 + i, 10 - (i % 2), { rotY: PI / 2, w: 4, l: 2 }); }
+                // The hull: an engine mount plate under a locked slab, two plate rows the wings and nose are set into.
+                g.part('3020', body, 0, -1, 6, { rotY: 0, w: 2, l: 4 });
+                H.slab(ctx, 0, 1, 0, L - 1, 7, body);
+                g.box(0, 1, 0, L - 1, 9, 10, body, { noBrick: true });
+                // Stepped swept wings ending in wedge plates, a wedge-plate nose, cannons and engines.
+                for (let i = 0; i < 3; i++) {
+                    g.part(i === 0 ? '41770' : '3020', body, -4 + i, 2 + i, 10 - (i % 2), { rotY: i === 0 ? -PI / 2 : PI / 2, w: 4, l: 2 });
+                    g.part(i === 2 ? '41769' : '3020', body, 1 + i, 2 + i, 10 - (i % 2), { rotY: PI / 2, w: 4, l: 2 });
+                }
                 g.part('3062', P.metal, -4, 2, 11, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3062', P.metal, 4, 2, 11, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true });
+                feats.push(...H.wedgeNose(ctx, -1, L - 1, 10, { width: 4, color: body, face: 'front' }).feats);
                 g.box(0, 1, 1, L - 5, 11, 13, body); g.part('3040', P.glass, 0, L - 4, 11, { rotY: 0 }); g.part('3040', P.glass, 1, L - 4, 11, { rotY: 0 }); g.part('3039', body, 0, L - 2, 11, { rotY: 0 });
                 g.box(0, 1, 1, L - 5, 14, 14, P.accent, { noBrick: true });
-                g.part('3020', body, 0, -1, 7, { rotY: 0, w: 2, l: 4 });   // the engine mount plate runs into the hull
-                g.part('3062', 'TRANS_BLUE', 0, -1, 8, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3062', 'TRANS_BLUE', 1, -1, 8, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true });
-                g.part('98138', 'TRANS_RED', 0, 0, 11); g.part('3957', P.metal, 1, 1, 15);
-                feats.push('stepped swept wings with wingtip cannons', 'a glass cockpit canopy', 'twin ion engines', 'an accent stripe');
+                g.part('3062', 'TRANS_BLUE', 0, -1, 9, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3062', 'TRANS_BLUE', 1, -1, 9, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true });
+                feats.push(...H.dish(ctx, 1, 1, 15, { size: 2, color: P.metal, mastColor: P.dark }).feats);
+                feats.push('stepped swept wings with wedge-plate tips and wingtip cannons', 'a glass cockpit canopy', 'twin ion engines', 'an accent stripe');
             }
             feats.push('a transparent flight stand');
             return { title: { starfighter: 'Starfighter', 'x-wing': 'Starfighter', 'tie fighter': 'Twin Ion Fighter', cruiser: 'Star Cruiser', freighter: 'Light Freighter', spaceship: 'Starship', starship: 'Starship', spacecraft: 'Spacecraft', 'space ship': 'Starship', dropship: 'Dropship', gunship: 'Gunship', space: 'Starship' }[match] || 'Starship', features: feats };

@@ -305,46 +305,49 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             const freight = ['freight train', 'goods train', 'cargo train'].includes(match) || ctx.has('freight', 'goods', 'cargo');
             const LL = Math.max(10, sc(10)), CL = Math.max(7, sc(7)), T = LL + n * (CL + 1);
             const body = P.explicit ? P.primary : 'GREEN', trim = P.explicit && ctx.explicitColors.length > 1 ? P.secondary : 'RED';
-            // Grass, a ballast strip, sleepers every other stud and two rails of tiles.
+            // Grass, a ballast strip, sleepers every other stud and two rails of tiles at gauge 6: the train wheels run on them.
             g.box(-4, 7, -3, T + 3, 0, 0, P.ground, { noBrick: true });
-            g.box(-1, 4, -2, T + 2, 0, 0, 'TAN', { noBrick: true });
-            for (let z = -1; z <= T + 1; z += 2) g.part('3710', 'BROWN', 0, z, 1, { rotY: PI / 2, w: 4, l: 1 });
-            for (let z = -1; z <= T + 1;) { const l = Math.min(4, T + 2 - z); if (l < 2) break; const id = l >= 4 ? '2431' : '3069'; g.part(id, 'DARK_GREY', 0, z, 2, { rotY: 0, w: 1, l: l >= 4 ? 4 : 2 }); g.part(id, 'DARK_GREY', 3, z, 2, { rotY: 0, w: 1, l: l >= 4 ? 4 : 2 }); z += l >= 4 ? 4 : 2; }
-            const wheels = (z0, z1) => { for (const z of [z0 + 1, z1 - 2]) { g.part('4032', 'BLACK', -1, z, 2, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true }); g.part('4032', 'BLACK', 4, z, 2, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true }); } };
-            // The locomotive at the front: running board, boiler of lying round bricks, cab, funnel, dome, cow-catcher.
+            g.box(-2, 5, -2, T + 2, 0, 0, 'TAN', { noBrick: true });
+            for (let z = -1; z <= T + 1; z += 2) g.part('3666', 'BROWN', -1, z, 1, { rotY: PI / 2, w: 6, l: 1 });
+            for (let z = -1; z <= T + 1;) { const l = Math.min(4, T + 2 - z); if (l < 2) break; const id = l >= 4 ? '2431' : '3069'; g.part(id, 'DARK_GREY', -1, z, 2, { rotY: 0, w: 1, l: l >= 4 ? 4 : 2 }); g.part(id, 'DARK_GREY', 4, z, 2, { rotY: 0, w: 1, l: l >= 4 ? 4 : 2 }); z += l >= 4 ? 4 : 2; }
+            // Every vehicle: a 4-wide plate chassis on flanged train wheels (floor plate 3, on the rails), a locked slab, the body from B.
+            const vehicle = (z0, len, axles, over) => { const ch = H.chassis(ctx, 0, z0, 4, len, 3, { axles, size: 'train', color: 'BLACK' }); H.slab(ctx, 0, 3, z0, z0 + len - 1 + (over || 0), ch.top, trim); return ch; };
+            const B = 3 + H.axle.clearance('train') + 4;
+            let wheels = 0;
+            // The locomotive at the front: running board, boiler of lying round bricks laid from the smokebox back, cab, funnel, dome, cow-catcher.
             const z0 = T - LL, z1 = T - 1;
-            wheels(z0, z1); if (LL >= 10) { g.part('4032', 'BLACK', -1, z0 + 4, 2, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true }); g.part('4032', 'BLACK', 4, z0 + 4, 2, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true }); }
-            g.box(0, 3, z0, z1, 3, 3, 'BLACK', { noBrick: true }); g.box(0, 3, z0, z1, 4, 4, trim, { noBrick: true });
-            g.box(0, 3, z0 + 4, z1 - 1, 5, 5, 'BLACK', { noBrick: true });
+            wheels += vehicle(z0, LL, LL >= 11 ? [1, 4, LL - 3] : [1, LL - 3], 1).axles.length * 2;
+            g.box(0, 3, z0 + 4, z1 - 1, B, B, 'BLACK', { noBrick: true });
             const segs = [];
-            for (let z = z1 - 3; z >= z0 + 4; z -= 2) { g.part('3941', 'BLACK', 1, z, 6, { rotX: PI / 2, w: 2, l: 2, hp: 5, lie: true }); segs.push(z); }
-            g.part('3941', trim, 1, z1 - 1, 6, { rotX: PI / 2, w: 2, l: 2, hp: 5, lie: true });   // the smokebox door
-            g.part('3062', 'BLACK', 1, segs[0], 11); g.part('59900', 'BLACK', 1, segs[0], 14);   // funnel
-            g.part('4032', 'GOLD', 1, segs[1], 11); g.part('553', body, 1, segs[1], 12);   // steam dome
-            g.part('98138', 'TRANS_ORANGE', 2, z1 - 1, 11);                                    // headlamp
-            g.part('3040', 'DARK_GREY', 1, z1, 3, { rotY: PI / 2, w: 2, l: 1 });               // cow-catcher
-            g.shell(0, 3, z0, z0 + 3, 5, 10, body); H.window(ctx, 0, z0 + 1, 7, 'left'); H.window(ctx, 3, z0 + 1, 7, 'right');
-            g.box(0, 3, z0, z0 + 3, 11, 11, 'BLACK', { noBrick: true }); g.box(0, 3, z0, z0 + 3, 12, 12, trim, { noBrick: true });
+            for (let z = z1 - 3; z >= z0 + 4; z -= 2) { g.part('3941', 'BLACK', 1, z, B + 1, { rotX: PI / 2, w: 2, l: 2, hp: 5, lie: true }); segs.push(z); }
+            if ((z1 - 3 - (z0 + 4)) % 2 === 1) g.box(1, 2, z0 + 4, z0 + 4, B + 1, B + 3, 'BLACK');   // an odd gap by the cab
+            g.part('3941', trim, 1, z1 - 1, B + 1, { rotX: PI / 2, w: 2, l: 2, hp: 5, lie: true });   // the smokebox door
+            g.part('3062', 'BLACK', 1, segs[0], B + 6); g.part('59900', 'BLACK', 1, segs[0], B + 9);   // funnel
+            if (segs.length > 1) { g.part('4032', 'GOLD', 1, segs[1], B + 6); g.part('553', body, 1, segs[1], B + 7); }   // steam dome
+            g.part('98138', 'TRANS_ORANGE', 2, z1 - 1, B + 6);                                    // headlamp
+            g.part('3040', 'DARK_GREY', 1, z1 + 1, B, { rotY: PI / 2, w: 2, l: 1 });               // cow-catcher on the slab's overhang
+            g.shell(0, 3, z0, z0 + 3, B, B + 5, body);
+            H.realWindow(ctx, 0, z0 + 1, B, { face: 'left', frameColor: 'BLACK', glassColor: P.glass }); H.realWindow(ctx, 3, z0 + 2, B, { face: 'right', frameColor: 'BLACK', glassColor: P.glass });
+            g.box(0, 3, z0, z0 + 3, B + 6, B + 6, 'BLACK', { noBrick: true }); g.box(0, 3, z0, z0 + 3, B + 7, B + 7, trim, { noBrick: true });
             // Carriages behind, a one-stud gap and a plate coupling between each.
             const cargo = ['LIGHT_GREY', 'BROWN', 'TAN'];
             for (let i = 0; i < n; i++) {
                 const c1 = z0 - 2 - i * (CL + 1), c0 = c1 - CL + 1;
-                wheels(c0, c1);
-                g.box(0, 3, c0, c1, 3, 3, 'BLACK', { noBrick: true }); g.part('3023', 'BLACK', 1, c1, 3, { rotY: 0 });
-                g.box(0, 3, c0, c1, 4, 4, trim, { noBrick: true });
+                wheels += vehicle(c0, CL, [1, CL - 3]).axles.length * 2;
+                g.part('3023', 'BLACK', 1, c1, B, { rotY: 0 });
                 if (freight) {
-                    if (i % 2 === 0) { g.shell(0, 3, c0, c1, 5, 7, 'BROWN'); g.box(1, 2, c0 + 1, c1 - 1, 5, 6, cargo[i % 3], { noBrick: true }); }
-                    else { g.part('3022', 'DARK_GREY', 1, c0, 5); g.part('3022', 'DARK_GREY', 1, c1 - 1, 5); for (let z = c0 + 2; z + 1 <= c1 - 2; z += 2) g.part('3941', P.accent, 1, z, 5, { rotX: PI / 2, w: 2, l: 2, hp: 5, lie: true }); }
+                    if (i % 2 === 0) { g.shell(0, 3, c0, c1, B, B + 2, 'BROWN'); g.box(1, 2, c0 + 1, c1 - 1, B, B + 1, cargo[i % 3], { noBrick: true }); }
+                    else { g.part('3022', 'DARK_GREY', 1, c0, B); g.part('3022', 'DARK_GREY', 1, c1 - 2, B); for (let z = c0 + 2; z + 1 <= c1 - 3; z += 2) g.part('3941', P.accent, 1, z, B, { rotX: PI / 2, w: 2, l: 2, hp: 5, lie: true }); }
                 } else {
-                    g.shell(0, 3, c0, c1, 5, 10, body);
-                    for (let z = c0 + 1; z + 1 <= c1 - 1; z += 3) { H.window(ctx, 0, z, 7, 'left'); H.window(ctx, 3, z, 7, 'right'); }
-                    H.ceiling(ctx, 0, 3, c0, c1, 11, 'DARK_GREY'); g.box(1, 2, c0 + 1, c1 - 1, 12, 12, 'DARK_GREY', { noBrick: true });
+                    g.shell(0, 3, c0, c1, B, B + 5, body);
+                    for (let z = c0 + 1; z + 1 <= c1 - 1; z += 3) { H.realWindow(ctx, 0, z, B, { face: 'left', frameColor: 'BLACK', glassColor: P.glass }); H.realWindow(ctx, 3, z + 1, B, { face: 'right', frameColor: 'BLACK', glassColor: P.glass }); }
+                    H.ceiling(ctx, 0, 3, c0, c1, B + 6, 'DARK_GREY'); g.box(1, 2, c0 + 1, c1 - 1, B + 7, B + 7, 'DARK_GREY', { noBrick: true });
                 }
             }
             // A signal at the lineside and a buffer stop at the end of the track.
-            g.part('3062', P.dark, 6, T - 2, 1); g.part('3062', P.dark, 6, T - 2, 4); g.part('98138', 'TRANS_RED', 6, T - 2, 7);
+            H.lamp2(ctx, 6, T - 2, 1, { height: 2, color: P.dark, lens: 'TRANS_RED', face: 'back' });
             g.part('3004', 'DARK_GREY', 1, -1, 2, { rotY: PI / 2, w: 2, l: 1 });
-            return { title: freight ? 'Freight Train' : match === 'locomotive' || match === 'steam locomotive' || match === 'steam engine' ? 'Steam Locomotive' : 'Steam Train', features: ['a steam locomotive with a round boiler and funnel', `${['one', 'two', 'three'][n - 1]} ${freight ? 'freight wagons with loads' : 'passenger coaches with windows'}`, 'a driver\'s cab and a gold steam dome', 'a laid track of sleepers and rails', 'a lineside signal and a buffer stop'] };
+            return { title: freight ? 'Freight Train' : match === 'locomotive' || match === 'steam locomotive' || match === 'steam engine' ? 'Steam Locomotive' : 'Steam Train', features: ['a steam locomotive with a round boiler and funnel', `${['one', 'two', 'three'][n - 1]} ${freight ? 'freight wagons with loads' : 'passenger coaches with real windows'}`, `${wheels} flanged train wheels on axle plates`, 'a laid track of sleepers and rails', 'a lineside signal and a buffer stop'] };
         }
     });
 
@@ -369,23 +372,40 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             // Kerbs along the inside of the straights, a dashed centre line, a chequered start line.
             const tile = (x, z, col) => { if (g.top(x, z) === 0) g.part('3070', col, x, z, 1); };
             const sx = Math.floor(W / 2) + 2;
-            // Little formula cars: a plate body between round-plate wheels, a cheese-slope nose, a helmet and a wing.
-            const car = (x, z, col, dir) => {
-                g.box(x, x + 3, z, z + 1, 1, 2, col);
-                for (const [wx, wz] of [[x, z - 1], [x + 3, z - 1], [x, z + 2], [x + 3, z + 2]]) g.part('4073', 'BLACK', wx, wz, 1);
-                const nose = dir > 0 ? x + 3 : x, tail = dir > 0 ? x : x + 3;
-                g.part('54200', col, nose, z, 3, { rotY: dir > 0 ? -PI / 2 : PI / 2 }); g.part('54200', col, nose, z + 1, 3, { rotY: dir > 0 ? -PI / 2 : PI / 2 });
-                g.part('98138', 'WHITE', nose - dir, z, 3); g.part('3070', col, nose - dir, z + 1, 3);
-                g.part('3023', 'BLACK', tail, z, 3, { rotY: 0 });
+            /**
+             * A little formula car six studs long along X, nose toward `dir`: two axle plates turned across the car
+             * with small wheels and tyres pinned on, a 2x6 plate layer over them, a plate body, a cheese-slope nose,
+             * a cockpit cowl with a helmet and a rear wing on two 1x1 plates.
+             */
+            const car = (x0, z, col, dir) => {
+                const fx = (i, len = 1) => (dir > 0 ? x0 + i : x0 + 6 - i - len);   // the grid x of a piece `len` long starting `i` studs from the tail
+                for (const i of [0, 4]) {
+                    const ax = fx(i, 2);
+                    g.part('4600', 'BLACK', ax, z, 3, { rotY: PI / 2 });
+                    for (const [wz, pin] of [[z - 1, [ax, 3, z]], [z + 2, [ax + 1, 3, z + 1]]]) {
+                        g.part('4624', 'LIGHT_GREY', ax, wz, 1, { rotY: PI / 2, w: 2, l: 1, hp: 5, dy: 1.25, links: [pin] });
+                        g.part('3641', 'BLACK', ax, wz, 1, { rotY: PI / 2, w: 2, l: 1, hp: 5, links: [[ax, 3, wz]] });
+                    }
+                }
+                g.part('3022', 'BLACK', fx(2, 2), z, 3);
+                g.part('3795', col, x0, z, 4, { rotY: PI / 2, w: 6, l: 2 });
+                g.part('3020', col, fx(1, 4), z, 5, { rotY: PI / 2, w: 4, l: 2 });
+                const nr = dir > 0 ? -PI / 2 : PI / 2;
+                g.part('54200', col, fx(5), z, 5, { rotY: nr }); g.part('54200', col, fx(5), z + 1, 5, { rotY: nr });
+                g.part('3021', col, fx(1, 3), z, 6, { rotY: PI / 2, w: 3, l: 2 });
+                g.part('98138', 'WHITE', fx(3), z, 7); g.part('3070', col, fx(2), z + 1, 7);
+                g.part('3024', 'BLACK', fx(0), z, 5); g.part('3024', 'BLACK', fx(0), z + 1, 5); g.part('3023', 'BLACK', fx(0), z, 6, { rotY: 0 });
             };
             const cols = [P.primary, P.secondary === P.primary ? 'BLUE' : P.secondary, P.accent === P.primary ? 'YELLOW' : P.accent];
-            car(sx - 6, D - 3, cols[0], 1);
-            if (cars > 1) car(r + 2, 1, cols[1], -1);
-            if (cars > 2) car(sx + 4, D - 3, cols[2], 1);
+            // Cars sit on the straights (x within r .. W-1-r keeps all four wheels on tarmac; a micro track clamps to the grass edge).
+            const clamp = (x) => Math.max(0, Math.min(W - 6, x));
+            car(clamp(sx - 7), D - 3, cols[0], 1);
+            if (cars > 1) car(clamp(r + 1), 1, cols[1], -1);
+            if (cars > 2) car(r + 13 <= W - 1 - r ? r + 8 : clamp(sx + 2), r + 13 <= W - 1 - r ? 1 : D - 3, cols[2], r + 13 <= W - 1 - r ? -1 : 1);
             for (let z = D - tw + 1; z <= D - 1; z++) { tile(sx, z, z % 2 ? 'BLACK' : 'WHITE'); tile(sx + 1, z, z % 2 ? 'WHITE' : 'BLACK'); }
             for (let x = r; x <= W - 1 - r; x++) { tile(x, tw - 1, x % 2 ? 'RED' : 'WHITE'); tile(x, D - tw, x % 2 ? 'RED' : 'WHITE'); }
             for (let x = r + 1; x <= W - 2 - r; x += 3) { tile(x, 1, 'WHITE'); tile(x, D - 2, 'WHITE'); }
-            const feats = ['an oval tarmac circuit with red and white kerbs', 'a chequered start line', `${['one', 'two', 'three'][cars - 1]} formula ${cars > 1 ? 'cars' : 'car'}`];
+            const feats = ['an oval tarmac circuit with red and white kerbs', 'a chequered start line', `${['one', 'two', 'three'][cars - 1]} formula ${cars > 1 ? 'cars' : 'car'} on small wheels with rubber tyres`];
             if (grandstand) {
                 // Three stepped tiers of seats under a plate roof on round-brick columns, flags at the ends.
                 const gx0 = r, gx1 = W - 1 - r, gz = D + 1;
@@ -396,9 +416,9 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                     for (let y = 1; y <= 10; y += 3) g.part('3062', 'DARK_GREY', x, gz + 3, y);
                     g.part({ 4: '3020', 3: '3021', 2: '3022' }[l], 'WHITE', x, gz + 2, 13, { rotY: l > 2 ? PI / 2 : 0, w: l, l: 2 });
                 }
-                H.flag(ctx, gx0 - 2, gz + 1, 1, P.accent); H.flag(ctx, gx1 + 2, gz + 1, 1, P.primary);
+                H.flagPole(ctx, gx0 - 2, gz + 1, 1, { height: 3, color: P.dark, flag: P.accent }); H.flagPole(ctx, gx1 + 2, gz + 1, 1, { height: 3, color: P.dark, flag: P.primary });
                 feats.push('a covered grandstand with tiered seats');
-            } else feats.push('trackside flags');
+            } else { H.flagPole(ctx, -2, D, 1, { height: 3, color: P.dark, flag: P.accent }); H.flagPole(ctx, W + 1, D, 1, { height: 3, color: P.dark, flag: P.primary }); feats.push('trackside flags'); }
             if (chance(0.7)) H.tree(ctx, Math.floor(W / 2), Math.floor(D / 2), 1, 'round');
             feats.push('an infield of grass');
             return { title: ctx.match === 'nascar' || ctx.match === 'speedway' ? 'Speedway' : ctx.match === 'grand prix' ? 'Grand Prix Circuit' : 'Race Track', features: feats };
