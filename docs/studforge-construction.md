@@ -81,12 +81,12 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | hollow (air in envelope) | 25% (interior 11% of the box) | 25% (interior 11% of the box) |
 | wall thickness | 1 stud (1: 76%, 2: 10%, 3+: 14%) | 1 stud (1: 76%, 2: 10%, 3+: 14%) |
 | bottom band mix | plate 57%, wheel 43%; BLACK 79%, LIGHT_GREY 21% | plate 57%, wheel 43%; BLACK 79%, LIGHT_GREY 21% |
-| middle band mix | plate 35%, brick 25%, tile 16%; RED 51%, DARK_GREY 12%, LIGHT_GREY 11% | plate 35%, brick 25%, tile 16%; RED 51%, DARK_GREY 12%, LIGHT_GREY 11% |
-| top band mix | plate 44%, tile 44%, brick 11%; LIGHT_GREY 100% | plate 44%, tile 44%, brick 11%; LIGHT_GREY 100% |
+| middle band mix | plate 35%, brick 26%, tile 16%; RED 50%, DARK_GREY 12%, LIGHT_GREY 12% | plate 35%, brick 26%, tile 16%; RED 50%, DARK_GREY 12%, LIGHT_GREY 12% |
+| top band mix | plate 50%, tile 50%; LIGHT_GREY 100% | plate 50%, tile 50%; LIGHT_GREY 100% |
 | steps, pcs/step, steps/100 pcs | 19, 7.32, 13.67 | 19, 7.32, 13.67 |
 | step vs height correlation | 0.99 | 0.99 |
 | build phases (mean height, top parts) | 0.16 plate → 0.34 plate → 0.53 brick → 0.73 plate → 0.94 plate | 0.16 plate → 0.34 plate → 0.53 brick → 0.73 plate → 0.94 plate |
-| interior / walls / roof at (progress) | – / 0.44 / 0.94 | – / 0.44 / 0.94 |
+| interior / walls / roof at (progress) | – / 0.44 / 0.97 | – / 0.44 / 0.97 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 33% (tops: tile 23%, studs 48%, slope 15%) | 33% (tops: tile 23%, studs 48%, slope 15%) |
@@ -104,9 +104,9 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 5% (interior 2% of the box) | 5% (interior 2% of the box) |
 | wall thickness | 1 stud (1: 63%, 2: 9%, 3+: 28%) | 1 stud (1: 63%, 2: 9%, 3+: 28%) |
-| bottom band mix | –;  | –;  |
-| middle band mix | plate 45%, brick 19%, slope 10%; WHITE 41%, BLACK 25%, TRANS_CLEAR 12% | plate 45%, brick 19%, slope 10%; WHITE 41%, BLACK 25%, TRANS_CLEAR 12% |
-| top band mix | plate 46%, slope 43%, tile 11%; WHITE 86%, TRANS_BLUE 6%, TRANS_RED 6% | plate 46%, slope 43%, tile 11%; WHITE 86%, TRANS_BLUE 6%, TRANS_RED 6% |
+| bottom band mix | plate 63%, wheel 38%; BLACK 75%, LIGHT_GREY 25% | plate 63%, wheel 38%; BLACK 75%, LIGHT_GREY 25% |
+| middle band mix | plate 41%, brick 25%, slope 13%; WHITE 53%, TRANS_CLEAR 15%, DARK_BLUE 11% | plate 41%, brick 25%, slope 13%; WHITE 53%, TRANS_CLEAR 15%, DARK_BLUE 11% |
+| top band mix | plate 44%, slope 44%, tile 11%; WHITE 89%, TRANS_BLUE 6%, TRANS_RED 6% | plate 44%, slope 44%, tile 11%; WHITE 89%, TRANS_BLUE 6%, TRANS_RED 6% |
 | steps, pcs/step, steps/100 pcs | 10.5, 7.06, 14.18 | 10.5, 7.06, 14.18 |
 | step vs height correlation | 0.99 | 0.99 |
 | build phases (mean height, top parts) | 0.18 plate → 0.3 plate → 0.5 plate → 0.6 plate → 0.78 slope | 0.18 plate → 0.3 plate → 0.5 plate → 0.6 plate → 0.78 slope |
@@ -128,13 +128,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 23% (interior 12% of the box) | 23% (interior 12% of the box) |
 | wall thickness | 1 stud (1: 80%, 2: 2%, 3+: 17%) | 1 stud (1: 80%, 2: 2%, 3+: 17%) |
-| bottom band mix | –;  | –;  |
-| middle band mix | plate 47%, brick 17%, wheel 12%; WHITE 43%, BLACK 30%, LIGHT_GREY 9% | plate 47%, brick 17%, wheel 12%; WHITE 43%, BLACK 30%, LIGHT_GREY 9% |
-| top band mix | brick 37%, tile 32%, plate 32%; WHITE 37%, LIGHT_GREY 32%, TRANS_ORANGE 11% | brick 37%, tile 32%, plate 32%; WHITE 37%, LIGHT_GREY 32%, TRANS_ORANGE 11% |
+| bottom band mix | wheel 100%; LIGHT_GREY 100% | wheel 100%; LIGHT_GREY 100% |
+| middle band mix | plate 45%, brick 23%, tile 12%; WHITE 48%, BLACK 28%, TRANS_CLEAR 6% | plate 45%, brick 23%, tile 12%; WHITE 48%, BLACK 28%, TRANS_CLEAR 6% |
+| top band mix | plate 75%, tile 25%; LIGHT_GREY 75%, RED 25% | plate 75%, tile 25%; LIGHT_GREY 75%, RED 25% |
 | steps, pcs/step, steps/100 pcs | 13, 9.46, 10.57 | 13, 9.46, 10.57 |
 | step vs height correlation | 0.98 | 0.98 |
 | build phases (mean height, top parts) | 0.2 plate → 0.34 plate → 0.47 brick → 0.69 brick → 0.89 tile | 0.2 plate → 0.34 plate → 0.47 brick → 0.69 brick → 0.89 tile |
-| interior / walls / roof at (progress) | – / 0.42 / 0.83 | – / 0.42 / 0.83 |
+| interior / walls / roof at (progress) | – / 0.67 / 0.92 | – / 0.67 / 0.92 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 16% (tops: tile 11%, studs 59%, slope 15%) | 16% (tops: tile 11%, studs 59%, slope 15%) |
@@ -152,9 +152,9 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 5% (interior 2% of the box) | 5% (interior 2% of the box) |
 | wall thickness | 1 stud (1: 64%, 2: 8%, 3+: 27%) | 1 stud (1: 64%, 2: 8%, 3+: 27%) |
-| bottom band mix | –;  | –;  |
-| middle band mix | plate 51%, brick 17%, wheel 9%; RED 33%, BLACK 26%, YELLOW 10% | plate 51%, brick 17%, wheel 9%; RED 33%, BLACK 26%, YELLOW 10% |
-| top band mix | slope 49%, plate 29%, tile 22%; RED 43%, WHITE 22%, YELLOW 11% | slope 49%, plate 29%, tile 22%; RED 43%, WHITE 22%, YELLOW 11% |
+| bottom band mix | wheel 53%, plate 47%; BLACK 56%, LIGHT_GREY 44% | wheel 53%, plate 47%; BLACK 56%, LIGHT_GREY 44% |
+| middle band mix | plate 48%, brick 21%, slope 12%; RED 39%, BLACK 16%, YELLOW 13% | plate 48%, brick 21%, slope 12%; RED 39%, BLACK 16%, YELLOW 13% |
+| top band mix | tile 25%, plate 25%, slope 25%; RED 38%, WHITE 25%, YELLOW 13% | tile 25%, plate 25%, slope 25%; RED 38%, WHITE 25%, YELLOW 13% |
 | steps, pcs/step, steps/100 pcs | 11.5, 6.88, 14.59 | 11.5, 6.88, 14.59 |
 | step vs height correlation | 0.99 | 0.99 |
 | build phases (mean height, top parts) | 0.19 plate → 0.34 plate → 0.5 plate → 0.66 plate → 0.85 slope | 0.19 plate → 0.34 plate → 0.5 plate → 0.66 plate → 0.85 slope |
@@ -176,13 +176,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 13% (interior 7% of the box) | 13% (interior 7% of the box) |
 | wall thickness | 1 stud (1: 68%, 2: 6%, 3+: 27%) | 1 stud (1: 68%, 2: 6%, 3+: 27%) |
-| bottom band mix | –;  | –;  |
-| middle band mix | plate 47%, brick 17%, wheel 12%; BLACK 34%, YELLOW 32%, LIGHT_GREY 13% | plate 47%, brick 17%, wheel 12%; BLACK 34%, YELLOW 32%, LIGHT_GREY 13% |
-| top band mix | plate 50%, tile 26%, brick 24%; LIGHT_GREY 44%, YELLOW 30%, TRANS_ORANGE 26% | plate 50%, tile 26%, brick 24%; LIGHT_GREY 44%, YELLOW 30%, TRANS_ORANGE 26% |
+| bottom band mix | wheel 100%; LIGHT_GREY 100% | wheel 100%; LIGHT_GREY 100% |
+| middle band mix | plate 48%, brick 21%, tile 9%; BLACK 35%, YELLOW 33%, LIGHT_GREY 11% | plate 48%, brick 21%, tile 9%; BLACK 35%, YELLOW 33%, LIGHT_GREY 11% |
+| top band mix | plate 68%, tile 33%; LIGHT_GREY 38%, TRANS_ORANGE 33%, YELLOW 30% | plate 68%, tile 33%; LIGHT_GREY 38%, TRANS_ORANGE 33%, YELLOW 30% |
 | steps, pcs/step, steps/100 pcs | 11.5, 9.5, 10.56 | 11.5, 9.5, 10.56 |
 | step vs height correlation | 0.99 | 0.99 |
 | build phases (mean height, top parts) | 0.23 plate → 0.35 plate → 0.51 plate → 0.62 brick → 0.85 plate | 0.23 plate → 0.35 plate → 0.51 plate → 0.62 brick → 0.85 plate |
-| interior / walls / roof at (progress) | – / 0.48 / 0.91 | – / 0.48 / 0.91 |
+| interior / walls / roof at (progress) | – / 0.62 / 0.95 | – / 0.62 / 0.95 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 12% (tops: tile 8%, studs 62%, slope 15%) | 12% (tops: tile 8%, studs 62%, slope 15%) |
@@ -200,13 +200,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 12% (interior 7% of the box) | 12% (interior 7% of the box) |
 | wall thickness | 1.25 stud (1: 63%, 2: 5%, 3+: 33%) | 1.25 stud (1: 63%, 2: 5%, 3+: 33%) |
-| bottom band mix | tile 50%; YELLOW 43%, LIGHT_GREY 7% | tile 50%; YELLOW 43%, LIGHT_GREY 7% |
-| middle band mix | plate 47%, brick 17%, wheel 12%; BLACK 33%, RED 32%, LIGHT_GREY 14% | plate 47%, brick 17%, wheel 12%; BLACK 33%, RED 32%, LIGHT_GREY 14% |
-| top band mix | tile 34%, plate 34%, brick 24%; LIGHT_GREY 53%, TRANS_CLEAR 18%, TRANS_ORANGE 16% | tile 34%, plate 34%, brick 24%; LIGHT_GREY 53%, TRANS_CLEAR 18%, TRANS_ORANGE 16% |
+| bottom band mix | wheel 73%, tile 27%; LIGHT_GREY 77%, YELLOW 23% | wheel 73%, tile 27%; LIGHT_GREY 77%, YELLOW 23% |
+| middle band mix | plate 48%, brick 20%, tile 9%; BLACK 34%, RED 33%, LIGHT_GREY 11% | plate 48%, brick 20%, tile 9%; BLACK 34%, RED 33%, LIGHT_GREY 11% |
+| top band mix | plate 51%, tile 40%, round 9%; LIGHT_GREY 47%, TRANS_ORANGE 22%, TRANS_CLEAR 18% | plate 51%, tile 40%, round 9%; LIGHT_GREY 47%, TRANS_ORANGE 22%, TRANS_CLEAR 18% |
 | steps, pcs/step, steps/100 pcs | 11.5, 10.18, 9.82 | 11.5, 10.18, 9.82 |
 | step vs height correlation | 0.97 | 0.97 |
 | build phases (mean height, top parts) | 0.26 plate → 0.41 plate → 0.54 plate → 0.65 brick → 0.86 plate | 0.26 plate → 0.41 plate → 0.54 plate → 0.65 brick → 0.86 plate |
-| interior / walls / roof at (progress) | – / 0.48 / 0.96 | – / 0.48 / 0.96 |
+| interior / walls / roof at (progress) | – / 0.62 / 1 | – / 0.62 / 1 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 20% (tops: tile 12%, studs 52%, slope 13%) | 20% (tops: tile 12%, studs 52%, slope 13%) |
@@ -224,13 +224,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 23% (interior 13% of the box) | 23% (interior 13% of the box) |
 | wall thickness | 1 stud (1: 75%, 2: 2%, 3+: 23%) | 1 stud (1: 75%, 2: 2%, 3+: 23%) |
-| bottom band mix | –;  | –;  |
-| middle band mix | plate 44%, brick 22%, wheel 11%; BLACK 30%, LIGHT_GREY 28%, WHITE 14% | plate 44%, brick 22%, wheel 11%; BLACK 30%, LIGHT_GREY 28%, WHITE 14% |
-| top band mix | brick 47%, plate 40%, tile 13%; WHITE 47%, LIGHT_GREY 40%, TRANS_ORANGE 13% | brick 47%, plate 40%, tile 13%; WHITE 47%, LIGHT_GREY 40%, TRANS_ORANGE 13% |
+| bottom band mix | wheel 100%; LIGHT_GREY 100% | wheel 100%; LIGHT_GREY 100% |
+| middle band mix | plate 43%, brick 28%, tile 8%; BLACK 29%, LIGHT_GREY 22%, WHITE 21% | plate 43%, brick 28%, tile 8%; BLACK 29%, LIGHT_GREY 22%, WHITE 21% |
+| top band mix | plate 75%, tile 25%; LIGHT_GREY 75%, TRANS_ORANGE 25% | plate 75%, tile 25%; LIGHT_GREY 75%, TRANS_ORANGE 25% |
 | steps, pcs/step, steps/100 pcs | 12, 10, 10 | 12, 10, 10 |
 | step vs height correlation | 0.98 | 0.98 |
 | build phases (mean height, top parts) | 0.22 plate → 0.36 plate → 0.49 brick → 0.65 brick → 0.88 plate | 0.22 plate → 0.36 plate → 0.49 brick → 0.65 brick → 0.88 plate |
-| interior / walls / roof at (progress) | – / 0.45 / 0.91 | – / 0.45 / 0.91 |
+| interior / walls / roof at (progress) | – / 0.73 / 1 | – / 0.73 / 1 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 12% (tops: tile 8%, studs 62%, slope 15%) | 12% (tops: tile 8%, studs 62%, slope 15%) |
@@ -248,13 +248,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 18% (interior 10% of the box) | 18% (interior 10% of the box) |
 | wall thickness | 1 stud (1: 53%, 2: 45%, 3+: 2%) | 1 stud (1: 53%, 2: 45%, 3+: 2%) |
-| bottom band mix | –;  | –;  |
-| middle band mix | plate 37%, brick 27%, slope 11%; BLACK 26%, DARK_BLUE 24%, YELLOW 18% | plate 37%, brick 27%, slope 11%; BLACK 26%, DARK_BLUE 24%, YELLOW 18% |
-| top band mix | brick 54%, plate 40%, tile 7%; RED 48%, YELLOW 29%, BLACK 20% | brick 54%, plate 40%, tile 7%; RED 48%, YELLOW 29%, BLACK 20% |
+| bottom band mix | wheel 100%; LIGHT_GREY 100% | wheel 100%; LIGHT_GREY 100% |
+| middle band mix | plate 35%, brick 34%, slope 10%; BLACK 25%, DARK_BLUE 23%, YELLOW 21% | plate 35%, brick 34%, slope 10%; BLACK 25%, DARK_BLUE 23%, YELLOW 21% |
+| top band mix | plate 86%, tile 14%; RED 45%, BLACK 41%, TRANS_RED 9% | plate 86%, tile 14%; RED 45%, BLACK 41%, TRANS_RED 9% |
 | steps, pcs/step, steps/100 pcs | 12, 14.38, 6.96 | 12, 14.38, 6.96 |
 | step vs height correlation | 0.98 | 0.98 |
 | build phases (mean height, top parts) | 0.2 plate → 0.34 plate → 0.47 brick → 0.64 brick → 0.83 slope | 0.2 plate → 0.34 plate → 0.47 brick → 0.64 brick → 0.83 slope |
-| interior / walls / roof at (progress) | – / 0.73 / 0.82 | – / 0.73 / 0.82 |
+| interior / walls / roof at (progress) | – / 0.73 / 0.91 | – / 0.73 / 0.91 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 10% (tops: tile 9%, studs 83%, slope 0%) | 10% (tops: tile 9%, studs 83%, slope 0%) |
@@ -272,13 +272,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 10% (interior 4% of the box) | 10% (interior 4% of the box) |
 | wall thickness | 1 stud (1: 66%, 2: 8%, 3+: 26%) | 1 stud (1: 66%, 2: 8%, 3+: 26%) |
-| bottom band mix | tile 50%; YELLOW 34%, LIGHT_GREY 17% | tile 50%; YELLOW 34%, LIGHT_GREY 17% |
-| middle band mix | plate 45%, brick 19%, wheel 12%; BLACK 37%, RED 20%, GREEN 19% | plate 45%, brick 19%, wheel 12%; BLACK 37%, RED 20%, GREEN 19% |
-| top band mix | plate 42%, brick 28%, slope 23%; RED 45%, BLACK 34%, LIGHT_GREY 7% | plate 42%, brick 28%, slope 23%; RED 45%, BLACK 34%, LIGHT_GREY 7% |
+| bottom band mix | wheel 47%, plate 41%, tile 14%; BLACK 55%, LIGHT_GREY 35%, YELLOW 9% | wheel 47%, plate 41%, tile 14%; BLACK 55%, LIGHT_GREY 35%, YELLOW 9% |
+| middle band mix | plate 43%, brick 27%, tile 10%; BLACK 31%, RED 26%, GREEN 20% | plate 43%, brick 27%, tile 10%; BLACK 31%, RED 26%, GREEN 20% |
+| top band mix | plate 75%, slope 25%; RED 50%, GREEN 25%, YELLOW 25% | plate 75%, slope 25%; RED 50%, GREEN 25%, YELLOW 25% |
 | steps, pcs/step, steps/100 pcs | 13, 5.49, 18.67 | 13, 5.49, 18.67 |
 | step vs height correlation | 0.98 | 0.98 |
 | build phases (mean height, top parts) | 0.17 wheel → 0.35 plate → 0.53 brick → 0.66 brick → 0.84 plate | 0.17 wheel → 0.35 plate → 0.53 brick → 0.66 brick → 0.84 plate |
-| interior / walls / roof at (progress) | – / 0.54 / 0.93 | – / 0.54 / 0.93 |
+| interior / walls / roof at (progress) | – / 0.67 / 0.98 | – / 0.67 / 0.98 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 16% (tops: tile 10%, studs 50%, slope 20%) | 16% (tops: tile 10%, studs 50%, slope 20%) |
@@ -296,8 +296,8 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 11% (interior 2% of the box) | 11% (interior 2% of the box) |
 | wall thickness | 1 stud (1: 100%, 2: 0%, 3+: 0%) | 1 stud (1: 100%, 2: 0%, 3+: 0%) |
-| bottom band mix | tile 100%; LIGHT_GREY 100% | tile 100%; LIGHT_GREY 100% |
-| middle band mix | brick 40%, plate 20%, wheel 13%; BLACK 67%, LIGHT_GREY 20%, RED 7% | brick 40%, plate 20%, wheel 13%; BLACK 67%, LIGHT_GREY 20%, RED 7% |
+| bottom band mix | tile 75%, wheel 25%; LIGHT_GREY 100% | tile 75%, wheel 25%; LIGHT_GREY 100% |
+| middle band mix | brick 46%, plate 23%, tile 15%; BLACK 77%, RED 8%, TRANS_CLEAR 8% | brick 46%, plate 23%, tile 15%; BLACK 77%, RED 8%, TRANS_CLEAR 8% |
 | top band mix | plate 100%; BLACK 50%, YELLOW 50% | plate 100%; BLACK 50%, YELLOW 50% |
 | steps, pcs/step, steps/100 pcs | 6, 3.83, 26.09 | 6, 3.83, 26.09 |
 | step vs height correlation | 0.98 | 0.98 |
@@ -320,13 +320,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 21% (interior 5% of the box) | 21% (interior 5% of the box) |
 | wall thickness | 1 stud (1: 89%, 2: 4%, 3+: 8%) | 1 stud (1: 89%, 2: 4%, 3+: 8%) |
-| bottom band mix | plate 45%, tile 45%, round 6%; DARK_GREY 47%, BROWN 45%, LIGHT_GREY 6% | plate 45%, tile 45%, round 6%; DARK_GREY 47%, BROWN 45%, LIGHT_GREY 6% |
-| middle band mix | plate 52%, brick 21%, wheel 11%; BLACK 36%, RED 24%, GREEN 19% | plate 52%, brick 21%, wheel 11%; BLACK 36%, RED 24%, GREEN 19% |
-| top band mix | round 100%; BLACK 50%, GREEN 50% | round 100%; BLACK 50%, GREEN 50% |
+| bottom band mix | plate 33%, tile 33%, wheel 26%; DARK_GREY 35%, BROWN 33%, LIGHT_GREY 30% | plate 33%, tile 33%, wheel 26%; DARK_GREY 35%, BROWN 33%, LIGHT_GREY 30% |
+| middle band mix | plate 56%, brick 22%, round 6%; BLACK 38%, RED 25%, GREEN 21% | plate 56%, brick 22%, round 6%; BLACK 38%, RED 25%, GREEN 21% |
+| top band mix | round 100%; BLACK 100% | round 100%; BLACK 100% |
 | steps, pcs/step, steps/100 pcs | 16, 14.56, 6.87 | 16, 14.56, 6.87 |
 | step vs height correlation | 0.99 | 0.99 |
 | build phases (mean height, top parts) | 0.1 plate → 0.28 plate → 0.46 plate → 0.62 brick → 0.76 plate | 0.1 plate → 0.28 plate → 0.46 plate → 0.62 brick → 0.76 plate |
-| interior / walls / roof at (progress) | – / 0.53 / 0.97 | – / 0.53 / 0.97 |
+| interior / walls / roof at (progress) | – / 0.53 / 1 | – / 0.53 / 1 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 25% (tops: tile 21%, studs 63%, slope 1%) | 25% (tops: tile 21%, studs 63%, slope 1%) |
@@ -344,13 +344,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 7% (interior 1% of the box) | 7% (interior 1% of the box) |
 | wall thickness | 1 stud (1: 88%, 2: 3%, 3+: 9%) | 1 stud (1: 88%, 2: 3%, 3+: 9%) |
-| bottom band mix | wheel 19%, plate 6%; BLACK 13%, LIGHT_GREY 13% | wheel 19%, plate 6%; BLACK 13%, LIGHT_GREY 13% |
-| middle band mix | plate 53%, brick 15%, slope 12%; WHITE 66%, LIGHT_GREY 15%, DARK_BLUE 5% | plate 53%, brick 15%, slope 12%; WHITE 66%, LIGHT_GREY 15%, DARK_BLUE 5% |
-| top band mix | slope 69%, plate 19%, tile 13%; RED 69%, WHITE 31% | slope 69%, plate 19%, tile 13%; RED 69%, WHITE 31% |
+| bottom band mix | wheel 81%, round 8%, hinge 7%; LIGHT_GREY 53%, BLACK 38%, DARK_GREY 8% | wheel 81%, round 8%, hinge 7%; LIGHT_GREY 53%, BLACK 38%, DARK_GREY 8% |
+| middle band mix | plate 60%, brick 17%, slope 14%; WHITE 75%, LIGHT_GREY 10%, DARK_BLUE 6% | plate 60%, brick 17%, slope 14%; WHITE 75%, LIGHT_GREY 10%, DARK_BLUE 6% |
+| top band mix | slope 56%, tile 25%, plate 19%; RED 81%, WHITE 19% | slope 56%, tile 25%, plate 19%; RED 81%, WHITE 19% |
 | steps, pcs/step, steps/100 pcs | 12, 4.62, 21.82 | 12, 4.62, 21.82 |
 | step vs height correlation | 0.96 | 0.96 |
 | build phases (mean height, top parts) | 0.19 wheel → 0.28 plate → 0.4 plate → 0.58 plate → 0.78 plate | 0.19 wheel → 0.28 plate → 0.4 plate → 0.58 plate → 0.78 plate |
-| interior / walls / roof at (progress) | – / 0.63 / 0.98 | – / 0.63 / 0.98 |
+| interior / walls / roof at (progress) | – / 0.63 / 1 | – / 0.63 / 1 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 0% (tops: tile 0%, studs 78%, slope 15%) | 0% (tops: tile 0%, studs 78%, slope 15%) |
@@ -369,12 +369,12 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | hollow (air in envelope) | 19% (interior 3% of the box) | 19% (interior 3% of the box) |
 | wall thickness | 1.5 stud (1: 68%, 2: 22%, 3+: 11%) | 1.5 stud (1: 68%, 2: 22%, 3+: 11%) |
 | bottom band mix | plate 50%, round 50%; BLACK 100% | plate 50%, round 50%; BLACK 100% |
-| middle band mix | plate 35%, round 23%, brick 19%; RED 38%, BLACK 27%, DARK_BLUE 8% | plate 35%, round 23%, brick 19%; RED 38%, BLACK 27%, DARK_BLUE 8% |
-| top band mix | hinge 84%, tile 17%; LIGHT_GREY 84%, TRANS_RED 9%, TRANS_BLUE 9% | hinge 84%, tile 17%; LIGHT_GREY 84%, TRANS_RED 9%, TRANS_BLUE 9% |
+| middle band mix | plate 32%, brick 19%, hinge 18%; RED 36%, BLACK 17%, LIGHT_GREY 14% | plate 32%, brick 19%, hinge 18%; RED 36%, BLACK 17%, LIGHT_GREY 14% |
+| top band mix | hinge 50%, tile 50%; LIGHT_GREY 50%, TRANS_RED 25%, TRANS_BLUE 25% | hinge 50%, tile 50%; LIGHT_GREY 50%, TRANS_RED 25%, TRANS_BLUE 25% |
 | steps, pcs/step, steps/100 pcs | 9.5, 3.04, 32.88 | 9.5, 3.04, 32.88 |
 | step vs height correlation | 0.99 | 0.99 |
 | build phases (mean height, top parts) | 0.12 plate → 0.3 plate → 0.49 round → 0.62 plate → 0.87 hinge | 0.12 plate → 0.3 plate → 0.49 round → 0.62 plate → 0.87 hinge |
-| interior / walls / roof at (progress) | – / 0.47 / 0.89 | – / 0.47 / 0.89 |
+| interior / walls / roof at (progress) | – / 0.47 / 0.98 | – / 0.47 / 0.98 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 7% (tops: tile 4%, studs 66%, slope 4%) | 7% (tops: tile 4%, studs 66%, slope 4%) |
@@ -392,9 +392,9 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 22% (interior 10% of the box) | 22% (interior 10% of the box) |
 | wall thickness | 1 stud (1: 79%, 2: 15%, 3+: 6%) | 1 stud (1: 79%, 2: 15%, 3+: 6%) |
-| bottom band mix | plate 90%, brick 6%, slope 4%; WHITE 98%, BROWN 1%, TAN 1% | plate 90%, brick 6%, slope 4%; WHITE 98%, BROWN 1%, TAN 1% |
-| middle band mix | plate 41%, brick 25%, slope 10%; WHITE 50%, TAN 20%, DARK_GREY 8% | plate 41%, brick 25%, slope 10%; WHITE 50%, TAN 20%, DARK_GREY 8% |
-| top band mix | round 50%, tile 25%; WHITE 25%, BROWN 25%, BLACK 13% | round 50%, tile 25%; WHITE 25%, BROWN 25%, BLACK 13% |
+| bottom band mix | plate 69%, brick 17%, slope 12%; WHITE 95%, BROWN 2%, TAN 2% | plate 69%, brick 17%, slope 12%; WHITE 95%, BROWN 2%, TAN 2% |
+| middle band mix | plate 45%, brick 21%, tile 10%; WHITE 44%, TAN 22%, DARK_GREY 9% | plate 45%, brick 21%, tile 10%; WHITE 44%, TAN 22%, DARK_GREY 9% |
+| top band mix | round 42%, tile 34%; WHITE 34%, BROWN 25%, LIGHT_GREY 17% | round 42%, tile 34%; WHITE 34%, BROWN 25%, LIGHT_GREY 17% |
 | steps, pcs/step, steps/100 pcs | 12, 7.25, 13.81 | 12, 7.25, 13.81 |
 | step vs height correlation | 0.98 | 0.98 |
 | build phases (mean height, top parts) | 0.11 plate → 0.34 plate → 0.56 hinge → 0.6 plate → 0.77 tile | 0.11 plate → 0.34 plate → 0.56 hinge → 0.6 plate → 0.77 tile |
@@ -416,13 +416,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 23% (interior 10% of the box) | 23% (interior 10% of the box) |
 | wall thickness | 1 stud (1: 76%, 2: 15%, 3+: 10%) | 1 stud (1: 76%, 2: 15%, 3+: 10%) |
-| bottom band mix | plate 100%; LIGHT_GREY 100% | plate 100%; LIGHT_GREY 100% |
-| middle band mix | plate 36%, brick 34%, slope 12%; TAN 25%, LIGHT_GREY 24%, WHITE 16% | plate 36%, brick 34%, slope 12%; TAN 25%, LIGHT_GREY 24%, WHITE 16% |
-| top band mix | round 63%, tile 25%, special 13%; LIGHT_GREY 50%, WHITE 25%, BLACK 25% | round 63%, tile 25%, special 13%; LIGHT_GREY 50%, WHITE 25%, BLACK 25% |
+| bottom band mix | plate 53%, brick 33%, slope 13%; LIGHT_GREY 90%, TRANS_BLUE 6%, BROWN 1% | plate 53%, brick 33%, slope 13%; LIGHT_GREY 90%, TRANS_BLUE 6%, BROWN 1% |
+| middle band mix | plate 48%, brick 20%, round 12%; TAN 32%, WHITE 22%, DARK_GREY 19% | plate 48%, brick 20%, round 12%; TAN 32%, WHITE 22%, DARK_GREY 19% |
+| top band mix | round 67%, tile 34%; LIGHT_GREY 67%, WHITE 34% | round 67%, tile 34%; LIGHT_GREY 67%, WHITE 34% |
 | steps, pcs/step, steps/100 pcs | 12, 7.9, 12.66 | 12, 7.9, 12.66 |
 | step vs height correlation | 0.99 | 0.99 |
 | build phases (mean height, top parts) | 0.11 plate → 0.35 plate → 0.55 brick → 0.68 plate → 0.83 round | 0.11 plate → 0.35 plate → 0.55 brick → 0.68 plate → 0.83 round |
-| interior / walls / roof at (progress) | – / 0.36 / 0.93 | – / 0.36 / 0.93 |
+| interior / walls / roof at (progress) | – / 0.36 / 0.96 | – / 0.36 / 0.96 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 2% (tops: tile 2%, studs 90%, slope 1%) | 2% (tops: tile 2%, studs 90%, slope 1%) |
@@ -465,12 +465,12 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | hollow (air in envelope) | 0% (interior 0% of the box) | 0% (interior 0% of the box) |
 | wall thickness | solid | solid |
 | bottom band mix | brick 57%, plate 25%, hinge 18%; YELLOW 60%, DARK_GREY 26%, LIGHT_GREY 10% | brick 57%, plate 25%, hinge 18%; YELLOW 60%, DARK_GREY 26%, LIGHT_GREY 10% |
-| middle band mix | slope 36%, brick 23%, plate 19%; YELLOW 55%, DARK_GREY 20%, TRANS_BLUE 15% | slope 36%, brick 23%, plate 19%; YELLOW 55%, DARK_GREY 20%, TRANS_BLUE 15% |
-| top band mix | round 100%; LIGHT_GREY 50%, TRANS_BLUE 50% | round 100%; LIGHT_GREY 50%, TRANS_BLUE 50% |
+| middle band mix | slope 34%, brick 22%, plate 19%; YELLOW 52%, DARK_GREY 19%, TRANS_BLUE 14% | slope 34%, brick 22%, plate 19%; YELLOW 52%, DARK_GREY 19%, TRANS_BLUE 14% |
+| top band mix | round 100%; TRANS_BLUE 100% | round 100%; TRANS_BLUE 100% |
 | steps, pcs/step, steps/100 pcs | 10, 3.7, 27.03 | 10, 3.7, 27.03 |
 | step vs height correlation | 0.99 | 0.99 |
 | build phases (mean height, top parts) | 0.1 brick → 0.25 slope → 0.44 plate → 0.66 plate → 0.92 round | 0.1 brick → 0.25 slope → 0.44 plate → 0.66 plate → 0.92 round |
-| interior / walls / roof at (progress) | – / 0.33 / 0.94 | – / 0.33 / 0.94 |
+| interior / walls / roof at (progress) | – / 0.33 / 1 | – / 0.33 / 1 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 8% (tops: tile 5%, studs 61%, slope 25%) | 8% (tops: tile 5%, studs 61%, slope 25%) |
@@ -489,12 +489,12 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | hollow (air in envelope) | 1% (interior 0% of the box) | 1% (interior 0% of the box) |
 | wall thickness | 1.5 stud (1: 60%, 2: 20%, 3+: 20%) | 1.5 stud (1: 60%, 2: 20%, 3+: 20%) |
 | bottom band mix | round 100%; TRANS_CLEAR 94%, LIGHT_GREY 6% | round 100%; TRANS_CLEAR 94%, LIGHT_GREY 6% |
-| middle band mix | plate 70%, brick 14%, round 11%; LIGHT_GREY 39%, BLACK 28%, DARK_GREY 16% | plate 70%, brick 14%, round 11%; LIGHT_GREY 39%, BLACK 28%, DARK_GREY 16% |
-| top band mix | round 63%, slope 19%, tile 19%; TRANS_BLUE 56%, BLACK 19%, LIGHT_GREY 13% | round 63%, slope 19%, tile 19%; TRANS_BLUE 56%, BLACK 19%, LIGHT_GREY 13% |
+| middle band mix | plate 67%, brick 13%, round 12%; LIGHT_GREY 39%, BLACK 26%, DARK_GREY 16% | plate 67%, brick 13%, round 12%; LIGHT_GREY 39%, BLACK 26%, DARK_GREY 16% |
+| top band mix | round 50%, tile 50%; TRANS_BLUE 75%, LIGHT_GREY 25% | round 50%, tile 50%; TRANS_BLUE 75%, LIGHT_GREY 25% |
 | steps, pcs/step, steps/100 pcs | 10, 4.47, 22.34 | 10, 4.47, 22.34 |
 | step vs height correlation | 0.97 | 0.97 |
 | build phases (mean height, top parts) | 0.18 round → 0.41 plate → 0.53 plate → 0.64 plate → 0.84 round | 0.18 round → 0.41 plate → 0.53 plate → 0.64 plate → 0.84 round |
-| interior / walls / roof at (progress) | – / 0.56 / 0.95 | – / 0.56 / 0.95 |
+| interior / walls / roof at (progress) | – / 0.56 / 1 | – / 0.56 / 1 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 5% (tops: tile 4%, studs 88%, slope 7%) | 5% (tops: tile 4%, studs 88%, slope 7%) |
@@ -512,8 +512,8 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 10% (interior 2% of the box) | 10% (interior 2% of the box) |
 | wall thickness | 2 stud (1: 0%, 2: 100%, 3+: 0%) | 2 stud (1: 0%, 2: 100%, 3+: 0%) |
-| bottom band mix | plate 36%, round 32%, slope 18%; RED 45%, DARK_GREY 32%, LIGHT_GREY 9% | plate 36%, round 32%, slope 18%; RED 45%, DARK_GREY 32%, LIGHT_GREY 9% |
-| middle band mix | brick 34%, plate 34%, round 28%; RED 66%, WHITE 21%, BLACK 7% | brick 34%, plate 34%, round 28%; RED 66%, WHITE 21%, BLACK 7% |
+| bottom band mix | plate 35%, round 35%, slope 17%; RED 43%, DARK_GREY 30%, LIGHT_GREY 9% | plate 35%, round 35%, slope 17%; RED 43%, DARK_GREY 30%, LIGHT_GREY 9% |
+| middle band mix | brick 36%, plate 36%, round 25%; RED 68%, WHITE 21%, BLACK 4% | brick 36%, plate 36%, round 25%; RED 68%, WHITE 21%, BLACK 4% |
 | top band mix | round 100%; LIGHT_GREY 50%, RED 50% | round 100%; LIGHT_GREY 50%, RED 50% |
 | steps, pcs/step, steps/100 pcs | 27, 1.96, 50.94 | 27, 1.96, 50.94 |
 | step vs height correlation | 1 | 1 |
@@ -536,8 +536,8 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 26% (interior 8% of the box) | 26% (interior 8% of the box) |
 | wall thickness | 1 stud (1: 71%, 2: 5%, 3+: 24%) | 1 stud (1: 71%, 2: 5%, 3+: 24%) |
-| bottom band mix | tile 75%, round 25%; TAN 75%, LIGHT_GREY 25% | tile 75%, round 25%; TAN 75%, LIGHT_GREY 25% |
-| middle band mix | wheel 38%, plate 38%, round 17%; LIGHT_GREY 79%, WHITE 8%, TRANS_BLUE 8% | wheel 38%, plate 38%, round 17%; LIGHT_GREY 79%, WHITE 8%, TRANS_BLUE 8% |
+| bottom band mix | wheel 58%, plate 32%, tile 7%; LIGHT_GREY 93%, TAN 7% | wheel 58%, plate 32%, tile 7%; LIGHT_GREY 93%, TAN 7% |
+| middle band mix | plate 40%, round 40%, brick 20%; LIGHT_GREY 50%, WHITE 20%, TRANS_BLUE 20% | plate 40%, round 40%, brick 20%; LIGHT_GREY 50%, WHITE 20%, TRANS_BLUE 20% |
 | top band mix | round 50%, tile 50%; WHITE 50%, TRANS_BLUE 50% | round 50%, tile 50%; WHITE 50%, TRANS_BLUE 50% |
 | steps, pcs/step, steps/100 pcs | 9, 3.06, 32.74 | 9, 3.06, 32.74 |
 | step vs height correlation | 0.98 | 0.98 |
@@ -561,12 +561,12 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | hollow (air in envelope) | 12% (interior 1% of the box) | 12% (interior 1% of the box) |
 | wall thickness | 1.5 stud (1: 50%, 2: 20%, 3+: 30%) | 1.5 stud (1: 50%, 2: 20%, 3+: 30%) |
 | bottom band mix | round 100%; TRANS_CLEAR 100% | round 100%; TRANS_CLEAR 100% |
-| middle band mix | plate 59%, round 25%, tile 9%; LIGHT_GREY 54%, TRANS_BLUE 13%, WHITE 9% | plate 59%, round 25%, tile 9%; LIGHT_GREY 54%, TRANS_BLUE 13%, WHITE 9% |
-| top band mix | round 84%, special 17%; LIGHT_GREY 59%, BLACK 25%, WHITE 17% | round 84%, special 17%; LIGHT_GREY 59%, BLACK 25%, WHITE 17% |
+| middle band mix | plate 57%, round 24%, tile 9%; LIGHT_GREY 55%, TRANS_BLUE 13%, WHITE 13% | plate 57%, round 24%, tile 9%; LIGHT_GREY 55%, TRANS_BLUE 13%, WHITE 13% |
+| top band mix | round 100%; LIGHT_GREY 100% | round 100%; LIGHT_GREY 100% |
 | steps, pcs/step, steps/100 pcs | 10.5, 2.98, 44.56 | 10.5, 2.98, 44.56 |
 | step vs height correlation | 0.99 | 0.99 |
 | build phases (mean height, top parts) | 0.15 round → 0.36 plate → 0.47 plate → 0.63 plate → 0.84 round | 0.15 round → 0.36 plate → 0.47 plate → 0.63 plate → 0.84 round |
-| interior / walls / roof at (progress) | – / 0.7 / 0.92 | – / 0.7 / 0.92 |
+| interior / walls / roof at (progress) | – / 0.7 / 1 | – / 0.7 / 1 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 3% (tops: tile 3%, studs 91%, slope 6%) | 3% (tops: tile 3%, studs 91%, slope 6%) |
@@ -584,13 +584,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 10% (interior 3% of the box) | 10% (interior 3% of the box) |
 | wall thickness | 1 stud (1: 100%, 2: 0%, 3+: 0%) | 1 stud (1: 100%, 2: 0%, 3+: 0%) |
-| bottom band mix | round 59%, brick 21%, plate 21%; LIGHT_GREY 41%, BLACK 25%, WHITE 21% | round 59%, brick 21%, plate 21%; LIGHT_GREY 41%, BLACK 25%, WHITE 21% |
-| middle band mix | brick 38%, round 33%, plate 20%; LIGHT_GREY 48%, BLACK 13%, WHITE 11% | brick 38%, round 33%, plate 20%; LIGHT_GREY 48%, BLACK 13%, WHITE 11% |
-| top band mix | special 100%; LIGHT_GREY 100% | special 100%; LIGHT_GREY 100% |
+| bottom band mix | round 66%, brick 17%, plate 17%; LIGHT_GREY 52%, BLACK 21%, WHITE 17% | round 66%, brick 17%, plate 17%; LIGHT_GREY 52%, BLACK 21%, WHITE 17% |
+| middle band mix | brick 39%, round 28%, plate 21%; LIGHT_GREY 47%, BLACK 14%, WHITE 11% | brick 39%, round 28%, plate 21%; LIGHT_GREY 47%, BLACK 14%, WHITE 11% |
+| top band mix | –;  | –;  |
 | steps, pcs/step, steps/100 pcs | 16, 2.94, 34.04 | 16, 2.94, 34.04 |
 | step vs height correlation | 0.99 | 0.99 |
 | build phases (mean height, top parts) | 0.08 round → 0.22 round → 0.37 plate → 0.5 brick → 0.69 brick | 0.08 round → 0.22 round → 0.37 plate → 0.5 brick → 0.69 brick |
-| interior / walls / roof at (progress) | – / 0.63 / 1 | – / 0.63 / 1 |
+| interior / walls / roof at (progress) | – / 0.63 / – | – / 0.63 / – |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 17% (tops: tile 17%, studs 80%, slope 0%) | 17% (tops: tile 17%, studs 80%, slope 0%) |
@@ -608,13 +608,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 3% (interior 1% of the box) | 3% (interior 1% of the box) |
 | wall thickness | 4 stud (1: 0%, 2: 0%, 3+: 100%) | 4 stud (1: 0%, 2: 0%, 3+: 100%) |
-| bottom band mix | brick 76%, plate 24%; GREEN 76%, DARK_GREY 24% | brick 76%, plate 24%; GREEN 76%, DARK_GREY 24% |
-| middle band mix | plate 45%, tile 41%, hinge 6%; GREEN 45%, BLACK 41%, DARK_GREY 8% | plate 45%, tile 41%, hinge 6%; GREEN 45%, BLACK 41%, DARK_GREY 8% |
-| top band mix | special 100%; BLACK 100% | special 100%; BLACK 100% |
+| bottom band mix | brick 62%, plate 19%, snot 10%; GREEN 71%, DARK_GREY 19%, TRANS_CLEAR 10% | brick 62%, plate 19%, snot 10%; GREEN 71%, DARK_GREY 19%, TRANS_CLEAR 10% |
+| middle band mix | plate 48%, tile 40%, hinge 6%; BLACK 46%, GREEN 44%, DARK_GREY 8% | plate 48%, tile 40%, hinge 6%; BLACK 46%, GREEN 44%, DARK_GREY 8% |
+| top band mix | –;  | –;  |
 | steps, pcs/step, steps/100 pcs | 11, 6.27, 15.94 | 11, 6.27, 15.94 |
 | step vs height correlation | 0.97 | 0.97 |
 | build phases (mean height, top parts) | 0.08 brick → 0.21 plate → 0.28 tile → 0.4 tile → 0.65 brick | 0.08 brick → 0.21 plate → 0.28 tile → 0.4 tile → 0.65 brick |
-| interior / walls / roof at (progress) | – / 0.8 / 1 | – / 0.8 / 1 |
+| interior / walls / roof at (progress) | – / 0.8 / – | – / 0.8 / – |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 46% (tops: tile 40%, studs 47%, slope 8%) | 46% (tops: tile 40%, studs 47%, slope 8%) |
@@ -632,13 +632,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 35% (interior 14% of the box) | 35% (interior 14% of the box) |
 | wall thickness | 1 stud (1: 88%, 2: 4%, 3+: 8%) | 1 stud (1: 88%, 2: 4%, 3+: 8%) |
-| bottom band mix | plate 37%, brick 34%, tile 10%; WHITE 35%, BLACK 29%, BROWN 11% | plate 37%, brick 34%, tile 10%; WHITE 35%, BLACK 29%, BROWN 11% |
-| middle band mix | brick 38%, slope 26%, plate 25%; DARK_RED 39%, WHITE 19%, BLACK 19% | brick 38%, slope 26%, plate 25%; DARK_RED 39%, WHITE 19%, BLACK 19% |
-| top band mix | slope 33%, brick 29%, plate 27%; BLACK 47%, DARK_RED 42%, LIGHT_GREY 12% | slope 33%, brick 29%, plate 27%; BLACK 47%, DARK_RED 42%, LIGHT_GREY 12% |
+| bottom band mix | brick 33%, plate 33%, window 12%; WHITE 34%, BLACK 26%, BROWN 11% | brick 33%, plate 33%, window 12%; WHITE 34%, BLACK 26%, BROWN 11% |
+| middle band mix | brick 38%, slope 29%, plate 26%; DARK_RED 42%, BLACK 20%, WHITE 19% | brick 38%, slope 29%, plate 26%; DARK_RED 42%, BLACK 20%, WHITE 19% |
+| top band mix | slope 31%, plate 29%, brick 26%; BLACK 44%, DARK_RED 42%, LIGHT_GREY 14% | slope 31%, plate 29%, brick 26%; BLACK 44%, DARK_RED 42%, LIGHT_GREY 14% |
 | steps, pcs/step, steps/100 pcs | 32, 13.55, 7.41 | 32, 13.55, 7.41 |
 | step vs height correlation | 0.99 | 0.99 |
 | build phases (mean height, top parts) | 0.06 plate → 0.24 brick → 0.39 plate → 0.57 brick → 0.78 slope | 0.06 plate → 0.24 brick → 0.39 plate → 0.57 brick → 0.78 slope |
-| interior / walls / roof at (progress) | – / 0.56 / 0.89 | – / 0.56 / 0.89 |
+| interior / walls / roof at (progress) | – / 0.6 / 0.89 | – / 0.6 / 0.89 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 14% (tops: tile 4%, studs 23%, slope 63%) | 14% (tops: tile 4%, studs 23%, slope 63%) |
@@ -656,9 +656,9 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 12% (interior 2% of the box) | 12% (interior 2% of the box) |
 | wall thickness | 1 stud (1: 65%, 2: 18%, 3+: 17%) | 1 stud (1: 65%, 2: 18%, 3+: 17%) |
-| bottom band mix | brick 41%, plate 32%, round 19%; LIGHT_GREY 46%, GREEN 29%, BROWN 11% | brick 41%, plate 32%, round 19%; LIGHT_GREY 46%, GREEN 29%, BROWN 11% |
-| middle band mix | brick 55%, plate 34%, round 9%; LIGHT_GREY 71%, DARK_GREY 17%, TRANS_ORANGE 8% | brick 55%, plate 34%, round 9%; LIGHT_GREY 71%, DARK_GREY 17%, TRANS_ORANGE 8% |
-| top band mix | hinge 100%; DARK_GREY 67%, DARK_RED 33% | hinge 100%; DARK_GREY 67%, DARK_RED 33% |
+| bottom band mix | brick 48%, plate 24%, round 21%; LIGHT_GREY 55%, GREEN 21%, BROWN 9% | brick 48%, plate 24%, round 21%; LIGHT_GREY 55%, GREEN 21%, BROWN 9% |
+| middle band mix | brick 53%, plate 37%, round 7%; LIGHT_GREY 70%, DARK_GREY 20%, TRANS_ORANGE 7% | brick 53%, plate 37%, round 7%; LIGHT_GREY 70%, DARK_GREY 20%, TRANS_ORANGE 7% |
+| top band mix | hinge 100%; DARK_GREY 50%, DARK_RED 50% | hinge 100%; DARK_GREY 50%, DARK_RED 50% |
 | steps, pcs/step, steps/100 pcs | 20, 14.4, 6.94 | 20, 14.4, 6.94 |
 | step vs height correlation | 0.99 | 0.99 |
 | build phases (mean height, top parts) | 0.08 brick → 0.3 brick → 0.42 plate → 0.52 plate → 0.72 brick | 0.08 brick → 0.3 brick → 0.42 plate → 0.52 plate → 0.72 brick |
@@ -680,13 +680,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 10% (interior 3% of the box) | 10% (interior 3% of the box) |
 | wall thickness | 1 stud (1: 100%, 2: 0%, 3+: 0%) | 1 stud (1: 100%, 2: 0%, 3+: 0%) |
-| bottom band mix | brick 48%, round 36%, plate 9%; LIGHT_GREY 46%, TAN 17%, WHITE 14% | brick 48%, round 36%, plate 9%; LIGHT_GREY 46%, TAN 17%, WHITE 14% |
-| middle band mix | brick 56%, round 23%, plate 14%; LIGHT_GREY 58%, WHITE 17%, DARK_GREY 14% | brick 56%, round 23%, plate 14%; LIGHT_GREY 58%, WHITE 17%, DARK_GREY 14% |
-| top band mix | round 40%, plate 21%, slope 16%; DARK_RED 45%, GOLD 25%, WHITE 11% | round 40%, plate 21%, slope 16%; DARK_RED 45%, GOLD 25%, WHITE 11% |
+| bottom band mix | brick 49%, round 34%, plate 8%; LIGHT_GREY 47%, TAN 17%, WHITE 13% | brick 49%, round 34%, plate 8%; LIGHT_GREY 47%, TAN 17%, WHITE 13% |
+| middle band mix | brick 54%, round 22%, plate 19%; LIGHT_GREY 53%, WHITE 18%, DARK_GREY 15% | brick 54%, round 22%, plate 19%; LIGHT_GREY 53%, WHITE 18%, DARK_GREY 15% |
+| top band mix | round 27%, slope 19%, brick 15%; GOLD 25%, DARK_RED 24%, WHITE 13% | round 27%, slope 19%, brick 15%; GOLD 25%, DARK_RED 24%, WHITE 13% |
 | steps, pcs/step, steps/100 pcs | 19, 2.86, 35.95 | 19, 2.86, 35.95 |
 | step vs height correlation | 1 | 1 |
 | build phases (mean height, top parts) | 0.08 brick → 0.27 brick → 0.45 brick → 0.65 brick → 0.85 plate | 0.08 brick → 0.27 brick → 0.45 brick → 0.65 brick → 0.85 plate |
-| interior / walls / roof at (progress) | – / 0.44 / 0.94 | – / 0.44 / 0.94 |
+| interior / walls / roof at (progress) | – / 0.45 / 0.93 | – / 0.45 / 0.93 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 0% (tops: tile 5%, studs 80%, slope 14%) | 0% (tops: tile 5%, studs 80%, slope 14%) |
@@ -704,8 +704,8 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 36% (interior 3% of the box) | 36% (interior 3% of the box) |
 | wall thickness | 1 stud (1: 52%, 2: 0%, 3+: 48%) | 1 stud (1: 52%, 2: 0%, 3+: 48%) |
-| bottom band mix | plate 84%, brick 11%, round 2%; DARK_GREY 56%, LIGHT_GREY 28%, WHITE 12% | plate 84%, brick 11%, round 2%; DARK_GREY 56%, LIGHT_GREY 28%, WHITE 12% |
-| middle band mix | round 65%, plate 22%, brick 13%; WHITE 35%, BLACK 30%, RED 17% | round 65%, plate 22%, brick 13%; WHITE 35%, BLACK 30%, RED 17% |
+| bottom band mix | plate 81%, brick 12%, round 3%; DARK_GREY 56%, LIGHT_GREY 27%, WHITE 14% | plate 81%, brick 12%, round 3%; DARK_GREY 56%, LIGHT_GREY 27%, WHITE 14% |
+| middle band mix | round 67%, plate 24%, brick 10%; WHITE 33%, BLACK 33%, RED 19% | round 67%, plate 24%, brick 10%; WHITE 33%, BLACK 33%, RED 19% |
 | top band mix | plate 50%, round 50%; BLACK 50%, RED 50% | plate 50%, round 50%; BLACK 50%, RED 50% |
 | steps, pcs/step, steps/100 pcs | 20, 4.1, 24.39 | 20, 4.1, 24.39 |
 | step vs height correlation | 0.99 | 0.99 |
@@ -728,13 +728,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 14% (interior 2% of the box) | 14% (interior 2% of the box) |
 | wall thickness | 1 stud (1: 93%, 2: 5%, 3+: 1%) | 1 stud (1: 93%, 2: 5%, 3+: 1%) |
-| bottom band mix | round 54%, brick 42%, tile 4%; RED 42%, LIGHT_GREY 21%, TAN 17% | round 54%, brick 42%, tile 4%; RED 42%, LIGHT_GREY 21%, TAN 17% |
-| middle band mix | plate 52%, brick 30%, round 10%; RED 57%, BROWN 18%, GREEN 14% | plate 52%, brick 30%, round 10%; RED 57%, BROWN 18%, GREEN 14% |
-| top band mix | round 100%; DARK_RED 100% | round 100%; DARK_RED 100% |
+| bottom band mix | brick 49%, round 39%, plate 10%; RED 44%, BROWN 22%, LIGHT_GREY 12% | brick 49%, round 39%, plate 10%; RED 44%, BROWN 22%, LIGHT_GREY 12% |
+| middle band mix | plate 59%, brick 21%, round 11%; RED 59%, GREEN 14%, DARK_RED 14% | plate 59%, brick 21%, round 11%; RED 59%, GREEN 14%, DARK_RED 14% |
+| top band mix | –;  | –;  |
 | steps, pcs/step, steps/100 pcs | 15, 3.31, 30.27 | 15, 3.31, 30.27 |
 | step vs height correlation | 0.97 | 0.97 |
 | build phases (mean height, top parts) | 0.1 round → 0.23 brick → 0.42 brick → 0.56 plate → 0.71 plate | 0.1 round → 0.23 brick → 0.42 brick → 0.56 plate → 0.71 plate |
-| interior / walls / roof at (progress) | – / 0.43 / 1 | – / 0.43 / 1 |
+| interior / walls / roof at (progress) | – / 0.5 / – | – / 0.5 / – |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 1% (tops: tile 1%, studs 93%, slope 0%) | 1% (tops: tile 1%, studs 93%, slope 0%) |
@@ -752,8 +752,8 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 2% (interior 1% of the box) | 2% (interior 1% of the box) |
 | wall thickness | 1 stud (1: 90%, 2: 10%, 3+: 0%) | 1 stud (1: 90%, 2: 10%, 3+: 0%) |
-| bottom band mix | brick 100%; GREEN 60%, LIGHT_GREY 40% | brick 100%; GREEN 60%, LIGHT_GREY 40% |
-| middle band mix | plate 53%, brick 22%, tile 20%; DARK_GREY 34%, LIGHT_GREY 32%, GREEN 28% | plate 53%, brick 22%, tile 20%; DARK_GREY 34%, LIGHT_GREY 32%, GREEN 28% |
+| bottom band mix | brick 100%; LIGHT_GREY 63%, GREEN 38% | brick 100%; LIGHT_GREY 63%, GREEN 38% |
+| middle band mix | plate 57%, tile 22%, brick 15%; DARK_GREY 37%, GREEN 31%, LIGHT_GREY 26% | plate 57%, tile 22%, brick 15%; DARK_GREY 37%, GREEN 31%, LIGHT_GREY 26% |
 | top band mix | snot 50%, tile 50%; BLACK 50%, TRANS_ORANGE 50% | snot 50%, tile 50%; BLACK 50%, TRANS_ORANGE 50% |
 | steps, pcs/step, steps/100 pcs | 9, 10.22, 9.78 | 9, 10.22, 9.78 |
 | step vs height correlation | 0.95 | 0.95 |
@@ -776,13 +776,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 36% (interior 14% of the box) | 36% (interior 14% of the box) |
 | wall thickness | 1 stud (1: 96%, 2: 2%, 3+: 2%) | 1 stud (1: 96%, 2: 2%, 3+: 2%) |
-| bottom band mix | plate 36%, brick 33%, tile 14%; WHITE 45%, BLACK 18%, BROWN 12% | plate 36%, brick 33%, tile 14%; WHITE 45%, BLACK 18%, BROWN 12% |
-| middle band mix | brick 43%, slope 31%, plate 18%; DARK_RED 60%, WHITE 29%, TAN 8% | brick 43%, slope 31%, plate 18%; DARK_RED 60%, WHITE 29%, TAN 8% |
-| top band mix | plate 34%, slope 30%, brick 27%; DARK_RED 72%, BLACK 19%, LIGHT_GREY 10% | plate 34%, slope 30%, brick 27%; DARK_RED 72%, BLACK 19%, LIGHT_GREY 10% |
+| bottom band mix | brick 34%, plate 29%, window 14%; WHITE 44%, BLACK 15%, TAN 11% | brick 34%, plate 29%, window 14%; WHITE 44%, BLACK 15%, TAN 11% |
+| middle band mix | brick 42%, slope 36%, plate 19%; DARK_RED 67%, WHITE 27%, TAN 4% | brick 42%, slope 36%, plate 19%; DARK_RED 67%, WHITE 27%, TAN 4% |
+| top band mix | plate 48%, brick 26%, slope 14%; DARK_RED 65%, BLACK 23%, LIGHT_GREY 12% | plate 48%, brick 26%, slope 14%; DARK_RED 65%, BLACK 23%, LIGHT_GREY 12% |
 | steps, pcs/step, steps/100 pcs | 26.5, 13.29, 7.55 | 26.5, 13.29, 7.55 |
 | step vs height correlation | 0.99 | 0.99 |
 | build phases (mean height, top parts) | 0.05 plate → 0.24 brick → 0.42 brick → 0.58 slope → 0.79 slope | 0.05 plate → 0.24 brick → 0.42 brick → 0.58 slope → 0.79 slope |
-| interior / walls / roof at (progress) | – / 0.52 / 0.89 | – / 0.52 / 0.89 |
+| interior / walls / roof at (progress) | – / 0.67 / 0.89 | – / 0.67 / 0.89 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 14% (tops: tile 3%, studs 20%, slope 67%) | 14% (tops: tile 3%, studs 20%, slope 67%) |
@@ -800,13 +800,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 54% (interior 24% of the box) | 54% (interior 24% of the box) |
 | wall thickness | 1 stud (1: 95%, 2: 3%, 3+: 3%) | 1 stud (1: 95%, 2: 3%, 3+: 3%) |
-| bottom band mix | plate 41%, brick 37%, tile 10%; BLACK 32%, RED 26%, WHITE 22% | plate 41%, brick 37%, tile 10%; BLACK 32%, RED 26%, WHITE 22% |
-| middle band mix | brick 55%, plate 30%, window 7%; WHITE 35%, RED 30%, LIGHT_GREY 22% | brick 55%, plate 30%, window 7%; WHITE 35%, RED 30%, LIGHT_GREY 22% |
+| bottom band mix | brick 42%, plate 32%, tile 9%; RED 27%, BLACK 25%, WHITE 24% | brick 42%, plate 32%, tile 9%; RED 27%, BLACK 25%, WHITE 24% |
+| middle band mix | brick 54%, plate 33%, window 5%; WHITE 36%, RED 30%, LIGHT_GREY 22% | brick 54%, plate 33%, window 5%; WHITE 36%, RED 30%, LIGHT_GREY 22% |
 | top band mix | plate 81%, tile 12%, brick 3%; BLACK 71%, LIGHT_GREY 30% | plate 81%, tile 12%, brick 3%; BLACK 71%, LIGHT_GREY 30% |
 | steps, pcs/step, steps/100 pcs | 35, 9.91, 10.11 | 35, 9.91, 10.11 |
 | step vs height correlation | 0.99 | 0.99 |
 | build phases (mean height, top parts) | 0.08 brick → 0.24 brick → 0.4 plate → 0.57 brick → 0.83 plate | 0.08 brick → 0.24 brick → 0.4 plate → 0.57 brick → 0.83 plate |
-| interior / walls / roof at (progress) | – / 0.63 / 0.93 | – / 0.63 / 0.93 |
+| interior / walls / roof at (progress) | – / 0.65 / 0.93 | – / 0.65 / 0.93 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 5% (tops: tile 5%, studs 90%, slope 2%) | 5% (tops: tile 5%, studs 90%, slope 2%) |
@@ -824,13 +824,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 26% (interior 9% of the box) | 26% (interior 9% of the box) |
 | wall thickness | 1 stud (1: 89%, 2: 2%, 3+: 9%) | 1 stud (1: 89%, 2: 2%, 3+: 9%) |
-| bottom band mix | plate 45%, brick 26%, round 13%; WHITE 39%, BLACK 18%, DARK_RED 10% | plate 45%, brick 26%, round 13%; WHITE 39%, BLACK 18%, DARK_RED 10% |
-| middle band mix | slope 39%, brick 35%, plate 19%; DARK_RED 77%, WHITE 12%, GREEN 3% | slope 39%, brick 35%, plate 19%; DARK_RED 77%, WHITE 12%, GREEN 3% |
-| top band mix | brick 46%, plate 31%, round 23%; BLACK 46%, DARK_RED 31%, LIGHT_GREY 23% | brick 46%, plate 31%, round 23%; BLACK 46%, DARK_RED 31%, LIGHT_GREY 23% |
+| bottom band mix | plate 38%, brick 32%, round 11%; WHITE 39%, BLACK 16%, DARK_RED 12% | plate 38%, brick 32%, round 11%; WHITE 39%, BLACK 16%, DARK_RED 12% |
+| middle band mix | slope 42%, brick 33%, plate 20%; DARK_RED 82%, WHITE 9%, GREEN 4% | slope 42%, brick 33%, plate 20%; DARK_RED 82%, WHITE 9%, GREEN 4% |
+| top band mix | brick 38%, plate 31%, round 31%; BLACK 38%, LIGHT_GREY 31%, DARK_RED 31% | brick 38%, plate 31%, round 31%; BLACK 38%, LIGHT_GREY 31%, DARK_RED 31% |
 | steps, pcs/step, steps/100 pcs | 24, 9.9, 10.41 | 24, 9.9, 10.41 |
 | step vs height correlation | 0.98 | 0.98 |
 | build phases (mean height, top parts) | 0.06 plate → 0.21 brick → 0.34 plate → 0.54 slope → 0.81 slope | 0.06 plate → 0.21 brick → 0.34 plate → 0.54 slope → 0.81 slope |
-| interior / walls / roof at (progress) | – / 0.45 / 0.92 | – / 0.45 / 0.92 |
+| interior / walls / roof at (progress) | – / 0.63 / 0.93 | – / 0.63 / 0.93 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 15% (tops: tile 4%, studs 23%, slope 62%) | 15% (tops: tile 4%, studs 23%, slope 62%) |
@@ -848,9 +848,9 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 2% (interior 1% of the box) | 2% (interior 1% of the box) |
 | wall thickness | 1.5 stud (1: 60%, 2: 19%, 3+: 22%) | 1.5 stud (1: 60%, 2: 19%, 3+: 22%) |
-| bottom band mix | round 72%, brick 13%, plate 12%; BROWN 41%, LIGHT_GREY 29%, TAN 14% | round 72%, brick 13%, plate 12%; BROWN 41%, LIGHT_GREY 29%, TAN 14% |
-| middle band mix | plate 64%, round 16%, hinge 9%; GREEN 52%, BROWN 18%, PINK 16% | plate 64%, round 16%, hinge 9%; GREEN 52%, BROWN 18%, PINK 16% |
-| top band mix | round 71%, tile 16%, hinge 10%; GREEN 66%, PINK 25%, YELLOW 6% | round 71%, tile 16%, hinge 10%; GREEN 66%, PINK 25%, YELLOW 6% |
+| bottom band mix | round 72%, brick 13%, plate 12%; BROWN 43%, LIGHT_GREY 27%, TAN 14% | round 72%, brick 13%, plate 12%; BROWN 43%, LIGHT_GREY 27%, TAN 14% |
+| middle band mix | plate 62%, round 17%, hinge 8%; GREEN 53%, BROWN 18%, PINK 17% | plate 62%, round 17%, hinge 8%; GREEN 53%, BROWN 18%, PINK 17% |
+| top band mix | tile 27%, round 26%, hinge 11%; PINK 25%, GREEN 22%, YELLOW 17% | tile 27%, round 26%, hinge 11%; PINK 25%, GREEN 22%, YELLOW 17% |
 | steps, pcs/step, steps/100 pcs | 10.5, 3.85, 26.34 | 10.5, 3.85, 26.34 |
 | step vs height correlation | 0.99 | 0.99 |
 | build phases (mean height, top parts) | 0.15 plate → 0.41 plate → 0.54 plate → 0.65 plate → 0.84 round | 0.15 plate → 0.41 plate → 0.54 plate → 0.65 plate → 0.84 round |
@@ -872,9 +872,9 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 26% (interior 6% of the box) | 26% (interior 6% of the box) |
 | wall thickness | 1 stud (1: 95%, 2: 3%, 3+: 3%) | 1 stud (1: 95%, 2: 3%, 3+: 3%) |
-| bottom band mix | round 74%, tile 17%, plate 10%; ORANGE 56%, TAN 22%, DARK_GREY 7% | round 74%, tile 17%, plate 10%; ORANGE 56%, TAN 22%, DARK_GREY 7% |
-| middle band mix | round 50%, plate 28%, hinge 20%; GREEN 81%, BROWN 7%, ORANGE 7% | round 50%, plate 28%, hinge 20%; GREEN 81%, BROWN 7%, ORANGE 7% |
-| top band mix | round 77%, tile 20%, plate 4%; GREEN 40%, PINK 37%, YELLOW 22% | round 77%, tile 20%, plate 4%; GREEN 40%, PINK 37%, YELLOW 22% |
+| bottom band mix | round 75%, tile 16%, plate 10%; ORANGE 60%, TAN 20%, DARK_GREY 7% | round 75%, tile 16%, plate 10%; ORANGE 60%, TAN 20%, DARK_GREY 7% |
+| middle band mix | round 48%, plate 28%, hinge 22%; GREEN 88%, BROWN 8%, TAN 2% | round 48%, plate 28%, hinge 22%; GREEN 88%, BROWN 8%, TAN 2% |
+| top band mix | round 52%, tile 20%, plate 4%; PINK 37%, YELLOW 22%, GREEN 15% | round 52%, tile 20%, plate 4%; PINK 37%, YELLOW 22%, GREEN 15% |
 | steps, pcs/step, steps/100 pcs | 12.5, 1.86, 53.85 | 12.5, 1.86, 53.85 |
 | step vs height correlation | 1 | 1 |
 | build phases (mean height, top parts) | 0.11 round → 0.35 round → 0.48 plate → 0.64 plate → 0.89 round | 0.11 round → 0.35 round → 0.48 plate → 0.64 plate → 0.89 round |
@@ -920,13 +920,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 6% (interior 1% of the box) | 6% (interior 1% of the box) |
 | wall thickness | 2 stud (1: 4%, 2: 86%, 3+: 10%) | 2 stud (1: 4%, 2: 86%, 3+: 10%) |
-| bottom band mix | brick 66%, round 34%; GREEN 66%, LIGHT_GREY 30%, BROWN 4% | brick 66%, round 34%; GREEN 66%, LIGHT_GREY 30%, BROWN 4% |
-| middle band mix | brick 30%, plate 29%, hinge 26%; GREEN 93%, RED 5%, WHITE 1% | brick 30%, plate 29%, hinge 26%; GREEN 93%, RED 5%, WHITE 1% |
-| top band mix | plate 61%, round 12%, brick 10%; GREEN 71%, WHITE 19%, BLACK 10% | plate 61%, round 12%, brick 10%; GREEN 71%, WHITE 19%, BLACK 10% |
+| bottom band mix | brick 77%, round 23%; GREEN 77%, LIGHT_GREY 18%, BROWN 5% | brick 77%, round 23%; GREEN 77%, LIGHT_GREY 18%, BROWN 5% |
+| middle band mix | plate 34%, brick 25%, hinge 25%; GREEN 92%, RED 5%, WHITE 4% | plate 34%, brick 25%, hinge 25%; GREEN 92%, RED 5%, WHITE 4% |
+| top band mix | plate 64%, round 17%, tile 14%; GREEN 69%, WHITE 17%, BLACK 14% | plate 64%, round 17%, tile 14%; GREEN 69%, WHITE 17%, BLACK 14% |
 | steps, pcs/step, steps/100 pcs | 20, 3.95, 25.36 | 20, 3.95, 25.36 |
 | step vs height correlation | 0.99 | 0.99 |
 | build phases (mean height, top parts) | 0.19 plate → 0.4 brick → 0.53 hinge → 0.79 plate → 0.92 plate | 0.19 plate → 0.4 brick → 0.53 hinge → 0.79 plate → 0.92 plate |
-| interior / walls / roof at (progress) | – / 0.21 / 0.84 | – / 0.21 / 0.84 |
+| interior / walls / roof at (progress) | – / 0.29 / 0.89 | – / 0.29 / 0.89 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 3% (tops: tile 3%, studs 88%, slope 8%) | 3% (tops: tile 3%, studs 88%, slope 8%) |
@@ -944,13 +944,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 0% (interior 0% of the box) | 0% (interior 0% of the box) |
 | wall thickness | 3 stud (1: 0%, 2: 75%, 3+: 25%) | 3 stud (1: 0%, 2: 75%, 3+: 25%) |
-| bottom band mix | brick 70%, round 30%; LIGHT_GREY 30%, BROWN 20%, YELLOW 13% | brick 70%, round 30%; LIGHT_GREY 30%, BROWN 20%, YELLOW 13% |
-| middle band mix | plate 70%, brick 19%, round 7%; BROWN 21%, LIME 17%, LIGHT_GREY 16% | plate 70%, brick 19%, round 7%; BROWN 21%, LIME 17%, LIGHT_GREY 16% |
-| top band mix | plate 36%, round 31%, tile 18%; BLACK 25%, YELLOW 21%, WHITE 14% | plate 36%, round 31%, tile 18%; BLACK 25%, YELLOW 21%, WHITE 14% |
+| bottom band mix | brick 72%, round 25%, plate 2%; LIGHT_GREY 28%, BROWN 21%, YELLOW 14% | brick 72%, round 25%, plate 2%; LIGHT_GREY 28%, BROWN 21%, YELLOW 14% |
+| middle band mix | plate 71%, brick 17%, round 8%; BROWN 21%, YELLOW 16%, LIGHT_GREY 16% | plate 71%, brick 17%, round 8%; BROWN 21%, YELLOW 16%, LIGHT_GREY 16% |
+| top band mix | plate 34%, round 33%, tile 21%; BLACK 36%, WHITE 16%, YELLOW 12% | plate 34%, round 33%, tile 21%; BLACK 36%, WHITE 16%, YELLOW 12% |
 | steps, pcs/step, steps/100 pcs | 17.5, 3.33, 30.16 | 17.5, 3.33, 30.16 |
 | step vs height correlation | 0.99 | 0.99 |
 | build phases (mean height, top parts) | 0.16 brick → 0.36 plate → 0.52 plate → 0.74 plate → 0.91 round | 0.16 brick → 0.36 plate → 0.52 plate → 0.74 plate → 0.91 round |
-| interior / walls / roof at (progress) | – / 0.42 / 0.91 | – / 0.42 / 0.91 |
+| interior / walls / roof at (progress) | – / 0.43 / 0.92 | – / 0.43 / 0.92 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 4% (tops: tile 4%, studs 88%, slope 3%) | 4% (tops: tile 4%, studs 88%, slope 3%) |
@@ -968,8 +968,8 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 0% (interior 0% of the box) | 0% (interior 0% of the box) |
 | wall thickness | solid | solid |
-| bottom band mix | round 100%; ORANGE 46%, BROWN 21%, LIGHT_GREY 19% | round 100%; ORANGE 46%, BROWN 21%, LIGHT_GREY 19% |
-| middle band mix | plate 58%, slope 21%, hinge 10%; PINK 25%, BLUE 22%, RED 21% | plate 58%, slope 21%, hinge 10%; PINK 25%, BLUE 22%, RED 21% |
+| bottom band mix | round 100%; ORANGE 46%, BROWN 21%, PINK 18% | round 100%; ORANGE 46%, BROWN 21%, PINK 18% |
+| middle band mix | plate 59%, slope 22%, hinge 10%; PINK 25%, BLUE 22%, RED 21% | plate 59%, slope 22%, hinge 10%; PINK 25%, BLUE 22%, RED 21% |
 | top band mix | round 26%, tile 26%, slope 26%; BLACK 30%, WHITE 26%, ORANGE 24% | round 26%, tile 26%, slope 26%; BLACK 30%, WHITE 26%, ORANGE 24% |
 | steps, pcs/step, steps/100 pcs | 13.5, 2.08, 48.22 | 13.5, 2.08, 48.22 |
 | step vs height correlation | 0.99 | 0.99 |
@@ -992,13 +992,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 11% (interior 2% of the box) | 11% (interior 2% of the box) |
 | wall thickness | 7.5 stud (1: 25%, 2: 17%, 3+: 58%) | 7.5 stud (1: 25%, 2: 17%, 3+: 58%) |
-| bottom band mix | plate 86%, round 14%; TAN 59%, RED 20%, TRANS_CLEAR 12% | plate 86%, round 14%; TAN 59%, RED 20%, TRANS_CLEAR 12% |
-| middle band mix | plate 35%, round 21%, brick 18%; BLUE 37%, RED 24%, LIGHT_GREY 15% | plate 35%, round 21%, brick 18%; BLUE 37%, RED 24%, LIGHT_GREY 15% |
-| top band mix | tile 38%, slope 36%, round 26%; BLACK 38%, BLUE 23%, PURPLE 20% | tile 38%, slope 36%, round 26%; BLACK 38%, BLUE 23%, PURPLE 20% |
+| bottom band mix | plate 72%, round 24%, brick 5%; TAN 61%, RED 18%, TRANS_CLEAR 11% | plate 72%, round 24%, brick 5%; TAN 61%, RED 18%, TRANS_CLEAR 11% |
+| middle band mix | plate 35%, slope 19%, round 18%; BLUE 39%, RED 25%, LIGHT_GREY 14% | plate 35%, slope 19%, round 18%; BLUE 39%, RED 25%, LIGHT_GREY 14% |
+| top band mix | tile 70%, slope 10%; BLACK 70%, LIGHT_GREY 10% | tile 70%, slope 10%; BLACK 70%, LIGHT_GREY 10% |
 | steps, pcs/step, steps/100 pcs | 11, 4.18, 23.91 | 11, 4.18, 23.91 |
 | step vs height correlation | 0.98 | 0.98 |
 | build phases (mean height, top parts) | 0.11 plate → 0.36 plate → 0.49 plate → 0.62 plate → 0.84 tile | 0.11 plate → 0.36 plate → 0.49 plate → 0.62 plate → 0.84 tile |
-| interior / walls / roof at (progress) | – / 0.3 / 0.91 | – / 0.3 / 0.91 |
+| interior / walls / roof at (progress) | – / 0.3 / 1 | – / 0.3 / 1 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 3% (tops: tile 5%, studs 87%, slope 8%) | 3% (tops: tile 5%, studs 87%, slope 8%) |
@@ -1016,13 +1016,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 0% (interior 0% of the box) | 0% (interior 0% of the box) |
 | wall thickness | solid | solid |
-| bottom band mix | plate 86%, tile 14%; YELLOW 25%, BLACK 25%, DARK_GREY 25% | plate 86%, tile 14%; YELLOW 25%, BLACK 25%, DARK_GREY 25% |
-| middle band mix | round 35%, plate 24%, brick 21%; LIGHT_GREY 27%, BLACK 24%, YELLOW 18% | round 35%, plate 24%, brick 21%; LIGHT_GREY 27%, BLACK 24%, YELLOW 18% |
+| bottom band mix | plate 49%, brick 18%, round 16%; BLACK 24%, YELLOW 21%, LIGHT_GREY 19% | plate 49%, brick 18%, round 16%; BLACK 24%, YELLOW 21%, LIGHT_GREY 19% |
+| middle band mix | plate 45%, round 30%, special 25%; BLACK 43%, WHITE 30%, DARK_GREY 13% | plate 45%, round 30%, special 25%; BLACK 43%, WHITE 30%, DARK_GREY 13% |
 | top band mix | tile 75%; BLACK 75% | tile 75%; BLACK 75% |
 | steps, pcs/step, steps/100 pcs | 5, 4.3, 23.58 | 5, 4.3, 23.58 |
 | step vs height correlation | 0.95 | 0.95 |
 | build phases (mean height, top parts) | 0.16 plate → 0.3 plate → 0.42 plate → 0.7 round → 0.84 tile | 0.16 plate → 0.3 plate → 0.42 plate → 0.7 round → 0.84 tile |
-| interior / walls / roof at (progress) | – / 0 / 1 | – / 0 / 1 |
+| interior / walls / roof at (progress) | – / – / 1 | – / – / 1 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 10% (tops: tile 11%, studs 87%, slope 1%) | 10% (tops: tile 11%, studs 87%, slope 1%) |
@@ -1040,13 +1040,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | plate (plate 100%) | plate (plate 100%) |
 | hollow (air in envelope) | 0% (interior 0% of the box) | 0% (interior 0% of the box) |
 | wall thickness | 6 stud (1: 25%, 2: 0%, 3+: 75%) | 6 stud (1: 25%, 2: 0%, 3+: 75%) |
-| bottom band mix | plate 64%, tile 36%; WHITE 43%, LIGHT_GREY 42%, TAN 15% | plate 64%, tile 36%; WHITE 43%, LIGHT_GREY 42%, TAN 15% |
-| middle band mix | plate 57%, brick 37%, tile 5%; RED 47%, TAN 21%, YELLOW 11% | plate 57%, brick 37%, tile 5%; RED 47%, TAN 21%, YELLOW 11% |
-| top band mix | tile 57%, brick 19%, round 12%; RED 30%, WHITE 20%, DARK_RED 17% | tile 57%, brick 19%, round 12%; RED 30%, WHITE 20%, DARK_RED 17% |
+| bottom band mix | plate 48%, tile 31%, brick 19%; LIGHT_GREY 35%, WHITE 26%, TAN 21% | plate 48%, tile 31%, brick 19%; LIGHT_GREY 35%, WHITE 26%, TAN 21% |
+| middle band mix | plate 49%, brick 33%, tile 14%; RED 45%, TAN 15%, PINK 8% | plate 49%, brick 33%, tile 14%; RED 45%, TAN 15%, PINK 8% |
+| top band mix | tile 39%, plate 28%; TRANS_ORANGE 17%, BROWN 17%, RED 14% | tile 39%, plate 28%; TRANS_ORANGE 17%, BROWN 17%, RED 14% |
 | steps, pcs/step, steps/100 pcs | 8, 7.29, 13.9 | 8, 7.29, 13.9 |
 | step vs height correlation | 0.99 | 0.99 |
 | build phases (mean height, top parts) | 0.11 plate → 0.35 plate → 0.48 brick → 0.69 plate → 0.86 tile | 0.11 plate → 0.35 plate → 0.48 brick → 0.69 plate → 0.86 tile |
-| interior / walls / roof at (progress) | – / 0.38 / 0.96 | – / 0.38 / 0.96 |
+| interior / walls / roof at (progress) | – / 0.5 / 0.94 | – / 0.5 / 0.94 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 34% (tops: tile 25%, studs 73%, slope 0%) | 34% (tops: tile 25%, studs 73%, slope 0%) |
@@ -1064,13 +1064,13 @@ _Generated 2026-10-12 by `node scripts/ldraw/analyse.mjs --generated`; source: o
 | base | self (self 50%, plate 50%) | self (self 50%, plate 50%) |
 | hollow (air in envelope) | 2% (interior 0% of the box) | 2% (interior 0% of the box) |
 | wall thickness | 1 stud (1: 100%, 2: 0%, 3+: 0%) | 1 stud (1: 100%, 2: 0%, 3+: 0%) |
-| bottom band mix | plate 40%, brick 39%, round 13%; TAN 61%, GREEN 26%, LIGHT_GREY 12% | plate 40%, brick 39%, round 13%; TAN 61%, GREEN 26%, LIGHT_GREY 12% |
-| middle band mix | brick 69%, plate 14%, round 11%; TAN 84%, WHITE 13%, GREEN 1% | brick 69%, plate 14%, round 11%; TAN 84%, WHITE 13%, GREEN 1% |
-| top band mix | brick 28%, hinge 25%, plate 17%; TAN 63%, DARK_GREY 17%, GOLD 13% | brick 28%, hinge 25%, plate 17%; TAN 63%, DARK_GREY 17%, GOLD 13% |
+| bottom band mix | brick 51%, round 22%, plate 20%; TAN 66%, LIGHT_GREY 13%, WHITE 11% | brick 51%, round 22%, plate 20%; TAN 66%, LIGHT_GREY 13%, WHITE 11% |
+| middle band mix | brick 66%, plate 14%, round 8%; TAN 83%, WHITE 11%, DARK_GREY 4% | brick 66%, plate 14%, round 8%; TAN 83%, WHITE 11%, DARK_GREY 4% |
+| top band mix | hinge 25%, plate 17%, slope 17%; TAN 38%, GOLD 13%, DARK_GREY 13% | hinge 25%, plate 17%, slope 17%; TAN 38%, GOLD 13%, DARK_GREY 13% |
 | steps, pcs/step, steps/100 pcs | 10, 17.45, 6.73 | 10, 17.45, 6.73 |
 | step vs height correlation | 1 | 1 |
 | build phases (mean height, top parts) | 0.08 brick → 0.26 brick → 0.47 brick → 0.62 brick → 0.86 brick | 0.08 brick → 0.26 brick → 0.47 brick → 0.62 brick → 0.86 brick |
-| interior / walls / roof at (progress) | – / 0.43 / 0.98 | – / 0.43 / 0.98 |
+| interior / walls / roof at (progress) | – / 0.5 / 0.96 | – / 0.5 / 0.96 |
 | sub-assemblies | 0% of models, 0 per model, 0% of pieces; roles – | 0% of models, 0 per model, 0% of pieces; roles – |
 | interiors (freq, height, inside) | none | none |
 | tiled tops (tile / tile+studs) | 0% (tops: tile 1%, studs 78%, slope 14%) | 0% (tops: tile 1%, studs 78%, slope 14%) |

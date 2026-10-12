@@ -55,7 +55,7 @@
             const id = String(b.catalogId || b.partId);
             const d = P[id];
             const interior = INTERIOR_IDS[b.partId] || INTERIOR_IDS[id] || null;
-            return { cat: interior ? 'interior' : catOfDef(d), part: String(b.partId), color: b.color, fp: b.fp || null, y: (b.y || 0) / 0.4, side: sideways(b), step: b.layer || 0, sub: b.sub || 0, interior, figure: false, top: d ? topOfDef(d) : 'none' };
+            return { cat: interior ? 'interior' : catOfDef(d), part: String(b.partId), color: b.color, fp: b.fp || null, y: (b.y || 0) / 0.4, px: b.x, pz: b.z, side: sideways(b), step: b.layer || 0, sub: b.sub || 0, interior, figure: false, top: d ? topOfDef(d) : 'none' };
         });
     }
 
@@ -91,17 +91,39 @@
         const baseCov = baseCells / ((bx1 - bx0 + 1) * (bz1 - bz0 + 1));
         const onBase = baseCov >= 0.6 && grid0.length > baseParts.size + 2;
         let all = onBase ? kept.filter((b) => !baseParts.has(b)) : kept;
-        if (onBase) {
-            // What sits on a base apart from the subject itself: flat decoration (road markings, paths, tiles),
-            // i.e. face-touching groups at most 2 plates tall holding under 10% of the pieces.
-            const rest = all.filter((b) => b.fp), at = new Map(), k3 = (x, y, z) => `${x},${y},${z}`;
+        // Face-touching groups of grid parts (what stands apart from what).
+        const groupsOf = (list) => {
+            const rest = list.filter((b) => b.fp), at = new Map(), k3 = (x, y, z) => `${x},${y},${z}`;
             rest.forEach((b, i) => { const f = b.fp; for (let y = f.y0; y < f.y0 + f.hp; y++) for (let x = f.x0; x < f.x0 + f.w; x++) for (let z = f.z0; z < f.z0 + f.l; z++) at.set(k3(x, y, z), i); });
             const par = rest.map((_, i) => i), find = (a) => (par[a] === a ? a : (par[a] = find(par[a])));
             for (const [k, i] of at) { const [x, y, z] = k.split(',').map(Number); for (const [dx, dy, dz] of [[1, 0, 0], [0, 1, 0], [0, 0, 1]]) { const j = at.get(k3(x + dx, y + dy, z + dz)); if (j !== undefined) par[find(i)] = find(j); } }
             const groups = new Map(); rest.forEach((b, i) => { const r = find(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(b); });
-            const deco = new Set();
-            for (const g of groups.values()) { const lo = Math.min(...g.map((b) => b.fp.y0)), hi = Math.max(...g.map((b) => b.fp.y0 + b.fp.hp)); if (hi - lo <= 2 && g.length < 0.1 * rest.length) for (const b of g) deco.add(b); }
-            if (deco.size < rest.length) all = all.filter((b) => !deco.has(b));
+            return [...groups.values()].map((g) => ({ g, x0: Math.min(...g.map((b) => b.fp.x0)), x1: Math.max(...g.map((b) => b.fp.x0 + b.fp.w - 1)), z0: Math.min(...g.map((b) => b.fp.z0)), z1: Math.max(...g.map((b) => b.fp.z0 + b.fp.l - 1)), lo: Math.min(...g.map((b) => b.fp.y0)), hi: Math.max(...g.map((b) => b.fp.y0 + b.fp.hp)) }));
+        };
+        const groups = groupsOf(all);
+        let apart = 0;
+        if (onBase) {
+            // What sits on a base apart from the subject itself: flat decoration (road markings, paths, tiles),
+            // i.e. groups at most 2 plates tall holding under 10% of the pieces.
+            const n = groups.reduce((a, g) => a + g.g.length, 0), deco = new Set();
+            for (const g of groups) if (g.hi - g.lo <= 2 && g.g.length < 0.1 * n) for (const b of g.g) deco.add(b);
+            if (deco.size < n) all = all.filter((b) => !deco.has(b));
+        } else if (groups.length > 1) {
+            // No base: the subject is the biggest group plus whatever overlaps its footprint (a roof on off-grid
+            // hinges, a trailer hitched to it). Other vehicles, track, scenery and spare parts laid out beside
+            // the model are left out.
+            groups.sort((a, b) => b.g.length - a.g.length);
+            const box = { x0: groups[0].x0 - 1, x1: groups[0].x1 + 1, z0: groups[0].z0 - 1, z1: groups[0].z1 + 1 };
+            const keep = new Set([groups[0]]);
+            for (let grew = true; grew;) {
+                grew = false;
+                for (const g of groups) if (!keep.has(g) && g.x0 <= box.x1 && g.x1 >= box.x0 && g.z0 <= box.z1 && g.z1 >= box.z0) { keep.add(g); grew = true; box.x0 = Math.min(box.x0, g.x0 - 1); box.x1 = Math.max(box.x1, g.x1 + 1); box.z0 = Math.min(box.z0, g.z0 - 1); box.z1 = Math.max(box.z1, g.z1 + 1); }
+            }
+            const kept = new Set(); for (const g of keep) for (const b of g.g) kept.add(b);
+            const inBox = (b) => b.px == null || (b.px >= box.x0 - 1 && b.px <= box.x1 + 1 && b.pz >= box.z0 - 1 && b.pz <= box.z1 + 1);
+            const before = all.length;
+            all = all.filter((b) => (b.fp ? kept.has(b) : inBox(b)));
+            apart = before - all.length;
         }
         const grid = all.filter((b) => b.fp);
         const occ = new Map(), key = (x, y, z) => `${x},${y},${z}`;
@@ -169,6 +191,8 @@
         const wall = walls.length ? { median: wallMed, s1: r2(walls.filter((v) => v === 1).length / walls.length), s2: r2(walls.filter((v) => v === 2).length / walls.length), s3: r2(walls.filter((v) => v >= 3).length / walls.length) } : null;
 
         // Height of every part, 0 (bottom) … 1 (top), from its grid footprint or its origin.
+        // Bands go by where a part starts (its lowest plate), so the wheels and chassis plates of a low model are its bottom band.
+        const yb = (b) => { const v = b.fp ? b.fp.y0 : b.y; return H > 1 ? Math.max(0, Math.min(1, (v - y0) / H)) : 0.5; };
         const yc = (b) => { const v = b.fp ? b.fp.y0 + b.fp.hp / 2 : b.y; return H > 1 ? Math.max(0, Math.min(1, (v - y0) / H)) : 0.5; };
         const alongOf = (b) => { const f = b.fp; if (!f) return 0.5; const c = alongX ? f.x0 + f.w / 2 - x0 : f.z0 + f.l / 2 - z0; return Math.max(0, Math.min(1, c / len)); };
 
@@ -178,7 +202,7 @@
 
         // Layer recipe: bottom 15%, middle, top 20%.
         const bands = [['bottom', 0, 0.15], ['middle', 0.15, 0.8], ['top', 0.8, 1.01]].map(([name, a, b]) => {
-            const list = all.filter((p) => { const h = yc(p); return h >= a && h < b; });
+            const list = all.filter((p) => { const h = yb(p); return h >= a && h < b; });
             const c = {}; for (const p of list) c[p.cat] = (c[p.cat] || 0) + 1;
             return { band: name, share: r2(list.length / all.length), cats: shares(c, list.length), colors: colorShares(list, 4) };
         });
@@ -198,10 +222,14 @@
         const heightCorr = vp && vh ? cov / Math.sqrt(vp * vh) : 1;
         const medProg = (list) => r2(median(list.map(prog)));
         const interiorItems = all.filter((b) => b.interior);
-        const wallParts = all.filter((b) => (b.cat === 'brick' || b.cat === 'window') && yc(b) >= 0.15 && yc(b) < 0.8);
-        const roofParts = all.filter((b) => yc(b) >= 0.8);
+        const wallParts = all.filter((b) => (b.cat === 'brick' || b.cat === 'window') && yb(b) >= 0.15 && yb(b) < 0.8);
+        const roofParts = all.filter((b) => yb(b) >= 0.8);
         // Sub-assemblies: what the instructions build apart and attach (real models name them).
-        const subIds = [...new Set(all.map((b) => b.sub).filter((s) => s > 0))];
+        // The submodel holding most of the structure is the model itself (often 'main' only places submodels);
+        // every other submodel is a sub-assembly. Submodels of 1 piece are references, not assemblies.
+        const subCount = new Map(); for (const b of all) subCount.set(b.sub, (subCount.get(b.sub) || 0) + 1);
+        const primary = [...subCount.entries()].sort((a, b) => b[1] - a[1])[0][0];
+        const subIds = [...subCount.keys()].filter((s) => s !== primary && subCount.get(s) > 1);
         const subs = subIds.map((s) => {
             const list = all.filter((b) => b.sub === s);
             const pos = { h: r2(list.reduce((a, b) => a + yc(b), 0) / list.length), along: r2(list.reduce((a, b) => a + alongOf(b), 0) / list.length) };
@@ -211,7 +239,7 @@
         const buildOrder = {
             steps: stepIds.length, perStep: r2(all.length / stepIds.length), per100: r2(stepIds.length / all.length * 100), heightCorr: r2(heightCorr),
             phases, interiorAt: interiorItems.length ? medProg(interiorItems) : null, wallsAt: wallParts.length ? medProg(wallParts) : null, roofAt: roofParts.length ? medProg(roofParts) : null,
-            subShare: r2(all.filter((b) => b.sub > 0).length / all.length), subs,
+            subShare: r2(subs.reduce((a, x) => a + x.n, 0) / all.length), primary: names && names[primary] ? String(names[primary]).slice(0, 40) : null, subs,
         };
 
         // Interiors: which minifig-scale elements, how high, how far along, and whether walls surround them.
@@ -239,7 +267,7 @@
             cats: shares(c, all.length),
         };
         return {
-            pieces: all.length, figures: norm.length - kept.length, baseAndDeco: kept.length - all.length,
+            pieces: all.length, figures: norm.length - kept.length, baseAndDeco: onBase ? kept.length - all.length : 0, apart,
             proportions: { w: W, d: D, hp: H, len, wid, hb: r2(H / 3), wl: r2(wid / len), hl: r2(H / 3 / len), axis: alongX ? 'x' : 'z', base },
             hollow: { share: r2(air / (air + solid)), interior: r2(air / (W * D * H)), enclosedCols: enclosed.size, wall },
             layers: bands, buildOrder, interiors, techniques,

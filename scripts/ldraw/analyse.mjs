@@ -71,6 +71,8 @@ function classifyReal(ldId, catId, name) {
     const n = name || '';
     for (const [type, re] of INTERIOR_RE) if (re.test(n)) return { cat: 'interior', interior: type, figure: false, top: 'none' };
     if (/^(Minifig|Animal|Figure|Horse|Electric,? Minifig|Bird|Dog|Cat|Fish)\b/i.test(n) && !/Seat/i.test(n)) return { cat: 'special', interior: null, figure: true, top: 'none' };
+    // Track and road plates are the layout the model stands on, not the model: left out like the figures.
+    if (/Train Track|Track\b|Monorail|\bRails?\b|Road ?plate|Baseplate.*(Road|Curve|Crossroad|T-Junction)/i.test(n)) return { cat: 'special', interior: null, figure: true, top: 'none' };
     const d = catId ? P[catId] : null;
     if (d) return { cat: C.catOfDef(d), interior: null, figure: false, top: C.topOfDef(d) };
     let cat = 'special';
@@ -91,12 +93,12 @@ function classifyReal(ldId, catId, name) {
 /** A converted real model ("studforge-omr-1") → analysis bricks. */
 function normalizeReal(m) {
     return m.bricks.map((r) => {
-        const [pi, ci, , y] = r;
+        const [pi, ci, x, y, z] = r;
         const [ldId, catId] = m.parts[pi];
         const mat = r.slice(5, 14), step = r[14], sub = r[15];
         const fp = r[16] === null || r[16] === undefined ? null : { x0: r[16], z0: r[17], y0: r[18], w: r[19], l: r[20], hp: r[21] };
         const k = classifyReal(String(ldId), catId, ldName(String(ldId)));
-        return { cat: k.cat, part: String(ldId), color: m.colors[ci], fp, y: y / 0.4 - 0.5, side: Math.abs(mat[4]) < 0.5, step, sub, interior: k.interior, figure: k.figure, top: k.top };
+        return { cat: k.cat, part: String(ldId), color: m.colors[ci], fp, y: y / 0.4 - 0.5, px: x, pz: z, side: Math.abs(mat[4]) < 0.5, step, sub, interior: k.interior, figure: k.figure, top: k.top };
     });
 }
 
@@ -176,7 +178,7 @@ if (!GENERATED_ONLY) {
         if (!metrics) continue;
         if (!real.has(ent.subject)) real.set(ent.subject, []);
         real.get(ent.subject).push({ id: m.id, name: m.name, metrics });
-        process.stderr.write(`  ${m.id.padEnd(10)} ${ent.subject.padEnd(12)} ${metrics.pieces} pcs ${metrics.proportions.wid}x${metrics.proportions.len}x${metrics.proportions.hb} hollow ${metrics.hollow.share} tiles ${metrics.techniques.tileTop}\n`);
+        process.stderr.write(`  ${m.id.padEnd(10)} ${ent.subject.padEnd(12)} ${metrics.pieces} pcs (${metrics.apart} apart, ${metrics.baseAndDeco} base) ${metrics.proportions.base.kind} ${metrics.proportions.wid}x${metrics.proportions.len}x${metrics.proportions.hb} hollow ${metrics.hollow.share} tiles ${metrics.techniques.tileTop}\n`);
     }
 }
 const subjectIds = (GENERATED_ONLY ? Object.keys(knowledge.subjects).filter((id) => !id.startsWith('theme')) : [...real.keys()]).filter((id) => !ONLY || ONLY.has(id));
