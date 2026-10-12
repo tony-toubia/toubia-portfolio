@@ -116,14 +116,17 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
 
     /**
      * A ceiling or deck over a hollow room: plates laid across the shorter
-     * span, each one resting on a wall at an end, so nothing floats.
+     * span, each one resting on a wall at an end, so nothing floats. A span
+     * longer than two stocked plates keeps a small gap in the middle rather
+     * than a middle piece that would rest on nothing.
      */
     H.ceiling = (ctx, x0, x1, z0, z1, y, color) => {
         const { g } = ctx, LEN = [10, 8, 6, 4, 3, 2, 1];
         const alongX = (x1 - x0) <= (z1 - z0);
         const span = alongX ? x1 - x0 + 1 : z1 - z0 + 1, rows = alongX ? z1 - z0 + 1 : x1 - x0 + 1;
-        let pieces = LEN.includes(span) ? [[0, span]] : null;
-        if (!pieces) { let a = LEN.find((l) => l < span && LEN.includes(span - l)); if (a === undefined) a = 10; pieces = [[0, a], [a, span - a]]; }
+        const longest = (n) => LEN.find((l) => l <= n) || 0;
+        const left = longest(span), right = longest(span - left);
+        const pieces = right ? [[0, left], [span - right, right]] : [[0, left]];
         const one = { 1: '3024', 2: '3023', 3: '3623', 4: '3710', 6: '3666', 8: '3460', 10: '4477' }, two = { 2: '3022', 3: '3021', 4: '3020', 6: '3795', 8: '3034', 10: '3832' };
         for (let r = 0; r < rows; r += 2) {
             const dbl = r + 1 < rows;
@@ -215,8 +218,12 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
         }
     };
 
-    /** A garden around a footprint: trees in the corners, flowers at the front, a lamp. */
-    H.garden = (ctx, x0, x1, z0, z1, m, y) => {
+    /**
+     * A garden around a footprint: trees in the corners, flowers at the front, a lamp post, and a fence (3185 panels)
+     * along the front with short returns up the sides. `o.gate` is [xa, xb], the columns left open for the path;
+     * `o.fence: false` skips the fence; `o.fenceColor` defaults to white.
+     */
+    H.garden = (ctx, x0, x1, z0, z1, m, y, o = {}) => {
         const { g, P, chance } = ctx;
         g.box(x0 - m, x1 + m, z0 - m, z1 + m, y, y, P.ground);
         const feats = [];
@@ -226,7 +233,14 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
         }
         const avoid = ctx.avoidX || [];
         for (let x = x0; x <= x1; x += 2) if (chance(0.7) && !avoid.includes(x)) H.flower(ctx, x, z1 + 2, y + 1);
-        if (m >= 2) { H.lamp(ctx, x1 + m - 1, z1 + m - 1, y + 1); feats.push('a lamp post'); }
+        if (m >= 2) { H.lamp2(ctx, x1 + m - 1, z1 + m - 1, y + 1, { color: P.dark, face: 'front' }); feats.push('a lamp post'); }
+        if (o.fence !== false && m >= 2) {
+            const c = o.fenceColor || 'WHITE', zf = z1 + m, [ga, gb] = o.gate || [x0 + Math.floor((x1 - x0) / 2), x0 + Math.floor((x1 - x0) / 2) + 1];
+            H.fence(ctx, x0 - m, zf, ga - (x0 - m), 'x', y + 1, c);
+            H.fence(ctx, gb + 1, zf, x1 + m - gb, 'x', y + 1, c);
+            if (m >= 3) { H.fence(ctx, x0 - m, zf - 4, 4, 'z', y + 1, c); H.fence(ctx, x1 + m, zf - 4, 4, 'z', y + 1, c); }
+            feats.push('a picket fence with a gate');
+        }
         return feats;
     };
 
@@ -239,6 +253,8 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             const { g, P, sc, chance, pick, match, has, declare } = ctx;
             const big = ['mansion', 'villa', 'hotel', 'school', 'office', 'factory', 'warehouse', 'apartment', 'library'].includes(match);
             const tiny = ['hut', 'shack', 'cabin', 'garage', 'stable', 'greenhouse'].includes(match);
+            const shop = ['shop', 'store', 'cafe', 'coffee shop', 'bakery', 'diner', 'pub', 'tavern', 'inn', 'library', 'bookshop', 'hotel', 'motel', 'office', 'school', 'workshop'].includes(match);
+            const church = match === 'church' || match === 'chapel';
             const W = sc(big ? 12 : tiny ? 6 : 8 + (chance(0.5) ? 2 : 0));
             const D = sc(match === 'barn' ? 12 : big ? 12 : tiny ? 6 : 10 + (chance(0.4) ? 2 : 0));
             let stories = big ? (match === 'office' || match === 'apartment' || match === 'hotel' ? 3 : 2) : tiny || match === 'barn' ? 1 : (has('two-story', 'two story', '2 story', 'tall', 'two floor') || chance(0.4) ? 2 : 1);
@@ -249,39 +265,78 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             stories = Math.max(1, Math.min(3, parseInt(declare({ id: 'stories', label: 'Stories', type: 'choice', choices: ['1', '2', '3'], default: String(stories) }), 10) || stories));
             const chimney = declare({ id: 'chimney', label: 'Chimney', type: 'bool', default: true });
             const garden = declare({ id: 'garden', label: 'Garden', type: 'bool', default: true });
-            const SH = 7, m = 3;   // six plates of wall and a ceiling
-            const doorX = Math.floor(W / 2) - 1;
-            ctx.avoidX = [doorX - 1, doorX, doorX + 1, doorX + 2];
+            // A real 1x4x6 door frame wants an eight-stud front and a six-brick ground floor; smaller houses get a
+            // two-stud doorway under a 1x4 arch and three-brick floors. Churches always arch.
+            const realDoor = W >= 8 && !church && !tiny;
+            const GH = realDoor ? (shop ? 21 : 18) : church ? 18 : 9;   // ground-floor wall, in plates (a shop keeps a sign band over its door)
+            const UH = realDoor || church ? 12 : 9;                     // upper floors
+            const tallWin = shop || ctx.minifig || ctx.S >= 1.5;   // 1x2x3 windows where the wall has the height
+            const m = 3;
+            const doorX = Math.floor(W / 2) - 2;            // the four-stud door (or arch) span starts here
+            ctx.avoidX = [doorX, doorX + 1, doorX + 2, doorX + 3];
+            const fenceColor = ctx.style === 'haunted' || ctx.style === 'cyberpunk' ? 'BLACK' : 'WHITE';
             let feats = [];
-            if (garden) feats = H.garden(ctx, 0, W - 1, 0, D - 1, m, 0);
+            if (garden) feats = H.garden(ctx, 0, W - 1, 0, D - 1, m, 0, { gate: [doorX + 1, doorX + 2], fenceColor });
             else g.box(-1, W, -1, D - 1 + m, 0, 0, P.ground);   // just a lawn under the house and its path
             const wall = match === 'greenhouse' ? P.glass : match === 'barn' ? 'DARK_RED' : P.primary;
             const timber = ctx.style === 'cozy' || ctx.style === 'medieval' || match === 'cabin' || match === 'chalet' || match === 'lodge';
+            const frame = timber ? P.wood : P.trim === wall ? P.dark : P.trim;   // window frames and the door frame
+            const doorColor = match === 'barn' ? 'WHITE' : P.accent === wall ? P.wood : P.accent;
+            const glass = match === 'greenhouse' ? null : P.glass;
+            // Windows in the local frames of the four faces (the module's origin is the first cell along its own u axis).
+            const win = (x, z, y, face, size) => { if (!glass) return; const [ox, oz] = face === 'back' ? [x + 1, z] : face === 'right' ? [x, z + 1] : [x, z]; H.realWindow(ctx, ox, oz, y, { size, face, frameColor: frame, glassColor: glass }); };
+            const arched = (x, z, y, face) => { const [ox, oz] = face === 'back' ? [x + 3, z] : face === 'right' ? [x, z + 3] : [x, z]; H.archWindow(ctx, ox, oz, y, { width: 4, height: 3, color: frame, glass: P.glass, face }); };
+            const balcony = realDoor && stories >= 2 && !shop && (big || chance(0.5));
             // Stone footing, then the walls story by story.
             g.box(0, W - 1, 0, D - 1, 1, 1, P.dark, { noBrick: true });
+            let y0 = 2;
             for (let s = 0; s < stories; s++) {
-                const y0 = 2 + s * SH;
-                g.shell(0, W - 1, 0, D - 1, y0, y0 + SH - 2, wall);
-                H.ceiling(ctx, 0, W - 1, 0, D - 1, y0 + SH - 1, timber || s < stories - 1 ? P.trim : wall);
-                if (timber) for (const [x, z] of [[0, 0], [W - 1, 0], [0, D - 1], [W - 1, D - 1]]) g.box(x, x, z, z, y0, y0 + SH - 2, P.wood);
-                // Windows: front and back every three studs, sides every three, skipping the door.
-                for (let x = 1; x + 1 <= W - 2; x += 3) {
-                    if (s === 0 && x + 1 >= doorX && x <= doorX + 1) continue;
-                    H.window(ctx, x, D - 1, y0 + 2, 'front'); H.window(ctx, x, 0, y0 + 2, 'back');
+                const h = s === 0 ? GH : UH;
+                if (s === 1 && balcony) {
+                    // A balcony over the door: inverted slopes under a cross-bonded slab that the upper wall then stands on, railed.
+                    H.overhang(ctx, doorX, D, y0 - 3, { width: 4, color: wall, face: 'front' });
+                    H.slab(ctx, doorX, doorX + 3, D - 1, D + 1, y0, P.trim);
+                    H.fence(ctx, doorX, D + 1, 4, 'x', y0 + 2, fenceColor);
+                    feats.push('a railed balcony on inverted slopes');
                 }
-                for (let z = 2; z + 1 <= D - 3; z += 3) { H.window(ctx, 0, z, y0 + 2, 'left'); H.window(ctx, W - 1, z, y0 + 2, 'right'); }
+                g.shell(0, W - 1, 0, D - 1, y0, y0 + h - 1, wall);
+                H.ceiling(ctx, 0, W - 1, 0, D - 1, y0 + h, timber || s < stories - 1 ? P.trim : wall);
+                if (timber) for (const [x, z] of [[0, 0], [W - 1, 0], [0, D - 1], [W - 1, D - 1]]) g.box(x, x, z, z, y0, y0 + h - 2, P.wood);
+                // Windows: every three studs on each face, two bricks up on the tall ground floor, skipping the door span.
+                const size = tallWin && (s === 0 ? h >= 12 : h >= 11) ? '1x2x3' : '1x2x2';
+                const wh = size === '1x2x3' ? 9 : 6;
+                const wy = y0 + (h >= 18 ? (h === 21 ? 6 : 4 + (wh === 6 ? 2 : 0)) : Math.max(s === 1 && balcony ? 2 : 1, Math.floor((h - wh) / 2)));   // the balcony story's windows sit on its slab
+                if (church) {
+                    for (let x = 1; x + 3 <= W - 2; x += 5) { if (s === 0 && x + 3 >= doorX && x <= doorX + 3) continue; arched(x, D - 1, y0 + 6, 'front'); arched(x, 0, y0 + 6, 'back'); }
+                    for (let z = 2; z + 3 <= D - 3; z += 5) { arched(0, z, y0 + 6, 'left'); arched(W - 1, z, y0 + 6, 'right'); }
+                } else {
+                    const segs = s === 0 ? [[1, doorX - 1], [doorX + 4, W - 2]] : [[1, W - 2]];
+                    for (const [a, b] of segs) {
+                        if (b - a + 1 < 2) continue;
+                        if (shop && s === 0 && b - a + 1 >= 4) { win(a + Math.floor((b - a + 1 - 4) / 2), D - 1, wy, 'front', '1x4x3'); win(a + Math.floor((b - a + 1 - 4) / 2), 0, wy, 'back', '1x4x3'); continue; }
+                        for (let x = a; x + 1 <= b; x += 3) { win(x, D - 1, wy, 'front', size); win(x, 0, wy, 'back', size); }
+                    }
+                    for (let z = 2; z + 1 <= D - 3; z += 3) { win(0, z, wy, 'left', size); win(W - 1, z, wy, 'right', size); }
+                }
                 if (s === 0) {
-                    // The door, with a step and a path to the garden's edge.
-                    g.clear(doorX, doorX + 1, D - 1, D - 1, y0, y0 + 4);
-                    g.box(doorX, doorX + 1, D - 1, D - 1, y0, y0 + 4, match === 'barn' ? 'DARK_RED' : P.wood);
-                    g.box(doorX, doorX + 1, D, D, 1, 1, P.dark, { noBrick: true });
-                    for (let z = D + 1; z <= D - 1 + m; z++) g.part('3069', P.trim, doorX, z, 1, { rotY: PI / 2 });
+                    // The door: a frame with its door, or an arched doorway, with a step and a path to the garden's edge.
+                    if (realDoor) H.realDoor(ctx, doorX, D - 1, y0, { face: 'front', frameColor: frame, doorColor });
+                    else H.archDoor(ctx, doorX, D - 1, y0, { width: 4, height: church ? 9 : 6, color: church ? frame : wall, face: 'front' });
+                    g.box(doorX + 1, doorX + 2, D, D, 1, 1, P.dark, { noBrick: true });
+                    for (let z = D + 1; z <= D - 1 + m; z++) g.part('3069', P.trim, doorX + 1, z, 1, { rotY: PI / 2 });
+                    // A sign on a bracket over a shop door; a porch light (a trans tile on a bracket) beside a front door.
+                    if (shop && realDoor) { H.bracketMount(ctx, doorX + 1, D - 1, y0 + 19, { face: 'front', color: wall, part: '3069', partColor: P.accent === wall ? P.trim : P.accent }); feats.push('a bracket-mounted shop sign'); }
+                    else if (realDoor && doorX + 5 <= W - 1) { H.bracketMount(ctx, doorX + 4, D - 1, y0 + 15, { face: 'front', color: wall, part: '3069', partColor: P.light || 'TRANS_ORANGE' }); feats.push('a porch light on a bracket'); }
                 }
+                y0 += h + 1;
             }
-            const top = 2 + stories * SH;
+            const top = y0;
             let roofDesc;
-            if (flat) { H.flatRoof(ctx, 0, W - 1, 0, D - 1, top, P.roof === 'DARK_RED' ? P.dark : P.roof); roofDesc = 'a flat roof with rooftop plant'; }
-            else {
+            if (flat) {
+                H.flatRoof(ctx, 0, W - 1, 0, D - 1, top, P.roof === 'DARK_RED' ? P.dark : P.roof);
+                H.roundCorners(ctx, 0, W - 1, 0, D - 1, top + 1, P.roof === 'DARK_RED' ? P.dark : P.roof);   // quarter-round tiles soften the parapet
+                roofDesc = 'a flat roof with rounded corners and a rooftop plant';
+            } else {
                 g.box(-1, W, -1, D, top, top, P.roof, { noBrick: true });   // eaves
                 const axis = W >= D ? 'x' : 'z';
                 const r = H.gableRoof(ctx, -1, W, -1, D, top + 1, P.roof, axis);
@@ -293,15 +348,21 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 }
                 roofDesc = `a pitched ${window.LEGO_COLORS[P.roof].name.toLowerCase()} roof${chimney ? ' and a chimney' : ''}`;
             }
-            if (match === 'church' || match === 'chapel') {
-                // A bell tower at the back corner.
-                g.shell(W, W + 3, -3, 0, 2, 2 + 6 * 4 - 1, wall); H.ceiling(ctx, W, W + 3, -3, 0, 2 + 6 * 4, wall);
-                H.gableRoof(ctx, W, W + 3, -3, 0, 2 + 6 * 4 + 1, P.roof, 'x');
-                g.part('59900', 'GOLD', W + 1, -2, 2 + 6 * 4 + 4);
-                feats.push('a bell tower');
+            if (church) {
+                // A bell tower at the back corner with arched windows and a gold cross.
+                const TH = 2 + 6 * 4;
+                const bx = W + 1;   // a stud clear of the nave's eaves
+                g.box(bx, bx + 3, -3, 0, 0, 0, P.ground); g.box(bx, bx + 3, -3, 0, 1, 1, P.dark, { noBrick: true });   // its own ground and footing
+                g.shell(bx, bx + 3, -3, 0, 2, TH - 1, wall); H.ceiling(ctx, bx, bx + 3, -3, 0, TH, wall);
+                for (const y of [8, 17]) H.archWindow(ctx, bx, 0, y, { width: 4, height: 3, color: frame, glass: P.glass, face: 'front' });
+                H.gableRoof(ctx, bx, bx + 3, -3, 0, TH + 1, P.roof, 'x');
+                g.part('59900', 'GOLD', bx + 1, -2, TH + 4);
+                feats.push('a bell tower with arched windows');
             }
             const names = { barn: 'Red Barn', cabin: 'Log Cabin', cottage: 'Cottage', villa: 'Villa', mansion: 'Manor House', hut: 'Hut', shack: 'Shack', cafe: 'Corner Café', 'coffee shop': 'Coffee Shop', bakery: 'Bakery', pub: 'Village Pub', tavern: 'Tavern', inn: 'Roadside Inn', church: 'Chapel', chapel: 'Chapel', office: 'Office Block', hotel: 'Boutique Hotel', library: 'Library', greenhouse: 'Greenhouse', garage: 'Garage', chalet: 'Chalet', lodge: 'Lodge', farmhouse: 'Farmhouse', treehouse: 'Treehouse', 'tree house': 'Treehouse', warehouse: 'Warehouse', factory: 'Factory', school: 'Schoolhouse' };
-            return { title: names[match] || 'House', features: [`${stories === 1 ? 'a single story' : stories + ' stories'} of ${window.LEGO_COLORS[wall].name.toLowerCase()} walls`, roofDesc, 'a front door and path', ...feats] };
+            const doorDesc = realDoor ? 'a front door in its frame' : church ? 'an arched doorway' : 'an arched front door';
+            const winDesc = church ? 'arched windows' : glass ? `${tallWin ? 'tall ' : ''}windows with glass panes` : 'glass walls';
+            return { title: names[match] || 'House', features: [`${stories === 1 ? 'a single story' : stories + ' stories'} of ${window.LEGO_COLORS[wall].name.toLowerCase()} walls`, roofDesc, `${doorDesc}, ${winDesc} and a path`, ...feats] };
         }
     });
 
@@ -318,7 +379,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             const tallTowers = declare({ id: 'towers', label: 'Towers', type: 'choice', choices: ['standard', 'tall'], default: 'standard' }) === 'tall';
             const banner = declare({ id: 'flag', label: 'Banner', type: 'bool', default: true });
             g.box(-3, W + 2, -3, D + 2, 0, 0, moat ? P.water : P.ground);
-            if (moat) { g.box(-1, W, -1, D, 1, 1, P.ground); g.part('3020', P.wood, Math.floor(W / 2) - 1, D + 1, 1, { rotY: PI / 2 }); }
+            if (moat) g.box(-1, W, -1, D, 1, 1, P.ground);
             const base = moat ? 2 : 1;
             const wallH = 9, towerH = tallTowers ? 7 : 5;
             // Corner towers of round 2x2 bricks.
@@ -332,23 +393,32 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             // Curtain walls between the towers, hollow inside.
             g.shell(1, W - 2, 1, D - 2, base, base + wallH - 1, stone);
             H.crenellate(ctx, 1, W - 2, 1, D - 2, base + wallH, stone);
-            // Gatehouse: an opening in the front wall, a lintel brick across it, torches either side.
-            const gx = Math.floor(W / 2) - 1;
-            g.clear(gx, gx + 1, D - 2, D - 2, base, base + 5);
-            g.part('3010', dark, gx - 1, D - 2, base + 6, { rotY: PI / 2 });
-            for (const x of [gx - 2, gx + 3]) { g.part('3005', dark, x, D - 1, base); g.part('3062', 'TRANS_ORANGE', x, D - 1, base + 3); }
-            for (const x of [gx - 3, gx + 4]) if (x > 1 && x < W - 2) g.part('54200', P.accent, x, D - 2, base + wallH);   // clear of the corner towers
+            // Gatehouse: a 1x4 (or, on a wide front, 1x6) arch across the opening in the front wall, torches either side,
+            // pennants on the parapet.
+            const gw = W >= 18 ? 6 : 4, gx = Math.floor(W / 2) - gw / 2;
+            H.archDoor(ctx, gx, D - 2, base, { width: gw, height: 6, color: dark, face: 'front' });
+            for (const x of [gx - 1, gx + gw]) if (x > 1 && x < W - 2) { g.part('3005', dark, x, D - 1, base); g.part('3062', 'TRANS_ORANGE', x, D - 1, base + 3); }   // clear of the corner towers
+            for (const x of [gx - 2, gx + gw + 1]) if (x > 1 && x < W - 2) g.part('54200', P.accent, x, D - 2, base + wallH);   // clear of the corner towers
+            if (moat) {
+                // The drawbridge, lowered: locking hinge plates on the island's edge carry a plate deck across the water.
+                for (let x = gx + 1; x <= gx + gw - 2; x++) {
+                    g.part('44302', P.wood, x, D - 1, 1, { w: 1, l: 2 });
+                    g.part('44301', P.wood, x, D + 1, 1, { w: 1, l: 2, links: [[x, 1, D]] });
+                }
+                if (gw === 4) g.part('3022', P.wood, gx + 1, D + 1, 2); else g.part('3020', P.wood, gx + 1, D + 1, 2, { rotY: PI / 2, w: 4, l: 2 });
+            }
             // Courtyard path and the keep.
-            for (let z = Math.floor(D / 2) + 2; z <= D - 3; z += 2) g.part('3069', 'TAN', gx, z, base);
+            const cx = gx + gw / 2 - 1;
+            for (let z = Math.floor(D / 2) + 2; z <= D - 3; z += 2) g.part('3069', 'TAN', cx, z, base);
             const kx = Math.floor(W / 2) - 2, kz = Math.floor(D / 2) - 2, keepH = 18;
             g.shell(kx, kx + 3, kz, kz + 3, base, base + keepH - 1, stone);
             H.ceiling(ctx, kx, kx + 3, kz, kz + 3, base + keepH, dark);
             H.crenellate(ctx, kx, kx + 3, kz, kz + 3, base + keepH + 1, stone);
-            H.window(ctx, kx + 1, kz + 3, base + 7, 'front', 'TRANS_ORANGE'); H.window(ctx, kx + 1, kz + 3, base + 13, 'front', 'TRANS_ORANGE');
-            if (banner) H.flag(ctx, kx + 1, kz + 1, base + keepH + 1, P.accent);
+            for (const y of [base + 6, base + 12]) H.archWindow(ctx, kx, kz + 3, y, { width: 4, height: 3, color: dark, glass: 'TRANS_ORANGE', face: 'front' });
+            if (banner) H.flagPole(ctx, kx + 1, kz + 1, base + keepH + 1, { height: 3, flag: P.accent });
             // A well and a tree in the courtyard.
             if (W >= 14) { g.part('3941', stone, 2, D - 5, base); g.part('4032', P.water, 2, D - 5, base + 3); H.tree(ctx, W - 4, 3, base, 'round'); }
-            return { title: ctx.match === 'palace' ? 'Royal Palace' : 'Castle', features: [`four ${tallTowers ? 'tall ' : ''}round corner towers`, 'crenellated curtain walls', 'a gatehouse with torches', banner ? 'a central keep flying a banner' : 'a central keep', moat ? 'a moat and drawbridge' : 'a courtyard well'] };
+            return { title: ctx.match === 'palace' ? 'Royal Palace' : 'Castle', features: [`four ${tallTowers ? 'tall ' : ''}round corner towers`, 'crenellated curtain walls', 'an arched gatehouse with torches', banner ? 'a keep with arched windows flying a banner' : 'a keep with arched windows', moat ? 'a moat and a hinged drawbridge' : 'a courtyard well'] };
         }
     });
 
@@ -374,11 +444,16 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 g.part('3941', 'TRANS_CLEAR', 0, 0, yG + 1);
                 g.part('3022', 'BLACK', 0, 0, yG + 4);
                 g.part('3942', c1, 0, 0, yG + 5);
-                // Keeper's cottage on the shelf, and a little boat.
-                if (cottage) { g.shell(3, 5, -1, 1, 2, 7, 'WHITE'); H.window(ctx, 4, 1, 4, 'front'); H.gableRoof(ctx, 3, 5, -1, 1, 8, 'DARK_RED', 'z'); }
+                // Keeper's cottage on the shelf: three bricks of wall, an arched doorway, a real window on the sea side.
+                if (cottage) {
+                    g.shell(3, 5, -1, 1, 2, 10, 'WHITE');
+                    H.archDoor(ctx, 3, 1, 2, { width: 3, height: 3, color: 'DARK_GREY', face: 'front' });
+                    H.realWindow(ctx, 5, 0, 3, { size: '1x2x2', face: 'right', frameColor: 'DARK_GREY', glassColor: P.glass });
+                    H.gableRoof(ctx, 3, 5, -1, 1, 11, 'DARK_RED', 'z');
+                }
                 g.part('3020', P.accent, -R - 1, R - 1, 1); g.part('3004', 'WHITE', -R, R - 1, 2, { rotY: 0 });
                 feats.push(`${bands} banded tiers`, 'a railed gallery and glass lantern room');
-                if (cottage) feats.push("a keeper's cottage on the rocks");
+                if (cottage) feats.push("a keeper's cottage with an arched door");
                 feats.push('a rowing boat');
                 return { title: 'Lighthouse on a Rocky Shore', features: feats };
             }
@@ -390,7 +465,8 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 let y = 3;
                 for (let t = 0; t < tiers; t++) {
                     g.shell(0, 3, 0, 3, y, y + 5, 'WHITE');
-                    if (t === 0) g.box(1, 2, 3, 3, y, y + 4, P.wood); else H.window(ctx, 1, 3, y + 2, 'front', 'TRANS_ORANGE');
+                    if (t === 0) H.archDoor(ctx, 0, 3, y, { width: 4, height: 3, color: P.wood, face: 'front' });
+                    else H.realWindow(ctx, 1, 3, y, { size: '1x2x2', face: 'front', frameColor: P.wood, glassColor: 'TRANS_ORANGE' });
                     // Ceiling, then eave plates one up that overlap the tier's edge and overhang it.
                     H.ceiling(ctx, 0, 3, 0, 3, y + 6, P.roof);
                     g.part('3795', P.roof, -1, -1, y + 7, { rotY: PI / 2, w: 6, l: 2 }); g.part('3795', P.roof, -1, 3, y + 7, { rotY: PI / 2, w: 6, l: 2 });
@@ -402,39 +478,56 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 g.box(1, 2, 1, 2, y, y, 'GOLD', { noBrick: true });
                 g.part('3062', 'GOLD', 1, 1, y + 1); g.part('59900', 'GOLD', 1, 1, y + 4);
                 H.tree(ctx, -3, 5, 1, 'round'); g.part('3005', 'LIGHT_GREY', 6, -3, 1); g.part('4073', 'TRANS_ORANGE', 6, -3, 4);
-                return { title: 'Pagoda Shrine', features: [`${tiers} tiers with sweeping ${window.LEGO_COLORS[P.roof].name.toLowerCase()} eaves`, 'a gold finial', 'a stone plinth with steps', 'a garden lantern and tree'] };
+                return { title: 'Pagoda Shrine', features: [`${tiers} tiers with sweeping ${window.LEGO_COLORS[P.roof].name.toLowerCase()} eaves`, 'an arched doorway and real windows', 'a gold finial', 'a stone plinth with steps', 'a garden lantern and tree'] };
             }
             if (match === 'windmill') {
                 g.box(-4, 9, -4, 9, 0, 0, P.ground);
                 g.shell(0, 5, 0, 5, 1, 6, P.primary); H.ceiling(ctx, 0, 5, 0, 5, 7, P.primary); g.shell(1, 4, 1, 4, 8, 15, P.primary);
-                g.box(1, 2, 5, 5, 1, 5, P.wood); H.window(ctx, 2, 4, 9, 'front');
+                H.archDoor(ctx, 2, 5, 1, { width: 4, height: 3, color: P.wood, face: 'front' });   // the sail passes the door's left jamb, not its opening
+                H.realWindow(ctx, 4, 3, 9, { size: '1x2x2', face: 'right', frameColor: P.wood, glassColor: P.glass });   // on the side, clear of the sail axle
                 g.box(1, 4, 1, 4, 16, 16, P.roof, { noBrick: true }); g.box(2, 3, 2, 3, 17, 17, P.roof, { noBrick: true }); g.part('3942', P.roof, 2, 2, 18);
-                // Sails: a mast in front, a horizontal plate and a vertical column crossing at the hub.
-                const mx = 2, mz = 6;
-                for (let i = 0; i < 4; i++) g.part('3062', P.wood, mx, mz, 1 + i * 3);
-                g.part('3460', P.wood, mx - 3, mz, 13, { rotY: PI / 2 });
-                g.part('3070', P.accent, mx - 3, mz, 14); g.part('3070', P.accent, mx + 4, mz, 14);
-                g.box(mx, mx, mz, mz, 14, 22, P.wood);
-                g.part('54200', P.accent, mx, mz, 23);
+                // Sails on an axle: a Technic brick in the upper wall, a pin through it, two crossed 1x8 plates standing on the
+                // pin (the vertical arm carries the horizontal one), so the cross can turn. Footprints stay upright and
+                // axis-aligned (a stud is 2.5 plates, so an 8-stud arm is 20 plates tall); the render shifts only pull the
+                // arms toward the pin and centre the cross on it.
+                g.part('3700', P.wood, 2, 4, 11, { rotY: PI / 2, w: 2, l: 1 });
+                g.part('2780', 'DARK_GREY', 2, 5, 12, { w: 1, l: 1, hp: 1, links: [[2, 12, 4]] });
+                const hub = 12.5 * 0.4;   // the pin's centre, in units
+                g.part('3460', P.wood, 2, 6, 3, { rotX: PI / 2, lie: true, w: 1, l: 1, hp: 20, dz: -0.5, dy: (hub - 0.48) / 0.4 - 3, links: [[2, 12, 5]] });
+                g.part('3460', P.wood, -1, 7, 11, { rotY: PI / 2, rotX: PI / 2, lie: true, w: 8, l: 1, hp: 3, dx: -0.5, dz: -1, dy: (hub - (11 * 0.4 + 0.48)) / 0.4, links: [[2, 12, 6]] });
                 H.flower(ctx, -2, 7, 1); H.flower(ctx, 7, 7, 1); H.tree(ctx, 8, -3, 1);
-                return { title: 'Windmill', features: ['a tapered two-stage tower', 'four timber sails on a mast', 'a conical cap', 'a cottage door and window'] };
+                return { title: 'Windmill', features: ['a tapered two-stage tower', 'four timber sails on a pin axle', 'a conical cap', 'an arched door and a real window'] };
             }
             if (match === 'skyscraper' || match === 'tall building' || match === 'high-rise' || match === 'highrise' || match === 'office tower') {
                 const W = sc(8);
                 g.box(-3, W + 2, -3, W + 2, 0, 0, 'DARK_GREY');
                 for (let x = 0; x <= W - 2; x += 2) { g.part('3069', 'LIGHT_GREY', x, -2, 1); g.part('3069', 'LIGHT_GREY', x, W + 1, 1); }
-                const tiers = [[0, W - 1, 7], [1, W - 2, 6], [2, W - 3, 5]].filter((t) => t[1] - t[0] >= 2);
-                let y = 1;
-                for (const [a, b, rows] of tiers) {
-                    for (let r = 0; r < rows; r++) { g.shell(a, b, a, b, y, y + 2, r % 2 ? P.glass : P.primary); y += 3; }
+                const tiers = [[0, W - 1, 3], [1, W - 2, 2], [2, W - 3, 2]].filter((t) => t[1] - t[0] >= 2);
+                const frame = P.trim === P.primary ? P.dark : P.trim;
+                let y = 1, floors = 0;
+                for (const [a, b, n] of tiers) {
+                    // Three-brick floors with 1x2x3 windows every three studs on all four faces, a ceiling slab and
+                    // quarter-round tiles on the corners of each setback.
+                    for (let f = 0; f < n; f++) {
+                        g.shell(a, b, a, b, y, y + 8, P.primary);
+                        for (let u = a + 1; u + 1 <= b - 1; u += 3) {
+                            H.realWindow(ctx, u, b, y, { size: '1x2x3', face: 'front', frameColor: frame, glassColor: P.glass });
+                            H.realWindow(ctx, u + 1, a, y, { size: '1x2x3', face: 'back', frameColor: frame, glassColor: P.glass });
+                            H.realWindow(ctx, a, u, y, { size: '1x2x3', face: 'left', frameColor: frame, glassColor: P.glass });
+                            H.realWindow(ctx, b, u + 1, y, { size: '1x2x3', face: 'right', frameColor: frame, glassColor: P.glass });
+                        }
+                        y += 9; floors++;
+                    }
                     H.ceiling(ctx, a, b, a, b, y, P.dark); y += 1;
+                    H.roundCorners(ctx, a, b, a, b, y, P.dark);
                 }
-                const last = tiers[tiers.length - 1];
-                g.part('3957', P.metal, Math.floor((last[0] + last[1]) / 2), Math.floor((last[0] + last[1]) / 2), y);
-                for (const [x, z] of [[last[0], last[0]], [last[1], last[1]]]) g.part('98138', 'TRANS_RED', x, z, y);
-                H.tree(ctx, -2, W + 1, 1); H.tree(ctx, W + 1, -2, 1); H.lamp(ctx, W + 1, W + 1, 1);
+                const [a, b] = tiers[tiers.length - 1];
+                H.dish(ctx, a + 1, a + 1, y, { size: 2, color: P.metal });
+                if (b - a >= 4) g.part('3957', P.metal, b - 1, b - 1, y);   // clear of the dish on a narrow top
+                if (b - a >= 3) { g.part('98138', 'TRANS_RED', a + 1, b - 1, y); g.part('98138', 'TRANS_RED', b - 1, a + 1, y); }
+                H.tree(ctx, -2, W + 1, 1); H.tree(ctx, W + 1, -2, 1); H.lamp2(ctx, W + 1, W + 1, 1, { color: P.dark, face: 'front' });
                 g.part('3941', 'LIGHT_GREY', -2, -2, 1); g.part('4032', P.water, -2, -2, 4);
-                return { title: 'Skyscraper', features: [`${tiers.length} stepped setbacks`, 'alternating glass curtain-wall bands', 'a rooftop antenna with beacons', 'a plaza with trees and a fountain'] };
+                return { title: 'Skyscraper', features: [`${tiers.length} stepped setbacks`, `${floors} floors of real windows with glass`, 'rounded parapet corners', 'a rooftop dish, antenna and beacons', 'a plaza with trees, a lamp and a fountain'] };
             }
             if (match === 'water tower') {
                 g.box(-3, 6, -3, 6, 0, 0, P.ground);
@@ -461,28 +554,30 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 g.shell(2, 5, 2, 5, 20, 28, iron); H.ceiling(ctx, 2, 5, 2, 5, 29, iron);
                 g.box(3, 4, 3, 4, 30, 35, iron); g.part('3022', iron, 3, 3, 36); g.part('3957', P.metal, 3, 3, 37);
                 g.part('98138', 'TRANS_RED', 4, 4, 37);
-                H.tree(ctx, -4, 10, 1); H.tree(ctx, 10, -4, 1, 'pine'); H.lamp(ctx, 10, 10, 1);
-                return { title: match === 'radio tower' ? 'Radio Mast' : 'Iron Lattice Tower', features: ['four splayed legs', 'three observation decks', 'a tapering lattice spire', 'a beacon and antenna'] };
+                if (match === 'radio tower') { H.dish(ctx, 4, 3, 37, { size: 2, color: P.metal }); feats.push('a radar dish on the mast'); }
+                H.tree(ctx, -4, 10, 1); H.tree(ctx, 10, -4, 1, 'pine'); H.lamp2(ctx, 10, 10, 1, { color: P.dark, face: 'front' });
+                return { title: match === 'radio tower' ? 'Radio Mast' : 'Iron Lattice Tower', features: ['four splayed legs', 'three observation decks', 'a tapering lattice spire', 'a beacon and antenna', ...feats] };
             }
             // Generic stone tower: a watchtower, clock tower or bell tower.
             const clock = match === 'clock tower' || match === 'big ben', bell = match === 'bell tower' || match === 'minaret';
-            const Hb = sc(6);
+            const Hb = sc(6), stone = P.primary === 'RED' ? 'LIGHT_GREY' : P.primary;
             g.box(-3, 6, -3, 6, 0, 0, P.ground);
-            g.shell(0, 3, 0, 3, 1, Hb * 3, P.primary === 'RED' ? 'LIGHT_GREY' : P.primary);
-            g.box(1, 2, 3, 3, 1, 5, P.wood);
-            for (let i = 1; i < Hb; i += 2) H.window(ctx, 1, 3, 1 + i * 3, 'front', 'TRANS_BLUE');
+            g.shell(0, 3, 0, 3, 1, Hb * 3, stone);
+            // An arched doorway at the foot, arched windows every three bricks above it.
+            H.archDoor(ctx, 0, 3, 1, { width: 4, height: 6, color: P.dark, face: 'front' });
+            for (let yy = 13; yy + 6 <= Hb * 3 + 1; yy += 9) H.archWindow(ctx, 0, 3, yy, { width: 4, height: 3, color: P.dark, glass: 'TRANS_BLUE', face: 'front' });
             const yT = Hb * 3 + 1;
             H.slab(ctx, -1, 4, -1, 4, yT, clock || bell ? 'DARK_GREY' : P.wood);   // the overhanging top stage stands on one locked slab
             if (clock) { g.shell(-1, 4, -1, 4, yT + 2, yT + 6, 'DARK_GREY'); H.ceiling(ctx, -1, 4, -1, 4, yT + 7, 'DARK_GREY'); g.part('14769', 'WHITE', 1, 1, yT + 8); H.gableRoof(ctx, -1, 4, -1, 4, yT + 9, P.roof, 'x'); feats.push('a four-faced clock stage', 'a steep spire roof'); }
             else if (bell) { for (const [x, z] of [[-1, -1], [4, -1], [-1, 4], [4, 4]]) g.box(x, x, z, z, yT + 2, yT + 6, P.dark); H.ceiling(ctx, -1, 4, -1, 4, yT + 7, P.roof); g.part('59900', 'GOLD', 1, 1, yT + 2); g.part('3942', P.roof, 1, 1, yT + 8); feats.push('an open belfry with a gold bell', 'a conical roof'); }
             else {
                 const banner = declare({ id: 'flag', label: 'Banner', type: 'bool', default: true });
-                H.crenellate(ctx, -1, 4, -1, 4, yT + 2, P.primary === 'RED' ? 'LIGHT_GREY' : P.primary);
-                if (banner) H.flag(ctx, 1, 1, yT + 2, P.accent);
-                feats.push('an overhanging timber platform', banner ? 'crenellations and a banner' : 'crenellations');
+                H.crenellate(ctx, -1, 4, -1, 4, yT + 2, stone);
+                if (banner) H.flagPole(ctx, 1, 1, yT + 2, { height: 2, flag: P.accent });
+                feats.push('an overhanging timber platform', banner ? 'crenellations and a flag on a bar pole' : 'crenellations');
             }
             H.tree(ctx, -2, 5, 1, 'pine');
-            return { title: clock ? 'Clock Tower' : bell ? 'Bell Tower' : 'Watchtower', features: [`a ${Hb}-brick stone shaft`, ...feats] };
+            return { title: clock ? 'Clock Tower' : bell ? 'Bell Tower' : 'Watchtower', features: [`a ${Hb}-brick stone shaft`, 'an arched doorway and windows', ...feats] };
         }
     });
 
@@ -490,7 +585,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
         kind: 'monument', category: 'Architecture', icon: '🏛️',
         keys: ['pyramid', 'temple', 'bridge', 'arch', 'gate', 'fountain', 'statue', 'monument', 'colosseum', 'stadium', 'amphitheatre', 'ruins', 'ziggurat', 'tomb', 'mausoleum', 'parthenon', 'acropolis'],
         build(ctx) {
-            const { g, P, sc, match } = ctx;
+            const { g, P, sc, match, has } = ctx;
             if (match === 'pyramid' || match === 'ziggurat' || match === 'tomb') {
                 const N = sc(10);
                 g.box(-3, N + 2, -3, N + 2, 0, 0, 'TAN');
@@ -502,21 +597,40 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 H.tree(ctx, N + 1, -2, 1, 'round');
                 return { title: match === 'pyramid' ? 'Great Pyramid' : 'Ziggurat', features: [`${Math.ceil(N / 2)} stepped tiers`, 'a gold capstone', 'a sandstone entrance'] };
             }
-            if (match === 'bridge') {
+            if (match === 'bridge' && has('suspension')) {
                 const L = sc(16);
                 g.box(-2, L + 1, -4, 5, 0, 0, P.water);
                 for (const x of [0, L - 2]) { g.box(x - 1, x + 2, -2, 3, 1, 2, 'DARK_GREY'); g.shell(x, x + 1, -1, 2, 3, 14, P.primary); g.box(x, x + 1, -1, 2, 15, 15, P.dark, { noBrick: true }); g.part('98138', 'TRANS_RED', x, -1, 16); }
                 g.box(-1, L, 0, 1, 8, 8, P.dark, { noBrick: true }); g.box(-1, L, 0, 1, 9, 9, P.secondary, { noBrick: true });
-                for (let x = 2; x < L - 2; x += 4) g.part('3062', P.metal, x, 1, 10);
+                for (let x = 2; x < L - 2; x += 4) H.lamp2(ctx, x, 1, 10, { height: 1, color: P.metal, face: 'front' });
                 for (let x = 1; x < L - 1; x += 2) g.part('3069', P.accent, x, 0, 10, { rotY: PI / 2 });
                 return { title: 'Suspension Bridge', features: ['two masonry towers', 'a plated road deck over water', 'lamp posts and painted lane lines'] };
+            }
+            if (match === 'bridge') {
+                // A stone bridge: 1x8x2 arches on both faces of every span standing on the river plate, masonry between
+                // them at the piers and haunches, a cross-bonded deck slab from bank to bank, a parapet and lamps.
+                const n = Math.max(1, Math.floor(sc(16) / 8)), L = n * 8;
+                const stone = P.explicit ? P.primary : 'LIGHT_GREY', deck = P.explicit ? P.secondary : 'DARK_GREY';
+                g.box(-4, L + 3, -4, 7, 0, 0, P.water);
+                g.box(-4, -1, -1, 4, 1, 6, P.ground); g.box(L, L + 3, -1, 4, 1, 6, P.ground);   // the banks
+                for (let i = 0; i < n; i++) {
+                    const x0 = i * 8;
+                    for (const z of [0, 3]) g.part('3308', stone, x0, z, 1, { rotY: PI / 2, w: 8, l: 1, hp: 6 });
+                    g.box(x0, x0, 1, 2, 1, 6, stone); g.box(x0 + 7, x0 + 7, 1, 2, 1, 6, stone);
+                    g.box(x0 + 1, x0 + 6, 1, 2, 5, 6, stone);
+                }
+                H.slab(ctx, -4, L + 3, 0, 3, 7, deck);
+                for (const z of [0, 3]) g.box(-4, L + 3, z, z, 9, 9, stone, { noBrick: true });   // parapet
+                for (let x = -3; x <= L + 1; x += 2) g.part('3069', P.accent, x, 1, 9, { rotY: PI / 2 });   // lane line
+                for (const [x, z] of [[-3, 0], [-3, 3], [L + 2, 0], [L + 2, 3]]) H.lamp2(ctx, x, z, 10, { height: 1, color: P.dark, face: z === 0 ? 'back' : 'front' });
+                return { title: 'Stone Arch Bridge', features: [`${n === 1 ? 'a single arch' : n + ' arches'} over the river`, 'masonry piers', 'a plated road deck with lane lines', 'a parapet and lamp posts at both ends'] };
             }
             if (match === 'fountain') {
                 g.box(-4, 5, -4, 5, 0, 0, 'LIGHT_GREY');
                 g.disc(0.5, 0.5, 4, 1, 1, 'LIGHT_GREY'); g.ring(0.5, 0.5, 4, 2, 2, 'LIGHT_GREY'); g.disc(0.5, 0.5, 3, 2, 2, P.water);
                 g.part('3941', 'LIGHT_GREY', 0, 0, 3); g.part('3031', P.water, -1, -1, 6); g.part('3062', 'LIGHT_GREY', 0, 0, 7); g.part('4032', P.water, 0, 0, 10); g.part('98138', 'TRANS_CLEAR', 0, 0, 11);
-                for (const [x, z] of [[-4, -4], [5, -4], [-4, 5], [5, 5]]) H.lamp(ctx, x, z, 1);
-                return { title: 'Plaza Fountain', features: ['a tiered basin', 'two spilling bowls', 'lamps on the plaza'] };
+                for (const [x, z] of [[-4, -4], [5, -4], [-4, 5], [5, 5]]) H.lamp2(ctx, x, z, 1, { color: P.dark, face: z < 0 ? 'back' : 'front' });
+                return { title: 'Plaza Fountain', features: ['a tiered basin', 'two spilling bowls', 'lamp posts on the plaza'] };
             }
             if (match === 'colosseum' || match === 'stadium' || match === 'amphitheatre') {
                 const R = sc(7);
@@ -527,12 +641,14 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 return { title: match === 'stadium' ? 'Stadium' : 'Colosseum', features: ['three stepped tiers of arcades', 'a ring of columns', 'an open arena floor'] };
             }
             if (match === 'arch' || match === 'gate') {
-                g.box(-3, 8, -3, 4, 0, 0, P.ground);
-                g.box(0, 1, 0, 1, 1, 15, P.primary === 'RED' ? 'LIGHT_GREY' : P.primary); g.box(4, 5, 0, 1, 1, 15, P.primary === 'RED' ? 'LIGHT_GREY' : P.primary);
-                g.box(0, 5, 0, 1, 16, 21, P.primary === 'RED' ? 'LIGHT_GREY' : P.primary);
-                for (const x of [2, 3]) g.part('54200', P.primary === 'RED' ? 'LIGHT_GREY' : P.primary, x, 0, 14, { rotY: PI }), g.part('54200', P.primary === 'RED' ? 'LIGHT_GREY' : P.primary, x, 1, 14);
-                H.flag(ctx, 0, 0, 22, P.accent); H.flag(ctx, 5, 1, 22, P.accent);
-                return { title: 'Triumphal Arch', features: ['two piers and a spanning attic', 'cheese-slope voussoirs', 'twin banners'] };
+                // Two piers, a 1x8x2 arch on each face across them, an attic above and flags on bar poles.
+                const stone = P.primary === 'RED' ? 'LIGHT_GREY' : P.primary;
+                g.box(-3, 10, -3, 4, 0, 0, P.ground);
+                g.box(0, 1, 0, 1, 1, 12, stone); g.box(6, 7, 0, 1, 1, 12, stone);
+                for (const z of [0, 1]) g.part('3308', stone, 0, z, 13, { rotY: PI / 2, w: 8, l: 1, hp: 6 });
+                g.box(0, 7, 0, 1, 19, 24, stone);
+                H.flagPole(ctx, 0, 0, 25, { height: 2, flag: P.accent }); H.flagPole(ctx, 7, 0, 25, { height: 2, flag: P.accent });
+                return { title: 'Triumphal Arch', features: ['two piers and a spanning attic', 'a 1x8 arch on each face', 'twin flags on bar poles'] };
             }
             // Temple / statue / monument / ruins: a colonnaded hall on a stepped base.
             const W = sc(10), D = sc(6);
@@ -540,10 +656,12 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             for (let x = 0; x <= W - 1; x += 2) for (const z of [0, D - 1]) for (let i = 0; i < 3; i++) g.part('3062', 'WHITE', x, z, 3 + i * 3);
             for (const x of [0, W - 1]) for (let z = 2; z <= D - 3; z += 2) for (let i = 0; i < 3; i++) g.part('3062', 'WHITE', x, z, 3 + i * 3);
             g.shell(1, W - 2, 1, D - 2, 3, 11, 'WHITE');
-            g.box(-1, W, -1, D, 12, 12, 'WHITE', { noBrick: true });
-            if (match !== 'ruins') H.gableRoof(ctx, -1, W, -1, D, 13, 'TAN', 'x');
+            if (W - 2 >= 5) H.archDoor(ctx, Math.floor(W / 2) - 2, D - 2, 3, { width: 4, height: 6, color: 'WHITE', face: 'front' });   // the cella's arched doorway
+            // The entablature overhangs the colonnade by a stud: under a roof the slopes tie it, roofless it is a cross-bonded slab.
+            if (match === 'ruins') H.slab(ctx, -1, W, -1, D, 12, 'WHITE');
+            else { g.box(-1, W, -1, D, 12, 12, 'WHITE', { noBrick: true }); H.gableRoof(ctx, -1, W, -1, D, 13, 'TAN', 'x'); }
             if (match === 'statue' || match === 'monument') { g.box(Math.floor(W / 2) - 1, Math.floor(W / 2), -1, 0, 3, 5, 'LIGHT_GREY'); g.part('3005', 'GOLD', Math.floor(W / 2), -1, 6); g.part('3005', 'GOLD', Math.floor(W / 2), -1, 9); g.part('98138', 'GOLD', Math.floor(W / 2), -1, 12); }
-            return { title: match === 'ruins' ? 'Ancient Ruins' : 'Classical Temple', features: ['a stepped stylobate', 'a colonnade of round columns', match === 'ruins' ? 'a roofless cella' : 'a pedimented roof'] };
+            return { title: match === 'ruins' ? 'Ancient Ruins' : 'Classical Temple', features: ['a stepped stylobate', 'a colonnade of round columns', 'an arched doorway into the cella', match === 'ruins' ? 'a roofless cella' : 'a pedimented roof'] };
         }
     });
 
