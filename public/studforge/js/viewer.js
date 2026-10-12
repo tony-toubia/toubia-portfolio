@@ -145,6 +145,7 @@ class StudForgeViewer {
     fitShadow(r) {
         const c = this.keyLight.shadow.camera;
         c.left = -r; c.right = r; c.top = r; c.bottom = -r;
+        c.far = Math.max(120, r * 3.5);   // the light sits ~2.5 r away: a big real set must not fall past the far plane
         c.updateProjectionMatrix();
         this.keyLight.position.set(r * 1.1, r * 1.8, r * 1.4);
     }
@@ -188,7 +189,15 @@ class StudForgeViewer {
         this.maxLayer = layers.length - 1;
 
         let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+        const bakedBox = new THREE.Box3(), partBox = new THREE.Box3();
         for (const b of modelData.bricks) {
+            if (BrickBuilder.isBaked(b.partId, b.baked)) {
+                // A real-set part: positioned at its LDraw origin, rotated by its 3×3 matrix, measured from its geometry.
+                const mesh = this.addBakedBrick(b, stepOf.get(b.layer || 0));
+                if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+                bakedBox.union(partBox.copy(mesh.geometry.boundingBox).applyMatrix4(mesh.matrix));
+                continue;
+            }
             const part = window.LEGO_PARTS[b.partId] || window.LEGO_PARTS['3001'];
             const lying = !!(b.rotX || b.rotZ);
             const y = (b.y || 0) + (lying ? part.width * 0.5 * 0.96 : 0);
@@ -205,16 +214,23 @@ class StudForgeViewer {
             minZ = Math.min(minZ, pos.z - hw); maxZ = Math.max(maxZ, pos.z + hw);
             minY = Math.min(minY, b.y || 0); maxY = Math.max(maxY, (b.y || 0) + (lying ? part.width : part.height));
         }
+        if (!bakedBox.isEmpty()) {
+            minX = Math.min(minX, bakedBox.min.x); maxX = Math.max(maxX, bakedBox.max.x);
+            minY = Math.min(minY, bakedBox.min.y); maxY = Math.max(maxY, bakedBox.max.y);
+            minZ = Math.min(minZ, bakedBox.min.z); maxZ = Math.max(maxZ, bakedBox.max.z);
+        }
         if (!this.brickMeshes.length) { minX = maxX = minY = maxY = minZ = maxZ = 0; }
         if (this.envIntensity != null) this.setEnvIntensity(this.envIntensity);   // new colours pick up the current mood
 
         // Centre the model on the pedestal; each brick remembers its offset from the centre for the explode.
         const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2, cy = (minY + maxY) / 2;
-        this.modelGroup.position.set(-cx, 0, -cz);
+        // A real set whose lowest part dips below the floor (a tyre under the bottom plate) is lifted onto it.
+        const lift = !bakedBox.isEmpty() && minY < -0.01 ? -minY : 0;
+        this.modelGroup.position.set(-cx, lift, -cz);
         this.centre = { x: cx, z: cz };
         this.height = maxY - minY;
         this.extent = Math.max(maxX - minX, maxZ - minZ, (maxY - minY) * 1.1, 8);
-        this.target.set(0, Math.min(cy, this.height * 0.45), 0);
+        this.target.set(0, Math.min(cy + lift, this.height * 0.45), 0);
         this.homeTarget.copy(this.target);
         this.fitShadow(Math.max(14, this.extent * 0.9));
         const s = Math.max(1, this.extent / 22);
@@ -223,12 +239,38 @@ class StudForgeViewer {
 
         this.home.radius = Math.max(14, this.extent * 1.55);
         this.spherical.radius = this.home.radius;
+        // The studio fog starts at 60; a big real set (a 77-stud ship) is viewed from further than that, so its fog
+        // moves out with the camera. Generator models keep the original fog.
+        const fogNear = bakedBox.isEmpty() ? 60 : Math.max(60, this.home.radius * 1.3);
+        this.scene.fog.near = fogNear; this.scene.fog.far = fogNear + 80;
         this.updateCameraPosition();
 
         this.currentStep = this.maxLayer;
         this.isStepMode = false;
         this.setExplode(0);
         window.studForgeAudio.playBlueprintChime();
+    }
+
+    /**
+     * One real-set brick: the mesh pivots at the part's LDraw origin, so the brick's `matrix`
+     * (row-major 3×3, StudForge axes) is its rotation and (x, y, z) its position. decompose()
+     * keeps a mirrored part (determinant −1) as a negative scale instead of a broken rotation.
+     */
+    addBakedBrick(b, layer) {
+        const pos = new THREE.Vector3(b.x || 0, b.y || 0, b.z || 0);
+        const m = Array.isArray(b.matrix) && b.matrix.length === 9 ? b.matrix : null;
+        const mesh = this.brickBuilder.createBrickMesh(b.partId, b.color, { layer, position: pos, matrix: m, fp: b.fp, baked: true, baseplate: BrickBuilder.isBaseplate(b) });
+        if (m) {
+            const m4 = new THREE.Matrix4().set(m[0], m[1], m[2], 0, m[3], m[4], m[5], 0, m[6], m[7], m[8], 0, 0, 0, 0, 1);
+            m4.decompose(new THREE.Vector3(), mesh.quaternion, mesh.scale);
+        } else {
+            mesh.rotation.set(b.rotX || 0, b.rotY || 0, b.rotZ || 0);
+        }
+        mesh.position.copy(pos);
+        mesh.updateMatrix();
+        this.modelGroup.add(mesh);
+        this.brickMeshes.push(mesh);
+        return mesh;
     }
 
     /** Switch between 'high' and 'lite' at runtime: materials and the shadow map are rebuilt, the model reloaded. */

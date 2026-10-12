@@ -34,12 +34,13 @@
     const parts = () => window.LEGO_PARTS || {};
     const colors = () => window.LEGO_COLORS || {};
     const colorMult = (id) => { const c = colors()[id]; if (!c) return 1.2; if (c.category === 'Transparent' || /^TRANS_/.test(id)) return 1.4; return COLOR_MULT[id] || 1; };
-    const unitPrice = (partId, colorId) => {
+    // `area` (studs) sizes a part the catalog does not know, e.g. a real set's LDraw part (its grid footprint).
+    const unitPrice = (partId, colorId, area) => {
         let base = PART_PRICE[partId];
         if (base == null) {
             const p = parts()[partId] || {};
             const [b, per] = CATEGORY_PRICE[p.category] || CATEGORY_PRICE.Misc;
-            base = b + per * ((p.width || 1) * (p.length || 1));
+            base = b + per * (parts()[partId] || !area ? (p.width || 1) * (p.length || 1) : area);
         }
         return base * colorMult(colorId);
     };
@@ -139,8 +140,14 @@
     function rowsOf(model) {
         const map = new Map();
         for (const b of model.bricks) {
+            if (b.segment) continue;   // a real set's hose segments: the hose is one piece, counted elsewhere
             const k = `${b.partId}_${b.color}`;
-            if (!map.has(k)) { const p = parts()[b.partId] || { name: `Element ${b.partId}`, category: 'Misc' }; const c = colors()[b.color] || { name: b.color, hex: '#ccc' }; map.set(k, { key: k, partId: String(b.partId), partName: p.name, colorKey: b.color, colorName: c.name, colorHex: c.hex, quantity: 0 }); }
+            if (!map.has(k)) {
+                // A real set's bricks are LDraw parts: price them by their catalog twin, else by footprint.
+                const p = parts()[b.partId] || (window.BrickBuilder && window.BrickBuilder.partInfo(b.partId)) || { name: `Element ${b.partId}`, category: 'Misc' };
+                const c = colors()[b.color] || { name: b.color, hex: '#ccc' };
+                map.set(k, { key: k, partId: String(b.partId), priceId: b.catalogId ? String(b.catalogId) : String(b.partId), area: b.fp && b.fp.w ? b.fp.w * b.fp.l : null, partName: p.name, colorKey: b.color, colorName: c.name, colorHex: c.hex, quantity: 0 });
+            }
             map.get(k).quantity++;
         }
         return [...map.values()].sort((a, b) => b.quantity - a.quantity);
@@ -163,7 +170,7 @@
         const owned = allocate(rows, entries || []);
         let total = 0, full = 0, ownedPieces = 0, ownedValue = 0;
         for (const r of rows) {
-            r.unit = unitPrice(r.partId, r.colorKey);
+            r.unit = unitPrice(r.priceId || r.partId, r.colorKey, r.area);
             r.owned = owned.get(r.key) || 0;
             r.need = r.quantity - r.owned;
             r.line = r.need * r.unit;

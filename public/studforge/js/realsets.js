@@ -83,7 +83,18 @@
         const K = () => (window.FORGE && window.FORGE.knowledge) || null;
         const entryOf = (id) => { const k = K(); return k && k.data && k.data.subjects[id] ? k.data.subjects[id] : null; };
 
+        // Other features add their own sections (reference.js: BUILD A REAL SET): fn(model) → Element | null,
+        // rendered after this panel's own content (or right under its title with `first`).
+        const sections = [];
         function render() {
+            renderOwn();
+            for (const s of sections) {
+                let node = null;
+                try { node = s.fn(sf.model); } catch (e) { console.error('studForge real sets section', e); }
+                if (node) body.insertBefore(node, s.first && body.firstElementChild ? body.firstElementChild.nextSibling : null);
+            }
+        }
+        function renderOwn() {
             const model = sf.model;
             const k = model && model.knowledge;
             if (!k) {
@@ -161,7 +172,7 @@
             else render();
         });
 
-        window.studForgeRealSets = { render, subjectLabel };
+        window.studForgeRealSets = { render, subjectLabel, addSection(fn, opts = {}) { sections.push({ fn, first: !!opts.first }); render(); } };
     }
 
     if (window.studForge) init();
