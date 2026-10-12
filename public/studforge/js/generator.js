@@ -132,6 +132,9 @@ class BrickGenerator {
      * The model reports the options the builder declared in `model.options`.
      */
     generateFromPrompt(promptText, variant = 0, opts = {}) {
+        // A blueprint (a design Claude wrote, see blueprint.js) is assembled as it is; an invalid one falls through
+        // to the ordinary paths, so the caller always gets a model.
+        if (opts.blueprint && window.FORGE.blueprint) { const designed = this.forgeBlueprint(promptText, variant, opts); if (designed) return designed; }
         const brief = opts.brief || null;
         // "lighthouse next to a pirate ship": two or three ideas, each built by its own builder, on one plate.
         if (!(brief && brief.subject)) { const scene = this.combine(promptText, variant, opts); if (scene) return scene; }
@@ -152,6 +155,43 @@ class BrickGenerator {
             title: one.result.title, features: one.result.features, lead: brief && brief.description ? String(brief.description).slice(0, 220) + ' ' : null,
             options, palette: one.P, opts: { colors: opts.colors || {}, scale: opts.scale || null, features }, brief, matchKey: one.key,
         });
+    }
+
+    /**
+     * Build a model from a blueprint (`opts.blueprint`, the format in blueprint.js) instead of a builder: the
+     * ops run on a fresh grid through the same helpers and modules the builders use, then the usual assemble
+     * (tiling + anchoring) makes it a model of kind 'blueprint' carrying the design as `model.blueprint`.
+     * Returns null when the blueprint does not validate.
+     */
+    forgeBlueprint(promptText, variant, opts) {
+        const B = window.FORGE.blueprint, H = window.FORGE.helpers;
+        const v = B.validate(opts.blueprint);
+        if (!v.ok) { console.warn('StudForge: blueprint rejected:', v.errors.join('; ')); return null; }
+        const bp = v.bp, parsed = this.parse(promptText);
+        const seed = (this.hash(parsed.text + '|' + bp.name) + variant * 7919) >>> 0;
+        const rnd = this.rng(seed || 1);
+        // The design's own colours become the palette roles the modules fall back to.
+        const P = this.palette(parsed), used = [];
+        for (const op of bp.ops) { const c = op.color || (op.params && op.params.color); if (c && !used.includes(c)) used.push(c); }
+        if (used[0]) P.primary = used[0]; if (used[1]) P.secondary = used[1]; if (used[2]) P.accent = used[2];
+        P.ground = bp.base.color;
+        const ctx = {
+            P, rnd, pick: (a) => a[Math.floor(rnd() * a.length)], chance: (p) => rnd() < p,
+            S: 1, sc: (n) => Math.max(1, Math.round(n)), style: parsed.style, has: parsed.has, words: parsed.words,
+            match: 'blueprint', prompt: promptText, explicitColors: parsed.colors, minifig: false,
+            declare: (o) => o.default, opt: (id, dflt) => dflt,
+        };
+        const built = B.build(bp, ctx);
+        if (built.warnings.length) console.warn('StudForge: blueprint ops skipped:', built.warnings.join('; '));
+        H.dress({ g: built.g, P, rnd, chance: ctx.chance, pick: ctx.pick });
+        const model = this.assemble(built.g, {
+            id: `forge-${seed.toString(36)}`, name: bp.name, category: bp.category || 'Custom Creation', icon: '✨', kind: 'blueprint', prompt: promptText, variant, seed,
+            title: bp.name, features: built.feats, lead: bp.description ? bp.description + ' ' : null,
+            options: [], palette: P, opts: { colors: opts.colors || {}, scale: opts.scale || null, features: opts.features || {} }, brief: opts.brief || null, matchKey: 'blueprint',
+        });
+        model.blueprint = bp;
+        model.warnings = built.warnings;
+        return model;
     }
 
     /**

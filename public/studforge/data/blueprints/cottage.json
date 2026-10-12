@@ -1,0 +1,32 @@
+{
+  "name": "Willow Lane Cottage",
+  "description": "A white cottage with a real front door, glazed windows on every side, a dark red gable roof with a chimney, a picket fence, a flag pole, a lamp post and a tree in the garden.",
+  "tagline": "Knock on the door: it opens.",
+  "category": "Architecture",
+  "base": { "w": 20, "d": 16, "color": "GREEN" },
+  "ops": [
+    { "op": "box", "x0": 3, "x1": 14, "z0": 3, "z1": 12, "y0": 1, "y1": 21, "color": "WHITE", "hollow": true },
+    { "op": "module", "id": "realDoor", "x": 5, "z": 12, "y": 1, "params": { "face": "front", "frameColor": "BROWN", "doorColor": "RED" } },
+    { "op": "module", "id": "realWindow", "x": 10, "z": 12, "y": 7, "params": { "size": "1x2x3", "face": "front", "frameColor": "BROWN", "glassColor": "TRANS_CLEAR" } },
+    { "op": "module", "id": "realWindow", "x": 14, "z": 8, "y": 7, "params": { "size": "1x2x3", "face": "right", "frameColor": "BROWN", "glassColor": "TRANS_CLEAR" } },
+    { "op": "module", "id": "realWindow", "x": 3, "z": 7, "y": 7, "params": { "size": "1x2x3", "face": "left", "frameColor": "BROWN", "glassColor": "TRANS_CLEAR" } },
+    { "op": "module", "id": "realWindow", "x": 10, "z": 3, "y": 7, "params": { "size": "1x2x3", "face": "back", "frameColor": "BROWN", "glassColor": "TRANS_CLEAR" } },
+    { "op": "module", "id": "realWindow", "x": 6, "z": 3, "y": 7, "params": { "size": "1x2x3", "face": "back", "frameColor": "BROWN", "glassColor": "TRANS_CLEAR" } },
+    { "op": "slab", "x0": 3, "x1": 14, "z0": 3, "z1": 12, "y": 22, "color": "DARK_RED" },
+    { "op": "roof", "kind": "gable", "x0": 3, "x1": 14, "z0": 3, "z1": 12, "y": 24, "color": "DARK_RED", "axis": "x" },
+    { "op": "box", "x0": 12, "x1": 13, "z0": 7, "z1": 8, "y0": 37, "y1": 41, "color": "DARK_GREY" },
+    { "op": "part", "id": "3068", "color": "DARK_GREY", "x": 6, "z": 13, "y": 1 },
+    { "op": "module", "id": "fence", "x": 10, "z": 14, "y": 1, "params": { "length": 8, "axis": "x", "color": "WHITE" } },
+    { "op": "module", "id": "flagPole", "x": 17, "z": 4, "y": 1, "params": { "height": 3, "color": "DARK_GREY", "flag": "RED" } },
+    { "op": "module", "id": "lamp2", "x": 18, "z": 13, "y": 1, "params": { "height": 2, "color": "BLACK", "lens": "TRANS_ORANGE", "face": "front" } },
+    { "op": "part", "id": "3062", "color": "BROWN", "x": 1, "z": 2, "y": 1 },
+    { "op": "part", "id": "3062", "color": "BROWN", "x": 1, "z": 2, "y": 4 },
+    { "op": "part", "id": "4032", "color": "GREEN", "x": 1, "z": 2, "y": 7 },
+    { "op": "part", "id": "3941", "color": "GREEN", "x": 1, "z": 2, "y": 8 },
+    { "op": "part", "id": "553", "color": "GREEN", "x": 1, "z": 2, "y": 11 },
+    { "op": "part", "id": "4073", "color": "GREEN", "x": 3, "z": 14, "y": 1 },
+    { "op": "part", "id": "98138", "color": "PINK", "x": 3, "z": 14, "y": 2 },
+    { "op": "part", "id": "4073", "color": "GREEN", "x": 1, "z": 10, "y": 1 },
+    { "op": "part", "id": "98138", "color": "YELLOW", "x": 1, "z": 10, "y": 2 }
+  ]
+}
