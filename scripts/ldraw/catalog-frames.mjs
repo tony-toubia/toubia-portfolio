@@ -23,6 +23,9 @@
 // (half-stud steps, so centre studs on jumpers work), choosing the lattice shift that fits best; without studs, bounding
 // boxes are aligned (plus a short ICP), snapped to 1 LDU (0.05). Glass panes and doors follow their frames, because
 // LDraw places a window's glass at the frame's own origin and a door 32 LDU off the frame's centre at its hinge holes.
+// NOTE: frames are fitted against FULL part geometry (studs included: the stud grid pins the offsets). Since the
+// baker now strips studs and tubes from the baked files, this script must rebuild the full geometry itself; until it
+// does, keep the committed catalog-frames.json (fitted before the stud split; the LDraw origins are unchanged).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -412,7 +415,7 @@ for (const id of Object.keys(LEGO_PARTS)) {
     if (issues.length) frames[id].mismatch = issues.join('; ');
     if (NOTES[id]) frames[id].note = NOTES[id];
     const others = results.filter(x => x.deg !== pick.deg).sort((x, y) => x.d - y.d);
-    report.push({ id, name: part.name, ldraw: baked.name, rotY: pick.deg, offset, d: pick.d, next: others[0], rules, issues, note });
+    report.push({ id, name: part.name, ldraw: baked.name || (manifest.parts[id] && manifest.parts[id].name), rotY: pick.deg, offset, d: pick.d, next: others[0], rules, issues, note });
 }
 
 fs.writeFileSync(OUT, '{\n' + Object.entries(frames).map(([k, v]) => ` ${JSON.stringify(k)}: ${JSON.stringify(v)}`).join(',\n') + '\n}\n');

@@ -145,13 +145,25 @@ const det = (M) => M[3] * (M[7] * M[11] - M[8] * M[10]) - M[4] * (M[6] * M[11] -
 // Top-stud primitives (solid, hollow, round-part and cross studs; not the underside tubes stud3/stud4/...).
 const STUD_RE = /(^|[\\/])(stud|studa|stud2|stud2a|stud6|stud6a|stud9|stud10|stud15|stud17|stud17a|stud26|studp01|studel|studh|studx|studxa)\.dat$/i;
 
+// Stud kinds for the baked `studs` list: 0 solid, 1 hollow (open) stud, 2 anything else (cross, technic, round-part).
+const STUD_HOLLOW_RE = /(^|[\\/])(stud2|stud2a|stud6|stud6a)\.dat$/i;
+const STUD_SOLID_RE = /(^|[\\/])(stud|studa|stud15|stud17|stud17a|stud9|stud10|stud26)\.dat$/i;
+const studKind = (file) => (STUD_HOLLOW_RE.test(file) ? 1 : STUD_SOLID_RE.test(file) ? 0 : 2);
+// Underside tubes and posts. With `skipStuds` they are listed in `tubes` as a segment (both ends, StudForge axes) plus
+// an outer radius and a kind (3 solid post, 4 open tube), instead of being triangulated: on a big plate they are most
+// of the triangles and nobody sees them from above.
+const TUBE_RE = /(^|[\\/])(stud3|stud3a|stud4|stud4a|stud4o|stud4f\w*|stud4h|stud12|stud16|stud16a|stud16od)\.dat$/i;
+const tubeKind = (file) => (/(^|[\\/])stud3a?\.dat$/i.test(file) ? 3 : 4);
+const TUBE_R = { 3: 4, 4: 8 };   // outer radius in LDU before scaling
+
 // Colour codes: 16 = inherit, 24 = edge colour (only meaningful on lines; treated as inherit on surfaces).
 const inheritColour = (code, parent) => (code === '16' || code === '24') ? parent : code;
 
 /**
  * Load and flatten a part. `id`: an LDraw file name with or without ".dat" ("3001", "s\\3001s01.dat"), or a baked
  * part id ("/" written as "_" is accepted when the plain name does not resolve).
- * opts: { lib, lowRes: false | 'studs' | true }.
+ * opts: { lib, lowRes: false | 'studs' | true, skipStuds }. With `skipStuds`, top-stud primitives are listed in
+ * `studs` (with a kind: 0 solid, 1 hollow, 2 other) but left out of the triangles, so a renderer can instance them.
  * Returns { id, file, title, name, license, author, movedTo, positions, colors, bbox, tris, studs, logos, missing }, or
  * null when the file is unknown. `studs`: [x, y, z, dx, dy, dz] per stud primitive (base centre and the direction it
  * points, StudForge axes). `logos`: referenced sub-files whose name mentions a logo. `title` is the description line ("Brick  2 x  4"), after following "~Moved to" redirects.
@@ -159,7 +171,8 @@ const inheritColour = (code, parent) => (code === '16' || code === '24') ? paren
 export function loadPart(id, opts = {}) {
     const L = library(opts.lib);
     const lowRes = opts.lowRes ?? false;
-    const key = String(id).toLowerCase() + '|' + lowRes;
+    const skipStuds = !!opts.skipStuds;
+    const key = String(id).toLowerCase() + '|' + lowRes + (skipStuds ? '|nostuds' : '');
     if (L.flat.has(key)) return L.flat.get(key);
 
     let abs = resolve(L, id, lowRes);
@@ -182,6 +195,16 @@ export function loadPart(id, opts = {}) {
     let fixedColour = false;
     const missing = new Set();
     const studs = [];
+    const tubes = [];
+    // A tube primitive's extent along its own Y axis (LDraw units), measured once per primitive.
+    const tubeSpan = (file) => {
+        const k = 'span|' + file.toLowerCase();
+        if (L.flat.has(k)) return L.flat.get(k);
+        const q = loadPart(file, { lib: opts.lib, lowRes: true });
+        let lo = 0, hi = 0;
+        if (q && q.positions.length) { lo = Infinity; hi = -Infinity; for (let n = 1; n < q.positions.length; n += 3) { const y = -q.positions[n] * 20; if (y < lo) lo = y; if (y > hi) hi = y; } }
+        const span = [lo, hi]; L.flat.set(k, span); return span;
+    };
     const logos = new Set();   // referenced files with "logo" in the name (brand logo primitives/patterns)
     const bb = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
 
@@ -220,7 +243,15 @@ export function loadPart(id, opts = {}) {
                 if (STUD_RE.test(r.file)) {
                     // A stud's origin is the centre of its base and it rises along local -Y: record base + direction.
                     const len = Math.hypot(W[4], W[7], W[10]) || 1;
-                    studs.push([W[0] / 20, -W[1] / 20, -W[2] / 20, -W[4] / len, W[7] / len, W[10] / len].map(v => Math.round(v * 1e4) / 1e4 || 0));
+                    studs.push([W[0] / 20, -W[1] / 20, -W[2] / 20, -W[4] / len, W[7] / len, W[10] / len].map(v => Math.round(v * 1e4) / 1e4 || 0).concat(studKind(r.file)));
+                    if (skipStuds) { invertNext = false; continue; }
+                }
+                if (skipStuds && TUBE_RE.test(r.file)) {
+                    const [lo, hi] = tubeSpan(r.file), pt = (y) => [W[3 + 1] * y + W[0], W[6 + 1] * y + W[1], W[9 + 1] * y + W[2]];
+                    const a = pt(lo), b = pt(hi), kind = tubeKind(r.file);
+                    const rad = TUBE_R[kind] * Math.hypot(W[3], W[6], W[9]) / 20;
+                    tubes.push([a[0] / 20, -a[1] / 20, -a[2] / 20, b[0] / 20, -b[1] / 20, -b[2] / 20, rad].map(v => Math.round(v * 1e3) / 1e3 || 0).concat(kind));
+                    invertNext = false; continue;
                 }
                 walk(parseFile(L, sub), W, inheritColour(r.c, colour), inv !== invertNext, depth + 1);
                 invertNext = false;
@@ -248,6 +279,7 @@ export function loadPart(id, opts = {}) {
         bbox: tris ? bb : [0, 0, 0, 0, 0, 0],
         tris,
         studs,
+        tubes,
         logos: [...logos],
         missing: [...missing],
     };
