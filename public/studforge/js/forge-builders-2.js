@@ -76,8 +76,12 @@
             const legs = Math.round(A.legs * S), neck = Math.round(A.neck * S);
             const [hl, hw, hh] = A.head.map((v) => Math.max(1, Math.round(v * S)));
             const feats = [];
-            // Base: grass with flowers.
-            g.box(-4, bw + 3, -A.tail - 3, bl + hl + neck + 4, 0, 0, P.ground, { noBrick: true });
+            // Dials: any creature can grow bat-wings; the tail can be dropped or stretched.
+            const wings = ctx.declare({ id: 'wings', label: 'Wings', type: 'bool', default: !!A.wings });
+            const tailMode = ctx.declare({ id: 'tail', label: 'Tail', type: 'choice', choices: ['none', 'normal', 'long'], default: 'normal' });
+            const tl = tailMode === 'none' ? 0 : Math.round(A.tail * S * (tailMode === 'long' ? 1.8 : 1));
+            // Base: grass with flowers (stretched back when the tail is long, so it never hangs off the edge).
+            g.box(-4, bw + 3, tailMode === 'long' ? Math.min(-A.tail - 3, -tl - 3) : -A.tail - 3, bl + hl + neck + 4, 0, 0, P.ground, { noBrick: true });
             // Legs at the body's corners (round bricks for thin legs, square for heavy ones).
             const heavy = bw >= 3;
             if (legs > 0) for (const [x, z] of [[0, 0], [bw - 1, 0], [0, bl - 1], [bw - 1, bl - 1]].map(([x, z]) => heavy ? [x ? bw - 1 : 0, z ? bl - 2 : 0] : [x, z])) {
@@ -92,7 +96,7 @@
             if (A.shell) { g.box(0, bw - 1, 0, bl - 1, yB + bh, yB + bh, P.secondary === col ? 'DARK_GREEN' in window.LEGO_COLORS ? 'DARK_GREEN' : 'BROWN' : 'BROWN', { noBrick: true }); g.box(1, bw - 2, 1, bl - 2, yB + bh + 1, yB + bh + 2, 'BROWN'); g.part('553', 'BROWN', Math.floor(bw / 2) - 1, Math.floor(bl / 2) - 1, yB + bh + 3); feats.push('a domed shell'); }
             if (A.plates) { for (let z = 0; z < bl; z += 2) g.part('54200', P.accent === col ? 'ORANGE' : P.accent, Math.floor(bw / 2), z, yB + bh, { rotY: PI }); feats.push('a row of back plates'); }
             if (A.spikes) for (let z = 0; z < bl - 1; z += 2) g.part('54200', col2 === col ? 'DARK_GREY' : col2, Math.floor(bw / 2), z, yB + bh, { rotY: PI });
-            if (A.wings) {
+            if (wings) {
                 const wz = Math.floor(bl / 2) - 1;
                 for (const side of [-1, 1]) {
                     const x0 = side < 0 ? -1 : bw;
@@ -133,13 +137,13 @@
                 feats.push('a curling trunk', 'big ears');
             }
             if (A.fire) { g.part('3062', 'TRANS_ORANGE', hx + Math.floor(hw / 2), hz + hl - 1, hy, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('4589', 'TRANS_ORANGE', hx + Math.floor(hw / 2), hz + hl + 1, hy - 1, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); feats.push('a plume of fire'); }
-            // Tail: steps down and back.
-            const tl = Math.round(A.tail * S), tx = Math.floor(bw / 2);
             // Tail: 1x2 plates stepping back and down, each overlapping the one before.
-            const droop = 1;
-            let ty = yB + bh - 1;
-            for (let i = 1; i <= tl; i++) { ty = Math.max(1, ty - droop); g.part('3023', col, tx, -i, ty, { rotY: 0 }); }
-            if (tl > 2 && (A.title === 'Cat' || A.title === 'Fox' || A.title === 'Lion')) g.part('98138', col2 === col ? 'WHITE' : col2, tx, -tl, ty + 1);
+            // It stops once it reaches the ground, so two plates never share a cell.
+            const tx = Math.floor(bw / 2), droop = 1;
+            let ty = yB + bh - 1, placed = 0;
+            for (let i = 1; i <= tl; i++) { const ny = Math.max(1, ty - droop); if (ny === ty) break; ty = ny; g.part('3023', col, tx, -i, ty, { rotY: 0 }); placed = i; }
+            if (placed > 2 && (A.title === 'Cat' || A.title === 'Fox' || A.title === 'Lion')) g.part('98138', col2 === col ? 'WHITE' : col2, tx, -placed, ty + 1);
+            if (tailMode === 'long' && placed) feats.push('a long sweeping tail');
             for (let i = 0; i < 3; i++) H.flower(ctx, -4 - i, -2 - i, 1);
             if (chance(0.6)) H.tree(ctx, bw + 2, bl + hl + 1, 1, 'round');
             return { title: A.title, features: [`${legs > 0 ? 'four' : 'stubby'} legs`, `a ${bl}-stud body`, neck > 3 ? 'a long neck' : 'a sturdy neck', 'round-plate eyes', ...feats, 'a grassy base with flowers'] };
@@ -339,10 +343,13 @@
             const canopy = match === 'cherry blossom' || match === 'cherry tree' || match === 'sakura' ? 'PINK' : match === 'maple' ? 'RED' : P.leaf;
             g.part('3941', 'BROWN', 0, 0, 1); g.part('3941', 'BROWN', 0, 0, 4); g.part('3941', 'BROWN', 0, 0, 7);
             g.disc(0.5, 0.5, 3, 10, 11, canopy); g.disc(0.5, 0.5, 3.5, 12, 13, canopy); g.disc(0.5, 0.5, 2.5, 14, 15, canopy); g.part('3941', canopy, 0, 0, 16); g.part('553', canopy, 0, 0, 19);
+            // Dial: fruit tiles on the upper canopy, clear of the crown's round brick.
+            const fruit = ctx.declare({ id: 'fruit', label: 'Fruit', type: 'bool', default: false });
+            if (fruit) for (const [x, z] of [[-1, 0], [2, 1], [0, -1], [1, 2], [-1, 2], [2, -1]]) g.part('98138', canopy === 'RED' ? 'YELLOW' : 'RED', x, z, 16);
             if (canopy === 'PINK') for (let i = 0; i < 6; i++) g.part('98138', 'PINK', Math.round(Math.cos(i) * 4), Math.round(Math.sin(i) * 4), 1);
             if (match === 'willow') for (let i = 0; i < 8; i++) { const a = i / 8 * PI * 2; g.box(Math.round(0.5 + Math.cos(a) * 3.5), Math.round(0.5 + Math.cos(a) * 3.5), Math.round(0.5 + Math.sin(a) * 3.5), Math.round(0.5 + Math.sin(a) * 3.5), 6, 9, canopy); }
             g.part('3062', 'LIGHT_GREY', 3, 3, 1); g.part('4073', 'LIGHT_GREY', -3, 2, 1);
-            return { title: { oak: 'Oak Tree', 'cherry blossom': 'Cherry Blossom Tree', 'cherry tree': 'Cherry Tree', sakura: 'Sakura Tree', willow: 'Weeping Willow', maple: 'Maple Tree', birch: 'Birch Tree', bush: 'Garden Shrub' }[match] || 'Oak Tree', features: ['a thick round-brick trunk', 'a layered domed canopy', canopy === 'PINK' ? 'fallen blossom' : 'rocks at the roots'] };
+            return { title: { oak: 'Oak Tree', 'cherry blossom': 'Cherry Blossom Tree', 'cherry tree': 'Cherry Tree', sakura: 'Sakura Tree', willow: 'Weeping Willow', maple: 'Maple Tree', birch: 'Birch Tree', bush: 'Garden Shrub' }[match] || 'Oak Tree', features: ['a thick round-brick trunk', 'a layered domed canopy', ...(fruit ? ['ripe fruit'] : []), canopy === 'PINK' ? 'fallen blossom' : 'rocks at the roots'] };
         }
     });
 
@@ -565,16 +572,20 @@
             g.part('98138', 'BLACK', Math.floor(W / 2) - 1, 1, 19, { rotX: PI / 2, w: 1, l: 1, hp: 2, lie: true }); g.part('98138', 'BLACK', Math.floor(W / 2), 1, 19, { rotX: PI / 2, w: 1, l: 1, hp: 2, lie: true });
             const hx = Math.floor(W / 2) - 1;
             const feats = ['a tiered plinth with a plaque', 'brick-built legs, torso and arms', 'a blocky head'];
+            // Dial: heroes and vampires come caped; anyone else can borrow one.
+            const capeDflt = ['superhero', 'hero', 'batman', 'superman', 'vampire'].includes(match);
+            const cape = ctx.declare({ id: 'cape', label: 'Cape', type: 'bool', default: capeDflt });
             // Hats and props.
             if (['wizard', 'witch'].includes(match)) { g.part('3022', torso, hx, 0, 21); g.part('3942', torso, hx, 0, 22); g.part('3062', 'BROWN', W + 1, 0, 3); g.part('3062', 'BROWN', W + 1, 0, 6); g.part('3062', 'BROWN', W + 1, 0, 9); g.part('3062', 'BROWN', W + 1, 0, 12); g.part('98138', 'TRANS_BLUE', W + 1, 0, 15); feats.push('a pointed hat', 'a staff'); }
             else if (['knight', 'viking', 'samurai', 'king', 'queen', 'prince', 'princess'].includes(match)) { g.part('3022', 'GOLD', hx, 0, 21); g.part('4589', 'GOLD', hx, 0, 22); g.part('4589', 'GOLD', hx + 1, 1, 22); if (match === 'knight' || match === 'viking' || match === 'samurai') { g.part('3710', 'LIGHT_GREY', W + 1, 0, 6, { rotY: 0, w: 1, l: 4 }); g.part('3005', 'BROWN', W + 1, 0, 3); } feats.push('a crowned helm'); }
             else if (['astronaut', 'spaceman', 'diver', 'stormtrooper', 'darth vader'].includes(match)) { g.part('3941', torso, hx, 0, 21); g.part('553', match === 'darth vader' ? 'BLACK' : 'TRANS_CLEAR', hx, 0, 24); g.box(-1, W, 0, 0, 10, 15, 'LIGHT_GREY'); feats.push('a domed helmet', 'a backpack'); }
             else if (['santa', 'chef', 'firefighter', 'cowboy', 'pirate', 'police officer', 'mario', 'luigi'].includes(match)) { g.box(hx, hx + 1, 0, 1, 21, 22, match === 'chef' ? 'WHITE' : torso); g.part('3031', match === 'chef' ? 'WHITE' : torso, hx - 1, -1, 21, { w: 4, l: 4 }); if (match === 'santa') g.part('98138', 'WHITE', hx, 0, 23); feats.push('a brimmed hat'); }
-            else if (['superhero', 'hero', 'batman', 'superman', 'vampire'].includes(match)) { g.box(-1, W, -1, -1, 10, 20, match === 'batman' ? 'BLACK' : 'RED'); feats.push('a flowing cape'); }
+            else if (capeDflt) { if (cape) { g.box(-1, W, -1, -1, 10, 20, match === 'batman' ? 'BLACK' : 'RED'); feats.push('a flowing cape'); } }
             else if (['devil', 'ogre', 'troll', 'monster', 'yoda', 'elf'].includes(match)) { g.part('54200', skin, hx, 0, 21, { rotY: PI }); g.part('54200', skin, hx + 1, 0, 21, { rotY: PI }); feats.push('pointed ears or horns'); }
             else if (['pikachu', 'kirby', 'minion', 'sonic'].includes(match)) { g.part('3062', skin, hx, 0, 21); g.part('3062', skin, hx + 1, 1, 21); }
             else { g.box(hx, hx + 1, 0, 1, 21, 21, match === 'skeleton' || match === 'mummy' ? skin : 'BROWN', { noBrick: true }); feats.push('a tuft of hair'); }
             if (match === 'skeleton' || match === 'zombie' || match === 'mummy') { g.part('98138', 'BLACK', 1, 1, 12, { rotX: PI / 2, w: 1, l: 1, hp: 2, lie: true }); }
+            if (cape && !capeDflt) { g.box(-1, W, -1, -1, 10, 20, P.explicit ? P.secondary : 'RED'); feats.push('a flowing cape'); }
             const names = { person: 'Figure', man: 'Figure', woman: 'Figure', figure: 'Figure', character: 'Character', minifig: 'Mega Minifigure', minifigure: 'Mega Minifigure', 'statue of a': 'Statue', me: 'Mini Me', myself: 'Mini Me', tony: 'Tony', 'robot man': 'Tin Man', 'alien figure': 'Little Green Alien', 'ghost figure': 'Ghost' };
             return { title: names[match] || match.split(' ').map((w) => w[0].toUpperCase() + w.slice(1)).join(' '), features: feats };
         }
