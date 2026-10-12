@@ -1,13 +1,11 @@
-// Input Controller for Void Warden (Mobile Floating Joystick + Keyboard + Mouse)
+// Input Controller for Centered Hole.io Controls (Dynamic Floating Joystick + Keyboard)
 class InputController {
     constructor() {
         this.inputVector = { x: 0, z: 0 };
         this.isTouchActive = false;
-        this.touchStartPos = { x: 0, y: 0 };
-        this.currentTouchPos = { x: 0, y: 0 };
-        this.maxJoystickRadius = 55;
+        this.touchStart = { x: 0, y: 0 };
+        this.maxJoyRadius = 55;
 
-        // Key states
         this.keys = {
             KeyW: false, ArrowUp: false,
             KeyS: false, ArrowDown: false,
@@ -16,22 +14,21 @@ class InputController {
             Space: false
         };
 
-        this.joystickBase = document.getElementById('joystick-base');
-        this.joystickStick = document.getElementById('joystick-stick');
-        this.joystickZone = document.getElementById('joystick-zone');
+        this.joyBase = document.getElementById('joy-base');
+        this.joyKnob = document.getElementById('joy-knob');
+        this.surface = document.getElementById('touch-surface');
 
-        this.onAbilityTrigger = null;
-
-        this.initListeners();
+        this.onAbility = null;
+        this.init();
     }
 
-    initListeners() {
-        // Keyboard listeners
+    init() {
+        // Keyboard controls
         window.addEventListener('keydown', (e) => {
             if (e.code in this.keys) {
                 this.keys[e.code] = true;
-                if (e.code === 'Space' && !e.repeat) {
-                    if (this.onAbilityTrigger) this.onAbilityTrigger();
+                if (e.code === 'Space' && !e.repeat && this.onAbility) {
+                    this.onAbility();
                 }
             }
         });
@@ -42,81 +39,75 @@ class InputController {
             }
         });
 
-        // Touch Listeners (Dynamic Floating Joystick)
-        if (this.joystickZone) {
-            this.joystickZone.addEventListener('touchstart', (e) => {
-                const touch = e.touches[0];
+        // Touch surface listeners (Dynamic Floating Joystick anywhere on screen)
+        if (this.surface) {
+            this.surface.addEventListener('touchstart', (e) => {
+                const t = e.touches[0];
                 this.isTouchActive = true;
-                this.touchStartPos = { x: touch.clientX, y: touch.clientY };
-                this.currentTouchPos = { x: touch.clientX, y: touch.clientY };
+                this.touchStart = { x: t.clientX, y: t.clientY };
 
-                // Anchor joystick visually to finger touch point
-                this.joystickBase.style.left = `${touch.clientX}px`;
-                this.joystickBase.style.top = `${touch.clientY}px`;
-                this.joystickBase.classList.remove('hidden');
-                this.updateJoystickStick(0, 0);
+                this.joyBase.style.left = `${t.clientX}px`;
+                this.joyBase.style.top = `${t.clientY}px`;
+                this.joyBase.classList.remove('hidden');
+                this.updateKnob(0, 0);
 
-                window.audioManager.init(); // Audio unlock on touch
+                window.audioManager.init();
             }, { passive: false });
 
             window.addEventListener('touchmove', (e) => {
                 if (!this.isTouchActive) return;
-                const touch = e.touches[0];
-                this.currentTouchPos = { x: touch.clientX, y: touch.clientY };
+                const t = e.touches[0];
 
-                let dx = this.currentTouchPos.x - this.touchStartPos.x;
-                let dy = this.currentTouchPos.y - this.touchStartPos.y;
+                let dx = t.clientX - this.touchStart.x;
+                let dy = t.clientY - this.touchStart.y;
                 const dist = Math.hypot(dx, dy);
 
-                if (dist > this.maxJoystickRadius) {
-                    dx = (dx / dist) * this.maxJoystickRadius;
-                    dy = (dy / dist) * this.maxJoystickRadius;
+                if (dist > this.maxJoyRadius) {
+                    dx = (dx / dist) * this.maxJoyRadius;
+                    dy = (dy / dist) * this.maxJoyRadius;
                 }
 
-                this.updateJoystickStick(dx, dy);
-                this.inputVector.x = dx / this.maxJoystickRadius;
-                this.inputVector.z = dy / this.maxJoystickRadius;
+                this.updateKnob(dx, dy);
+                this.inputVector.x = dx / this.maxJoyRadius;
+                this.inputVector.z = dy / this.maxJoyRadius;
             }, { passive: false });
 
             const endTouch = () => {
                 this.isTouchActive = false;
                 this.inputVector.x = 0;
                 this.inputVector.z = 0;
-                if (this.joystickBase) {
-                    this.joystickBase.classList.add('hidden');
-                }
+                if (this.joyBase) this.joyBase.classList.add('hidden');
             };
 
             window.addEventListener('touchend', endTouch);
             window.addEventListener('touchcancel', endTouch);
         }
 
-        // Ability button click
-        const abilityBtn = document.getElementById('btn-ability');
-        if (abilityBtn) {
-            abilityBtn.addEventListener('click', (e) => {
+        // Ability button listener
+        const btn = document.getElementById('btn-singularity');
+        if (btn) {
+            btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (this.onAbilityTrigger) this.onAbilityTrigger();
+                if (this.onAbility) this.onAbility();
             });
-            abilityBtn.addEventListener('touchstart', (e) => {
+            btn.addEventListener('touchstart', (e) => {
                 e.stopPropagation();
-                if (this.onAbilityTrigger) this.onAbilityTrigger();
+                if (this.onAbility) this.onAbility();
             }, { passive: true });
         }
     }
 
-    updateJoystickStick(dx, dy) {
-        if (this.joystickStick) {
-            this.joystickStick.style.transform = `translate(${dx}px, ${dy}px)`;
+    updateKnob(dx, dy) {
+        if (this.joyKnob) {
+            this.joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
         }
     }
 
-    getMovementVector() {
+    getVector() {
         if (this.isTouchActive) {
             return this.inputVector;
         }
 
-        // Keyboard calculation
         let kx = 0;
         let kz = 0;
         if (this.keys.KeyW || this.keys.ArrowUp) kz -= 1;
@@ -125,9 +116,8 @@ class InputController {
         if (this.keys.KeyD || this.keys.ArrowRight) kx += 1;
 
         if (kx !== 0 && kz !== 0) {
-            const length = Math.SQRT2;
-            kx /= length;
-            kz /= length;
+            kx /= Math.SQRT2;
+            kz /= Math.SQRT2;
         }
 
         return { x: kx, z: kz };

@@ -1,25 +1,21 @@
-// Main Game Engine & Loop for Void Warden: Zombie Swarm
+// Main Game Loop for Void Warden: Hole Devourer
 class Game {
     constructor() {
         this.container = document.getElementById('canvas-container');
-        this.state = 'MENU'; // MENU, PLAYING, PERKS, PAUSED, GAMEOVER, VICTORY
+        this.state = 'MENU'; // MENU, PLAYING, PERKS, PAUSED, GAMEOVER
 
-        // Game Stats
+        // Stats
         this.score = 0;
-        this.totalZombiesKilled = 0;
-        this.totalCiviliansSaved = 0;
-        this.totalCiviliansLost = 0;
-        this.maxCombo = 1;
-        this.currentCombo = 1;
-        this.comboTimer = 0;
-        this.gateHealth = 100;
+        this.zombiesKilled = 0;
+        this.vehiclesEaten = 0;
+        this.bossesSlain = 0;
+        this.runTimer = 0;
+        this.frenzyCombo = 0;
+        this.frenzyTimer = 0;
 
         // Ability
-        this.abilityCooldown = 12.0;
+        this.abilityCD = 10.0;
         this.abilityTimer = 0;
-
-        // Perks Applied
-        this.perks = [];
 
         // Three.js Core
         this.scene = null;
@@ -29,28 +25,27 @@ class Game {
 
         // Subsystems
         this.pm = null;
-        this.em = null;
+        this.city = null;
+        this.zm = null;
         this.hole = null;
-        this.wm = null;
         this.input = null;
 
-        // DOM Elements
+        // DOM elements
         this.hud = document.getElementById('hud');
-        this.scoreVal = document.getElementById('score-val');
-        this.gateBar = document.getElementById('gate-hp-bar');
-        this.gateText = document.getElementById('gate-hp-text');
-        this.tierBar = document.getElementById('tier-bar');
-        this.tierName = document.getElementById('tier-name');
-        this.tierProgressText = document.getElementById('tier-progress-text');
-        this.waveDisplay = document.getElementById('wave-display');
-        this.comboBadge = document.getElementById('combo-badge');
-        this.comboText = document.getElementById('combo-text');
-        this.alertBanner = document.getElementById('alert-banner');
-        this.abilityCdOverlay = document.getElementById('ability-cd-overlay');
-        this.abilityControls = document.getElementById('ability-controls');
+        this.hudLevel = document.getElementById('hud-level');
+        this.hudTierName = document.getElementById('hud-tier-name');
+        this.hudMassText = document.getElementById('hud-mass-text');
+        this.hudMassBar = document.getElementById('hud-mass-bar');
+        this.hudScore = document.getElementById('hud-score');
+        this.frenzyBadge = document.getElementById('frenzy-badge');
+        this.frenzyText = document.getElementById('frenzy-text');
+        this.abilityBtnWrap = document.getElementById('ability-btn-wrap');
+        this.cdOverlay = document.getElementById('cd-overlay');
+        this.floatLayer = document.getElementById('float-text-layer');
+        this.radarCanvas = document.getElementById('radar-canvas');
+        this.radarCtx = this.radarCanvas ? this.radarCanvas.getContext('2d') : null;
 
         this.initGraphics();
-        this.initEnvironment();
         this.initSubsystems();
         this.initEvents();
 
@@ -61,15 +56,15 @@ class Game {
     initGraphics() {
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x060913);
-        this.scene.fog = new THREE.FogExp2(0x060913, 0.022);
+        this.scene.fog = new THREE.FogExp2(0x060913, 0.015);
 
-        // Perspective Camera angled slightly down (Isometric view)
+        // Perspective Camera angled down, center-locked to hole
         const aspect = window.innerWidth / window.innerHeight;
-        this.camera = new THREE.PerspectiveCamera(50, aspect, 0.1, 1000);
-        this.camera.position.set(0, 32, 28);
-        this.camera.lookAt(0, 0, 4);
+        const fov = aspect < 1.0 ? 64 : 50;
+        this.camera = new THREE.PerspectiveCamera(fov, aspect, 0.1, 1000);
+        this.camera.position.set(0, 26, 20);
+        this.camera.lookAt(0, 0, 0);
 
-        // WebGL Renderer
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -77,195 +72,103 @@ class Game {
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.container.appendChild(this.renderer.domElement);
 
-        // Lights
-        const ambientLight = new THREE.AmbientLight(0x223355, 0.9);
-        this.scene.add(ambientLight);
+        // Ambient & Directional Lighting
+        const amb = new THREE.AmbientLight(0x334466, 1.1);
+        this.scene.add(amb);
 
-        const dirLight = new THREE.DirectionalLight(0xddeeff, 1.2);
-        dirLight.position.set(15, 40, 20);
-        dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 1024;
-        dirLight.shadow.mapSize.height = 1024;
-        this.scene.add(dirLight);
+        const sun = new THREE.DirectionalLight(0xe0f2fe, 1.4);
+        sun.position.set(30, 60, 30);
+        sun.castShadow = true;
+        sun.shadow.mapSize.width = 1024;
+        sun.shadow.mapSize.height = 1024;
+        this.scene.add(sun);
 
-        // Neon side rim lights
-        const cyanLight = new THREE.PointLight(0x00f3ff, 2.0, 50);
-        cyanLight.position.set(-18, 5, 5);
-        const magentaLight = new THREE.PointLight(0xff007f, 2.0, 50);
-        magentaLight.position.set(18, 5, 5);
-        this.scene.add(cyanLight, magentaLight);
-    }
-
-    initEnvironment() {
-        // Floor Plane
-        const floorGeom = new THREE.PlaneGeometry(36, 45);
-        floorGeom.rotateX(-Math.PI / 2);
-        const floorMat = new THREE.MeshStandardMaterial({
-            color: 0x0a0f1d,
-            roughness: 0.85,
-            metalness: 0.15
-        });
-        const floor = new THREE.Mesh(floorGeom, floorMat);
-        floor.position.set(0, 0, 2.5);
-        floor.receiveShadow = true;
-        this.scene.add(floor);
-
-        // Subtle Grid Overlay on Floor
-        const grid = new THREE.GridHelper(45, 45, 0x00f3ff, 0x1a2639);
-        grid.position.set(0, 0.01, 2.5);
-        grid.material.opacity = 0.25;
-        grid.material.transparent = true;
-        this.scene.add(grid);
-
-        // Side Walls (Containment Laser Barricades)
-        const wallMat = new THREE.MeshStandardMaterial({ color: 0x111928, roughness: 0.5 });
-        const leftWall = new THREE.Mesh(new THREE.BoxGeometry(1.5, 3, 45), wallMat);
-        leftWall.position.set(-18, 1.5, 2.5);
-        const rightWall = new THREE.Mesh(new THREE.BoxGeometry(1.5, 3, 45), wallMat);
-        rightWall.position.set(18, 1.5, 2.5);
-        this.scene.add(leftWall, rightWall);
-
-        // Glowing Laser Beams on side walls
-        const laserMat = new THREE.MeshBasicMaterial({ color: 0x00f3ff });
-        const leftLaser = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 45), laserMat);
-        leftLaser.rotation.x = Math.PI / 2;
-        leftLaser.position.set(-17.2, 2.5, 2.5);
-        const rightLaser = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 45), laserMat);
-        rightLaser.rotation.x = Math.PI / 2;
-        rightLaser.position.set(17.2, 2.5, 2.5);
-        this.scene.add(leftLaser, rightLaser);
-
-        // Sanctuary Gate (Fortress Wall at bottom)
-        const gateGroup = new THREE.Group();
-        const gateWall = new THREE.Mesh(new THREE.BoxGeometry(34, 4, 2), new THREE.MeshStandardMaterial({ color: 0x1e293b }));
-        gateWall.position.set(0, 2, 22.5);
-        gateGroup.add(gateWall);
-
-        // Glowing Shield Doorway in center
-        const shieldDoor = new THREE.Mesh(new THREE.PlaneGeometry(10, 3.5), new THREE.MeshBasicMaterial({
-            color: 0x00ff88,
-            transparent: true,
-            opacity: 0.5,
-            side: THREE.DoubleSide
-        }));
-        shieldDoor.position.set(0, 1.8, 21.6);
-        gateGroup.add(shieldDoor);
-
-        // Sanctuary Defense Turrets
-        const turretMat = new THREE.MeshStandardMaterial({ color: 0x334155 });
-        const t1 = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 2, 12), turretMat);
-        t1.position.set(-8, 4.5, 22.5);
-        const t2 = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 2, 12), turretMat);
-        t2.position.set(8, 4.5, 22.5);
-        gateGroup.add(t1, t2);
-
-        this.gateGroup = gateGroup;
-        this.shieldDoor = shieldDoor;
-        this.scene.add(gateGroup);
+        // Neon atmospheric accent lights
+        const cyanLight = new THREE.PointLight(0x00f3ff, 2.5, 70);
+        cyanLight.position.set(-30, 15, -20);
+        const purpleLight = new THREE.PointLight(0x9d4edd, 2.5, 70);
+        purpleLight.position.set(30, 15, 20);
+        this.scene.add(cyanLight, purpleLight);
     }
 
     initSubsystems() {
         this.pm = new ParticleManager(this.scene);
-        this.em = new EntityManager(this.scene, this.pm);
+        this.city = new CityManager(this.scene, this.pm);
+        this.zm = new ZombieManager(this.scene, this.pm);
         this.hole = new VoidHole(this.scene, this.pm);
-        this.wm = new WaveManager(this.em);
         this.input = new InputController();
 
-        // Connect ability trigger
-        this.input.onAbilityTrigger = () => {
+        this.input.onAbility = () => {
             if (this.state !== 'PLAYING') return;
             if (this.abilityTimer <= 0) {
-                this.hole.triggerSingularity();
-                this.abilityTimer = this.abilityCooldown;
+                this.hole.triggerSupernova();
+                this.abilityTimer = this.abilityCD;
             }
         };
     }
 
     initEvents() {
         window.addEventListener('resize', () => {
-            const width = window.innerWidth;
-            const height = window.innerHeight;
-            this.camera.aspect = width / height;
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            this.camera.aspect = w / h;
+            this.camera.fov = (w / h) < 1.0 ? 64 : 50;
             this.camera.updateProjectionMatrix();
-            this.renderer.setSize(width, height);
+            this.renderer.setSize(w, h);
         });
 
-        // UI Button Events
-        document.getElementById('btn-start-game').addEventListener('click', () => this.startGame());
-        document.getElementById('btn-how-to-play').addEventListener('click', () => {
-            document.getElementById('screen-guide').classList.remove('hidden');
+        // UI buttons
+        document.getElementById('btn-play-now').addEventListener('click', () => this.startPlay());
+        document.getElementById('btn-instructions').addEventListener('click', () => {
+            document.getElementById('screen-info').classList.remove('hidden');
         });
-        document.getElementById('btn-close-guide').addEventListener('click', () => {
-            document.getElementById('screen-guide').classList.add('hidden');
+        document.getElementById('btn-back-menu').addEventListener('click', () => {
+            document.getElementById('screen-info').classList.add('hidden');
         });
 
-        document.getElementById('btn-sound-toggle').addEventListener('click', () => {
+        document.getElementById('btn-audio-toggle').addEventListener('click', () => {
             const muted = window.audioManager.toggleMute();
-            document.getElementById('btn-sound-toggle').innerText = muted ? '🔇' : '🔊';
+            document.getElementById('btn-audio-toggle').innerText = muted ? '🔇' : '🔊';
         });
 
-        document.getElementById('btn-pause').addEventListener('click', () => this.togglePause());
-        document.getElementById('btn-resume').addEventListener('click', () => this.togglePause());
-        document.getElementById('btn-restart').addEventListener('click', () => this.startGame());
-        document.getElementById('btn-quit').addEventListener('click', () => this.returnToMenu());
+        document.getElementById('btn-pause-toggle').addEventListener('click', () => this.togglePause());
+        document.getElementById('btn-unpause').addEventListener('click', () => this.togglePause());
+        document.getElementById('btn-restart').addEventListener('click', () => this.startPlay());
+        document.getElementById('btn-exit').addEventListener('click', () => this.returnMenu());
 
-        document.getElementById('btn-retry').addEventListener('click', () => this.startGame());
-        document.getElementById('btn-gameover-menu').addEventListener('click', () => this.returnToMenu());
-
-        document.getElementById('btn-endless').addEventListener('click', () => this.startEndless());
-        document.getElementById('btn-victory-menu').addEventListener('click', () => this.returnToMenu());
+        document.getElementById('btn-retry').addEventListener('click', () => this.startPlay());
+        document.getElementById('btn-over-menu').addEventListener('click', () => this.returnMenu());
     }
 
-    startGame() {
+    startPlay() {
         window.audioManager.init();
         this.state = 'PLAYING';
 
-        // Reset Stats
         this.score = 0;
-        this.totalZombiesKilled = 0;
-        this.totalCiviliansSaved = 0;
-        this.totalCiviliansLost = 0;
-        this.maxCombo = 1;
-        this.currentCombo = 1;
-        this.comboTimer = 0;
-        this.gateHealth = 100;
+        this.zombiesKilled = 0;
+        this.vehiclesEaten = 0;
+        this.bossesSlain = 0;
+        this.runTimer = 0;
+        this.frenzyCombo = 0;
+        this.frenzyTimer = 0;
         this.abilityTimer = 0;
-        this.perks = [];
 
-        // Reset Subsystems
-        this.em.clear();
-        this.pm.clear();
         this.hole.reset();
+        this.pm.clear();
 
-        // Hide screens, show HUD
         document.querySelectorAll('.screen-modal').forEach(s => s.classList.add('hidden'));
         this.hud.classList.remove('hidden');
-        this.abilityControls.classList.remove('hidden');
+        this.abilityBtnWrap.classList.remove('hidden');
 
-        // Start Wave 1
-        this.wm.startWave(1, false);
         this.updateHUD();
-        this.showAlert('DEFEND THE SANCTUARY!');
     }
 
-    startEndless() {
-        this.state = 'PLAYING';
-        document.querySelectorAll('.screen-modal').forEach(s => s.classList.add('hidden'));
-        this.hud.classList.remove('hidden');
-        this.abilityControls.classList.remove('hidden');
-
-        this.wm.startWave(6, true);
-        this.showAlert('ENTERING ENDLESS HORDE!');
-    }
-
-    returnToMenu() {
+    returnMenu() {
         this.state = 'MENU';
         document.querySelectorAll('.screen-modal').forEach(s => s.classList.add('hidden'));
-        document.getElementById('screen-menu').classList.remove('hidden');
+        document.getElementById('screen-main').classList.remove('hidden');
         this.hud.classList.add('hidden');
-        this.abilityControls.classList.add('hidden');
-        this.em.clear();
-        this.pm.clear();
+        this.abilityBtnWrap.classList.add('hidden');
     }
 
     togglePause() {
@@ -278,209 +181,204 @@ class Game {
         }
     }
 
-    showAlert(text, isDanger = false) {
-        if (!this.alertBanner) return;
-        this.alertBanner.innerText = text;
-        this.alertBanner.style.background = isDanger ? 'rgba(255, 51, 102, 0.9)' : 'rgba(0, 243, 255, 0.9)';
-        this.alertBanner.style.color = isDanger ? '#fff' : '#040810';
-        this.alertBanner.classList.remove('hidden');
+    spawnFloatingText(text, color = '#ffd60a') {
+        if (!this.floatLayer) return;
+        const msg = document.createElement('div');
+        msg.className = 'float-msg';
+        msg.innerText = text;
+        msg.style.color = color;
+        // Position at screen center with random offset
+        const randX = window.innerWidth / 2 + (Math.random() - 0.5) * 120;
+        const randY = window.innerHeight / 2 - 30 + (Math.random() - 0.5) * 60;
+        msg.style.left = `${randX}px`;
+        msg.style.top = `${randY}px`;
+        this.floatLayer.appendChild(msg);
 
-        if (this.alertTimeout) clearTimeout(this.alertTimeout);
-        this.alertTimeout = setTimeout(() => {
-            this.alertBanner.classList.add('hidden');
-        }, 2200);
+        setTimeout(() => {
+            if (msg.parentNode) msg.parentNode.removeChild(msg);
+        }, 850);
     }
 
-    onSwallow(entity) {
-        if (entity.isZombie) {
-            this.totalZombiesKilled++;
-            if (entity.isHazard) {
-                // Bloater swallowed: Acid indigestion!
-                this.hole.applyAcidIndigestion();
-                window.audioManager.playAcid();
-                this.showAlert('ACID INDIGESTION! (-15% SIZE)', true);
-                this.currentCombo = 1;
-            } else {
-                // Standard zombie or brute
-                const tierChanged = this.hole.addMass(entity.massValue);
-                if (tierChanged) {
-                    window.audioManager.playTierUp();
-                    this.showAlert(`VOID ASCENSION: TIER ${this.hole.tier}!`);
-                    this.pm.spawnShockwave(this.hole.x, this.hole.z, this.hole.currentRadius * 3, 0x00f3ff);
-                }
+    onDevourZombie(z) {
+        this.zombiesKilled++;
+        if (z.type === 'boss') this.bossesSlain++;
 
-                // Combo calculation
-                this.comboTimer = 1.6;
-                this.currentCombo++;
-                if (this.currentCombo > this.maxCombo) this.maxCombo = this.currentCombo;
+        const { leveledUp, newLevel, earnedXP } = this.hole.addMass(z.massXP);
+        this.score += earnedXP * 10;
 
-                const pts = entity.massValue * 10 * this.currentCombo;
-                this.score += pts;
-                window.audioManager.playSwallow(this.currentCombo);
-            }
-        } else {
-            // Civilian swallowed: Tragedy!
-            this.totalCiviliansLost++;
-            this.score = Math.max(0, this.score - 500);
-            this.currentCombo = 1;
-            window.audioManager.playCivilianLost();
-            this.showAlert('CIVILIAN CASUALTY! (-500 PTS)', true);
+        // Frenzy increment
+        this.frenzyCombo++;
+        this.frenzyTimer = 1.6;
+
+        this.spawnFloatingText(`+${earnedXP} XP`, z.type === 'boss' ? '#ff007f' : '#00f3ff');
+        window.audioManager.playSwallow(Math.min(this.frenzyCombo, 10));
+
+        if (z.type === 'boss') {
+            this.pm.spawnShockwave(this.hole.x, this.hole.z, this.hole.currentRadius * 3, 0xff007f);
+            this.spawnFloatingText('TITAN SLAIN! +3000', '#ffd60a');
         }
 
         this.updateHUD();
+
+        if (leveledUp) {
+            this.onLevelUp(newLevel);
+        }
     }
 
-    onGateDamage(amount, entity) {
-        this.gateHealth = Math.max(0, this.gateHealth - amount);
-        this.shieldDoor.material.opacity = Math.max(0.1, this.gateHealth / 100);
-        window.audioManager.playGateHit();
-        this.showAlert(`SANCTUARY BREACHED! -${amount}%`, true);
+    onDevourProp(p) {
+        if (p.type === 'car' || p.type === 'policeCar' || p.type === 'bus') {
+            this.vehiclesEaten++;
+        }
+
+        const { leveledUp, newLevel, earnedXP } = this.hole.addMass(p.massValue);
+        this.score += earnedXP * 10;
+
+        this.spawnFloatingText(`+${earnedXP} XP`, '#ffd60a');
+        window.audioManager.playSwallow(2);
+
         this.updateHUD();
 
-        if (this.gateHealth <= 0) {
-            this.gameOver();
+        if (leveledUp) {
+            this.onLevelUp(newLevel);
         }
     }
 
-    onCivilianSaved(entity) {
-        this.totalCiviliansSaved++;
-        this.score += 250;
-        this.gateHealth = Math.min(100, this.gateHealth + 5);
-        window.audioManager.playCivilianSaved();
-        this.showAlert('SURVIVOR SECURED! (+5% GATE HP)');
-        this.updateHUD();
-    }
+    onLevelUp(newLevel) {
+        window.audioManager.playTierUp();
+        this.pm.spawnShockwave(this.hole.x, this.hole.z, this.hole.currentRadius * 3, 0x00f3ff);
+        this.spawnFloatingText(`LEVEL UP! LVL ${newLevel}`, '#00ff88');
 
-    updateHUD() {
-        this.scoreVal.innerText = this.score.toLocaleString();
-        this.gateText.innerText = `${Math.ceil(this.gateHealth)}%`;
-        this.gateBar.style.width = `${Math.max(0, this.gateHealth)}%`;
-
-        // Tier progress
-        const t = this.hole.tier;
-        this.tierName.innerText = `TIER ${t} RIFT`;
-        const curr = this.hole.mass;
-        const target = t === 1 ? this.hole.tierThresholds[1] : (t === 2 ? this.hole.tierThresholds[2] : 1500);
-        const prev = t === 1 ? 0 : this.hole.tierThresholds[t - 1];
-        const pct = Math.min(100, Math.max(0, ((curr - prev) / (target - prev)) * 100));
-
-        this.tierBar.style.width = `${pct}%`;
-        this.tierProgressText.innerText = `${curr} / ${target}`;
-
-        // Wave text
-        if (this.wm.isEndless) {
-            this.waveDisplay.innerText = `ENDLESS #${this.wm.currentWave - 5}`;
-        } else {
-            this.waveDisplay.innerText = `WAVE ${this.wm.currentWave} / 5`;
-        }
-
-        // Combo badge
-        if (this.currentCombo >= 2) {
-            this.comboBadge.classList.remove('hidden');
-            this.comboText.innerText = `x${this.currentCombo} COMBO!`;
-        } else {
-            this.comboBadge.classList.add('hidden');
-        }
-    }
-
-    onWaveComplete() {
-        if (!this.wm.isEndless && this.wm.currentWave === this.wm.maxCampaignWaves) {
-            // Completed all 5 campaign waves!
-            this.victory();
-            return;
-        }
-
-        // Show Roguelite Perk Screen
+        // Present Vampire Survivors Perk Selection
         this.state = 'PERKS';
-        this.presentPerks();
+        this.showPerkSelection(newLevel);
     }
 
-    presentPerks() {
+    showPerkSelection(level) {
         const perkPool = [
-            { id: 'size', title: 'EVENT HORIZON EXPANSION', desc: '+25% Base Hole Diameter permanently', icon: '🌌' },
-            { id: 'suction', title: 'GRAVITON SINGULARITY', desc: '+40% Suction Pull Strength', icon: '🌀' },
-            { id: 'speed', title: 'WARP PROPULSION', desc: '+25% Void Movement & Drift Speed', icon: '⚡' },
-            { id: 'repair', title: 'NANITE REPAIR SWARM', desc: 'Restores +40% Sanctuary Gate Health', icon: '🛡️' },
-            { id: 'repulsor', title: 'AEGIS HUMAN WARD', desc: 'Repels Civilians safely away from the rift rim', icon: '🕊️' },
-            { id: 'cooldown', title: 'SINGULARITY OVERCHARGE', desc: 'Reduces Singularity Ability cooldown by 30%', icon: '⏳' }
+            { id: 'gravity', name: 'GRAVITATIONAL REACH', desc: '+35% Event Horizon suction radius and pull force', icon: '🌌' },
+            { id: 'speed', name: 'WARP OVERDRIVE', desc: '+25% Void movement and gliding speed', icon: '⚡' },
+            { id: 'mass', name: 'DARK MATTER HARVEST', desc: '+40% bonus Mass XP from all devoured zombies and cars', icon: '🌀' },
+            { id: 'supernova', name: 'SUPERNOVA RECHARGE', desc: '-35% Supernova ability cooldown timer', icon: '⏳' },
+            { id: 'shockwave', name: 'KINETIC DETONATION', desc: 'Devouring large objects sends a shockwave pulling nearby zombies', icon: '💥' }
         ];
 
-        // Pick 3 random perks
-        const shuffled = perkPool.sort(() => 0.5 - Math.random()).slice(0, 3);
-        const container = document.getElementById('perk-cards-container');
+        const picks = perkPool.sort(() => 0.5 - Math.random()).slice(0, 3);
+        const container = document.getElementById('perk-items-box');
         container.innerHTML = '';
 
-        shuffled.forEach(perk => {
-            const card = document.createElement('div');
-            card.className = 'perk-card';
-            card.innerHTML = `
-                <div class="perk-icon-wrap">${perk.icon}</div>
+        document.getElementById('perk-level-title').innerText = `LEVEL ${level} MUTATION`;
+
+        picks.forEach(p => {
+            const el = document.createElement('div');
+            el.className = 'perk-item';
+            el.innerHTML = `
+                <div class="perk-icon-slot">${p.icon}</div>
                 <div>
-                    <div class="perk-title">${perk.title}</div>
-                    <div class="perk-desc">${perk.desc}</div>
+                    <div class="perk-header">${p.name}</div>
+                    <div class="perk-detail">${p.desc}</div>
                 </div>
             `;
-            card.addEventListener('click', () => this.applyPerk(perk));
-            container.appendChild(card);
+            el.addEventListener('click', () => this.applyPerk(p));
+            container.appendChild(el);
         });
 
         document.getElementById('screen-perks').classList.remove('hidden');
     }
 
     applyPerk(perk) {
-        this.perks.push(perk.id);
-
-        if (perk.id === 'size') {
-            this.hole.baseRadius *= 1.25;
-            this.hole.targetRadius *= 1.25;
-        } else if (perk.id === 'suction') {
-            this.hole.suctionForce *= 1.4;
-            this.hole.suctionMultiplier *= 1.15;
+        if (perk.id === 'gravity') {
+            this.hole.suctionMultiplier *= 1.35;
+            this.hole.suctionForce *= 1.35;
         } else if (perk.id === 'speed') {
             this.hole.baseSpeed *= 1.25;
-        } else if (perk.id === 'repair') {
-            this.gateHealth = Math.min(100, this.gateHealth + 40);
-        } else if (perk.id === 'repulsor') {
-            this.hole.hasCivilianRepulsor = true;
-        } else if (perk.id === 'cooldown') {
-            this.abilityCooldown *= 0.7;
+        } else if (perk.id === 'mass') {
+            this.hole.massMultiplier *= 1.4;
+        } else if (perk.id === 'supernova') {
+            this.abilityCD *= 0.65;
+        } else if (perk.id === 'shockwave') {
+            this.pm.spawnShockwave(this.hole.x, this.hole.z, this.hole.currentRadius * 4, 0x00f3ff);
         }
 
         document.getElementById('screen-perks').classList.add('hidden');
         this.state = 'PLAYING';
-
-        // Proceed to next wave
-        this.wm.startWave(this.wm.currentWave + 1, this.wm.isEndless);
-        this.updateHUD();
-        this.showAlert(`WAVE ${this.wm.currentWave} INCOMING!`);
     }
 
-    gameOver() {
-        this.state = 'GAMEOVER';
-        this.hud.classList.add('hidden');
-        this.abilityControls.classList.add('hidden');
+    updateHUD() {
+        this.hudLevel.innerText = this.hole.level;
+        this.hudScore.innerText = this.score.toLocaleString();
 
-        document.getElementById('stat-mass').innerText = this.score.toLocaleString();
-        document.getElementById('stat-zombies').innerText = this.totalZombiesKilled;
-        document.getElementById('stat-civilians-saved').innerText = this.totalCiviliansSaved;
-        document.getElementById('stat-civilians-lost').innerText = this.totalCiviliansLost;
-        document.getElementById('stat-combo').innerText = `x${this.maxCombo}`;
-        document.getElementById('stat-tier').innerText = `Tier ${this.hole.tier}`;
+        const tierNames = ['TINY RIFT', 'EXPANDING VORTEX', 'BLACK HOLE', 'GARGANTUAN ABYSS', 'CITY DEVOURER'];
+        this.hudTierName.innerText = tierNames[Math.min(this.hole.level - 1, 4)];
 
-        document.getElementById('screen-gameover').classList.remove('hidden');
+        const currXP = this.hole.massXP;
+        const prevXP = this.hole.levelThresholds[this.hole.level - 1];
+        const nextXP = this.hole.levelThresholds[this.hole.level];
+        const pct = Math.min(100, Math.max(0, ((currXP - prevXP) / (nextXP - prevXP)) * 100));
+
+        this.hudMassBar.style.width = `${pct}%`;
+        this.hudMassText.innerText = `${currXP} / ${nextXP} XP`;
+
+        // Frenzy
+        if (this.frenzyCombo >= 3) {
+            this.frenzyBadge.classList.remove('hidden');
+            this.frenzyText.innerText = `🔥 SWARM FRENZY x${Math.min(this.frenzyCombo, 10)}!`;
+        } else {
+            this.frenzyBadge.classList.add('hidden');
+        }
     }
 
-    victory() {
-        this.state = 'VICTORY';
-        this.hud.classList.add('hidden');
-        this.abilityControls.classList.add('hidden');
+    drawRadar() {
+        if (!this.radarCtx) return;
+        const ctx = this.radarCtx;
+        const size = 90;
+        const half = size / 2;
+        const scale = size / 140; // 140m city
 
-        document.getElementById('vic-score').innerText = this.score.toLocaleString();
-        document.getElementById('vic-gate').innerText = `${Math.ceil(this.gateHealth)}%`;
-        document.getElementById('vic-kills').innerText = this.totalZombiesKilled;
-        document.getElementById('vic-survivors').innerText = this.totalCiviliansSaved;
+        ctx.clearRect(0, 0, size, size);
 
-        document.getElementById('screen-victory').classList.remove('hidden');
+        // Circular background & scan grid
+        ctx.fillStyle = 'rgba(4, 8, 16, 0.85)';
+        ctx.beginPath();
+        ctx.arc(half, half, half - 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(0, 243, 255, 0.2)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(half, half, half * 0.5, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Draw Zombies as green dots
+        ctx.fillStyle = '#00ff88';
+        for (let i = 0; i < this.zm.zombies.length; i += 2) {
+            const z = this.zm.zombies[i];
+            const rx = half + (z.x - this.hole.x) * scale;
+            const ry = half + (z.z - this.hole.z) * scale;
+            if (Math.hypot(rx - half, ry - half) < half - 4) {
+                ctx.fillRect(rx - 1, ry - 1, 2, 2);
+            }
+        }
+
+        // Draw Bosses as flashing pink dots
+        ctx.fillStyle = '#ff007f';
+        this.zm.zombies.forEach(z => {
+            if (z.type === 'boss') {
+                const rx = half + (z.x - this.hole.x) * scale;
+                const ry = half + (z.z - this.hole.z) * scale;
+                if (Math.hypot(rx - half, ry - half) < half - 4) {
+                    ctx.beginPath();
+                    ctx.arc(rx, ry, 3.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        });
+
+        // Center player hole
+        ctx.strokeStyle = '#00f3ff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(half, half, Math.max(3, this.hole.currentRadius * scale * 1.5), 0, Math.PI * 2);
+        ctx.stroke();
     }
 
     render(time) {
@@ -489,53 +387,58 @@ class Game {
         const dt = Math.min(this.clock.getDelta(), 0.1);
 
         if (this.state === 'PLAYING') {
-            // Update Combo timer
-            if (this.comboTimer > 0) {
-                this.comboTimer -= dt;
-                if (this.comboTimer <= 0) {
-                    this.currentCombo = 1;
+            this.runTimer += dt;
+
+            // Frenzy timer decay
+            if (this.frenzyTimer > 0) {
+                this.frenzyTimer -= dt;
+                if (this.frenzyTimer <= 0) {
+                    this.frenzyCombo = 0;
                     this.updateHUD();
                 }
             }
 
-            // Update Ability Cooldown UI
+            // Ability CD
             if (this.abilityTimer > 0) {
                 this.abilityTimer -= dt;
-                const cdPct = (this.abilityTimer / this.abilityCooldown) * 100;
-                this.abilityCdOverlay.style.height = `${cdPct}%`;
+                const pct = (this.abilityTimer / this.abilityCD) * 100;
+                this.cdOverlay.style.height = `${pct}%`;
             } else {
-                this.abilityCdOverlay.style.height = '0%';
+                this.cdOverlay.style.height = '0%';
             }
 
-            // Update Controls & Hole Movement
-            const moveVec = this.input.getMovementVector();
-            this.hole.move(moveVec.x, moveVec.z, dt);
+            // Move Hole based on Joystick / Keyboard
+            const vec = this.input.getVector();
+            let speedBoost = 1.0 + Math.min(this.frenzyCombo * 0.04, 0.4);
+            this.hole.move(vec.x * speedBoost, vec.z * speedBoost, dt);
             this.hole.update(dt);
 
-            // Update Entities and check collisions
-            this.em.update(
-                dt,
-                this.hole,
-                (e) => this.onSwallow(e),
-                (dmg, e) => this.onGateDamage(dmg, e),
-                (e) => this.onCivilianSaved(e)
-            );
-
-            // Update Particles
+            // Update City Props & Zombies
+            this.city.update(dt, this.hole, (p) => this.onDevourProp(p));
+            this.zm.update(dt, this.hole, (z) => this.onDevourZombie(z));
             this.pm.update(dt);
 
-            // Update Wave Progression
-            const waveFinished = this.wm.update(dt);
-            if (waveFinished) {
-                this.onWaveComplete();
-            }
+            // Absolute Center-Lock & Dynamic Continuous Zoom-Out:
+            // The hole is mathematically locked dead-center in the mobile viewport.
+            // As the hole expands in radius, the camera smoothly zooms out proportionally,
+            // preventing the hole from dominating the screen and revealing more of the city!
+            const isPortrait = this.camera.aspect < 1.0;
+            const baseElevation = isPortrait ? 22.0 : 17.0;
+            const dynamicZoom = this.hole.currentRadius * 5.2;
+            const camElevation = baseElevation + dynamicZoom;
+            const camPitchOffset = camElevation * 0.72;
 
-            // Smooth Camera Follow (focuses on midpoint between Hole and Sanctuary Gate)
-            const targetCamX = this.hole.x * 0.35;
-            this.camera.position.x += (targetCamX - this.camera.position.x) * dt * 3.0;
+            // Zero lag on X and Z camera tracking so hole NEVER drifts off-screen:
+            this.camera.position.x = this.hole.x;
+            this.camera.position.y += (camElevation - this.camera.position.y) * dt * 5.0;
+            this.camera.position.z = this.hole.z + camPitchOffset;
+            this.camera.lookAt(this.hole.x, 0, this.hole.z);
+
+            // Draw radar
+            this.drawRadar();
         }
 
-        // Render Scene
+        // Render WebGL
         this.renderer.render(this.scene, this.camera);
     }
 }

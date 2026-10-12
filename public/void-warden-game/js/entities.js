@@ -1,382 +1,321 @@
-// Procedural 3D Entity Models & Logic for Void Warden
-class EntityManager {
+// 3D Zombie Swarm & Titan Boss Manager for Void Warden
+class ZombieManager {
     constructor(scene, particleManager) {
         this.scene = scene;
         this.pm = particleManager;
-        this.entities = [];
-        this.gateZ = 22; // Sanctuary line at the bottom
+        this.zombies = [];
+        this.maxZombies = 160; // 160 active wandering zombies across the city
+        this.mapSize = 130;
 
-        // Reusable shared materials to maximize mobile performance
-        this.materials = {
-            zombieGreen: new THREE.MeshStandardMaterial({ color: 0x2ec4b6, roughness: 0.6 }),
-            zombieClothes: new THREE.MeshStandardMaterial({ color: 0x1f3160, roughness: 0.8 }),
-            zombieEyes: new THREE.MeshBasicMaterial({ color: 0xff0055 }),
+        this.initMaterials();
+        this.populateInitialSwarms();
+    }
 
-            sprinterRed: new THREE.MeshStandardMaterial({ color: 0xff3366, roughness: 0.5 }),
-            sprinterClothes: new THREE.MeshStandardMaterial({ color: 0x3a0ca3, roughness: 0.7 }),
-
-            bloaterYellow: new THREE.MeshStandardMaterial({ color: 0xccff00, roughness: 0.4, emissive: 0x446600, emissiveIntensity: 0.6 }),
-            bloaterPustule: new THREE.MeshStandardMaterial({ color: 0xffb703, roughness: 0.3, emissive: 0xff9900, emissiveIntensity: 0.8 }),
-
-            bruteSkin: new THREE.MeshStandardMaterial({ color: 0x7209b7, roughness: 0.6, metalness: 0.2 }),
-            bruteSpikes: new THREE.MeshStandardMaterial({ color: 0x3f37c9, roughness: 0.4 }),
-
-            civilianSkin: new THREE.MeshStandardMaterial({ color: 0xffd166, roughness: 0.6 }),
-            civilianClothes: new THREE.MeshStandardMaterial({ color: 0x00b4d8, roughness: 0.7 }),
-            civilianCross: new THREE.MeshBasicMaterial({ color: 0xffffff })
+    initMaterials() {
+        this.mats = {
+            crawlerSkin: new THREE.MeshStandardMaterial({ color: 0x4d7c0f, roughness: 0.8 }),
+            walkerSkin: new THREE.MeshStandardMaterial({ color: 0x2ec4b6, roughness: 0.6 }),
+            walkerClothes: new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.8 }),
+            sprinterSkin: new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.5 }),
+            bloaterSkin: new THREE.MeshStandardMaterial({ color: 0x84cc16, roughness: 0.4, emissive: 0x365314, emissiveIntensity: 0.4 }),
+            bossSkin: new THREE.MeshStandardMaterial({ color: 0x6b21a8, roughness: 0.5, metalness: 0.3 }),
+            bossHorns: new THREE.MeshStandardMaterial({ color: 0xf43f5e, roughness: 0.3 }),
+            eyesRed: new THREE.MeshBasicMaterial({ color: 0xff0055 })
         };
     }
 
-    createCharacterMesh(type) {
+    createZombieMesh(type) {
         const group = new THREE.Group();
 
-        if (type === 'shambler' || type === 'sprinter') {
+        if (type === 'crawler') {
+            // Level 1: Flat crawler dragging itself
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.25, 0.6), this.mats.crawlerSkin);
+            torso.position.y = 0.15;
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), this.mats.crawlerSkin);
+            head.position.set(0, 0.22, 0.4);
+            const armL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.45), this.mats.crawlerSkin);
+            armL.position.set(-0.3, 0.1, 0.2);
+            const armR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.45), this.mats.crawlerSkin);
+            armR.position.set(0.3, 0.1, 0.2);
+            group.add(torso, head, armL, armR);
+            group.userData = { armL, armR };
+
+        } else if (type === 'walker' || type === 'sprinter') {
             const isSprinter = type === 'sprinter';
-            const skinMat = isSprinter ? this.materials.sprinterRed : this.materials.zombieGreen;
-            const clothesMat = isSprinter ? this.materials.sprinterClothes : this.materials.zombieClothes;
+            const skin = isSprinter ? this.mats.sprinterSkin : this.mats.walkerSkin;
 
             // Torso
-            const torsoGeom = new THREE.BoxGeometry(0.5, 0.7, 0.3);
-            const torso = new THREE.Mesh(torsoGeom, clothesMat);
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.3), this.mats.walkerClothes);
             torso.position.y = 0.8;
-            group.add(torso);
 
-            // Head
-            const headGeom = new THREE.BoxGeometry(0.38, 0.38, 0.38);
-            const head = new THREE.Mesh(headGeom, skinMat);
+            // Head & Eyes
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.38, 0.38), skin);
             head.position.set(0, 1.35, 0.05);
-            group.add(head);
+            const eye1 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 0.05), this.mats.eyesRed);
+            eye1.position.set(-0.1, 1.38, 0.24);
+            const eye2 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 0.05), this.mats.eyesRed);
+            eye2.position.set(0.1, 1.38, 0.24);
 
-            // Glowing Eyes
-            const eyeGeom = new THREE.BoxGeometry(0.08, 0.06, 0.05);
-            const leftEye = new THREE.Mesh(eyeGeom, this.materials.zombieEyes);
-            leftEye.position.set(-0.1, 1.38, 0.24);
-            const rightEye = new THREE.Mesh(eyeGeom, this.materials.zombieEyes);
-            rightEye.position.set(0.1, 1.38, 0.24);
-            group.add(leftEye, rightEye);
-
-            // Arms (reaching forward)
-            const armGeom = new THREE.BoxGeometry(0.15, 0.6, 0.15);
-            const leftArm = new THREE.Mesh(armGeom, skinMat);
-            leftArm.position.set(-0.35, 0.8, 0.2);
-            leftArm.rotation.x = -Math.PI / 3;
-            const rightArm = new THREE.Mesh(armGeom, skinMat);
-            rightArm.position.set(0.35, 0.8, 0.2);
-            rightArm.rotation.x = -Math.PI / 2.8;
-            group.add(leftArm, rightArm);
+            // Reaching Arms
+            const armL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.6, 0.14), skin);
+            armL.position.set(-0.35, 0.8, 0.2);
+            armL.rotation.x = -Math.PI / 2.8;
+            const armR = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.6, 0.14), skin);
+            armR.position.set(0.35, 0.8, 0.2);
+            armR.rotation.x = -Math.PI / 2.6;
 
             // Legs
-            const legGeom = new THREE.BoxGeometry(0.18, 0.65, 0.18);
-            const leftLeg = new THREE.Mesh(legGeom, clothesMat);
-            leftLeg.position.set(-0.16, 0.33, 0);
-            const rightLeg = new THREE.Mesh(legGeom, clothesMat);
-            rightLeg.position.set(0.16, 0.33, 0);
-            group.add(leftLeg, rightLeg);
+            const legL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.65, 0.18), this.mats.walkerClothes);
+            legL.position.set(-0.16, 0.33, 0);
+            const legR = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.65, 0.18), this.mats.walkerClothes);
+            legR.position.set(0.16, 0.33, 0);
 
-            group.userData = { leftLeg, rightLeg, leftArm, rightArm, head };
+            group.add(torso, head, eye1, eye2, armL, armR, legL, legR);
+            group.userData = { legL, legR, armL, armR };
 
         } else if (type === 'bloater') {
-            // Acid Bloater: Round, bulky, bulging with glowing sacs
-            const bodyGeom = new THREE.SphereGeometry(0.55, 12, 10);
-            bodyGeom.scale(1, 0.9, 1.1);
-            const body = new THREE.Mesh(bodyGeom, this.materials.bloaterYellow);
-            body.position.y = 0.75;
-            group.add(body);
+            // Level 3: Fat Bloater
+            const body = new THREE.Mesh(new THREE.SphereGeometry(0.65, 10, 8), this.mats.bloaterSkin);
+            body.scale.set(1.1, 0.9, 1.1);
+            body.position.y = 0.8;
 
-            // Head (sunken into shoulders)
-            const headGeom = new THREE.BoxGeometry(0.35, 0.35, 0.35);
-            const head = new THREE.Mesh(headGeom, this.materials.bloaterYellow);
-            head.position.set(0, 1.15, 0.2);
-            group.add(head);
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), this.mats.bloaterSkin);
+            head.position.set(0, 1.25, 0.2);
 
-            // Glowing Pustules
-            const pustuleGeom = new THREE.SphereGeometry(0.18, 8, 8);
-            const p1 = new THREE.Mesh(pustuleGeom, this.materials.bloaterPustule);
-            p1.position.set(0.35, 0.95, -0.1);
-            const p2 = new THREE.Mesh(pustuleGeom, this.materials.bloaterPustule);
-            p2.position.set(-0.3, 0.8, 0.3);
-            const p3 = new THREE.Mesh(pustuleGeom, this.materials.bloaterPustule);
-            p3.position.set(0, 1.05, -0.3);
-            group.add(p1, p2, p3);
+            const legL = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.45, 0.25), this.mats.bloaterSkin);
+            legL.position.set(-0.25, 0.22, 0);
+            const legR = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.45, 0.25), this.mats.bloaterSkin);
+            legR.position.set(0.25, 0.22, 0);
 
-            // Stubby Legs
-            const legGeom = new THREE.BoxGeometry(0.22, 0.45, 0.22);
-            const leftLeg = new THREE.Mesh(legGeom, this.materials.bloaterYellow);
-            leftLeg.position.set(-0.25, 0.22, 0);
-            const rightLeg = new THREE.Mesh(legGeom, this.materials.bloaterYellow);
-            rightLeg.position.set(0.25, 0.22, 0);
-            group.add(leftLeg, rightLeg);
+            group.add(body, head, legL, legR);
+            group.userData = { legL, legR };
 
-            group.userData = { leftLeg, rightLeg, pustules: [p1, p2, p3] };
+        } else if (type === 'boss') {
+            // Level 4: Goliath Abomination Titan (2.8x scale)
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.8, 1.1), this.mats.bossSkin);
+            torso.position.y = 1.9;
 
-        } else if (type === 'brute') {
-            // Goliath Mutated Brute: Massive scale (2.5x size)
-            const torsoGeom = new THREE.BoxGeometry(1.2, 1.4, 0.8);
-            const torso = new THREE.Mesh(torsoGeom, this.materials.bruteSkin);
-            torso.position.y = 1.6;
-            group.add(torso);
+            // Spikes/Horns
+            const hornL = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.9, 6), this.mats.bossHorns);
+            hornL.position.set(-0.9, 2.7, 0);
+            hornL.rotation.z = Math.PI / 4;
+            const hornR = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.9, 6), this.mats.bossHorns);
+            hornR.position.set(0.9, 2.7, 0);
+            hornR.rotation.z = -Math.PI / 4;
 
-            // Horns / Spikes on shoulders
-            const spikeGeom = new THREE.ConeGeometry(0.2, 0.7, 5);
-            const s1 = new THREE.Mesh(spikeGeom, this.materials.bruteSpikes);
-            s1.position.set(-0.7, 2.1, 0);
-            s1.rotation.z = Math.PI / 4;
-            const s2 = new THREE.Mesh(spikeGeom, this.materials.bruteSpikes);
-            s2.position.set(0.7, 2.1, 0);
-            s2.rotation.z = -Math.PI / 4;
-            group.add(s1, s2);
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), this.mats.bossSkin);
+            head.position.set(0, 2.9, 0.2);
 
-            // Head
-            const headGeom = new THREE.BoxGeometry(0.6, 0.6, 0.6);
-            const head = new THREE.Mesh(headGeom, this.materials.bruteSkin);
-            head.position.set(0, 2.4, 0.2);
-            group.add(head);
+            const armL = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.6, 0.5), this.mats.bossSkin);
+            armL.position.set(-1.1, 1.7, 0.2);
+            const armR = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.6, 0.5), this.mats.bossSkin);
+            armR.position.set(1.1, 1.7, 0.2);
 
-            // Massive Arms
-            const armGeom = new THREE.BoxGeometry(0.45, 1.3, 0.45);
-            const leftArm = new THREE.Mesh(armGeom, this.materials.bruteSkin);
-            leftArm.position.set(-0.85, 1.4, 0.1);
-            const rightArm = new THREE.Mesh(armGeom, this.materials.bruteSkin);
-            rightArm.position.set(0.85, 1.4, 0.1);
-            group.add(leftArm, rightArm);
+            const legL = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.2, 0.5), this.mats.bossSkin);
+            legL.position.set(-0.5, 0.6, 0);
+            const legR = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.2, 0.5), this.mats.bossSkin);
+            legR.position.set(0.5, 0.6, 0);
 
-            // Thick Legs
-            const legGeom = new THREE.BoxGeometry(0.45, 1.0, 0.45);
-            const leftLeg = new THREE.Mesh(legGeom, this.materials.bruteSkin);
-            leftLeg.position.set(-0.4, 0.5, 0);
-            const rightLeg = new THREE.Mesh(legGeom, this.materials.bruteSkin);
-            rightLeg.position.set(0.4, 0.5, 0);
-            group.add(leftLeg, rightLeg);
-
-            group.userData = { leftLeg, rightLeg, leftArm, rightArm };
-
-        } else if (type === 'civilian') {
-            // Panicked Civilian: Blue jacket, backpack, medical / bio-hazard tag
-            const torsoGeom = new THREE.BoxGeometry(0.45, 0.65, 0.28);
-            const torso = new THREE.Mesh(torsoGeom, this.materials.civilianClothes);
-            torso.position.y = 0.75;
-            group.add(torso);
-
-            // Backpack
-            const packGeom = new THREE.BoxGeometry(0.35, 0.45, 0.2);
-            const backpack = new THREE.Mesh(packGeom, new THREE.MeshStandardMaterial({ color: 0x111111 }));
-            backpack.position.set(0, 0.8, -0.22);
-            group.add(backpack);
-
-            // Head
-            const headGeom = new THREE.BoxGeometry(0.35, 0.35, 0.35);
-            const head = new THREE.Mesh(headGeom, this.materials.civilianSkin);
-            head.position.set(0, 1.25, 0);
-            group.add(head);
-
-            // White Cross on chest
-            const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.06, 0.02), this.materials.civilianCross);
-            crossH.position.set(0, 0.85, 0.15);
-            const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.2, 0.02), this.materials.civilianCross);
-            crossV.position.set(0, 0.85, 0.15);
-            group.add(crossH, crossV);
-
-            // Arms (flailing / running)
-            const armGeom = new THREE.BoxGeometry(0.12, 0.55, 0.12);
-            const leftArm = new THREE.Mesh(armGeom, this.materials.civilianClothes);
-            leftArm.position.set(-0.3, 0.75, 0);
-            const rightArm = new THREE.Mesh(armGeom, this.materials.civilianClothes);
-            rightArm.position.set(0.3, 0.75, 0);
-            group.add(leftArm, rightArm);
-
-            // Legs
-            const legGeom = new THREE.BoxGeometry(0.15, 0.55, 0.15);
-            const leftLeg = new THREE.Mesh(legGeom, new THREE.MeshStandardMaterial({ color: 0x222222 }));
-            leftLeg.position.set(-0.14, 0.28, 0);
-            const rightLeg = new THREE.Mesh(legGeom, new THREE.MeshStandardMaterial({ color: 0x222222 }));
-            rightLeg.position.set(0.14, 0.28, 0);
-            group.add(leftLeg, rightLeg);
-
-            group.userData = { leftLeg, rightLeg, leftArm, rightArm };
+            group.add(torso, head, hornL, hornR, armL, armR, legL, legR);
+            group.userData = { legL, legR, armL, armR };
         }
 
         return group;
     }
 
-    spawnEntity(type, x, z) {
-        const mesh = this.createCharacterMesh(type);
+    spawnZombie(type, x, z) {
+        const mesh = this.createZombieMesh(type);
         mesh.position.set(x, 0, z);
         this.scene.add(mesh);
 
-        let speed = 2.0;
-        let massValue = 10;
-        let requiredTier = 1;
-        let isZombie = true;
-        let isHazard = false;
-        let radius = 0.6;
+        let speed = 1.5;
+        let massXP = 10;
+        let requiredLevel = 1;
+        let radius = 0.5;
 
-        if (type === 'shambler') {
-            speed = 1.6 + Math.random() * 0.4;
-            massValue = 10;
-            radius = 0.5;
+        if (type === 'crawler') {
+            speed = 0.9;
+            massXP = 8;
+            requiredLevel = 1;
+            radius = 0.45;
+        } else if (type === 'walker') {
+            speed = 1.6 + Math.random() * 0.5;
+            massXP = 15;
+            requiredLevel = 2;
+            radius = 0.6;
         } else if (type === 'sprinter') {
-            speed = 3.6 + Math.random() * 0.6;
-            massValue = 15;
-            radius = 0.5;
+            speed = 3.8 + Math.random() * 0.8;
+            massXP = 25;
+            requiredLevel = 2;
+            radius = 0.6;
         } else if (type === 'bloater') {
-            speed = 1.4;
-            massValue = 25;
-            isHazard = true;
-            radius = 0.7;
-        } else if (type === 'brute') {
-            speed = 1.0;
-            massValue = 100;
-            requiredTier = 3;
-            radius = 1.3;
-        } else if (type === 'civilian') {
-            speed = 2.4 + Math.random() * 0.4;
-            massValue = -50; // Penalty
-            isZombie = false;
-            radius = 0.5;
+            speed = 1.2;
+            massXP = 45;
+            requiredLevel = 3;
+            radius = 1.1;
+        } else if (type === 'boss') {
+            speed = 1.1;
+            massXP = 300;
+            requiredLevel = 4;
+            radius = 2.4;
         }
 
-        const entity = {
+        const zombie = {
             type,
             mesh,
             x,
             y: 0,
             z,
             speed,
-            massValue,
-            requiredTier,
-            isZombie,
-            isHazard,
+            massXP,
+            requiredLevel,
             radius,
+            moveAngle: Math.random() * Math.PI * 2,
+            animPhase: Math.random() * 10,
             falling: false,
             fallProgress: 0,
             fallCenter: { x: 0, z: 0 },
-            walkPhase: Math.random() * Math.PI * 2,
             dead: false
         };
 
-        this.entities.push(entity);
-        return entity;
+        this.zombies.push(zombie);
+        return zombie;
     }
 
-    update(dt, hole, onSwallow, onGateDamage, onCivilianSaved) {
-        for (let i = this.entities.length - 1; i >= 0; i--) {
-            const e = this.entities[i];
-            if (e.dead) continue;
+    populateInitialSwarms() {
+        // Spawn clustered packs in intersections and streets
+        for (let i = 0; i < 40; i++) {
+            const x = (Math.random() - 0.5) * this.mapSize;
+            const z = (Math.random() - 0.5) * this.mapSize;
+            this.spawnZombie('crawler', x, z);
+        }
 
-            // 1. If currently falling into the void hole
-            if (e.falling) {
-                e.fallProgress += dt * 3.5;
-                const p = Math.min(e.fallProgress, 1);
+        for (let i = 0; i < 70; i++) {
+            const x = (Math.random() - 0.5) * this.mapSize;
+            const z = (Math.random() - 0.5) * this.mapSize;
+            this.spawnZombie('walker', x, z);
+        }
 
-                // Spaghettification & tumble into center
-                const dx = e.fallCenter.x - e.x;
-                const dz = e.fallCenter.z - e.z;
-                e.mesh.position.x += dx * dt * 8;
-                e.mesh.position.z += dz * dt * 8;
-                e.mesh.position.y = -Math.sin(p * Math.PI / 2) * 2.5;
+        for (let i = 0; i < 30; i++) {
+            const x = (Math.random() - 0.5) * this.mapSize;
+            const z = (Math.random() - 0.5) * this.mapSize;
+            this.spawnZombie('sprinter', x, z);
+        }
 
-                e.mesh.rotation.x += dt * 10;
-                e.mesh.rotation.y += dt * 12;
-                e.mesh.rotation.z += dt * 8;
+        for (let i = 0; i < 15; i++) {
+            const x = (Math.random() - 0.5) * this.mapSize;
+            const z = (Math.random() - 0.5) * this.mapSize;
+            this.spawnZombie('bloater', x, z);
+        }
 
-                const s = Math.max(0.01, 1 - p * 0.9);
-                e.mesh.scale.set(s, s * 1.5, s);
+        // Spawn 3 wandering Goliath Titans
+        this.spawnZombie('boss', -25, -20);
+        this.spawnZombie('boss', 35, 15);
+        this.spawnZombie('boss', 10, -45);
+    }
 
-                if (p >= 1) {
-                    this.scene.remove(e.mesh);
-                    e.dead = true;
-                    this.entities.splice(i, 1);
-                    onSwallow(e);
+    update(dt, hole, onSwallow) {
+        // Respawn if count is low
+        if (this.zombies.length < this.maxZombies) {
+            const spawnAngle = Math.random() * Math.PI * 2;
+            const spawnDist = 35 + Math.random() * 25;
+            const sx = hole.x + Math.cos(spawnAngle) * spawnDist;
+            const sz = hole.z + Math.sin(spawnAngle) * spawnDist;
+
+            const rand = Math.random();
+            const type = rand < 0.3 ? 'crawler' : (rand < 0.7 ? 'walker' : (rand < 0.9 ? 'sprinter' : 'bloater'));
+            this.spawnZombie(type, sx, sz);
+        }
+
+        for (let i = this.zombies.length - 1; i >= 0; i--) {
+            const z = this.zombies[i];
+            if (z.dead) continue;
+
+            // 1. Falling into the void hole
+            if (z.falling) {
+                z.fallProgress += dt * 3.8;
+                const prog = Math.min(z.fallProgress, 1);
+
+                // Pull into center and tumble down
+                const dx = z.fallCenter.x - z.x;
+                const dz = z.fallCenter.z - z.z;
+                z.mesh.position.x += dx * dt * 8.0;
+                z.mesh.position.z += dz * dt * 8.0;
+                z.mesh.position.y = -Math.sin(prog * Math.PI / 2) * 3.8;
+
+                z.mesh.rotation.x += dt * 10;
+                z.mesh.rotation.y += dt * 12;
+                z.mesh.rotation.z += dt * 8;
+
+                const scale = Math.max(0.01, 1 - prog * 0.95);
+                z.mesh.scale.set(scale, scale * 1.4, scale);
+
+                if (prog >= 1) {
+                    this.scene.remove(z.mesh);
+                    z.dead = true;
+                    this.zombies.splice(i, 1);
+                    onSwallow(z);
                 }
                 continue;
             }
 
-            // 2. Normal movement toward Sanctuary Gate (bottom z)
-            const targetZ = this.gateZ;
-            const targetX = e.x; // Head mostly straight down with gentle wander
-            const dirZ = 1;
-            const dirX = Math.sin(e.walkPhase * 0.5) * 0.15;
-
-            e.z += dirZ * e.speed * dt;
-            e.x += dirX * e.speed * dt;
-            e.mesh.position.set(e.x, 0, e.z);
-
-            // Orient facing movement direction
-            e.mesh.rotation.y = Math.atan2(dirX, dirZ);
-
-            // Animated leg/arm walk cycle
-            e.walkPhase += dt * e.speed * 6;
-            if (e.mesh.userData.leftLeg && e.mesh.userData.rightLeg) {
-                e.mesh.userData.leftLeg.rotation.x = Math.sin(e.walkPhase) * 0.6;
-                e.mesh.userData.rightLeg.rotation.x = -Math.sin(e.walkPhase) * 0.6;
-            }
-            if (e.mesh.userData.leftArm && e.mesh.userData.rightArm) {
-                e.mesh.userData.leftArm.rotation.x = -Math.PI / 3 + Math.sin(e.walkPhase) * 0.3;
-                e.mesh.userData.rightArm.rotation.x = -Math.PI / 3 - Math.sin(e.walkPhase) * 0.3;
-            }
-
-            // 3. Reached Sanctuary Gate (at gateZ)
-            if (e.z >= this.gateZ - 0.5) {
-                this.scene.remove(e.mesh);
-                e.dead = true;
-                this.entities.splice(i, 1);
-
-                if (e.isZombie) {
-                    // Attack gate!
-                    const dmg = e.type === 'brute' ? 30 : (e.type === 'bloater' ? 20 : 10);
-                    onGateDamage(dmg, e);
-                    this.pm.spawnBurst(e.x, 0.5, this.gateZ, 0xff0055, 20);
-                } else {
-                    // Saved civilian!
-                    onCivilianSaved(e);
-                    this.pm.spawnBurst(e.x, 0.5, this.gateZ, 0x00ff88, 15);
-                }
-                continue;
-            }
-
-            // 4. Hole Suction & Collision check
-            const distToHole = Math.hypot(e.x - hole.x, e.z - hole.z);
+            // 2. Swarm movement / AI wander
+            const distToHole = Math.hypot(z.x - hole.x, z.z - hole.z);
             const holeRadius = hole.currentRadius;
 
-            // Gravitational suction within pull perimeter
-            if (distToHole < holeRadius * hole.suctionMultiplier && distToHole > holeRadius * 0.4) {
-                const pullAngle = Math.atan2(hole.z - e.z, hole.x - e.x);
-                const pullPower = (1 - distToHole / (holeRadius * hole.suctionMultiplier)) * hole.suctionForce;
-
-                // Repulsor perk or ability check for civilians
-                if (!e.isZombie && hole.hasCivilianRepulsor) {
-                    // Repel civilian AWAY from hole!
-                    e.x -= Math.cos(pullAngle) * pullPower * 2.0 * dt;
-                    e.z -= Math.sin(pullAngle) * pullPower * 2.0 * dt;
-                } else {
-                    // Pull toward hole center
-                    e.x += Math.cos(pullAngle) * pullPower * dt;
-                    e.z += Math.sin(pullAngle) * pullPower * dt;
+            // If player is smaller than zombie, aggressive zombies chase player!
+            // If player is bigger, zombies flee or get sucked in!
+            if (distToHole < 18) {
+                if (hole.level >= z.requiredLevel) {
+                    // Zombie tries to flee from giant black hole!
+                    z.moveAngle = Math.atan2(z.z - hole.z, z.x - hole.x);
+                } else if (z.type === 'boss' || z.type === 'sprinter') {
+                    // Zombie stalks the smaller hole!
+                    z.moveAngle = Math.atan2(hole.z - z.z, hole.x - z.x);
+                }
+            } else {
+                // Gentle wander
+                if (Math.random() < 0.02) {
+                    z.moveAngle += (Math.random() - 0.5) * 1.5;
                 }
             }
 
-            // Plunge into hole check
-            if (distToHole < holeRadius * 0.75) {
-                // Tier Gating for Brute
-                if (e.type === 'brute' && hole.tier < e.requiredTier) {
-                    // Brute is too big! Stomp player and bounce hole
-                    hole.stumble(e.x, e.z);
-                    this.pm.spawnShockwave(e.x, e.z, 4, 0x9d4edd);
-                    continue;
-                }
+            // Move zombie
+            z.x += Math.cos(z.moveAngle) * z.speed * dt;
+            z.z += Math.sin(z.moveAngle) * z.speed * dt;
+            z.mesh.position.set(z.x, 0, z.z);
+            z.mesh.rotation.y = -z.moveAngle + Math.PI / 2;
 
-                // Begin plunging into void!
-                e.falling = true;
-                e.fallCenter = { x: hole.x, z: hole.z };
-                this.pm.spawnBurst(e.x, 0.1, e.z, e.isZombie ? (e.isHazard ? 0xccff00 : 0x00f3ff) : 0xff3366, 10);
+            // Walk animation
+            z.animPhase += dt * z.speed * 6;
+            if (z.mesh.userData.legL && z.mesh.userData.legR) {
+                z.mesh.userData.legL.rotation.x = Math.sin(z.animPhase) * 0.7;
+                z.mesh.userData.legR.rotation.x = -Math.sin(z.animPhase) * 0.7;
+            }
+
+            // 3. Suction & Devour check
+            if (distToHole < holeRadius * 0.75) {
+                if (hole.level >= z.requiredLevel) {
+                    z.falling = true;
+                    z.fallCenter = { x: hole.x, z: hole.z };
+                    this.pm.spawnBurst(z.x, 0.4, z.z, z.type === 'bloater' ? 0xccff00 : (z.type === 'boss' ? 0x9d4edd : 0x00f3ff), 12);
+                } else {
+                    // Too small! Boss stomps or knocks back hole
+                    if (z.type === 'boss') {
+                        hole.stumble(z.x, z.z);
+                        this.pm.spawnShockwave(z.x, z.z, 5, 0x9d4edd);
+                    }
+                }
+            } else if (distToHole < holeRadius * hole.suctionMultiplier && hole.level >= z.requiredLevel) {
+                // Gravitational suction pulls zombie toward hole
+                const pullAngle = Math.atan2(hole.z - z.z, hole.x - z.x);
+                const pullPower = (1 - distToHole / (holeRadius * hole.suctionMultiplier)) * hole.suctionForce;
+                z.x += Math.cos(pullAngle) * pullPower * dt;
+                z.z += Math.sin(pullAngle) * pullPower * dt;
+                z.mesh.position.set(z.x, 0, z.z);
+                // Tilt toward hole
+                z.mesh.rotation.x = Math.sin(pullAngle) * 0.35;
             }
         }
-    }
-
-    clear() {
-        this.entities.forEach(e => {
-            this.scene.remove(e.mesh);
-        });
-        this.entities = [];
     }
 }

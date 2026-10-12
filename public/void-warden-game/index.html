@@ -6,175 +6,170 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Void Warden: Zombie Swarm | Tactical Defense</title>
+    <title>Void Warden: Zombie Swarm | Hole Devourer</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <!-- Back to Home link when loaded directly -->
+    <!-- Back to Portfolio Link (visible when standalone) -->
     <a href="/" class="back-to-home" id="btn-back-home">← Back to Portfolio</a>
 
-    <!-- Canvas Container -->
+    <!-- 3D WebGL Canvas Container -->
     <div id="canvas-container"></div>
 
     <!-- UI Overlay Layer -->
     <div id="ui-overlay">
 
-        <!-- Header / HUD (visible in game) -->
+        <!-- Top HUD -->
         <header id="hud" class="hidden">
-            <div class="hud-top-left">
-                <div class="gate-status-panel">
-                    <div class="hud-label-row">
-                        <span class="hud-icon">🛡️</span>
-                        <span class="hud-title">SANCTUARY GATE</span>
-                        <span id="gate-hp-text" class="hud-value">100%</span>
-                    </div>
-                    <div class="hud-bar-bg">
-                        <div id="gate-hp-bar" class="hud-bar-fill gate-bar"></div>
-                    </div>
+            <!-- Left: Level & Hole Diameter -->
+            <div class="hud-left">
+                <div class="level-badge">
+                    <span class="lvl-label">HOLE LEVEL</span>
+                    <span id="hud-level" class="lvl-num">1</span>
                 </div>
-
-                <div class="wave-panel">
-                    <span class="wave-tag">DEFENSE PHASE</span>
-                    <span id="wave-display" class="wave-title">WAVE 1 / 5</span>
+                <div class="mass-track">
+                    <div class="hud-row">
+                        <span id="hud-tier-name" class="hud-sub">TINY RIFT</span>
+                        <span id="hud-mass-text" class="hud-val">0 / 100 XP</span>
+                    </div>
+                    <div class="progress-bar-bg">
+                        <div id="hud-mass-bar" class="progress-bar-fill"></div>
+                    </div>
                 </div>
             </div>
 
-            <div class="hud-top-center">
-                <div class="score-box">
-                    <div class="score-label">CONTAINED MASS</div>
-                    <div id="score-val" class="score-number">0</div>
+            <!-- Center: Score & Swarm Frenzy -->
+            <div class="hud-center">
+                <div class="score-display">
+                    <span id="hud-score" class="score-number">0</span>
+                    <span class="score-label">MASS CONSUMED</span>
                 </div>
-                <div id="combo-badge" class="combo-badge hidden">
-                    <span id="combo-text">x2 COMBO!</span>
+                <div id="frenzy-badge" class="frenzy-badge hidden">
+                    <span id="frenzy-text">🔥 SWARM FRENZY x2!</span>
                 </div>
             </div>
 
-            <div class="hud-top-right">
-                <div class="tier-panel">
-                    <div class="hud-label-row">
-                        <span class="hud-icon">🌀</span>
-                        <span id="tier-name" class="hud-title">TIER 1 RIFT</span>
-                        <span id="tier-progress-text" class="hud-value">0 / 250</span>
-                    </div>
-                    <div class="hud-bar-bg">
-                        <div id="tier-bar" class="hud-bar-fill tier-bar"></div>
-                    </div>
+            <!-- Right: Radar & Quick Controls -->
+            <div class="hud-right">
+                <div class="radar-box">
+                    <canvas id="radar-canvas" width="90" height="90"></canvas>
+                    <span class="radar-label">BIO RADAR</span>
                 </div>
-
-                <div class="hud-btn-row">
-                    <button id="btn-sound-toggle" class="hud-icon-btn" title="Toggle Audio">🔊</button>
-                    <button id="btn-pause" class="hud-icon-btn" title="Pause Game">⏸</button>
+                <div class="quick-btns">
+                    <button id="btn-audio-toggle" class="icon-btn" title="Toggle Sound">🔊</button>
+                    <button id="btn-pause-toggle" class="icon-btn" title="Pause">⏸</button>
                 </div>
             </div>
         </header>
 
-        <!-- Dynamic Warnings / Alerts -->
-        <div id="alert-banner" class="alert-banner hidden"></div>
+        <!-- Floating Devour Messages (+10, +50, etc) -->
+        <div id="float-text-layer"></div>
 
-        <!-- Ability Button (Bottom-Right for mobile & desktop) -->
-        <div id="ability-controls" class="hidden">
-            <button id="btn-ability" class="ability-btn">
-                <div class="ability-cooldown-overlay" id="ability-cd-overlay"></div>
-                <div class="ability-icon">⚡</div>
-                <div class="ability-label">SINGULARITY</div>
-                <div class="ability-key">[SPACE]</div>
+        <!-- Ability Button (Supernova Vacuum) -->
+        <div id="ability-btn-wrap" class="hidden">
+            <button id="btn-singularity" class="singularity-btn">
+                <div class="cd-radial-overlay" id="cd-overlay"></div>
+                <div class="singularity-icon">🌌</div>
+                <div class="singularity-name">SUPERNOVA</div>
+                <div class="singularity-sub">[SPACE / TAP]</div>
             </button>
         </div>
 
-        <!-- Floating Joystick Touch Area (Mobile) -->
-        <div id="joystick-zone">
-            <div id="joystick-base" class="hidden">
-                <div id="joystick-stick"></div>
+        <!-- Dynamic Floating Joystick for Mobile Touch -->
+        <div id="touch-surface">
+            <div id="joy-base" class="hidden">
+                <div id="joy-knob"></div>
             </div>
         </div>
 
         <!-- Screens -->
 
-        <!-- 1. Main Menu Screen -->
-        <div id="screen-menu" class="screen-modal active">
-            <div class="modal-box menu-box">
-                <div class="cyber-badge">CONTAINMENT BREACH IN PROGRESS</div>
-                <h1 class="glitch-title" data-text="VOID WARDEN">VOID WARDEN</h1>
-                <p class="subtitle">ZOMBIE SWARM DEFENSE</p>
-                <p class="flavor-text">
-                    Control a growing interdimensional rift. Consume the incoming undead horde.
-                    Protect the civilian sanctuary at all costs.
+        <!-- 1. Main Title Screen -->
+        <div id="screen-main" class="screen-modal active">
+            <div class="modal-card">
+                <div class="neon-pill">ENDLESS ZOMBIE DEVOURER</div>
+                <h1 class="hero-title">VOID WARDEN</h1>
+                <p class="hero-subtitle">HOLE.IO × ZOMBIE SWARM SURVIVOR</p>
+
+                <p class="hero-desc">
+                    Control an insatiable 3D black hole. Move through an infected city, devour zombies, cars, and buildings to expand your event horizon, and grow large enough to swallow colossal titan bosses!
                 </p>
 
-                <div class="menu-rules-summary">
-                    <div class="rule-chip positive">
-                        <span class="chip-icon">🕳️</span>
-                        <span>Swallow Zombies to Grow</span>
+                <div class="growth-preview">
+                    <div class="growth-step">
+                        <div class="step-icon">🕳️</div>
+                        <span class="step-lvl">LVL 1</span>
+                        <span class="step-desc">Crawlers, Cones, Crates</span>
                     </div>
-                    <div class="rule-chip warning">
-                        <span class="chip-icon">🏃</span>
-                        <span>DO NOT Eat Civilians</span>
+                    <div class="growth-step">
+                        <div class="step-icon">🧟</div>
+                        <span class="step-lvl">LVL 2</span>
+                        <span class="step-desc">Walkers, Sprinters, Benches</span>
                     </div>
-                    <div class="rule-chip hazard">
-                        <span class="chip-icon">☣️</span>
-                        <span>Avoid Acid Bloaters</span>
+                    <div class="growth-step">
+                        <div class="step-icon">🚗</div>
+                        <span class="step-lvl">LVL 3</span>
+                        <span class="step-desc">Bloater Packs, Sedans, Dumpsters</span>
                     </div>
-                    <div class="rule-chip danger">
-                        <span class="chip-icon">👹</span>
-                        <span>Brutes Require Tier 3</span>
-                    </div>
-                </div>
-
-                <div class="menu-actions">
-                    <button id="btn-start-game" class="btn-cyber primary">INITIALIZE RIFT</button>
-                    <button id="btn-how-to-play" class="btn-cyber secondary">TACTICAL GUIDE</button>
-                </div>
-
-                <div class="mobile-controls-hint">
-                    <span class="hint-icon">📱</span> Touch & Drag anywhere to steer | <span>💻</span> WASD / Arrow Keys + Space
-                </div>
-            </div>
-        </div>
-
-        <!-- 2. How to Play Modal -->
-        <div id="screen-guide" class="screen-modal hidden">
-            <div class="modal-box guide-box">
-                <h2>TACTICAL FIELD MANUAL</h2>
-                <div class="guide-grid">
-                    <div class="guide-card">
-                        <div class="guide-card-icon green">🧟</div>
-                        <h3>Shamblers & Sprinters</h3>
-                        <p>Standard infected. Walkers are slow fodder; sprinters rush the sanctuary gate. Swallow them to feed the rift and gain mass.</p>
-                    </div>
-                    <div class="guide-card">
-                        <div class="guide-card-icon blue">🏃</div>
-                        <h3>Panicked Civilians</h3>
-                        <p>Surviving humans fleeing toward the gate. <strong class="text-hazard">DO NOT CONSUME!</strong> Eating humans deducts points and weakens the gate shield.</p>
-                    </div>
-                    <div class="guide-card">
-                        <div class="guide-card-icon yellow">☣️</div>
-                        <h3>Acid Bloaters</h3>
-                        <p>Highly corrosive mutants. Consuming one causes <em>Acid Indigestion</em>: your hole shrinks by 15% and is temporarily slowed!</p>
-                    </div>
-                    <div class="guide-card">
-                        <div class="guide-card-icon purple">👹</div>
-                        <h3>Mutated Brutes</h3>
-                        <p>Colossal tanks. If your hole is below Tier 3, they will stomp the ground and stun your rift. Reach Tier 3 before taking them on!</p>
+                    <div class="growth-step">
+                        <div class="step-icon">👹</div>
+                        <span class="step-lvl">LVL 4+</span>
+                        <span class="step-desc">Goliath Titans, Buses, Tanks!</span>
                     </div>
                 </div>
 
-                <div class="guide-footer">
-                    <button id="btn-close-guide" class="btn-cyber secondary">RETURN TO MAIN MENU</button>
+                <div class="btn-group">
+                    <button id="btn-play-now" class="btn-glow primary">DEVOUR THE CITY</button>
+                    <button id="btn-instructions" class="btn-glow secondary">HOW TO PLAY</button>
+                </div>
+
+                <div class="input-hint">
+                    📱 <strong>Touch anywhere & drag</strong> to steer hole | 💻 <strong>WASD / Arrow Keys / Mouse</strong> + <strong>[SPACE]</strong>
                 </div>
             </div>
         </div>
 
-        <!-- 3. Between-Waves Perk Selection Modal -->
+        <!-- 2. Instructions Screen -->
+        <div id="screen-info" class="screen-modal hidden">
+            <div class="modal-card">
+                <h2>TACTICAL HOLE GUIDE</h2>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-emoji">🎯</span>
+                        <h4>Centered Camera</h4>
+                        <p>The hole stays centered on your screen while the city glides underneath. Steer smoothly in 360 degrees.</p>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-emoji">📏</span>
+                        <h4>Size Rule</h4>
+                        <p>You can only swallow objects smaller than your rim! If an enemy is too big, eat smaller zombies first to level up.</p>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-emoji">🔥</span>
+                        <h4>Swarm Frenzy</h4>
+                        <p>Devour multiple zombies in rapid succession to activate Frenzy Mode for high movement speed and suction.</p>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-emoji">🧬</span>
+                        <h4>Vampire Perks</h4>
+                        <p>Every time you level up, pick game-changing rogue mutations to expand your gravity, pull speed, and shockwaves.</p>
+                    </div>
+                </div>
+                <button id="btn-back-menu" class="btn-glow secondary">BACK TO MENU</button>
+            </div>
+        </div>
+
+        <!-- 3. Roguelite Perk Choice (When Leveling Up) -->
         <div id="screen-perks" class="screen-modal hidden">
-            <div class="modal-box perks-box">
-                <div class="cyber-badge success">WAVE SECURED!</div>
-                <h2>CHOOSE RIFT MUTATION</h2>
-                <p class="flavor-text">Select an anomaly enhancement for the upcoming onslaught:</p>
+            <div class="modal-card perks-card">
+                <div class="neon-pill success">DIMENSIONAL LEVEL UP!</div>
+                <h2 id="perk-level-title">CHOOSE MUTATION</h2>
+                <p class="perk-subtitle">Select an anomaly enhancement for your black hole:</p>
 
-                <div id="perk-cards-container" class="perk-grid">
+                <div id="perk-items-box" class="perk-list">
                     <!-- Populated dynamically via JS -->
                 </div>
             </div>
@@ -182,87 +177,52 @@
 
         <!-- 4. Pause Screen -->
         <div id="screen-pause" class="screen-modal hidden">
-            <div class="modal-box pause-box">
-                <h2>CONTAINMENT PAUSED</h2>
-                <p>The anomaly is held in stasis.</p>
-                <div class="pause-actions">
-                    <button id="btn-resume" class="btn-cyber primary">RESUME BATTLE</button>
-                    <button id="btn-restart" class="btn-cyber secondary">RESTART WAVE</button>
-                    <button id="btn-quit" class="btn-cyber danger">ABORT MISSION</button>
+            <div class="modal-card pause-card">
+                <h2>ANOMALY PAUSED</h2>
+                <div class="btn-group">
+                    <button id="btn-unpause" class="btn-glow primary">RESUME</button>
+                    <button id="btn-restart" class="btn-glow secondary">RESTART RUN</button>
+                    <button id="btn-exit" class="btn-glow danger">EXIT TO MENU</button>
                 </div>
             </div>
         </div>
 
-        <!-- 5. Game Over Screen -->
+        <!-- 5. Game Over / Victory Summary -->
         <div id="screen-gameover" class="screen-modal hidden">
-            <div class="modal-box gameover-box">
-                <div class="cyber-badge danger">SANCTUARY BREACHED</div>
-                <h2 class="text-danger">MISSION FAILED</h2>
-                <p class="flavor-text">The undead breached the defense perimeter and the sanctuary fell.</p>
+            <div class="modal-card">
+                <div class="neon-pill danger">OUTBREAK CONTAINMENT RECORD</div>
+                <h2>RUN COMPLETED</h2>
 
-                <div class="stats-summary">
-                    <div class="stat-item">
-                        <span class="stat-label">Mass Captured</span>
-                        <span id="stat-mass" class="stat-number">0</span>
+                <div class="stats-grid">
+                    <div class="stat-cell">
+                        <span class="stat-tit">Final Score</span>
+                        <span id="res-score" class="stat-val highlight">0</span>
                     </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Zombies Swallowed</span>
-                        <span id="stat-zombies" class="stat-number">0</span>
+                    <div class="stat-cell">
+                        <span class="stat-tit">Peak Hole Level</span>
+                        <span id="res-level" class="stat-val">LVL 1</span>
                     </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Civilians Saved</span>
-                        <span id="stat-civilians-saved" class="stat-number green">0</span>
+                    <div class="stat-cell">
+                        <span class="stat-tit">Zombies Devoured</span>
+                        <span id="res-zombies" class="stat-val">0</span>
                     </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Civilian Casualties</span>
-                        <span id="stat-civilians-lost" class="stat-number red">0</span>
+                    <div class="stat-cell">
+                        <span class="stat-tit">Vehicles Devoured</span>
+                        <span id="res-vehicles" class="stat-val">0</span>
                     </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Highest Combo</span>
-                        <span id="stat-combo" class="stat-number">x0</span>
+                    <div class="stat-cell">
+                        <span class="stat-tit">Boss Titans Slain</span>
+                        <span id="res-bosses" class="stat-val">0</span>
                     </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Final Rift Tier</span>
-                        <span id="stat-tier" class="stat-number">Tier 1</span>
+                    <div class="stat-cell">
+                        <span class="stat-tit">Time Survived</span>
+                        <span id="res-time" class="stat-val">00:00</span>
                     </div>
                 </div>
 
-                <div class="menu-actions">
-                    <button id="btn-retry" class="btn-cyber primary">RE-INITIALIZE RIFT</button>
-                    <button id="btn-gameover-menu" class="btn-cyber secondary">MAIN MENU</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- 6. Victory Screen -->
-        <div id="screen-victory" class="screen-modal hidden">
-            <div class="modal-box victory-box">
-                <div class="cyber-badge success">SECTOR LIBERATED</div>
-                <h2 class="text-success">DEFENSE TRIUMPH</h2>
-                <p class="flavor-text">All zombie waves neutralized. The human sanctuary survived the outbreak!</p>
-
-                <div class="stats-summary">
-                    <div class="stat-item">
-                        <span class="stat-label">Final Score</span>
-                        <span id="vic-score" class="stat-number gold">0</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Sanctuary Health</span>
-                        <span id="vic-gate" class="stat-number green">100%</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Total Eliminations</span>
-                        <span id="vic-kills" class="stat-number">0</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Survivor Evacuees</span>
-                        <span id="vic-survivors" class="stat-number green">0</span>
-                    </div>
-                </div>
-
-                <div class="menu-actions">
-                    <button id="btn-endless" class="btn-cyber primary">ENTER ENDLESS SURVIVAL</button>
-                    <button id="btn-victory-menu" class="btn-cyber secondary">MAIN MENU</button>
+                <div class="btn-group">
+                    <button id="btn-retry" class="btn-glow primary">DEVOUR AGAIN</button>
+                    <button id="btn-over-menu" class="btn-glow secondary">MAIN MENU</button>
                 </div>
             </div>
         </div>
@@ -272,14 +232,14 @@
     <!-- Three.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
-    <!-- Game Scripts -->
-    <script src="/void-warden/js/audio.js"></script>
-    <script src="/void-warden/js/particles.js"></script>
-    <script src="/void-warden/js/entities.js"></script>
-    <script src="/void-warden/js/hole.js"></script>
-    <script src="/void-warden/js/controls.js"></script>
-    <script src="/void-warden/js/waves.js"></script>
-    <script src="/void-warden/js/game.js"></script>
-    <script src="/void-warden/js/main.js"></script>
+    <!-- Modular Game Scripts -->
+    <script src="js/audio.js"></script>
+    <script src="js/particles.js"></script>
+    <script src="js/city.js"></script>
+    <script src="js/entities.js"></script>
+    <script src="js/hole.js"></script>
+    <script src="js/controls.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/main.js"></script>
 </body>
 </html>
