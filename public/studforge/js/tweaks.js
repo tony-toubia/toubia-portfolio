@@ -67,9 +67,6 @@
 @media (max-width: 600px) {
     .sft-pop.sheet { left: 8px !important; right: 8px; bottom: 8px; top: auto !important; width: auto; }
     .sft-pick-grid { grid-template-columns: repeat(8, 1fr); }
-    /* Phone fix: the studio grid is flex:1 and the parts card overflow:hidden, so the unfolded card
-       got squeezed to 0px under the tall viewport. Size the grid by content and let .app-layout scroll. */
-    .studio-grid { flex: 0 0 auto; }
 }
 @media print { .sft-pop, .sft-bom-hint { display: none !important; } }
 `;

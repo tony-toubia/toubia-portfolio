@@ -121,7 +121,6 @@
 .sfg-empty .sfg-empty-icon { font-size: 26px; display: block; margin-bottom: 6px; }
 @media (max-width: 600px) { .sfg-grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); } .sfg-toast { bottom: 14px; } }
 /* Phones: the folded parts/panels drawer collapses to its borders because every child is a scroll container; give the open drawer real height so its tabs (ours included) are reachable. */
-@media (max-width: 600px) { .studio-grid > .bom-card.open { min-height: min(60vh, 460px); } }
 `;
 
     /* ── rendering the model to an image ──────────────────────────── */

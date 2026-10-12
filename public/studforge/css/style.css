@@ -744,8 +744,11 @@ body:not(.in-iframe) .back-to-home {
     .viewport-hint { display: none; }
     .bom-toggle { display: block; width: 100%; padding: 10px; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--border-main); color: var(--lego-yellow); font-family: var(--font-heading); font-size: 11px; font-weight: 800; letter-spacing: 1px; }
     .bom-toggle.on { border-color: var(--lego-yellow); }
-    .bom-card { display: none; max-height: 70vh; }
-    .bom-card.open { display: flex; }
+    /* The parts/feature drawer: give the open card a real height (an auto grid row holding a scroll
+       container collapses to 0) and size the grid by content so .app-layout scrolls on phones. */
+    .studio-grid { flex: 0 0 auto; }
+    .bom-card { display: none; }
+    .bom-card.open { display: flex; height: 70vh; min-height: 320px; flex-shrink: 0; }
     .side-tab { padding: 6px 8px; font-size: 9px; }
     .viewport-widgets { top: 40px; right: 8px; }
     .bom-actions { flex-direction: row; }
@@ -776,11 +779,4 @@ body:not(.in-iframe) .back-to-home {
     .part-name, .qty-badge {
         color: #000 !important;
     }
-}
-
-/* ── instructions ── */
-/* On phones the open parts card sat in an auto grid row that collapsed to 0 (a scroll container has no
-   automatic minimum size), so the side panels could never be reached; a real height fixes the row. */
-@media (max-width: 600px) {
-    .bom-card.open { height: 70vh; }
 }

@@ -214,8 +214,6 @@
 .${PRE}-tag.partial { color: var(--lego-yellow); }
 @media (max-width: 600px) {
   .${PRE}-total { font-size: 26px; } .${PRE}-table { font-size: 10px; }
-  /* The folded phone sidebar has no definite height, so its flex panels collapse; give it one so BUY (and PARTS) can open. */
-  .bom-card.open { height: 70vh; min-height: 320px; flex-shrink: 0; }
 }
 `;
 
