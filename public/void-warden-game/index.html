@@ -41,14 +41,20 @@
                 </div>
             </div>
 
-            <!-- Center: Score & Swarm Frenzy -->
+            <!-- Center: Score & Swarm Frenzy & Timer -->
             <div class="hud-center">
-                <div class="score-display">
-                    <span id="hud-score" class="score-number">0</span>
-                    <span class="score-label">MASS CONSUMED</span>
+                <div class="hud-top-row">
+                    <div id="hud-timer" class="timer-badge">⏱️ 2:00</div>
+                    <div class="score-display">
+                        <span id="hud-score" class="score-number">0</span>
+                        <span class="score-label">MASS CONSUMED</span>
+                    </div>
                 </div>
                 <div id="frenzy-badge" class="frenzy-badge hidden">
                     <span id="frenzy-text">🔥 SWARM FRENZY x2!</span>
+                </div>
+                <div id="powerup-banner" class="powerup-banner hidden">
+                    <span id="powerup-text">⚡ MEGA VACUUM (10s)</span>
                 </div>
             </div>
 
@@ -90,44 +96,49 @@
         <!-- 1. Main Title Screen -->
         <div id="screen-main" class="screen-modal active">
             <div class="modal-card">
-                <div class="neon-pill">ENDLESS ZOMBIE DEVOURER</div>
+                <div class="neon-pill">ENDLESS 3D ZOMBIE DEVOURER</div>
                 <h1 class="hero-title">VOID WARDEN</h1>
                 <p class="hero-subtitle">HOLE.IO × ZOMBIE SWARM SURVIVOR</p>
 
+                <div class="best-score-badge">
+                    🏆 PERSONAL BEST: <span id="menu-best-score">0</span> MASS
+                </div>
+
                 <p class="hero-desc">
-                    Control an insatiable 3D black hole. Move through an infected city, devour zombies, cars, and buildings to expand your event horizon, and grow large enough to swallow colossal titan bosses!
+                    Control an insatiable 3D black hole locked dead-center on your screen. Devour crawling infected, parked cars, explosive fuel barrels, and golden supply drops to expand your event horizon and consume colossal titan bosses!
                 </p>
 
                 <div class="growth-preview">
                     <div class="growth-step">
                         <div class="step-icon">🕳️</div>
                         <span class="step-lvl">LVL 1</span>
-                        <span class="step-desc">Crawlers, Cones, Crates</span>
+                        <span class="step-desc">Crawlers, Barrels, Cones</span>
                     </div>
                     <div class="growth-step">
                         <div class="step-icon">🧟</div>
                         <span class="step-lvl">LVL 2</span>
-                        <span class="step-desc">Walkers, Sprinters, Benches</span>
+                        <span class="step-desc">Walkers, Sprinters, Trees</span>
                     </div>
                     <div class="growth-step">
                         <div class="step-icon">🚗</div>
                         <span class="step-lvl">LVL 3</span>
-                        <span class="step-desc">Bloater Packs, Sedans, Dumpsters</span>
+                        <span class="step-desc">Bloater Packs, Sedans, Police</span>
                     </div>
                     <div class="growth-step">
                         <div class="step-icon">👹</div>
                         <span class="step-lvl">LVL 4+</span>
-                        <span class="step-desc">Goliath Titans, Buses, Tanks!</span>
+                        <span class="step-desc">Goliath Titans & Buses!</span>
                     </div>
                 </div>
 
-                <div class="btn-group">
-                    <button id="btn-play-now" class="btn-glow primary">DEVOUR THE CITY</button>
-                    <button id="btn-instructions" class="btn-glow secondary">HOW TO PLAY</button>
+                <div class="btn-group-modes">
+                    <button id="btn-play-rush" class="btn-glow primary">⏱️ 2:00 TIME ATTACK RUSH</button>
+                    <button id="btn-play-endless" class="btn-glow secondary">♾️ ENDLESS FREE ROAM</button>
+                    <button id="btn-instructions" class="btn-glow tertiary">TACTICAL GUIDE</button>
                 </div>
 
                 <div class="input-hint">
-                    📱 <strong>Touch anywhere & drag</strong> to steer hole | 💻 <strong>WASD / Arrow Keys / Mouse</strong> + <strong>[SPACE]</strong>
+                    📱 <strong>Touch anywhere & drag</strong> to steer hole | 💻 <strong>WASD / Arrow Keys / Mouse Drag</strong> + <strong>[SPACE]</strong>
                 </div>
             </div>
         </div>
@@ -139,23 +150,23 @@
                 <div class="info-grid">
                     <div class="info-item">
                         <span class="info-emoji">🎯</span>
-                        <h4>Centered Camera</h4>
-                        <p>The hole stays centered on your screen while the city glides underneath. Steer smoothly in 360 degrees.</p>
+                        <h4>Centered Lock & Zoom</h4>
+                        <p>The hole stays locked dead-center in your screen while the city glides underneath. As you grow, the camera continuously zooms out!</p>
                     </div>
                     <div class="info-item">
-                        <span class="info-emoji">📏</span>
-                        <h4>Size Rule</h4>
-                        <p>You can only swallow objects smaller than your rim! If an enemy is too big, eat smaller zombies first to level up.</p>
+                        <span class="info-emoji">💥</span>
+                        <h4>Explosive Fuel Barrels</h4>
+                        <p>Swallow red fuel barrels to trigger massive chain explosions that obliterate every zombie in a 14-meter radius!</p>
                     </div>
                     <div class="info-item">
-                        <span class="info-emoji">🔥</span>
-                        <h4>Swarm Frenzy</h4>
-                        <p>Devour multiple zombies in rapid succession to activate Frenzy Mode for high movement speed and suction.</p>
+                        <span class="info-emoji">📦</span>
+                        <h4>Golden Supply Crates</h4>
+                        <p>Capture airdropped crates for <strong>Mega Vacuum</strong> (super suction), <strong>Speed Demon</strong> (1.7x warp), or <strong>Time Freeze</strong> (blizzard)!</p>
                     </div>
                     <div class="info-item">
-                        <span class="info-emoji">🧬</span>
-                        <h4>Vampire Perks</h4>
-                        <p>Every time you level up, pick game-changing rogue mutations to expand your gravity, pull speed, and shockwaves.</p>
+                        <span class="info-emoji">🌀</span>
+                        <h4>Whirlpool Physics</h4>
+                        <p>Entities caught in your gravitational horizon orbit inward with accelerating angular vortex velocity before plunging into the abyss.</p>
                     </div>
                 </div>
                 <button id="btn-back-menu" class="btn-glow secondary">BACK TO MENU</button>

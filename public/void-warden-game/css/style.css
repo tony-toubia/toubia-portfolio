@@ -718,6 +718,72 @@ canvas {
     font-size: 22px;
 }
 
+.hud-top-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.timer-badge {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-family: var(--font-heading);
+    font-size: 14px;
+    font-weight: 900;
+    color: var(--cyan);
+    letter-spacing: 1px;
+    backdrop-filter: blur(10px);
+}
+
+.powerup-banner {
+    background: linear-gradient(135deg, rgba(0, 243, 255, 0.35), rgba(255, 214, 10, 0.35));
+    border: 1px solid #ffd60a;
+    color: #fff;
+    padding: 3px 12px;
+    border-radius: 12px;
+    font-family: var(--font-heading);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    box-shadow: 0 0 12px rgba(255, 214, 10, 0.5);
+    animation: frenzyPulse 0.5s infinite alternate;
+}
+
+.best-score-badge {
+    display: inline-block;
+    background: rgba(255, 214, 10, 0.12);
+    border: 1px solid #ffd60a;
+    color: #ffd60a;
+    font-family: var(--font-heading);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 6px 16px;
+    border-radius: 20px;
+    margin-bottom: 14px;
+    box-shadow: 0 0 14px rgba(255, 214, 10, 0.25);
+}
+
+.btn-group-modes {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.btn-glow.tertiary {
+    background: rgba(157, 78, 221, 0.18);
+    border: 1px solid rgba(157, 78, 221, 0.55);
+    color: #e2e8f0;
+}
+
+.btn-glow.tertiary:hover {
+    background: rgba(157, 78, 221, 0.35);
+    border-color: #9d4edd;
+}
+
 /* Utility */
 .hidden {
     display: none !important;

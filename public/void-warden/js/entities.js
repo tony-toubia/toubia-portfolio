@@ -7,6 +7,9 @@ class ZombieManager {
         this.maxZombies = 160; // 160 active wandering zombies across the city
         this.mapSize = 130;
 
+        // Slime trail interval
+        this.slimeTimer = 0;
+
         this.initMaterials();
         this.populateInitialSwarms();
     }
@@ -20,7 +23,8 @@ class ZombieManager {
             bloaterSkin: new THREE.MeshStandardMaterial({ color: 0x84cc16, roughness: 0.4, emissive: 0x365314, emissiveIntensity: 0.4 }),
             bossSkin: new THREE.MeshStandardMaterial({ color: 0x6b21a8, roughness: 0.5, metalness: 0.3 }),
             bossHorns: new THREE.MeshStandardMaterial({ color: 0xf43f5e, roughness: 0.3 }),
-            eyesRed: new THREE.MeshBasicMaterial({ color: 0xff0055 })
+            eyesRed: new THREE.MeshBasicMaterial({ color: 0xff0055 }),
+            eyesFreeze: new THREE.MeshBasicMaterial({ color: 0x00f3ff })
         };
     }
 
@@ -74,7 +78,7 @@ class ZombieManager {
             group.userData = { legL, legR, armL, armR };
 
         } else if (type === 'bloater') {
-            // Level 3: Fat Bloater
+            // Level 3: Fat Toxic Bloater
             const body = new THREE.Mesh(new THREE.SphereGeometry(0.65, 10, 8), this.mats.bloaterSkin);
             body.scale.set(1.1, 0.9, 1.1);
             body.position.y = 0.8;
@@ -175,6 +179,7 @@ class ZombieManager {
             falling: false,
             fallProgress: 0,
             fallCenter: { x: 0, z: 0 },
+            vortexAngle: 0,
             dead: false
         };
 
@@ -183,7 +188,6 @@ class ZombieManager {
     }
 
     populateInitialSwarms() {
-        // Spawn clustered packs in intersections and streets
         for (let i = 0; i < 40; i++) {
             const x = (Math.random() - 0.5) * this.mapSize;
             const z = (Math.random() - 0.5) * this.mapSize;
@@ -214,7 +218,41 @@ class ZombieManager {
         this.spawnZombie('boss', 10, -45);
     }
 
-    update(dt, hole, onSwallow) {
+    obliterateZombiesInRadius(originX, originZ, radius, onSwallow) {
+        let count = 0;
+        for (let i = this.zombies.length - 1; i >= 0; i--) {
+            const z = this.zombies[i];
+            if (z.dead || z.falling) continue;
+
+            const dist = Math.hypot(z.x - originX, z.z - originZ);
+            if (dist <= radius) {
+                // If boss, deal partial damage or devour if low
+                if (z.type === 'boss' && dist > radius * 0.5) {
+                    continue;
+                }
+                z.falling = true;
+                z.fallCenter = { x: originX, z: originZ };
+                z.vortexAngle = Math.atan2(z.z - originZ, z.x - originX);
+                this.pm.spawnBurst(z.x, 0.4, z.z, 0xff3b30, 16);
+                count++;
+            }
+        }
+        return count;
+    }
+
+    update(dt, hole, onSwallow, isFrozen = false) {
+        // Crawler toxic slime trail
+        this.slimeTimer += dt;
+        if (this.slimeTimer > 0.4) {
+            this.slimeTimer = 0;
+            for (let i = 0; i < this.zombies.length; i += 4) {
+                const z = this.zombies[i];
+                if (z.type === 'crawler' && !z.falling && !z.dead) {
+                    this.pm.spawnToxicSplatter(z.x, 0.05, z.z, 2);
+                }
+            }
+        }
+
         // Respawn if count is low
         if (this.zombies.length < this.maxZombies) {
             const spawnAngle = Math.random() * Math.PI * 2;
@@ -231,24 +269,28 @@ class ZombieManager {
             const z = this.zombies[i];
             if (z.dead) continue;
 
-            // 1. Falling into the void hole
+            // 1. Tangential Whirlpool Vortex Physics:
             if (z.falling) {
                 z.fallProgress += dt * 3.8;
                 const prog = Math.min(z.fallProgress, 1);
 
-                // Pull into center and tumble down
-                const dx = z.fallCenter.x - z.x;
-                const dz = z.fallCenter.z - z.z;
-                z.mesh.position.x += dx * dt * 8.0;
-                z.mesh.position.z += dz * dt * 8.0;
-                z.mesh.position.y = -Math.sin(prog * Math.PI / 2) * 3.8;
+                // Spiraling inward toward center
+                z.vortexAngle += (12.0 + prog * 18.0) * dt;
+                const distToCenter = Math.max(0.04, (1 - prog) * (z.radius * 0.9));
+                z.x = z.fallCenter.x + Math.cos(z.vortexAngle) * distToCenter;
+                z.z = z.fallCenter.z + Math.sin(z.vortexAngle) * distToCenter;
 
-                z.mesh.rotation.x += dt * 10;
-                z.mesh.rotation.y += dt * 12;
-                z.mesh.rotation.z += dt * 8;
+                z.mesh.position.x = z.x;
+                z.mesh.position.z = z.z;
+                z.mesh.position.y = -Math.pow(prog, 1.8) * 4.0;
 
+                z.mesh.rotation.y += dt * 20;
+                z.mesh.rotation.x += dt * 8;
+                z.mesh.rotation.z += dt * 10;
+
+                // Spaghettification stretching effect into the singularity
                 const scale = Math.max(0.01, 1 - prog * 0.95);
-                z.mesh.scale.set(scale, scale * 1.4, scale);
+                z.mesh.scale.set(scale * 0.7, scale * 1.6, scale * 0.7);
 
                 if (prog >= 1) {
                     this.scene.remove(z.mesh);
@@ -263,57 +305,71 @@ class ZombieManager {
             const distToHole = Math.hypot(z.x - hole.x, z.z - hole.z);
             const holeRadius = hole.currentRadius;
 
-            // If player is smaller than zombie, aggressive zombies chase player!
-            // If player is bigger, zombies flee or get sucked in!
-            if (distToHole < 18) {
-                if (hole.level >= z.requiredLevel) {
-                    // Zombie tries to flee from giant black hole!
-                    z.moveAngle = Math.atan2(z.z - hole.z, z.x - hole.x);
-                } else if (z.type === 'boss' || z.type === 'sprinter') {
-                    // Zombie stalks the smaller hole!
-                    z.moveAngle = Math.atan2(hole.z - z.z, hole.x - z.x);
+            if (!isFrozen) {
+                if (distToHole < 18) {
+                    if (hole.level >= z.requiredLevel) {
+                        // Zombie flees from expanding singularity
+                        z.moveAngle = Math.atan2(z.z - hole.z, z.x - hole.x);
+                    } else if (z.type === 'boss' || z.type === 'sprinter') {
+                        // Aggressive zombie hunts the small hole
+                        z.moveAngle = Math.atan2(hole.z - z.z, hole.x - z.x);
+                    }
+                } else {
+                    if (Math.random() < 0.02) {
+                        z.moveAngle += (Math.random() - 0.5) * 1.5;
+                    }
+                }
+
+                // Move zombie
+                z.x += Math.cos(z.moveAngle) * z.speed * dt;
+                z.z += Math.sin(z.moveAngle) * z.speed * dt;
+                z.mesh.position.set(z.x, 0, z.z);
+                z.mesh.rotation.y = -z.moveAngle + Math.PI / 2;
+
+                // Walk animation
+                z.animPhase += dt * z.speed * 6;
+                if (z.mesh.userData.legL && z.mesh.userData.legR) {
+                    z.mesh.userData.legL.rotation.x = Math.sin(z.animPhase) * 0.7;
+                    z.mesh.userData.legR.rotation.x = -Math.sin(z.animPhase) * 0.7;
                 }
             } else {
-                // Gentle wander
-                if (Math.random() < 0.02) {
-                    z.moveAngle += (Math.random() - 0.5) * 1.5;
-                }
-            }
-
-            // Move zombie
-            z.x += Math.cos(z.moveAngle) * z.speed * dt;
-            z.z += Math.sin(z.moveAngle) * z.speed * dt;
-            z.mesh.position.set(z.x, 0, z.z);
-            z.mesh.rotation.y = -z.moveAngle + Math.PI / 2;
-
-            // Walk animation
-            z.animPhase += dt * z.speed * 6;
-            if (z.mesh.userData.legL && z.mesh.userData.legR) {
-                z.mesh.userData.legL.rotation.x = Math.sin(z.animPhase) * 0.7;
-                z.mesh.userData.legR.rotation.x = -Math.sin(z.animPhase) * 0.7;
+                // Frozen in ice! Tremble slightly
+                z.mesh.position.set(z.x + (Math.random() - 0.5) * 0.02, 0, z.z + (Math.random() - 0.5) * 0.02);
             }
 
             // 3. Suction & Devour check
-            if (distToHole < holeRadius * 0.75) {
+            if (distToHole < holeRadius * 0.78) {
                 if (hole.level >= z.requiredLevel) {
                     z.falling = true;
                     z.fallCenter = { x: hole.x, z: hole.z };
-                    this.pm.spawnBurst(z.x, 0.4, z.z, z.type === 'bloater' ? 0xccff00 : (z.type === 'boss' ? 0x9d4edd : 0x00f3ff), 12);
+                    z.vortexAngle = Math.atan2(z.z - hole.z, z.x - hole.x);
+
+                    if (z.type === 'bloater') {
+                        this.pm.spawnToxicSplatter(z.x, 0.4, z.z, 20);
+                        this.pm.spawnShockwave(z.x, z.z, 5, 0x84cc16);
+                    } else if (z.type === 'boss') {
+                        this.pm.spawnBurst(z.x, 0.6, z.z, 0x9d4edd, 40, 7);
+                        this.pm.spawnShockwave(z.x, z.z, 14, 0x9d4edd);
+                    } else {
+                        this.pm.spawnBurst(z.x, 0.4, z.z, 0x00f3ff, 12);
+                    }
                 } else {
-                    // Too small! Boss stomps or knocks back hole
+                    // Too small! Boss titan stomps back
                     if (z.type === 'boss') {
                         hole.stumble(z.x, z.z);
-                        this.pm.spawnShockwave(z.x, z.z, 5, 0x9d4edd);
+                        this.pm.spawnShockwave(z.x, z.z, 6, 0x9d4edd);
+                        window.audioManager.playBossRoar();
                     }
                 }
             } else if (distToHole < holeRadius * hole.suctionMultiplier && hole.level >= z.requiredLevel) {
-                // Gravitational suction pulls zombie toward hole
+                // Gravitational whirlpool suction
                 const pullAngle = Math.atan2(hole.z - z.z, hole.x - z.x);
+                const tangentAngle = pullAngle + Math.PI / 2.3;
                 const pullPower = (1 - distToHole / (holeRadius * hole.suctionMultiplier)) * hole.suctionForce;
-                z.x += Math.cos(pullAngle) * pullPower * dt;
-                z.z += Math.sin(pullAngle) * pullPower * dt;
+
+                z.x += (Math.cos(pullAngle) * 0.85 + Math.cos(tangentAngle) * 0.35) * pullPower * dt;
+                z.z += (Math.sin(pullAngle) * 0.85 + Math.sin(tangentAngle) * 0.35) * pullPower * dt;
                 z.mesh.position.set(z.x, 0, z.z);
-                // Tilt toward hole
                 z.mesh.rotation.x = Math.sin(pullAngle) * 0.35;
             }
         }

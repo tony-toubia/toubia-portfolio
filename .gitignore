@@ -82,3 +82,5 @@ data/*
 
 .cache/
 .turbo/
+turbo.json
+apps/

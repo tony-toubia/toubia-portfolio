@@ -1,10 +1,14 @@
-// Input Controller for Centered Hole.io Controls (Dynamic Floating Joystick + Keyboard)
+// Input Controller for Centered Hole.io Controls (Dynamic Floating Joystick + Keyboard + Mouse Drag + Haptics)
 class InputController {
     constructor() {
         this.inputVector = { x: 0, z: 0 };
         this.isTouchActive = false;
         this.touchStart = { x: 0, y: 0 };
         this.maxJoyRadius = 55;
+
+        // Mouse drag controls for desktop
+        this.isMouseDown = false;
+        this.mouseStart = { x: 0, y: 0 };
 
         this.keys = {
             KeyW: false, ArrowUp: false,
@@ -20,6 +24,16 @@ class InputController {
 
         this.onAbility = null;
         this.init();
+    }
+
+    triggerHaptic(pattern = 15) {
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            try {
+                navigator.vibrate(pattern);
+            } catch (e) {
+                // Silently ignore if disabled or unsupported
+            }
+        }
     }
 
     init() {
@@ -42,13 +56,16 @@ class InputController {
         // Touch surface listeners (Dynamic Floating Joystick anywhere on screen)
         if (this.surface) {
             this.surface.addEventListener('touchstart', (e) => {
+                if (e.cancelable) e.preventDefault();
                 const t = e.touches[0];
                 this.isTouchActive = true;
                 this.touchStart = { x: t.clientX, y: t.clientY };
 
-                this.joyBase.style.left = `${t.clientX}px`;
-                this.joyBase.style.top = `${t.clientY}px`;
-                this.joyBase.classList.remove('hidden');
+                if (this.joyBase) {
+                    this.joyBase.style.left = `${t.clientX}px`;
+                    this.joyBase.style.top = `${t.clientY}px`;
+                    this.joyBase.classList.remove('hidden');
+                }
                 this.updateKnob(0, 0);
 
                 window.audioManager.init();
@@ -56,6 +73,7 @@ class InputController {
 
             window.addEventListener('touchmove', (e) => {
                 if (!this.isTouchActive) return;
+                if (e.cancelable) e.preventDefault();
                 const t = e.touches[0];
 
                 let dx = t.clientX - this.touchStart.x;
@@ -81,6 +99,44 @@ class InputController {
 
             window.addEventListener('touchend', endTouch);
             window.addEventListener('touchcancel', endTouch);
+
+            // Optional Mouse Drag on Canvas
+            this.surface.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                this.isMouseDown = true;
+                this.mouseStart = { x: e.clientX, y: e.clientY };
+                if (this.joyBase) {
+                    this.joyBase.style.left = `${e.clientX}px`;
+                    this.joyBase.style.top = `${e.clientY}px`;
+                    this.joyBase.classList.remove('hidden');
+                }
+                this.updateKnob(0, 0);
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!this.isMouseDown) return;
+                let dx = e.clientX - this.mouseStart.x;
+                let dy = e.clientY - this.mouseStart.y;
+                const dist = Math.hypot(dx, dy);
+
+                if (dist > this.maxJoyRadius) {
+                    dx = (dx / dist) * this.maxJoyRadius;
+                    dy = (dy / dist) * this.maxJoyRadius;
+                }
+
+                this.updateKnob(dx, dy);
+                this.inputVector.x = dx / this.maxJoyRadius;
+                this.inputVector.z = dy / this.maxJoyRadius;
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (this.isMouseDown) {
+                    this.isMouseDown = false;
+                    this.inputVector.x = 0;
+                    this.inputVector.z = 0;
+                    if (this.joyBase) this.joyBase.classList.add('hidden');
+                }
+            });
         }
 
         // Ability button listener
@@ -104,7 +160,7 @@ class InputController {
     }
 
     getVector() {
-        if (this.isTouchActive) {
+        if (this.isTouchActive || this.isMouseDown) {
             return this.inputVector;
         }
 
