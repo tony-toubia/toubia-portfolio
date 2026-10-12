@@ -70,6 +70,172 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
     /** A transparent display stand under a flying model. */
     H.stand = (ctx, x, z, y, bricks) => { for (let i = 0; i < bricks; i++) ctx.g.part('3062', 'TRANS_CLEAR', x, z, y + i * 3); };
 
+    /* ── interiors: what real sets put behind their windows ──── */
+    // Every piece here is a real-set idiom: a seat is a plate pan with a brick backrest and a cheese slope leaning
+    // back on top; a steering column is a round brick with a round plate wheel; a table is a round plate on a
+    // round brick; a bed is a plate block under a tile blanket. All of them stand on the floor the caller names,
+    // so they are stud-connected and come before the walls' upper courses and the roof on the step slider.
+
+    /** Which way a seat or dashboard's user looks: the cell step behind the sitter and a slope's rotY. */
+    // `rot` turns a slope so its sloped face looks the way the sitter looks (a 3039/54200 at rotY 0 descends toward +Z).
+    const FACING = { front: { bx: 0, bz: -1, rot: 0 }, back: { bx: 0, bz: 1, rot: PI }, right: { bx: -1, bz: 0, rot: PI / 2 }, left: { bx: 1, bz: 0, rot: -PI / 2 } };
+    /**
+     * A seat whose sitter looks toward `face` (default 'front' = +Z): a 1x1 plate pan at (x, z) on plate y, a 1x1
+     * brick backrest on the cell behind it, a cheese slope leaning back on top. `width` 2 makes a bench (the second
+     * pan at x+1 for front/back seats, z+1 for side-facing ones) from 1x2 parts. Five plates tall over two rows.
+     */
+    H.seat = (ctx, x, z, y, o = {}) => {
+        const { g, P } = ctx, color = o.color || P.secondary, f = FACING[o.face] || FACING.front, w = o.width === 2 ? 2 : 1;
+        const across = f.bz !== 0;   // a front/back seat widens along X, a side seat along Z
+        const two = { rotY: across ? PI / 2 : 0, w: across ? 2 : 1, l: across ? 1 : 2 };
+        g.part(w === 2 ? '3023' : '3024', color, x, z, y, w === 2 ? two : {});
+        g.part(w === 2 ? '3004' : '3005', o.backColor || color, x + f.bx, z + f.bz, y, w === 2 ? two : {});
+        // The cheese slope reclines the backrest; `slope: false` leaves it off when a wall stands on the backrest brick.
+        if (o.slope !== false) for (let i = 0; i < w; i++) g.part('54200', o.backColor || color, x + f.bx + (across ? i : 0), z + f.bz + (across ? 0 : i), y + 3, { rotY: f.rot });
+        return { feats: [w === 2 ? 'a bench seat' : 'a seat'], top: o.slope === false ? y + 3 : y + 5 };
+    };
+    /** A seat colour that stands out against the body it sits in (real sets use dark or bold upholstery). */
+    H.upholstery = (ctx, ...avoid) => { const c = ctx.P.secondary; return !c || avoid.includes(c) || ['WHITE', 'LIGHT_GREY', 'TAN'].includes(c) ? (avoid.includes('DARK_BLUE') ? 'DARK_GREY' : 'DARK_BLUE') : c; };
+    /** A steering column: a 1x1 round brick with a black round plate wheel on top (four plates). */
+    H.steering = (ctx, x, z, y, color, short) => {
+        // `short`: a column of two round plates (three plates with the wheel), to fit under a windscreen slope.
+        if (short) { ctx.g.part('4073', color || 'DARK_GREY', x, z, y); ctx.g.part('4073', color || 'DARK_GREY', x, z, y + 1); ctx.g.part('4073', 'BLACK', x, z, y + 2); return { feats: ['a steering wheel'], top: y + 3 }; }
+        ctx.g.part('3062', color || 'DARK_GREY', x, z, y); ctx.g.part('4073', 'BLACK', x, z, y + 3); return { feats: ['a steering wheel'], top: y + 4 };
+    };
+    /**
+     * A dashboard `width` cells wide starting at (x, z): dark 1x2/1x1 bricks with cheese slopes on top sloping
+     * toward the driver (who sits on the `face` side's far cell: 'front' means the driver looks +Z, so the dash is
+     * in front of them and its slopes face -Z). Four plates tall. `low` makes it a plate with a tile (two plates).
+     */
+    H.dashboard = (ctx, x, z, y, width, o = {}) => {
+        const { g } = ctx, color = o.color || 'DARK_GREY', f = FACING[o.face] || FACING.front, along = f.bz !== 0 ? 'x' : 'z';
+        for (let i = 0; i < width;) {
+            const two = i + 1 < width, px = along === 'x' ? x + i : x, pz = along === 'x' ? z : z + i;
+            const opt = two ? { rotY: along === 'x' ? PI / 2 : 0, w: along === 'x' ? 2 : 1, l: along === 'x' ? 1 : 2 } : {};
+            if (o.low) { g.part(two ? '3023' : '3024', color, px, pz, y, opt); g.part(two ? '3069' : '3070', o.topColor || 'BLACK', px, pz, y + 1, opt); }
+            else { g.part(two ? '3004' : '3005', color, px, pz, y, opt); for (let k = 0; k < (two ? 2 : 1); k++) g.part('54200', color, along === 'x' ? px + k : px, along === 'x' ? pz : pz + k, y + 3, { rotY: f.rot + PI }); }   // the panel slopes toward the driver
+            i += two ? 2 : 1;
+        }
+        return { feats: ['a dashboard'], top: y + (o.low ? 2 : 4) };
+    };
+    /** A table: a 2x2 round plate top (covering x..x+1, z..z+1) on a 1x1 round brick pedestal at (x, z). */
+    H.table = (ctx, x, z, y, o = {}) => { const { g, P } = ctx; g.part('3062', o.legColor || P.wood, x, z, y); g.part('4032', o.color || 'TAN', x, z, y + 3); return { feats: ['a table'], top: y + 4 }; };
+    /** A bed four studs long along +Z from (x, z), two wide: a plate block, a white tile blanket, a pillow at the far end. */
+    H.bed = (ctx, x, z, y, o = {}) => {
+        const { g, P } = ctx;
+        g.box(x, x + 1, z, z + 3, y, y + 1, o.color || (P.secondary === 'WHITE' ? 'BLUE' : P.secondary), { noBrick: true });
+        g.part('87079', o.blanket || 'WHITE', x, z, y + 2, { w: 2, l: 4 });
+        g.part('3023', o.pillow || 'TAN', x, z + 3, y + 3, { rotY: PI / 2, w: 2, l: 1 });
+        return { feats: ['a bed'], top: y + 4 };
+    };
+    /** A counter `len` studs long along `axis` from (x, z): a brick run with a tile top and a till (a round tile) at the far end. */
+    H.counter = (ctx, x, z, len, axis, y, o = {}) => {
+        const { g, P } = ctx, color = o.color || P.wood, top = o.topColor || 'LIGHT_GREY';
+        if (axis === 'x') g.box(x, x + len - 1, z, z, y, y + 2, color); else g.box(x, x, z, z + len - 1, y, y + 2, color);
+        for (let i = 0; i < len;) {
+            const two = i + 1 < len, px = axis === 'x' ? x + i : x, pz = axis === 'x' ? z : z + i;
+            g.part(two ? '3069' : '3070', top, px, pz, y + 3, two ? { rotY: axis === 'x' ? PI / 2 : 0, w: axis === 'x' ? 2 : 1, l: axis === 'x' ? 1 : 2 } : {});
+            i += two ? 2 : 1;
+        }
+        if (o.till !== false) g.part('98138', o.tillColor || 'DARK_GREY', axis === 'x' ? x + len - 1 : x, axis === 'x' ? z : z + len - 1, y + 4);
+        return { feats: ['a counter'], top: y + 4 };
+    };
+    /** Shelves of goods along a wall: 1x1 wood bricks every other stud along `axis` with a coloured round tile on each. */
+    H.shelf = (ctx, x, z, len, axis, y, colors) => {
+        const { g, P, pick } = ctx, goods = colors || ['RED', 'YELLOW', 'LIME', 'ORANGE', 'PINK', 'BLUE'];
+        for (let i = 0; i < len; i += 2) { const px = axis === 'x' ? x + i : x, pz = axis === 'x' ? z : z + i; g.part('3005', P.wood, px, pz, y); g.part('98138', pick(goods), px, pz, y + 3); }
+        return { feats: ['shelves of goods'] };
+    };
+    /** A wardrobe or cupboard: a 1x2 brick column two bricks tall with a round-tile knob. */
+    H.cupboard = (ctx, x, z, y, color) => { const { g, P } = ctx; g.box(x, x, z, z + 1, y, y + 5, color || P.wood); g.part('98138', 'GOLD', x, z, y + 6); return { feats: ['a wardrobe'] }; };
+    /** A kitchen: a counter with a tiled top, a sink (a clear round tile) and a stove (a dark brick with two black round-tile hobs). */
+    H.kitchen = (ctx, x, z, len, axis, y) => {
+        const { g, P } = ctx;
+        if (len < 3) return { feats: [] };
+        H.counter(ctx, x, z, len - 2, axis, y, { color: 'WHITE', topColor: 'TAN', till: false });
+        g.part('98138', 'TRANS_BLUE', x, z, y + 4);
+        const sx = axis === 'x' ? x + len - 2 : x, sz = axis === 'x' ? z : z + len - 2;
+        g.part('3004', 'DARK_GREY', sx, sz, y, { rotY: axis === 'x' ? PI / 2 : 0, w: axis === 'x' ? 2 : 1, l: axis === 'x' ? 1 : 2 });
+        g.part('98138', 'BLACK', sx, sz, y + 3); g.part('98138', 'BLACK', axis === 'x' ? sx + 1 : sx, axis === 'x' ? sz : sz + 1, y + 3);
+        return { feats: ['a kitchen with a sink and stove'] };
+    };
+    /** A stone oven: a dark brick block two bricks tall with a glowing trans-orange tile for the fire door. */
+    H.oven = (ctx, x, z, y) => { const { g } = ctx; g.box(x, x + 1, z, z + 1, y, y + 5, 'DARK_GREY'); g.part('3069', 'TRANS_ORANGE', x, z, y + 6, { rotY: PI / 2, w: 2, l: 1 }); return { feats: ['a stone oven'] }; };
+    /**
+     * Block stairs: `n` steps two studs wide running along `axis` from (x, z) in direction `dir` (±1), each a brick
+     * taller than the last, so the top tread is three plates under the floor above at y + 3n. Returns the top.
+     */
+    H.stairs = (ctx, x, z, y, n, axis, dir, color) => {
+        const { g, P } = ctx;
+        for (let i = 0; i < n; i++) {
+            const sx = axis === 'x' ? x + i * dir : x, sz = axis === 'x' ? z : z + i * dir;
+            if (axis === 'x') g.box(sx, sx, z, z + 1, y, y + 3 * i + 2, color || P.wood); else g.box(x, x + 1, sz, sz, y, y + 3 * i + 2, color || P.wood);
+        }
+        return { feats: ['a staircase'], top: y + 3 * n };
+    };
+    /**
+     * An interior floor between storeys: a two-layer locked slab over x0..x1, z0..z1 at plates y, y+1, leaving a
+     * stairwell `hole` ({ x0, x1, z0, z1 }, or null) open. Around a hole the floor is four slabs (front, back, left
+     * and right of it), each resting on the walls under its edges, so none of them hangs off the others.
+     */
+    H.floorSlab = (ctx, x0, x1, z0, z1, y, color, hole) => {
+        if (!hole) return H.slab(ctx, x0, x1, z0, z1, y, color);
+        const rect = (a, b, c, d) => { if (a <= b && c <= d) H.slab(ctx, a, b, c, d, y, color); };
+        rect(x0, x1, hole.z1 + 1, z1); rect(x0, x1, z0, hole.z0 - 1);
+        rect(x0, hole.x0 - 1, hole.z0, hole.z1); rect(hole.x1 + 1, x1, hole.z0, hole.z1);
+    };
+    /**
+     * A room planner for the interior x0..x1, z0..z1 on floor plate y: `put(x0, x1, z0, z1, fn)` runs `fn` only when
+     * those cells are inside the room and nothing else claimed them, then claims them; `keep(...)` reserves cells
+     * (a doorway path, a stairwell) without building. Builders try furniture in order of importance, so a small
+     * scale simply drops what does not fit instead of overlapping anything.
+     */
+    H.room = (x0, x1, z0, z1) => {
+        const used = new Set(), feats = [];
+        const inside = (a, b, c, d) => a >= x0 && b <= x1 && c >= z0 && d <= z1 && a <= b && c <= d;
+        const free = (a, b, c, d) => { if (!inside(a, b, c, d)) return false; for (let x = a; x <= b; x++) for (let z = c; z <= d; z++) if (used.has(x + ',' + z)) return false; return true; };
+        const keep = (a, b, c, d) => { for (let x = a; x <= b; x++) for (let z = c; z <= d; z++) used.add(x + ',' + z); };
+        const put = (a, b, c, d, fn) => { if (!free(a, b, c, d)) return false; keep(a, b, c, d); const r = fn(); if (r && r.feats) feats.push(...r.feats); return true; };
+        return { free, keep, put, feats, x0, x1, z0, z1 };
+    };
+    /**
+     * A table for two: the table (2x2 top at tx..tx+1, tz..tz+1) with a chair behind it facing +Z and one in front
+     * facing -Z, each placed only where the room has space. Returns true when the table went in.
+     */
+    H.tableForTwo = (ctx, room, tx, tz, y, o = {}) => {
+        if (!room.put(tx, tx + 1, tz, tz + 1, () => H.table(ctx, tx, tz, y, o))) return false;
+        const c = o.seat || H.upholstery(ctx);
+        room.put(tx, tx, tz - 2, tz - 1, () => H.seat(ctx, tx, tz - 1, y, { face: 'front', color: c }));
+        room.put(tx + 1, tx + 1, tz + 2, tz + 3, () => H.seat(ctx, tx + 1, tz + 2, y, { face: 'back', color: c }));
+        return true;
+    };
+    /** A torch on a wall: a 1x1 round brick with a trans-orange cone flame. */
+    H.torch = (ctx, x, z, y) => { ctx.g.part('3062', 'DARK_GREY', x, z, y); ctx.g.part('59900', 'TRANS_ORANGE', x, z, y + 3); };
+    /** A throne: a gold-backed seat facing +Z on a 2x2 dais plate at (x..x+1, z..z+1). */
+    H.throne = (ctx, x, z, y) => { const { g, P } = ctx; g.part('3022', 'DARK_RED', x, z, y); H.seat(ctx, x, z + 1, y + 1, { face: 'front', color: P.accent === 'RED' ? 'DARK_RED' : P.accent, backColor: 'GOLD' }); return { feats: ['a throne on a dais'] }; };
+
+    /* ── vehicle sub-assemblies ──────────────────────────────── */
+    /** An engine nacelle hanging under a wing: a 2x2 round brick lying along Z at (x..x+1, z..z+1), five plates tall from y, its top studs into the wing at y + 5. */
+    H.nacelle = (ctx, x, z, y, color) => { ctx.g.part('3941', color || 'DARK_GREY', x, z, y, { rotX: PI / 2, w: 2, l: 2, hp: 5, lie: true }); return { feats: ['engine nacelles under the wings'] }; };
+    /** A ladder lying along +Z from (x, z): two 1xN plate rails at x and x+1 on plate y with 1x2 tile rungs across them every other stud. */
+    H.ladder = (ctx, x, z, y, n, color) => {
+        const { g } = ctx, c = color || 'LIGHT_GREY';
+        for (const rx of [x, x + 1]) g.part(PLATES.one[n], c, rx, z, y, { rotY: 0, w: 1, l: n });
+        for (let k = 1; k < n; k += 2) g.part('3069', c, x, z + k, y + 1, { rotY: PI / 2, w: 2, l: 1 });
+        return { feats: ['a ladder'], top: y + 2 };
+    };
+    /** A deck cannon: a 1x2 dark plate at (x..x+1, z) on plate y with a black round brick barrel lying along X on it, poking one stud out to `side` (-1 = -X). */
+    H.cannon = (ctx, x, z, y, side) => {
+        const { g } = ctx;
+        g.part('3023', 'DARK_GREY', x, z, y, { rotY: PI / 2, w: 2, l: 1 });
+        g.part('3062', 'BLACK', side < 0 ? x - 1 : x + 1, z, y + 1, { rotZ: PI / 2, lie: true, w: 2, l: 1, hp: 3 });
+        return { feats: ['cannons through the gunwales'] };
+    };
+    /** A lifeboat: an orange 1x2 plate with a white tile cover, along `axis`. */
+    H.lifeboat = (ctx, x, z, y, axis) => { const o = { rotY: axis === 'x' ? PI / 2 : 0, w: axis === 'x' ? 2 : 1, l: axis === 'x' ? 1 : 2 }; ctx.g.part('3023', 'ORANGE', x, z, y, o); ctx.g.part('3069', 'WHITE', x, z, y + 1, o); return { feats: ['lifeboats'] }; };
+    /** A hose reel: a grey 2x2 round plate with a dark round tile drum on top. */
+    H.hoseReel = (ctx, x, z, y) => { ctx.g.part('4032', 'LIGHT_GREY', x, z, y); ctx.g.part('14769', 'DARK_GREY', x, z, y + 1); return { feats: ['hose reels'] }; };
+
     /** A 1x2 window set into a wall. `face` is 'front'/'back' (window runs along X) or 'left'/'right' (along Z). */
     H.window = (ctx, x, z, y, face, color) => {
         ctx.g.part('3004', color || ctx.P.glass, x, z, y, { rotY: (face === 'front' || face === 'back') ? PI / 2 : 0 });
@@ -279,9 +445,88 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             const win = (x, z, y, face, size) => { if (!glass) return; const [ox, oz] = face === 'back' ? [x + 1, z] : face === 'right' ? [x, z + 1] : [x, z]; H.realWindow(ctx, ox, oz, y, { size, face, frameColor: frame, glassColor: glass }); };
             const arched = (x, z, y, face) => { const [ox, oz] = face === 'back' ? [x + 3, z] : face === 'right' ? [x, z + 3] : [x, z]; H.archWindow(ctx, ox, oz, y, { width: 4, height: 3, color: frame, glass: P.glass, face }); };
             const balcony = realDoor && stories >= 2 && !shop && (big || chance(0.5));
+            // Rooms, not solid blocks: each storey is furnished on its floor before its walls close over it (the ground
+            // floor by what the building is, the floors above as bedrooms or more of the same trade), and a staircase
+            // climbs the back-left corner to a stairwell left open in the floor slab above.
+            const kind = church ? 'church' : match === 'greenhouse' ? 'greenhouse' : match === 'barn' || match === 'stable' ? 'barn' : ['warehouse', 'factory', 'garage'].includes(match) ? 'store' : ['cafe', 'coffee shop', 'diner', 'pub', 'tavern', 'inn'].includes(match) ? 'cafe' : match === 'bakery' ? 'bakery' : match === 'library' || match === 'bookshop' ? 'books' : match === 'office' || match === 'school' ? 'desks' : match === 'hotel' || match === 'motel' ? 'lobby' : match === 'workshop' ? 'workshop' : shop ? 'shop' : 'home';
+            const roomFeats = [];
+            const furnish = (s, y, hole, stairs, h) => {
+                const r = H.room(1, W - 2, 1, D - 2), wood = P.wood, seat = H.upholstery(ctx, wall, P.wood), goods = ['RED', 'YELLOW', 'LIME', 'ORANGE', 'BLUE', 'PINK'];
+                if (s === 0) r.keep(doorX + 1, doorX + 2, D - 2, D - 2);   // the way in from the door stays clear
+                if (hole) r.keep(hole.x0, hole.x1, hole.z0, hole.z1);       // the stairwell from the floor below
+                if (stairs && r.put(1, 2, 1, stairs, () => H.stairs(ctx, 1, stairs, y, stairs, 'z', -1, wood))) roomFeats.push('a staircase to the floor above');
+                const b = stairs || hole ? 3 : 1;   // the first column along the back wall clear of the stairs
+                const tx = Math.max(b, Math.floor(W / 2) - 1), tz = Math.max(4, Math.floor(D / 2) - 1);
+                const what = s === 0 ? kind : ['desks', 'books', 'store', 'barn', 'greenhouse', 'church'].includes(kind) ? kind : 'bedroom';
+                const crate = (x, z, two) => r.put(x, x + 1, z, z + 1, () => { g.part('3003', 'BROWN', x, z, y); if (two) g.part('3003', 'TAN', x, z, y + 3); });
+                const where = s === 0 ? 'downstairs' : 'upstairs';
+                if (what === 'home') {
+                    const len = Math.min(5, W - 1 - b);
+                    if (len >= 3 && r.put(b, b + len - 1, 1, 1, () => H.kitchen(ctx, b, 1, len, 'x', y))) roomFeats.push('a kitchen with a sink and stove');
+                    if (H.tableForTwo(ctx, r, tx, tz, y, { seat, color: 'TAN' })) roomFeats.push(`a dining table with chairs ${where}`);
+                    r.put(W - 2, W - 2, D - 4, D - 3, () => H.cupboard(ctx, W - 2, D - 4, y));
+                } else if (what === 'bedroom') {
+                    const bed = r.put(W - 3, W - 2, 1, 4, () => H.bed(ctx, W - 3, 1, y, { color: seat }));
+                    r.put(W - 4, W - 4, 1, 1, () => { g.part('3005', wood, W - 4, 1, y); g.part('98138', 'YELLOW', W - 4, 1, y + 3); });   // a nightstand with a lamp
+                    if (W >= 10) r.put(b, b + 1, 1, 4, () => H.bed(ctx, b, 1, y, { color: seat }));
+                    const robe = r.put(W - 2, W - 2, D - 4, D - 3, () => H.cupboard(ctx, W - 2, D - 4, y));
+                    if (bed) roomFeats.push(`a bedroom ${where} with a bed${robe ? ' and a wardrobe' : ''}`);
+                } else if (what === 'shop' || what === 'workshop') {
+                    r.put(b, W - 2, 1, 1, () => H.shelf(ctx, b, 1, W - 1 - b, 'x', y, goods));
+                    const len = Math.min(4, W - 2 - b);
+                    if (len >= 2 && r.put(b, b + len - 1, 3, 3, () => H.counter(ctx, b, 3, len, 'x', y, what === 'workshop' ? { color: P.dark, topColor: 'DARK_GREY', till: false } : {}))) roomFeats.push(what === 'workshop' ? 'a workbench and shelves of parts' : 'a shop counter with a till and shelves of goods');
+                    crate(W - 3, D - 4, what === 'workshop');
+                } else if (what === 'cafe') {
+                    r.put(b, W - 2, 1, 1, () => H.shelf(ctx, b, 1, W - 1 - b, 'x', y, ['WHITE', 'BROWN', 'TRANS_ORANGE']));
+                    const cx = Math.max(b, W - 5);
+                    if (r.put(cx, W - 2, 3, 3, () => H.counter(ctx, cx, 3, W - 1 - cx, 'x', y, { tillColor: 'BLACK' }))) roomFeats.push(match === 'pub' || match === 'tavern' || match === 'inn' ? 'a bar counter' : 'a service counter with a coffee machine');
+                    let tables = 0;
+                    if (H.tableForTwo(ctx, r, b, tz, y, { seat, color: 'WHITE' })) tables++;
+                    if (W >= 10 && H.tableForTwo(ctx, r, W - 4, tz + 1, y, { seat, color: 'WHITE' })) tables++;
+                    if (tables) roomFeats.push(`${tables === 1 ? 'a table' : 'two tables'} with chairs`);
+                } else if (what === 'bakery') {
+                    if (r.put(W - 3, W - 2, 1, 2, () => H.oven(ctx, W - 3, 1, y))) roomFeats.push('a bread oven');
+                    r.put(b, W - 4, 1, 1, () => H.shelf(ctx, b, 1, W - 3 - b, 'x', y, ['TAN', 'ORANGE', 'BROWN']));
+                    const len = Math.min(4, W - 2 - b);
+                    if (len >= 2 && r.put(b, b + len - 1, 4, 4, () => H.counter(ctx, b, 4, len, 'x', y, { tillColor: 'TAN' }))) roomFeats.push('a counter and shelves of loaves');
+                } else if (what === 'books') {
+                    r.put(b, W - 2, 1, 1, () => H.shelf(ctx, b, 1, W - 1 - b, 'x', y, ['RED', 'BLUE', 'DARK_GREY', 'BROWN']));
+                    r.put(W - 2, W - 2, 3, D - 4, () => H.shelf(ctx, W - 2, 3, D - 6, 'z', y, ['RED', 'BLUE', 'DARK_GREY', 'BROWN']));
+                    if (H.tableForTwo(ctx, r, tx, tz, y, { seat, color: 'TAN' })) roomFeats.push(`bookshelves and a reading table ${where}`);
+                } else if (what === 'desks') {
+                    let n = 0;
+                    for (const dx of [b, W - 4]) for (const dz of [3, 6]) if (r.put(dx, dx + 1, dz, dz + 2, () => { H.counter(ctx, dx, dz, 2, 'x', y, { color: 'WHITE', topColor: 'LIGHT_GREY', till: false }); H.seat(ctx, dx, dz + 1, y, { face: 'back', color: seat }); })) n++;
+                    if (n) roomFeats.push(`${n} desks with chairs ${where}`);
+                } else if (what === 'lobby') {
+                    const len = Math.min(4, W - 2 - b);
+                    if (len >= 2 && r.put(b, b + len - 1, 2, 2, () => H.counter(ctx, b, 2, len, 'x', y, { color: P.wood }))) roomFeats.push('a reception desk');
+                    r.put(W - 3, W - 2, D - 4, D - 3, () => H.seat(ctx, W - 3, D - 3, y, { face: 'front', width: 2, color: seat }));
+                    r.put(W - 3, W - 3, 4, 4, () => H.flower(ctx, W - 3, 4, y, P.accent));
+                } else if (what === 'store') {
+                    let n = 0;
+                    for (const [x, z] of [[b, 1], [b + 3, 1], [W - 3, 1], [W - 3, 4], [b, 5]]) if (crate(x, z, n % 2 === 0)) n++;
+                    if (n) roomFeats.push(`stacked crates ${where}`);
+                } else if (what === 'barn') {
+                    let n = 0;
+                    for (const [x, z] of [[b, 1], [b, 3]]) if (r.put(x, x + 1, z, z + 1, () => { g.part('3003', 'TAN', x, z, y); if (n === 0) g.part('3003', 'TAN', x, z, y + 3); })) n++;
+                    if (h >= 16 && r.put(W - 3, W - 2, 2, 7, () => H.farmAnimal(ctx, 'horse', W - 3, 3, y))) roomFeats.push('a horse in its stall');   // a horse stands fifteen plates tall
+                    r.put(W - 4, W - 4, 1, 2, () => { g.part('3023', 'DARK_GREY', W - 4, 1, y, { rotY: 0 }); g.part('3069', 'TRANS_BLUE', W - 4, 1, y + 1, { rotY: 0 }); });
+                    if (n) roomFeats.push('hay bales and a water trough');
+                } else if (what === 'greenhouse') {
+                    let n = 0;
+                    for (let z = 2; z <= D - 4; z += 3) for (const x of [1, W - 3]) if (r.put(x, x + 1, z, z, () => { g.part('3004', 'BROWN', x, z, y, { rotY: PI / 2, w: 2, l: 1 }); H.flower(ctx, x, z, y + 3); H.flower(ctx, x + 1, z, y + 3); })) n++;
+                    if (n) roomFeats.push(`${n} planters of flowers`);
+                } else if (what === 'church') {
+                    const cx = Math.floor(W / 2) - 1;
+                    if (s === 0) r.put(cx, cx + 1, 1, 1, () => { g.part('3004', 'WHITE', cx, 1, y, { rotY: PI / 2, w: 2, l: 1 }); g.part('3062', 'GOLD', cx, 1, y + 3); g.part('3062', 'GOLD', cx + 1, 1, y + 3); });
+                    let n = 0;
+                    for (let z = 3; z + 1 <= D - 4; z += 2) for (const x of [b, W - 3]) if (r.put(x, x + 1, z, z + 1, () => H.seat(ctx, x, z, y, { face: 'back', width: 2, color: P.wood }))) n++;
+                    if (n) roomFeats.push(s === 0 ? `an altar with gold candles and ${n} pews` : `a gallery of ${n} pews upstairs`);
+                }
+            };
             // Stone footing, then the walls story by story.
             g.box(0, W - 1, 0, D - 1, 1, 1, P.dark, { noBrick: true });
-            let y0 = 2;
+            let y0 = 2, below = null;
             for (let s = 0; s < stories; s++) {
                 const h = s === 0 ? GH : UH;
                 if (s === 1 && balcony) {
@@ -292,7 +537,11 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                     feats.push('a railed balcony on inverted slopes');
                 }
                 g.shell(0, W - 1, 0, D - 1, y0, y0 + h - 1, wall);
-                H.ceiling(ctx, 0, W - 1, 0, D - 1, y0 + h, timber || s < stories - 1 ? P.trim : wall);
+                // The room inside, then a locked floor slab (with the stairwell open) under the next storey, or the ceiling under the roof.
+                const stairs = s < stories - 1 && D - 2 >= Math.floor(h / 3) + 2 && W >= 8 ? Math.floor(h / 3) : 0;
+                furnish(s, y0, below, stairs, h);
+                if (s < stories - 1) { below = stairs ? { x0: 1, x1: 2, z0: 1, z1: Math.min(3, stairs) } : null; H.floorSlab(ctx, 0, W - 1, 0, D - 1, y0 + h, P.trim, below); }
+                else H.ceiling(ctx, 0, W - 1, 0, D - 1, y0 + h, timber ? P.trim : wall);
                 if (timber) for (const [x, z] of [[0, 0], [W - 1, 0], [0, D - 1], [W - 1, D - 1]]) g.box(x, x, z, z, y0, y0 + h - 2, P.wood);
                 // Windows: every three studs on each face, two bricks up on the tall ground floor, skipping the door span.
                 const size = tallWin && (s === 0 ? h >= 12 : h >= 11) ? '1x2x3' : '1x2x2';
@@ -320,7 +569,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                     if (shop && realDoor) { H.bracketMount(ctx, doorX + 1, D - 1, y0 + 19, { face: 'front', color: wall, part: '3069', partColor: P.accent === wall ? P.trim : P.accent }); feats.push('a bracket-mounted shop sign'); }
                     else if (realDoor && doorX + 5 <= W - 1) { H.bracketMount(ctx, doorX + 4, D - 1, y0 + 15, { face: 'front', color: wall, part: '3069', partColor: P.light || 'TRANS_ORANGE' }); feats.push('a porch light on a bracket'); }
                 }
-                y0 += h + 1;
+                y0 += h + (s < stories - 1 ? 2 : 1);
             }
             const top = y0;
             let roofDesc;
@@ -354,7 +603,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             const names = { barn: 'Red Barn', cabin: 'Log Cabin', cottage: 'Cottage', villa: 'Villa', mansion: 'Manor House', hut: 'Hut', shack: 'Shack', cafe: 'Corner Café', 'coffee shop': 'Coffee Shop', bakery: 'Bakery', pub: 'Village Pub', tavern: 'Tavern', inn: 'Roadside Inn', church: 'Chapel', chapel: 'Chapel', office: 'Office Block', hotel: 'Boutique Hotel', library: 'Library', greenhouse: 'Greenhouse', garage: 'Garage', chalet: 'Chalet', lodge: 'Lodge', farmhouse: 'Farmhouse', treehouse: 'Treehouse', 'tree house': 'Treehouse', warehouse: 'Warehouse', factory: 'Factory', school: 'Schoolhouse' };
             const doorDesc = realDoor ? 'a front door in its frame' : church ? 'an arched doorway' : 'an arched front door';
             const winDesc = church ? 'arched windows' : glass ? `${tallWin ? 'tall ' : ''}windows with glass panes` : 'glass walls';
-            return { title: names[match] || 'House', features: [`${stories === 1 ? 'a single story' : stories + ' stories'} of ${window.LEGO_COLORS[wall].name.toLowerCase()} walls`, roofDesc, `${doorDesc}, ${winDesc} and a path`, ...feats] };
+            return { title: names[match] || 'House', features: [`${stories === 1 ? 'a single story' : stories + ' stories'} of ${window.LEGO_COLORS[wall].name.toLowerCase()} walls`, roofDesc, `${doorDesc}, ${winDesc} and a path`, ...new Set(roomFeats), ...feats] };
         }
     });
 
@@ -382,13 +631,18 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 g.box(tx, tx, tz, tz, base + towerH * 3 + 1, base + towerH * 3 + 3, stone);
                 g.box(tx + 1, tx + 1, tz + 1, tz + 1, base + towerH * 3 + 1, base + towerH * 3 + 3, stone);
             }
-            // Curtain walls between the towers, hollow inside.
+            // Curtain walls between the towers. On a big enough plan they are two studs thick: the outer course carries
+            // the crenellations, the inner one a plated wall walk behind them, as real castle sets build them.
+            const thick = W >= 12;
             g.shell(1, W - 2, 1, D - 2, base, base + wallH - 1, stone);
+            if (thick) g.shell(2, W - 3, 2, D - 3, base, base + wallH - 1, stone);
             H.crenellate(ctx, 1, W - 2, 1, D - 2, base + wallH, stone);
-            // Gatehouse: a 1x4 (or, on a wide front, 1x6) arch across the opening in the front wall, torches either side,
-            // pennants on the parapet.
+            if (thick) g.shell(2, W - 3, 2, D - 3, base + wallH, base + wallH, dark, { noBrick: true });
+            // Gatehouse: a 1x4 (or, on a wide front, 1x6) arch across the opening in the front wall (and the inner
+            // course behind it), torches either side, pennants on the parapet.
             const gw = W >= 18 ? 6 : 4, gx = Math.floor(W / 2) - gw / 2;
             H.archDoor(ctx, gx, D - 2, base, { width: gw, height: 6, color: dark, face: 'front' });
+            if (thick) H.archDoor(ctx, gx, D - 3, base, { width: gw, height: 6, color: dark, face: 'front' });
             for (const x of [gx - 1, gx + gw]) if (x > 1 && x < W - 2) { g.part('3005', dark, x, D - 1, base); g.part('3062', 'TRANS_ORANGE', x, D - 1, base + 3); }   // clear of the corner towers
             for (const x of [gx - 2, gx + gw + 1]) if (x > 1 && x < W - 2) g.part('54200', P.accent, x, D - 2, base + wallH);   // clear of the corner towers
             if (moat) {
@@ -399,18 +653,37 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 }
                 if (gw === 4) g.part('3022', P.wood, gx + 1, D + 1, 2); else g.part('3020', P.wood, gx + 1, D + 1, 2, { rotY: PI / 2, w: 4, l: 2 });
             }
-            // Courtyard path and the keep.
-            const cx = gx + gw / 2 - 1;
-            for (let z = Math.floor(D / 2) + 2; z <= D - 3; z += 2) g.part('3069', 'TAN', cx, z, base);
-            const kx = Math.floor(W / 2) - 2, kz = Math.floor(D / 2) - 2, keepH = 18;
-            g.shell(kx, kx + 3, kz, kz + 3, base, base + keepH - 1, stone);
-            H.ceiling(ctx, kx, kx + 3, kz, kz + 3, base + keepH, dark);
-            H.crenellate(ctx, kx, kx + 3, kz, kz + 3, base + keepH + 1, stone);
-            for (const y of [base + 6, base + 12]) H.archWindow(ctx, kx, kz + 3, y, { width: 4, height: 3, color: dark, glass: 'TRANS_ORANGE', face: 'front' });
-            if (banner) H.flagPole(ctx, kx + 1, kz + 1, base + keepH + 1, { height: 3, flag: P.accent });
-            // A well and a tree in the courtyard.
-            if (W >= 14) { g.part('3941', stone, 2, D - 5, base); g.part('4032', P.water, 2, D - 5, base + 3); H.tree(ctx, W - 4, 3, base, 'round'); }
-            return { title: ctx.match === 'palace' ? 'Royal Palace' : 'Castle', features: [`four ${tallTowers ? 'tall ' : ''}round corner towers`, 'crenellated curtain walls', 'an arched gatehouse with torches', banner ? 'a keep with arched windows flying a banner' : 'a keep with arched windows', moat ? 'a moat and a hinged drawbridge' : 'a courtyard well'] };
+            // The keep at the back of the courtyard, a room you can walk into: an arched doorway facing the gate, the
+            // great hall inside (a throne on its dais, torches), a floor slab, the lord's chamber upstairs behind arched
+            // windows on every face, a ceiling, crenellations and the banner.
+            const KS = W >= 14 ? 6 : 4, c = Math.floor(W / 2), kx = c - KS / 2, kz = thick ? 3 : Math.floor(D / 2) - 2, kz1 = kz + KS - 1;
+            const hall = 9, upper = 9, kTop = base + hall + 2 + upper;
+            g.shell(kx, kx + KS - 1, kz, kz1, base, base + hall - 1, stone);
+            H.archDoor(ctx, c - 2, kz1, base, { width: 4, height: 6, color: dark, face: 'front' });
+            H.throne(ctx, c - 1, kz + 1, base);
+            if (KS >= 6) { H.torch(ctx, kx + 1, kz + 1, base); H.torch(ctx, kx + KS - 2, kz + 1, base); g.part('3062', P.wood, kx + 1, kz1 - 1, base); g.part('3062', P.wood, kx + KS - 2, kz1 - 1, base); }
+            H.slab(ctx, kx, kx + KS - 1, kz, kz1, base + hall, dark);
+            const yU = base + hall + 2;
+            g.shell(kx, kx + KS - 1, kz, kz1, yU, yU + upper - 1, stone);
+            if (KS >= 6) H.bed(ctx, kx + 1, kz + 1, yU, { color: P.accent === stone ? 'DARK_RED' : P.accent }); else { g.part('3005', 'BROWN', kx + 1, kz + 1, yU); g.part('98138', 'GOLD', kx + 1, kz + 1, yU + 3); }
+            const mz = kz + KS / 2, wy = yU + 2;
+            H.archWindow(ctx, c - 2, kz1, wy, { width: 4, height: 3, color: dark, glass: 'TRANS_ORANGE', face: 'front' });
+            H.archWindow(ctx, c + 1, kz, wy, { width: 4, height: 3, color: dark, glass: 'TRANS_ORANGE', face: 'back' });
+            if (KS >= 6) {   // on a four-stud keep the side arches would share the corner bricks with the front and back ones
+                H.archWindow(ctx, kx, mz - 2, wy, { width: 4, height: 3, color: dark, glass: 'TRANS_ORANGE', face: 'left' });
+                H.archWindow(ctx, kx + KS - 1, mz + 1, wy, { width: 4, height: 3, color: dark, glass: 'TRANS_ORANGE', face: 'right' });
+            }
+            H.ceiling(ctx, kx, kx + KS - 1, kz, kz1, kTop, dark);
+            H.crenellate(ctx, kx, kx + KS - 1, kz, kz1, kTop + 1, stone);
+            if (banner) H.flagPole(ctx, kx + 1, kz + 1, kTop + 1, { height: 3, flag: P.accent });
+            // The courtyard: a path from the gate to the keep, a well, barrels by the wall.
+            const cx = gx + gw / 2 - 1, inner = thick ? 3 : 2, front = thick ? D - 4 : D - 3;
+            for (let z = kz1 + 1; z + 1 <= front; z += 2) g.part('3069', 'TAN', cx, z, base);
+            const yard = H.room(inner, W - 1 - inner, inner, front);
+            yard.keep(kx, kx + KS - 1, kz, kz1); yard.keep(cx, cx + 1, kz1 + 1, front);
+            const well = yard.put(inner, inner + 1, front - 1, front, () => { g.part('3941', stone, inner, front - 1, base); g.part('4032', P.water, inner, front - 1, base + 3); });
+            for (const [x, z] of [[W - 1 - inner, front], [W - 1 - inner, front - 1]]) yard.put(x, x, z, z, () => g.part('3062', 'BROWN', x, z, base));
+            return { title: ctx.match === 'palace' ? 'Royal Palace' : 'Castle', features: [`four ${tallTowers ? 'tall ' : ''}round corner towers`, thick ? 'thick curtain walls with a wall walk behind the crenellations' : 'crenellated curtain walls', 'an arched gatehouse with torches', `a keep you can enter: a great hall with a throne, a floor slab and ${KS >= 6 ? "the lord's bedchamber" : 'a treasure room'} upstairs behind arched windows`, banner ? 'a banner on the keep' : 'a crenellated keep roof', moat ? 'a moat and a hinged drawbridge' : 'a courtyard', well ? 'a courtyard well and barrels' : 'a courtyard path to the keep'] };
         }
     });
 
@@ -457,7 +730,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 let y = 3;
                 for (let t = 0; t < tiers; t++) {
                     g.shell(0, 3, 0, 3, y, y + 5, 'WHITE');
-                    if (t === 0) H.archDoor(ctx, 0, 3, y, { width: 4, height: 3, color: P.wood, face: 'front' });
+                    if (t === 0) { H.archDoor(ctx, 0, 3, y, { width: 4, height: 3, color: P.wood, face: 'front' }); g.part('3062', 'GOLD', 1, 1, y); g.part('98138', 'GOLD', 1, 1, y + 3); g.part('3062', 'TRANS_ORANGE', 2, 1, y); }   // a shrine inside
                     else H.realWindow(ctx, 1, 3, y, { size: '1x2x2', face: 'front', frameColor: P.wood, glassColor: 'TRANS_ORANGE' });
                     // Ceiling, then eave plates one up that overlap the tier's edge and overhang it.
                     H.ceiling(ctx, 0, 3, 0, 3, y + 6, P.roof);
@@ -476,6 +749,8 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 g.box(-4, 9, -4, 9, 0, 0, P.ground);
                 g.shell(0, 5, 0, 5, 1, 6, P.primary); H.ceiling(ctx, 0, 5, 0, 5, 7, P.primary); g.shell(1, 4, 1, 4, 8, 15, P.primary);
                 H.archDoor(ctx, 2, 5, 1, { width: 4, height: 3, color: P.wood, face: 'front' });   // the sail passes the door's left jamb, not its opening
+                g.part('4032', 'LIGHT_GREY', 1, 1, 1); g.part('4032', 'DARK_GREY', 1, 1, 2); g.part('3062', P.wood, 1, 1, 3);   // the millstones on their spindle
+                g.part('553', 'TAN', 3, 1, 1); g.part('3062', 'TAN', 4, 3, 1);                                                 // flour sacks
                 H.realWindow(ctx, 4, 3, 9, { size: '1x2x2', face: 'right', frameColor: P.wood, glassColor: P.glass });   // on the side, clear of the sail axle
                 g.box(1, 4, 1, 4, 16, 16, P.roof, { noBrick: true }); g.box(2, 3, 2, 3, 17, 17, P.roof, { noBrick: true }); g.part('3942', P.roof, 2, 2, 18);
                 // Sails on an axle: a Technic brick in the upper wall, a pin through it, two crossed 1x8 plates standing on the
@@ -488,7 +763,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 g.part('3460', P.wood, 2, 6, 3, { rotX: PI / 2, lie: true, w: 1, l: 1, hp: 20, dz: -0.5, dy: (hub - 0.48) / 0.4 - 3, links: [[2, 12, 5]] });
                 g.part('3460', P.wood, -1, 7, 11, { rotY: PI / 2, rotX: PI / 2, lie: true, w: 8, l: 1, hp: 3, dx: -0.5, dz: -1, dy: (hub - (11 * 0.4 + 0.48)) / 0.4, links: [[2, 12, 6]] });
                 H.flower(ctx, -2, 7, 1); H.flower(ctx, 7, 7, 1); H.tree(ctx, 8, -3, 1);
-                return { title: 'Windmill', features: ['a tapered two-stage tower', 'four timber sails on a pin axle', 'a conical cap', 'an arched door and a real window'] };
+                return { title: 'Windmill', features: ['a tapered two-stage tower', 'four timber sails on a pin axle', 'a conical cap', 'an arched door and a real window', 'millstones and flour sacks inside'] };
             }
             if (match === 'skyscraper' || match === 'tall building' || match === 'high-rise' || match === 'highrise' || match === 'office tower') {
                 const W = sc(8);
@@ -557,6 +832,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             g.shell(0, 3, 0, 3, 1, Hb * 3, stone);
             // An arched doorway at the foot, arched windows every three bricks above it.
             H.archDoor(ctx, 0, 3, 1, { width: 4, height: 6, color: P.dark, face: 'front' });
+            H.torch(ctx, 1, 1, 1); g.part('3062', 'BROWN', 2, 1, 1);   // a torch and a barrel inside the door
             for (let yy = 13; yy + 6 <= Hb * 3 + 1; yy += 9) H.archWindow(ctx, 0, 3, yy, { width: 4, height: 3, color: P.dark, glass: 'TRANS_BLUE', face: 'front' });
             const yT = Hb * 3 + 1;
             H.slab(ctx, -1, 4, -1, 4, yT, clock || bell ? 'DARK_GREY' : P.wood);   // the overhanging top stage stands on one locked slab
@@ -649,11 +925,13 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             for (const x of [0, W - 1]) for (let z = 2; z <= D - 3; z += 2) for (let i = 0; i < 3; i++) g.part('3062', 'WHITE', x, z, 3 + i * 3);
             g.shell(1, W - 2, 1, D - 2, 3, 11, 'WHITE');
             if (W - 2 >= 5) H.archDoor(ctx, Math.floor(W / 2) - 2, D - 2, 3, { width: 4, height: 6, color: 'WHITE', face: 'front' });   // the cella's arched doorway
+            const sx = Math.floor(W / 2) - 1, inCella = D - 2 > 3;   // the cella's inside runs 2 .. D-3
+            if (inCella) { g.part('3004', 'TAN', sx, 2, 3, { rotY: PI / 2, w: 2, l: 1 }); g.part('3062', 'GOLD', sx, 2, 6); g.part('59900', 'GOLD', sx, 2, 9); g.part('3062', 'TRANS_ORANGE', sx + 1, 2, 6); }   // an altar with a gold statue and a lamp
             // The entablature overhangs the colonnade by a stud: under a roof the slopes tie it, roofless it is a cross-bonded slab.
             if (match === 'ruins') H.slab(ctx, -1, W, -1, D, 12, 'WHITE');
             else { g.box(-1, W, -1, D, 12, 12, 'WHITE', { noBrick: true }); H.gableRoof(ctx, -1, W, -1, D, 13, 'TAN', 'x'); }
             if (match === 'statue' || match === 'monument') { g.box(Math.floor(W / 2) - 1, Math.floor(W / 2), -1, 0, 3, 5, 'LIGHT_GREY'); g.part('3005', 'GOLD', Math.floor(W / 2), -1, 6); g.part('3005', 'GOLD', Math.floor(W / 2), -1, 9); g.part('98138', 'GOLD', Math.floor(W / 2), -1, 12); }
-            return { title: match === 'ruins' ? 'Ancient Ruins' : 'Classical Temple', features: ['a stepped stylobate', 'a colonnade of round columns', 'an arched doorway into the cella', match === 'ruins' ? 'a roofless cella' : 'a pedimented roof'] };
+            return { title: match === 'ruins' ? 'Ancient Ruins' : 'Classical Temple', features: ['a stepped stylobate', 'a colonnade of round columns', 'an arched doorway into the cella with a gold statue on its altar', match === 'ruins' ? 'a roofless cella' : 'a pedimented roof'] };
         }
     });
 
@@ -729,58 +1007,91 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             // A locked two-layer plate slab over the chassis (its layer joints never line up), the body on that.
             H.slab(ctx, 0, W - 1, 0, L - 1, T, body);
             const B = T + 2;   // body bricks start here
+            const seatC = H.upholstery(ctx, body);   // seats that show up against the body through the windows
             if (bus) {
+                // The floor block the seats stand on, lights and a grille on its front.
                 g.box(0, W - 1, 0, L - 1, B, B + 2, body);
                 feats.push(...carLights(ctx, W, L - 1, 0, B, body), ...carGrille(ctx, W, L - 1, B + 2, body));
-                // A two-brick wall with real window frames along both sides, a wraparound windscreen and rear window.
-                g.shell(0, W - 1, 0, L - 1, B + 3, B + 8, body);
+                // A hollow saloon: two-brick walls with real window frames along both sides, a wraparound windscreen and rear window.
+                const F = B + 3;
+                g.shell(0, W - 1, 0, L - 1, F, F + 5, body);
                 const frame = match === 'school bus' ? 'BLACK' : P.trim === body ? 'WHITE' : P.trim;
-                const win = (x, z, face) => H.realWindow(ctx, x, z, B + 3, { size: '1x2x2', face, frameColor: frame, glassColor: P.glass });
+                const win = (x, z, face) => H.realWindow(ctx, x, z, F, { size: '1x2x2', face, frameColor: frame, glassColor: P.glass });
                 for (let z = 1; z + 1 <= L - 2; z += 3) { win(0, z, 'left'); win(W - 1, z + 1, 'right'); }
                 win(1, L - 1, 'front'); win(3, L - 1, 'front'); win(4, 0, 'back'); win(2, 0, 'back');
-                H.ceiling(ctx, 0, W - 1, 0, L - 1, B + 9, match === 'school bus' ? 'BLACK' : body);
+                // Inside, before the roof goes on: the driver's seat behind a steering wheel and dashboard, then rows of
+                // seats either side of the aisle, each a plate pan, a brick backrest and a reclining cheese slope.
+                H.dashboard(ctx, 2, L - 2, F, W - 3, { face: 'front' });
+                H.steering(ctx, 1, L - 2, F);
+                H.seat(ctx, 1, L - 3, F, { face: 'front', color: P.dark === seatC ? 'BLACK' : P.dark });
+                let rows = 0;
+                for (let z = 2; z <= L - 5; z += 2) { H.seat(ctx, 1, z, F, { face: 'front', color: seatC }); H.seat(ctx, W - 2, z, F, { face: 'front', color: seatC }); rows++; }
+                H.ceiling(ctx, 0, W - 1, 0, L - 1, F + 6, match === 'school bus' ? 'BLACK' : body);
                 if (match === 'school bus') {
-                    g.part('98138', 'TRANS_RED', 0, L - 1, B + 10); g.part('98138', 'TRANS_RED', W - 1, L - 1, B + 10);
+                    g.part('98138', 'TRANS_RED', 0, L - 1, F + 7); g.part('98138', 'TRANS_RED', W - 1, L - 1, F + 7);
                     if (L >= 10 && !bigWheels) { H.bracketMount(ctx, 0, 4, B + 2, { face: 'left', part: '3069', color: body, partColor: 'RED' }); feats.push('a swing-out stop sign'); }
-                } else { g.part('3069', P.accent, 2, L - 2, B + 10, { rotY: PI / 2, w: 2, l: 1 }); feats.push('a destination board'); }
-                feats.push('rows of real window frames with glass', 'a wraparound windscreen');
+                } else { g.part('3069', P.accent, 2, L - 2, F + 7, { rotY: PI / 2, w: 2, l: 1 }); feats.push('a destination board'); }
+                feats.push('rows of real window frames with glass', 'a wraparound windscreen', `a hollow saloon with a driver's seat, steering wheel and dashboard and ${rows * 2} passenger seats either side of the aisle`);
             } else if (truck) {
                 const cabZ = L - 4;
                 g.box(0, W - 1, cabZ - 1, L - 1, B, B + 2, body);   // the cab and the row behind it that carries the cargo's front
                 feats.push(...carLights(ctx, W, L - 1, null, B, body), ...carGrille(ctx, W, L - 1, B + 2, body));
-                // Cab: a curved bonnet, a glass windscreen, a roof plate with marker lights.
+                // Cab: a curved bonnet, a glass windscreen over a hollow cab, a roof plate with marker lights.
                 H.curvedRoof(ctx, 0, L - 2, B + 3, { width: W, color: body, face: 'front' });
                 for (let x = 0; x < W; x += 2) g.part('3039', P.glass, x, cabZ, B + 3, { rotY: 0 });
-                g.box(0, W - 1, cabZ, cabZ, B + 6, B + 6, body, { noBrick: true });
-                g.part('98138', 'TRANS_ORANGE', 0, cabZ, B + 7); g.part('98138', 'TRANS_ORANGE', W - 1, cabZ, B + 7);
+                // Inside the cab: two bench seats whose backrest bricks are set into the cargo's front wall, a short
+                // steering column and a dashboard under the windscreen, glass side windows to look in through.
+                g.clear(1, W - 2, cabZ - 1, cabZ, B, B + 2);
+                H.seat(ctx, 1, cabZ - 1, B, { face: 'front', width: 2, color: seatC, slope: false });
+                if (W >= 6) H.seat(ctx, 3, cabZ - 1, B, { face: 'front', width: 2, color: seatC, slope: false });
+                H.steering(ctx, 1, cabZ, B, 'DARK_GREY', true);
+                H.dashboard(ctx, 2, cabZ, B, W - 3, { face: 'front', low: true });
+                for (const x of [0, W - 1]) g.part('3005', P.glass, x, cabZ - 1, B + 3);
+                feats.push('a cab with two bench seats, a steering wheel and a dashboard');
                 const cargo = declare({ id: 'cargo', label: 'Cargo', type: 'choice', choices: ['box', 'bed', 'tow'], default: monster || match === 'pickup' || match === 'pickup truck' ? 'bed' : match === 'tow truck' ? 'tow' : 'box' });
+                // The cab's back wall is the cargo box's front wall; an open bed or a tow deck gets its own above the backrests.
+                if (cargo !== 'box') g.box(0, W - 1, cabZ - 2, cabZ - 2, B + 3, B + 5, body);
+                H.ceiling(ctx, 0, W - 1, cargo === 'box' ? cabZ - 1 : cabZ - 2, cabZ, B + 6, body);   // the cab roof, resting on the windscreen and the back wall
+                g.part('98138', 'TRANS_ORANGE', 0, cabZ, B + 7); g.part('98138', 'TRANS_ORANGE', W - 1, cabZ, B + 7);
                 if (cargo === 'box') {
                     const boxColor = match === 'ambulance' || match === 'ice cream truck' || match === 'delivery van' || match === 'van' || match === 'camper' || match === 'rv' ? 'WHITE' : match === 'fire truck' || match === 'fire engine' ? body : P.secondary;
+                    const fire = match === 'fire truck' || match === 'fire engine';
+                    // A genuinely hollow box on the chassis slab: its load inside, a 1x2x3 window in the back doors to see it.
                     g.shell(0, W - 1, 0, cabZ - 2, B, B + 8, boxColor);
-                    H.ceiling(ctx, 0, W - 1, 0, cabZ - 2, B + 9, 'LIGHT_GREY');
                     carLights(ctx, W, null, 0, B, boxColor);
+                    H.realWindow(ctx, Math.floor(W / 2), 0, B, { size: '1x2x3', face: 'back', frameColor: boxColor === 'WHITE' ? 'LIGHT_GREY' : 'WHITE', glassColor: P.glass });
+                    const hold = cabZ - 3;   // the last row inside the box before the seat backrests
+                    if (match === 'ambulance' && hold >= 4) { H.bed(ctx, 1, 1, B, { color: 'LIGHT_GREY', blanket: 'WHITE', pillow: 'WHITE' }); feats.push('a stretcher inside'); }
+                    else if (fire) { if (hold >= 2) H.hoseReel(ctx, 1, 1, B); if (hold >= 4) H.hoseReel(ctx, 1, 3, B); for (let z = 1; z <= Math.min(2, hold); z++) g.part('3062', 'RED', W - 2, z, B); feats.push(hold >= 2 ? 'hose reels and extinguishers inside' : 'extinguishers inside'); }
+                    else if (cabZ - 2 >= 4) { g.part('3003', 'TAN', 1, 1, B); g.part('3003', 'BROWN', W - 3, 1, B); g.part('3003', 'TAN', 1, 1, B + 3); feats.push('crates in the cargo box'); }
+                    H.ceiling(ctx, 0, W - 1, 0, cabZ - 2, B + 9, 'LIGHT_GREY');
                     if (match === 'ambulance') { g.part('3070', 'RED', 2, cabZ - 3, B + 10); g.part('3070', 'RED', 3, cabZ - 3, B + 10); g.part('98138', 'TRANS_BLUE', 2, cabZ, B + 7); g.part('98138', 'TRANS_RED', 3, cabZ, B + 7); feats.push('a red cross and emergency lights'); }
-                    if (match === 'fire truck' || match === 'fire engine') {
-                        // A two-rail ladder on 1x2 crossbars along the roof, a blue beacon on the cab.
-                        const n = [8, 6, 4, 3].find((l) => l <= cabZ - 2);
+                    if (fire) {
+                        // The ladder on a turntable at the front of the roof (a 2x2 brick pivot on 3680/3679), lying back over
+                        // the box to a brick rest; hose reels either side; blue beacons on the cab.
+                        const tz = cabZ - 3, n = [8, 6, 4].find((l) => tz - l + 2 >= 0);
                         if (n) {
-                            for (const z of [0, n - 1]) g.part('3004', 'LIGHT_GREY', 0, z, B + 10, { rotY: PI / 2, w: 2, l: 1 });
-                            for (const x of [0, 1]) g.part(PLATES.one[n], 'LIGHT_GREY', x, 0, B + 13, { rotY: 0, w: 1, l: n });
-                            feats.push('a roof-mounted ladder');
+                            const t = H.turret(ctx, 2, tz, B + 10, { size: 2, color: 'LIGHT_GREY', baseColor: 'DARK_GREY', barrel: false });
+                            const z0 = tz + 1 - n + 1;
+                            g.part('3004', 'LIGHT_GREY', 2, z0, B + 10, { rotY: PI / 2, w: 2, l: 1 });
+                            g.part('3023', 'LIGHT_GREY', 2, z0, B + 13, { rotY: PI / 2, w: 2, l: 1 }); g.part('3023', 'LIGHT_GREY', 2, z0, B + 14, { rotY: PI / 2, w: 2, l: 1 });
+                            H.ladder(ctx, 2, z0, t.top, n, 'LIGHT_GREY');
+                            feats.push('a ladder on a turntable');
+                            if (z0 + 1 <= tz - 2) { H.hoseReel(ctx, 0, z0 + 1, B + 10); H.hoseReel(ctx, W - 2, z0 + 1, B + 10); feats.push('hose reels on the roof'); }
                         }
                         g.part('98138', 'TRANS_BLUE', 2, cabZ, B + 7); g.part('98138', 'TRANS_BLUE', 3, cabZ, B + 7);
-                        g.part('14769', 'LIGHT_GREY', 4, cabZ - 3, B + 10); feats.push('a blue beacon and a hose reel');
+                        feats.push('blue beacons');
                     }
                     if (match === 'ice cream truck' || match === 'food truck') { g.part('3069', P.accent, 2, cabZ - 3, B + 10); g.part('59900', 'PINK', 1, 0, B + 10); g.part('98138', 'WHITE', 2, 0, B + 10); feats.push('a serving hatch and a giant ice cream'); }
-                    feats.push('a tall cargo box');
+                    feats.push('a hollow cargo box with a rear window');
                 } else if (cargo === 'bed') {
                     g.shell(0, W - 1, 0, cabZ - 2, B, B + 2, body); g.box(1, W - 2, 1, cabZ - 3, B, B, 'BLACK', { noBrick: true });
                     carLights(ctx, W, null, 0, B, body);
-                    g.part('3941', 'TAN', 1, 1, B + 1); feats.push('an open cargo bed with a load');
+                    if (cabZ - 3 >= 2) g.part('3941', 'TAN', 1, 1, B + 1); else g.part('3062', 'TAN', 1, 1, B + 1); feats.push('an open cargo bed with a load');   // a short bed takes a barrel, not a drum
                     if (monster) {
-                        // A light bar over the cab and chrome exhaust stacks behind it.
+                        // A light bar over the cab and chrome exhaust stacks on the bed's front corners.
                         for (let x = 1; x <= W - 2; x++) g.part('98138', 'TRANS_CLEAR', x, cabZ, B + 7);
-                        for (const x of [0, W - 1]) { g.part('3062', 'LIGHT_GREY', x, cabZ - 1, B + 3); g.part('3062', 'LIGHT_GREY', x, cabZ - 1, B + 6); }
+                        for (const x of [0, W - 1]) { g.part('3062', 'LIGHT_GREY', x, cabZ - 3, B + 3); g.part('3062', 'LIGHT_GREY', x, cabZ - 3, B + 6); }
                         feats.push('a roof light bar and twin exhaust stacks');
                     }
                 } else {
@@ -801,7 +1112,9 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 g.part('3023', 'YELLOW', 2, 1, B + 10, { rotY: PI / 2, w: 2, l: 1 });
                 feats.push('an exhaust stack', 'a canopy cab on four pillars', 'a bracket-mounted grille');
             } else {
-                // A car: lights and a grille on the front, a curved bonnet, a glass windscreen, a cabin, a roof, a boot.
+                // A car, from the floor up: the lower body with lights and a grille, hollowed behind the windscreen into
+                // a cabin floor with seats, a steering wheel and a dashboard; then the windscreen, the cabin walls with
+                // side windows, and the roof (or, on an open car, a rear deck and cockpit rims).
                 const cabZ = L - 5;
                 g.box(0, W - 1, 0, L - 1, B, B + 2, body);
                 if (sporty) {
@@ -817,9 +1130,22 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                     feats.push('a curved-slope bonnet');
                 }
                 for (let x = 0; x < W; x += 2) g.part('3039', P.glass, x, cabZ, B + 3, { rotY: 0 });
+                // The cabin: rows cab0 (the backrest, under the rear wall) .. cabZ-1 (steering wheel and dashboard).
+                const boot = !open && cabZ >= 4, cab0 = open ? Math.max(0, cabZ - 3) : boot ? 2 : 0, room = cabZ - cab0;
+                if (room >= 3) {
+                    g.clear(1, W - 2, cab0 + 1, cabZ - 1, B, B + 2);
+                    // A rear bench where the cabin is long enough, the front seats reclining on cheese slopes.
+                    const front = room >= 5 ? cabZ - 2 : cab0 + 1;
+                    if (room >= 5) H.seat(ctx, 1, cab0 + 1, B, { face: 'front', width: 2, color: seatC, slope: false });
+                    H.seat(ctx, 1, front, B, { face: 'front', width: 2, color: seatC, slope: open || room >= 5 });
+                    H.steering(ctx, 1, cabZ - 1, B);
+                    H.dashboard(ctx, 2, cabZ - 1, B, W - 3, { face: 'front' });
+                    feats.push(room >= 5 ? 'front and rear seats, a steering wheel and a dashboard inside' : 'seats, a steering wheel and a dashboard inside');
+                }
                 if (open) {
-                    g.box(0, W - 1, 1, cabZ - 1, B + 3, B + 3, body, { noBrick: true });
-                    g.part('3070', 'BLACK', 1, cabZ - 2, B + 4); g.part('3070', 'BLACK', 2, cabZ - 2, B + 4); g.part('98138', 'BLACK', 1, cabZ - 1, B + 4);
+                    // A rear deck behind the cockpit and plate rims along its sides.
+                    if (cab0 > 1) g.box(0, W - 1, 1, cab0 - 1, B + 3, B + 3, body, { noBrick: true });
+                    for (const x of [0, W - 1]) g.box(x, x, cab0, cabZ - 1, B + 3, B + 3, body, { noBrick: true });
                     if (f1) {
                         // Wings front and back, a cheese-slope nose cone, the engine cover behind the driver.
                         g.box(0, W - 1, cabZ + 2, L - 1, B + 3, B + 3, body, { noBrick: true });
@@ -828,22 +1154,34 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                         g.box(0, 0, 0, 0, B + 3, B + 5, 'BLACK'); g.box(W - 1, W - 1, 0, 0, B + 3, B + 5, 'BLACK'); g.part('3666', P.secondary, -1, 0, B + 6, { rotY: PI / 2, w: 6, l: 1 });
                         feats.push('front and rear wings', 'a cheese-slope nose cone');
                     }
-                    feats.push('an open cockpit with seats');
+                    feats.push('an open cockpit');
                 } else {
                     // A sedan long enough gets a boot behind the cabin with the spoiler on its lid; a short one is a hatchback.
-                    const boot = cabZ >= 4, cab0 = boot ? 2 : 0;
-                    g.box(0, W - 1, cab0, cabZ - 1, B + 3, B + 5, body);
-                    if (cabZ - cab0 >= 2) { H.window(ctx, 0, cab0 + (cabZ - cab0 > 2 ? 1 : 0), B + 3, 'left'); H.window(ctx, W - 1, cab0 + (cabZ - cab0 > 2 ? 1 : 0), B + 3, 'right'); }
-                    g.box(0, W - 1, cab0, cabZ, B + 6, B + 6, body, { noBrick: true });
+                    if (room >= 3) {
+                        // Walls round the hollow cabin (the windscreen closes its front), side windows, a plate roof across them.
+                        for (const x of [0, W - 1]) g.box(x, x, cab0, cabZ - 1, B + 3, B + 5, body);
+                        g.box(1, W - 2, cab0, cab0, B + 3, B + 5, body);
+                        for (let z = cab0 + 1; z + 1 <= cabZ - 1; z += 2) { H.window(ctx, 0, z, B + 3, 'left'); H.window(ctx, W - 1, z, B + 3, 'right'); }
+                        H.ceiling(ctx, 0, W - 1, boot ? cab0 + 2 : cab0, cabZ, B + 6, body);
+                    } else {
+                        g.box(0, W - 1, cab0, cabZ - 1, B + 3, B + 5, body);
+                        if (room >= 2) { H.window(ctx, 0, cab0, B + 3, 'left'); H.window(ctx, W - 1, cab0, B + 3, 'right'); }
+                        g.box(0, W - 1, cab0, cabZ, B + 6, B + 6, body, { noBrick: true });
+                    }
+                    const lightZ = boot ? 4 : Math.min(2, cabZ), sign = match === 'police car' || match === 'taxi' || match === 'cab';
                     const stripeDflt = has('stripe', 'stripes', 'racing', 'race') || match === 'sports car' || match === 'muscle car' || match === 'rally car';
-                    if (declare({ id: 'stripe', label: 'Racing stripe', type: 'bool', default: stripeDflt })) { g.box(1, 2, cab0, cabZ, B + 6, B + 6, P.secondary, { noBrick: true }); if (!f1) g.box(1, 2, cabZ + 2, L - 3, B + 3, B + 3, P.secondary, { noBrick: true }); feats.push('a racing stripe'); }
+                    if (declare({ id: 'stripe', label: 'Racing stripe', type: 'bool', default: stripeDflt })) {
+                        // Tiles along the roof (clear of a roof sign) and plates down the bonnet.
+                        for (let z = cab0 + 2; z + 1 <= cabZ; z += 2) if (!(sign && z <= lightZ && lightZ <= z + 1)) for (const x of [1, 2]) g.part('3069', P.secondary, x, z, B + 7, { rotY: 0 });
+                        if (!f1) g.box(1, 2, cabZ + 2, L - 3, B + 3, B + 3, P.secondary, { noBrick: true });
+                        feats.push('a racing stripe');
+                    }
                     if (boot) { g.box(0, W - 1, 0, 1, B + 3, B + 3, body, { noBrick: true }); H.curvedRoof(ctx, W - 1, 3, B + 6, { width: W, color: body, face: 'back' }); feats.push('a curved rear roofline'); }
                     const spoilerDflt = match === 'sports car' || match === 'supercar' || match === 'race car' || match === 'racing car' || match === 'muscle car' || match === 'rally car' || chance(0.4);
                     if (declare({ id: 'spoiler', label: 'Rear spoiler', type: 'bool', default: spoilerDflt })) {
                         const ys = boot ? B + 4 : B + 7;
                         g.part('3024', 'BLACK', 0, 0, ys); g.part('3024', 'BLACK', W - 1, 0, ys); g.part(PLATES.one[W], 'BLACK', 0, 0, ys + 1, { rotY: PI / 2, w: W, l: 1 }); feats.push('a rear spoiler');
                     }
-                    const lightZ = boot ? 4 : Math.min(2, cabZ);
                     if (match === 'police car') { g.part('3069', 'TRANS_BLUE', 0, lightZ, B + 7, { rotY: PI / 2, w: 2, l: 1 }); g.part('3069', 'TRANS_RED', 2, lightZ, B + 7, { rotY: PI / 2, w: 2, l: 1 }); feats.push('a blue and red light bar'); }
                     if (match === 'taxi' || match === 'cab') { g.part('3069', 'BLACK', 1, lightZ, B + 7, { rotY: PI / 2, w: 2, l: 1 }); feats.push('a roof sign'); }
                 }
@@ -991,71 +1329,125 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 return { title: 'Quadcopter Drone', features: ['four rotor arms', 'three-blade propellers', 'a camera gimbal', 'navigation lights'] };
             }
             if (heli) {
-                const L = sc(6);
-                g.box(-3, 4, -8, L + 1, 0, 0, 'DARK_GREY', { noBrick: true });
-                g.part('3666', 'BLACK', -1, 0, 1, { rotY: 0, l: Math.min(6, L) }); g.part('3666', 'BLACK', 2, 0, 1, { rotY: 0, l: Math.min(6, L) });
-                g.part('3032', 'BLACK', -1, 0, 2, { w: 4, l: 6 });
-                g.box(0, 1, 0, L - 1, 3, 5, P.primary);
-                g.part('3040', P.glass, 0, L - 2, 6, { rotY: 0 }); g.part('3040', P.glass, 1, L - 2, 6, { rotY: 0 });
-                g.box(0, 1, 0, L - 3, 6, 8, P.primary);
-                if (L >= 5) { H.window(ctx, 0, 1, 6, 'left'); H.window(ctx, 1, 1, 6, 'right'); }
-                g.box(0, 1, 0, L - 3, 9, 9, P.secondary, { noBrick: true });
-                // Main rotor on a bar mast, the tail boom on an inverted slope, a standing tail rotor on a headlight brick.
-                feats.push(...H.rotorMast(ctx, 0, 1, 10, { color: P.dark, bladeColor: P.metal, blades: 4 }).feats);
-                g.part('4477', P.primary, 0, -9, 6, { rotY: 0, l: 10 }); g.part('3005', P.primary, 0, -9, 7); g.part('54200', P.accent, 0, -9, 10);
-                H.overhang(ctx, 0, -1, 3, { width: 1, color: P.primary, face: 'back' });
-                feats.push(...H.propeller(ctx, 0, -8, 7, { face: 'right', color: P.metal, hubColor: P.primary, blades: 'vertical' }).feats.map(() => 'a tail rotor on a headlight-brick stud'));
-                feats.push('a bubble canopy', 'a tail boom with fin', 'landing skids');
+                // Built like a real set: skids, a locked floor slab, then the open cabin (two seats, a dashboard and
+                // a glass front), the roof slab closing it, the rotor mast on top and the tail boom off the back.
+                const L = Math.max(5, sc(6)), W = 4, F = 4;   // F: the cabin floor (on the slab)
+                g.box(-3, W + 2, -10, L + 1, 0, 0, 'DARK_GREY', { noBrick: true });
+                const sl = Math.min(6, L), sz0 = L - sl;
+                g.part('3666', 'BLACK', -1, sz0, 1, { rotY: 0, w: 1, l: sl }); g.part('3666', 'BLACK', W, sz0, 1, { rotY: 0, w: 1, l: sl });
+                H.slab(ctx, -1, W, 0, L - 1, 2, P.dark);
+                const cz = L - 5;   // the cabin's rear wall; rows in front: backrests, pans, dashboard + pillars, glass nose
+                g.box(0, W - 1, cz, cz, F, F + 5, P.primary);
+                for (const x of [0, W - 1]) g.box(x, x, L - 2, L - 2, F, F + 2, P.primary);
+                feats.push(...H.seat(ctx, 1, L - 3, F, { face: 'front', width: 2, color: H.upholstery(ctx, P.primary, P.dark) }).feats.map(() => 'two seats in an open cabin'));
+                H.dashboard(ctx, 1, L - 2, F, 2, { face: 'front', low: true });
+                g.box(0, W - 1, L - 1, L - 1, F, F + 2, P.glass);                                 // a glass chin under the screen
+                g.part('3039', P.glass, 0, L - 2, F + 3, { rotY: 0 }); g.part('3039', P.glass, 2, L - 2, F + 3, { rotY: 0 });
+                H.slab(ctx, 0, W - 1, cz, L - 2, F + 6, P.secondary);                              // the roof closes the cabin
+                if (cz > 0) { g.box(1, 2, 0, cz - 1, F, F + 2, P.primary); g.box(1, 2, 0, cz - 1, F + 3, F + 3, P.primary, { noBrick: true }); }
+                feats.push(...H.rotorMast(ctx, 1, cz + 1, F + 8, { color: P.dark, bladeColor: P.metal, blades: 4 }).feats);
+                // The tail boom: a 2x10 plate out of the rear fuselage on inverted slopes, a fin and a standing tail rotor.
+                g.part('3832', P.primary, 1, -9, F + 3, { rotY: 0, w: 2, l: 10 });
+                H.overhang(ctx, 2, -1, F, { width: 2, color: P.primary, face: 'back' });
+                g.part('3005', P.primary, 1, -9, F + 4); g.part('54200', P.accent, 1, -9, F + 7, { rotY: PI });
+                feats.push(...H.propeller(ctx, 2, -8, F + 4, { face: 'right', color: P.metal, hubColor: P.primary, blades: 'vertical' }).feats.map(() => 'a tail rotor on a headlight-brick stud'));
+                feats.push('a glass front and chin window', 'a tail boom with fin', 'landing skids');
                 return { title: match === 'gunship' ? 'Attack Helicopter' : 'Helicopter', features: feats };
             }
-            const L = sc(match === 'airliner' || match === 'jumbo jet' || match === 'concorde' ? 16 : 12), Y = 4;   // the fuselage floor slab; the axle plates under it put the wheels on the apron
             const jet = ['jet', 'fighter', 'fighter jet', 'stealth bomber', 'concorde', 'space shuttle', 'shuttle'].includes(match);
-            const span = sc(jet ? 5 : 6), wz = Math.floor(L / 2) - 1;
-            const body = P.explicit ? P.primary : (match === 'airliner' || match === 'jumbo jet' || match === 'concorde' || match === 'space shuttle' || match === 'shuttle' ? 'WHITE' : match === 'stealth bomber' ? 'BLACK' : P.primary);
-            g.box(-span - 2, span + 3, -3, L + 2, 0, 0, 'DARK_GREY', { noBrick: true });
-            // Landing gear: axle plates under the floor slab, the nose wheels and the main wheels under the wing root.
             const shuttle = match === 'space shuttle' || match === 'shuttle';
-            feats.push(...H.axle(ctx, 0, L - 3, Y - 1, { width: 2, size: 'small', color: P.dark }).feats.map(() => 'landing gear on axle plates'));
-            H.axle(ctx, 0, wz, Y - 1, { width: 2, size: 'small', color: P.dark });
-            // Lower fuselage: a locked slab on the axle plates and a plate row, then the wing layer, then the upper fuselage.
-            H.slab(ctx, 0, 1, 0, L - 1, Y, shuttle ? 'BLACK' : body);
-            g.box(0, 1, 0, L - 1, Y + 2, Y + 2, body, { noBrick: true });
-            g.box(0, 1, 0, L - 1, Y + 3, Y + 3, body, { noBrick: true });
+            // Airliners and bombers get a four-wide fuselage with walls either side of a cabin; fighters and light
+            // planes stay two wide with a cockpit well under the canopy.
+            const wide = ['airliner', 'jumbo jet', 'concorde', 'bomber', 'space shuttle', 'shuttle'].includes(match);
+            const W = wide ? 4 : 2, L = Math.max(wide ? 12 : 9, sc(wide ? 16 : 12)), Y = 4;   // Y: the floor slab; the axle plates under it put the wheels on the apron
+            const span = sc(jet ? 5 : 6), wz = Math.floor(L / 2) - 1;
+            const body = P.explicit ? P.primary : (match === 'airliner' || match === 'jumbo jet' || match === 'concorde' || shuttle ? 'WHITE' : match === 'stealth bomber' ? 'BLACK' : P.primary);
+            const inner = H.upholstery(ctx, body);   // seats and fittings
+            g.box(-span - 2, W + span + 1, -3, L + 2, 0, 0, 'DARK_GREY', { noBrick: true });
+            // Landing gear: axle plates under the floor slab, the nose wheels and the main wheels under the wing root.
+            feats.push(...H.axle(ctx, 0, L - 3, Y - 1, { width: W, size: 'small', color: P.dark }).feats.map(() => 'landing gear on axle plates'));
+            H.axle(ctx, 0, wz, Y - 1, { width: W, size: 'small', color: P.dark });
+            // The floor: a locked slab on the axle plates, then the plate rows the wings and tail are set into.
+            H.slab(ctx, 0, W - 1, 0, L - 1, Y, shuttle ? 'BLACK' : body);
             const swept = ctx.declare({ id: 'wings', label: 'Wings', type: 'choice', choices: ['straight', 'swept'], default: jet ? 'swept' : 'straight' }) === 'swept';
+            if (wide) {
+                // Walls one stud thick either side of the cabin, the tail cone, the nose block under the windscreen.
+                for (const x of [0, W - 1]) g.box(x, x, 2, L - 4, Y + 2, Y + 7, body);
+                g.box(0, W - 1, 0, 1, Y + 2, Y + 4, body); g.box(1, W - 2, 0, 1, Y + 5, Y + 7, body);
+                g.box(0, W - 1, L - 3, L - 3, Y + 2, Y + 4, body);
+            } else {
+                g.box(0, 1, 0, L - 1, Y + 2, Y + 2, body, { noBrick: true });
+                g.box(0, 1, 0, L - 1, Y + 3, Y + 3, body, { noBrick: true });
+            }
             if (swept) {
-                // Swept wings: plates stepping back from root to tip, a wedge plate at each tip.
+                // Swept wings: plates stepping back from root to tip, a wedge plate at each tip, each rooting one stud into the fuselage wall.
                 const last = span - 1 - ((span - 1) % 2);
                 for (let i = 0; i < span; i += 2) {
                     const yy = Y + 3 + (i % 4 === 2 ? 1 : 0), off = i === 0 ? 0 : i - 1, tip = i === last && i > 0;
-                    g.part(tip ? '41770' : '3020', body, -3 - off, wz - i / 2, yy, { rotY: tip ? -PI / 2 : PI / 2, w: 4, l: 2 }); g.part(tip ? '41769' : '3020', body, 1 + off, wz - i / 2, yy, { rotY: PI / 2, w: 4, l: 2 });   // each wing roots one stud onto the fuselage and steps outward
+                    g.part(tip ? '41770' : '3020', body, -3 - off, wz - i / 2, yy, { rotY: tip ? -PI / 2 : PI / 2, w: 4, l: 2 }); g.part(tip ? '41769' : '3020', body, W - 1 + off, wz - i / 2, yy, { rotY: PI / 2, w: 4, l: 2 });
                 }
-                g.part('3062', 'DARK_GREY', -1, wz - 1, Y + 5, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3062', 'DARK_GREY', 2, wz - 1, Y + 5, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true });
+                g.part('3062', 'DARK_GREY', -1, wz - 1, Y + 5, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3062', 'DARK_GREY', W, wz - 1, Y + 5, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true });
                 feats.push('swept wings with wedge-plate tips', 'twin engine pods');
             } else {
                 // Wings are real 2x4 / 2x6 / 2x8 plates, rooted one stud into the fuselage.
                 const wl = span >= 8 ? 8 : span >= 6 ? 6 : 4, wid = { 8: '3034', 6: '3795', 4: '3020' }[wl];
-                g.part(wid, body, -wl + 1, wz, Y + 3, { rotY: PI / 2, w: wl, l: 2 }); g.part(wid, body, 1, wz, Y + 3, { rotY: PI / 2, w: wl, l: 2 });
+                g.part(wid, body, -wl + 1, wz, Y + 3, { rotY: PI / 2, w: wl, l: 2 }); g.part(wid, body, W - 1, wz, Y + 3, { rotY: PI / 2, w: wl, l: 2 });
                 if (match === 'biplane') {
                     // The upper wing on round-brick struts at the tips and a cabane plate over the fuselage.
-                    g.part(wid, body, -wl, wz, Y + 9, { rotY: PI / 2, w: wl, l: 2 }); g.part(wid, body, 1, wz, Y + 9, { rotY: PI / 2, w: wl, l: 2 });
-                    g.part('3062', P.metal, -wl + 1, wz, Y + 4); g.part('3062', P.metal, wl, wz, Y + 4); for (const yy of [Y + 7, Y + 8]) { g.part('4073', P.metal, -wl + 1, wz, yy); g.part('4073', P.metal, wl, wz, yy); }
+                    g.part(wid, body, -wl, wz, Y + 9, { rotY: PI / 2, w: wl, l: 2 }); g.part(wid, body, W - 1, wz, Y + 9, { rotY: PI / 2, w: wl, l: 2 });
+                    g.part('3062', P.metal, -wl + 1, wz, Y + 4); g.part('3062', P.metal, W - 2 + wl, wz, Y + 4); for (const yy of [Y + 7, Y + 8]) { g.part('4073', P.metal, -wl + 1, wz, yy); g.part('4073', P.metal, W - 2 + wl, wz, yy); }
                     g.part('4073', P.metal, 0, wz, Y + 8); g.part('3023', body, 0, wz, Y + 9, { rotY: 0 });
                     feats.push('double wings with struts');
-                } else if (match === 'airliner' || match === 'jumbo jet' || jet) { g.part('3062', 'DARK_GREY', -3, wz, Y + 4, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3062', 'DARK_GREY', 4, wz, Y + 4, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); feats.push('wing-mounted engines'); }   // a jet on straight wings borrows the airliner's engines, which also pin the wings down
-                else feats.push('straight wings');
+                } else if (match === 'airliner' || match === 'jumbo jet' || match === 'bomber' || jet) {
+                    // Engine nacelles hang under the wings, their studs up into the wing plates (two per wing on a long wing).
+                    const pods = wl >= 8 ? [2, 5] : [2];
+                    for (const o of pods) { H.nacelle(ctx, -o - 1, wz, Y - 2, 'DARK_GREY'); H.nacelle(ctx, W - 1 + o, wz, Y - 2, 'DARK_GREY'); }
+                    feats.push(`${pods.length * 2} engine nacelles under the wings`);
+                } else feats.push('straight wings');
                 // A three-blade propeller standing on a Technic pin out of the nose (gliders and jets go without).
-                if (!jet && match !== 'airliner' && match !== 'jumbo jet' && match !== 'glider') feats.push(...H.propeller(ctx, 0, L - 1, Y + 1, { face: 'front', mount: 'pin', color: P.dark, hubColor: P.metal, floor: 1 }).feats);
+                if (!jet && match !== 'airliner' && match !== 'jumbo jet' && match !== 'bomber' && match !== 'glider') feats.push(...H.propeller(ctx, 0, L - 1, Y + 1, { face: 'front', mount: 'pin', color: P.dark, hubColor: P.metal, floor: 1 }).feats);
             }
-            // Tail: stabilisers in the plate layer, a fin on top.
-            g.part('3710', body, -3, 0, Y + 3, { rotY: PI / 2, w: 4, l: 1 }); g.part('3710', body, 1, 0, Y + 3, { rotY: PI / 2, w: 4, l: 1 });
-            g.box(0, 0, 1, 1, Y + 4, Y + 9, body); g.part('54200', P.accent, 0, 1, Y + 10, { rotY: 0 });
-            // Upper fuselage, cockpit and nose.
-            g.box(0, 1, 2, L - 5, Y + 4, Y + 6, body);
-            g.part('3040', P.glass, 0, L - 4, Y + 4, { rotY: 0 }); g.part('3040', P.glass, 1, L - 4, Y + 4, { rotY: 0 });
-            g.part('3039', body, 0, L - 2, Y + 4, { rotY: 0 });
-            g.box(0, 1, 2, L - 5, Y + 7, Y + 7, P.secondary, { noBrick: true });
-            if (shuttle) { for (const x of [0, 1]) { g.part('3623', 'BLACK', x, -2, Y - 1, { rotY: 0, w: 1, l: 3 }); g.part('3062', 'DARK_GREY', x, -2, Y, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); } feats.push('black heat-shield belly', 'main engine bells'); }   // engine mount plates run under the belly slab
-            feats.push('a glass cockpit', 'a tail fin and stabilisers');
+            // Tail: stabilisers in the plate layer, a fin (twin fins on a fighter) on top.
+            g.part('3710', body, -3, 0, Y + 3, { rotY: PI / 2, w: 4, l: 1 }); g.part('3710', body, W - 1, 0, Y + 3, { rotY: PI / 2, w: 4, l: 1 });
+            if (wide) { g.box(1, 2, 0, 1, Y + 8, Y + 10, body); g.part('3039', body, 1, 0, Y + 11, { rotY: 0 }); g.part('98138', P.accent, 1, 0, Y + 14); }
+            else {
+                const fins = jet && !shuttle ? [0, 1] : [0];
+                for (const x of fins) { g.box(x, x, 0, 1, Y + 4, Y + 6, body); g.box(x, x, 0, 0, Y + 7, Y + 9, body); g.part('54200', P.accent, x, 0, Y + 10, { rotY: 0 }); }
+                if (fins.length === 2) feats.push('twin tail fins');
+            }
+            if (wide) {
+                // The cockpit: two pilot seats behind a dashboard, under a glass windscreen over the nose block.
+                H.seat(ctx, 1, L - 5, Y + 2, { face: 'front', width: 2, color: inner });
+                H.dashboard(ctx, 1, L - 4, Y + 2, 2, { face: 'front' });
+                g.part('3039', P.glass, 0, L - 3, Y + 5, { rotY: 0 }); g.part('3039', P.glass, 2, L - 3, Y + 5, { rotY: 0 });
+                g.part('3039', body, 0, L - 2, Y + 2, { rotY: 0 }); g.part('3039', body, 2, L - 2, Y + 2, { rotY: 0 });
+                // The cabin: a window every three studs on both walls with a row of two seats behind each.
+                let rows = 0;
+                for (let z = 2; z + 1 <= L - 7; z += 3) {
+                    if (z + 2 >= wz && z <= wz + 1) { H.seat(ctx, 1, z + 1, Y + 2, { face: 'front', width: 2, color: inner }); rows++; continue; }   // the wing root runs through the wall here
+                    H.realWindow(ctx, 0, z, Y + 2, { size: '1x2x2', face: 'left', frameColor: body, glassColor: P.glass });
+                    H.realWindow(ctx, W - 1, z + 1, Y + 2, { size: '1x2x2', face: 'right', frameColor: body, glassColor: P.glass });
+                    H.seat(ctx, 1, z + 1, Y + 2, { face: 'front', width: 2, color: inner }); rows++;
+                }
+                if (L - 6 > wz + 1) { H.realWindow(ctx, 0, L - 6, Y + 2, { size: '1x2x2', face: 'left', frameColor: body, glassColor: P.glass }); H.realWindow(ctx, W - 1, L - 5, Y + 2, { size: '1x2x2', face: 'right', frameColor: body, glassColor: P.glass }); }   // the pilots' side windows, clear of the wing roots
+                // The roof closes the fuselage last: plates across the walls, a livery stripe on top.
+                H.ceiling(ctx, 0, W - 1, 2, L - 4, Y + 8, body);
+                g.box(0, W - 1, 2, L - 5, Y + 9, Y + 9, P.secondary === body ? P.accent : P.secondary, { noBrick: true });
+                feats.push('a cockpit with two seats, a dashboard and a glass windscreen', `a cabin with ${rows} rows of seats behind real windows`, 'a hollow fuselage closed by a plate roof');
+            } else {
+                // Upper fuselage behind the cockpit well; the pilot's seat and panel sit on the plate deck under a
+                // raised glass canopy, a nose slope in front.
+                g.box(0, 1, 2, L - 7, Y + 4, Y + 6, body);
+                g.box(0, 1, 2, L - 7, Y + 7, Y + 7, P.secondary, { noBrick: true });
+                if (!(match === 'biplane' && L - 6 <= wz)) H.seat(ctx, 0, L - 5, Y + 4, { face: 'front', width: 2, color: inner, backColor: body });   // a tiny biplane's seat would sit under the cabane strut
+                g.part('3069', 'DARK_GREY', 0, L - 4, Y + 4, { rotY: PI / 2, w: 2, l: 1 });
+                g.part('3040', P.glass, 0, L - 5, Y + 5, { rotY: 0 }); g.part('3040', P.glass, 1, L - 5, Y + 5, { rotY: 0 });
+                g.part('3039', body, 0, L - 3, Y + 4, { rotY: 0 });
+                feats.push('a cockpit well with a seat and control panel under a glass canopy');
+            }
+            if (shuttle) { for (const x of [1, 2]) { g.part('3623', 'BLACK', x, -2, Y - 1, { rotY: 0, w: 1, l: 3 }); g.part('3062', 'DARK_GREY', x, -2, Y, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); } feats.push('black heat-shield belly', 'main engine bells'); }   // engine mount plates run under the belly slab
+            feats.push('a tail fin and stabilisers');
+
             const names = { airliner: 'Airliner', 'jumbo jet': 'Jumbo Jet', biplane: 'Biplane', fighter: 'Fighter Jet', 'fighter jet': 'Fighter Jet', jet: 'Jet', bomber: 'Bomber', 'stealth bomber': 'Stealth Bomber', glider: 'Glider', seaplane: 'Seaplane', concorde: 'Supersonic Airliner', 'space shuttle': 'Space Shuttle', shuttle: 'Space Shuttle', spitfire: 'Warbird', 'crop duster': 'Crop Duster', cessna: 'Light Aircraft', 'propeller plane': 'Propeller Plane' };
             return { title: names[match] || 'Aeroplane', features: feats };
         }
@@ -1086,32 +1478,65 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 return { title: match === 'u-boat' ? 'U-Boat' : 'Submarine', features: ['a wide-beam hull with dive planes', 'a conning tower and periscope', 'portholes along the deck', ...feats] };
             }
             const sail = ['sailboat', 'sailing ship', 'pirate ship', 'galleon', 'viking ship', 'longship', 'frigate', 'schooner', 'yacht', 'ark', 'catamaran'].includes(match);
-            const small = ['canoe', 'kayak', 'rowboat', 'raft', 'gondola', 'lifeboat', 'speedboat'].includes(match);
-            // Ships are an even number of studs wide so a wedge-plate bow fits; small boats are two.
-            const W = small ? 2 : Math.max(4, 2 * Math.round(sc(4) / 2)), L = small ? sc(8) : Math.max(8, sc(14));
+            const speed = match === 'speedboat';
+            const small = ['canoe', 'kayak', 'rowboat', 'raft', 'gondola', 'lifeboat'].includes(match);
+            // Ships (and the speedboat) are an even number of studs wide so a wedge-plate bow fits; small boats are two.
+            const W = small ? 2 : speed ? 4 : Math.max(4, 2 * Math.round(sc(4) / 2)), L = small ? sc(8) : speed ? Math.max(9, sc(10)) : Math.max(8, sc(14));
             const hull = P.explicit ? P.primary : match === 'pirate ship' ? 'BLACK' : match === 'battleship' || match === 'destroyer' || match === 'warship' || match === 'aircraft carrier' ? 'LIGHT_GREY' : match === 'viking ship' || match === 'longship' || match === 'canoe' || match === 'raft' || match === 'ark' ? 'BROWN' : P.primary;
             g.box(-4, W + 3, -3, L + 3, 0, 0, P.water, { noBrick: true });
-            // Hull: a plate keel, a brick row, a tapered bow with slopes, a deck.
-            g.box(0, W - 1, 0, L - 2, 1, 1, hull, { noBrick: true });
-            g.box(0, W - 1, 1, L - 3, 2, 4, hull);
-            if (W >= 4) { g.part('3039', hull, 0, L - 2, 2, { rotY: 0 }); g.part('3039', hull, W - 2, L - 2, 2, { rotY: 0 }); if (W > 4) g.box(2, W - 3, L - 2, L - 1, 2, 4, hull); } else g.part('3039', hull, 0, L - 2, 2, { rotY: 0 });
-            g.part('3040', hull, 0, -1, 2, { rotY: PI, w: 1, l: 2 }); g.part('3040', hull, W - 1, -1, 2, { rotY: PI, w: 1, l: 2 });
-            const deck = small ? hull : 'TAN';
-            g.box(0, W - 1, 0, L - 3, 5, 5, deck, { noBrick: true });
-            const yD = 6;
-            // A pointed deck over the bow from wedge plates (the row behind it sits inside the deck).
-            if (!small) feats.push(...H.wedgeNose(ctx, 0, L - 2, 5, { width: W, color: deck, face: 'front' }).feats.map(() => 'a wedge-plate bow'));
             if (small) {
-                if (match !== 'speedboat' || L >= 8) { g.part('3070', P.wood, 0, 2, yD); g.part('3070', P.wood, 1, 3, yD); }
-                if (match === 'speedboat') {
-                    // A windscreen, an engine cowl at the stern and a propeller on a pin out of it.
-                    g.part('3040', P.glass, 0, L - 4, yD, { rotY: 0 }); g.part('3040', P.glass, 1, L - 4, yD, { rotY: 0 });
-                    g.part('3004', P.dark, 0, 0, yD, { rotY: PI / 2, w: 2, l: 1 });
-                    feats.push('a windscreen', ...H.propeller(ctx, 0, 0, yD, { face: 'back', mount: 'pin', color: P.dark, hubColor: P.metal, floor: 1 }).feats.map(() => 'an outboard propeller on a pin'));
-                } else { g.part('3062', P.wood, 1, 1, yD); g.part('3710', P.wood, 1, -2, yD + 3, { rotY: 0 }); feats.push('a pair of oars'); }
-                return { title: { canoe: 'Canoe', kayak: 'Kayak', rowboat: 'Rowing Boat', raft: 'River Raft', gondola: 'Venetian Gondola', lifeboat: 'Lifeboat', speedboat: 'Speedboat' }[match], features: [...feats, 'a planked hull', 'a tapered bow'] };
+                // A two-wide planked hull: a plate keel, a brick row, a tapered bow, a deck, seats and oars.
+                g.box(0, W - 1, 0, L - 2, 1, 1, hull, { noBrick: true });
+                g.box(0, W - 1, 1, L - 3, 2, 4, hull);
+                g.part('3039', hull, 0, L - 2, 2, { rotY: 0 });
+                g.part('3040', hull, 0, -1, 2, { rotY: PI, w: 1, l: 2 }); g.part('3040', hull, W - 1, -1, 2, { rotY: PI, w: 1, l: 2 });
+                g.box(0, W - 1, 0, L - 3, 5, 5, hull, { noBrick: true });
+                g.part('3070', P.wood, 0, 2, 6); g.part('3070', P.wood, 1, 3, 6);
+                g.part('3062', P.wood, 1, 1, 6); g.part('3710', P.wood, 1, -2, 9, { rotY: 0 }); feats.push('a pair of oars');
+                return { title: { canoe: 'Canoe', kayak: 'Kayak', rowboat: 'Rowing Boat', raft: 'River Raft', gondola: 'Venetian Gondola', lifeboat: 'Lifeboat' }[match], features: [...feats, 'a planked hull', 'a tapered bow'] };
+            }
+            // A hollow hull, built from the keel up: a locked two-layer keel slab, one brick of hull wall round its
+            // edge (slopes at the bow and stern), then the deck laid across the walls in full-width plates, leaving
+            // hatches open over the hold. The decks are at plate 6; everything standing on them starts at yD.
+            const yW = 3, yDeck = 6, yD = 7;
+            H.slab(ctx, 0, W - 1, 0, L - 2, 1, hull);
+            g.shell(0, W - 1, 1, L - 3, yW, yW + 2, hull);
+            for (let x = 0; x < W; x += 2) g.part('3039', hull, x, L - 2, yW, { rotY: 0 });
+            g.part('3040', hull, 0, -1, yW, { rotY: PI, w: 1, l: 2 }); g.part('3040', hull, W - 1, -1, yW, { rotY: PI, w: 1, l: 2 });
+            const deck = speed ? 'WHITE' : 'TAN';
+            const open = new Set();   // deck rows left open (hatches, the speedboat's cockpit)
+            const layDeck = () => {
+                // Full-width plates across the walls (2xW where two rows run together), a plate coaming on the wall
+                // tops beside each opening; the bow's wedge plates cover the last row.
+                const two = { 4: '3020', 6: '3795', 8: '3034', 10: '3832' }, one = { 4: '3710', 6: '3666', 8: '3460', 10: '4477' };
+                for (let z = 0; z <= L - 4;) {
+                    if (open.has(z)) { g.part('3024', deck, 0, z, yDeck); g.part('3024', deck, W - 1, z, yDeck); z++; continue; }
+                    const dbl = z + 1 <= L - 4 && !open.has(z + 1);
+                    g.part(dbl ? two[W] : one[W], deck, 0, z, yDeck, { rotY: PI / 2, w: W, l: dbl ? 2 : 1 });
+                    z += dbl ? 2 : 1;
+                }
+                feats.push(...H.wedgeNose(ctx, 0, L - 2, yDeck, { width: W, color: deck, face: 'front' }).feats.map(() => 'a wedge-plate bow'));
+            };
+            if (speed) {
+                // A speedboat: an open cockpit sunk into the hull (a rear bench, the driver's seat, a steering wheel and
+                // dashboard on the hull floor), a short bow deck under a glass windscreen, the outboard on a stern deck.
+                const cz = L - 4;   // the dashboard row; the bow deck starts after it
+                for (let z = 2; z <= cz; z++) open.add(z);
+                layDeck();
+                const seatC = H.upholstery(ctx, hull, deck);
+                H.seat(ctx, 1, 2, yW, { face: 'front', width: 2, color: seatC, slope: false });
+                H.seat(ctx, 1, cz - 1, yW, { face: 'front', width: 2, color: seatC });
+                H.steering(ctx, 1, cz, yW);
+                H.dashboard(ctx, 2, cz, yW, 1, { face: 'front' });
+                for (const x of [0, W - 1]) for (let z = 2; z <= cz; z++) g.part('3070', deck, x, z, yDeck + 1);   // smooth gunwale tops
+                g.part('3039', P.glass, 0, cz + 1, yD, { rotY: 0 }); g.part('3039', P.glass, 2, cz + 1, yD, { rotY: 0 });
+                g.part('3004', P.dark, 1, 0, yD, { rotY: PI / 2, w: 2, l: 1 });
+                feats.push('an open cockpit with two bench seats, a steering wheel and a dashboard', 'a glass windscreen', ...H.propeller(ctx, 1, 0, yD, { face: 'back', mount: 'pin', color: P.dark, hubColor: P.metal, floor: 1 }).feats.map(() => 'an outboard propeller on a pin'));
+                return { title: 'Speedboat', features: [...feats, 'a hollow hull'] };
             }
             const mx = Math.floor(W / 2);
+            /** Leave two deck rows open over the hold as a hatch with a barrel and a crate inside; returns the rows or null. */
+            const hatch = (z0) => { if (z0 < 2 || z0 + 1 > L - 4 || open.has(z0) || open.has(z0 + 1)) return null; open.add(z0); open.add(z0 + 1); g.part('3062', P.wood === hull ? 'TAN' : P.wood, 1, z0, yW); g.part('3005', 'TAN', W - 2, z0 + 1, yW); return [z0, z0 + 1]; };
             if (sail) {
                 const sails = P.explicit && ctx.explicitColors.length > 1 ? P.secondary : match === 'pirate ship' ? 'DARK_RED' : match === 'viking ship' || match === 'longship' ? 'RED' : 'WHITE';
                 const mastsDflt = match === 'galleon' || match === 'frigate' || match === 'schooner' || match === 'pirate ship' ? 2 : 1;
@@ -1120,37 +1545,96 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 // Longships and rafts never had a cabin, so only ships that do get the dial.
                 const cabinDflt = !['viking ship', 'longship', 'ark', 'catamaran'].includes(match);
                 const cabin = cabinDflt ? ctx.declare({ id: 'cabin', label: 'Stern cabin', type: 'bool', default: true }) : false;
-                for (let m = 0; m < masts; m++) {
-                    const mz = masts === 1 ? Math.floor(L / 2) - 1 : m === 0 ? Math.max(3, Math.floor(L / 3)) : Math.floor(2 * L / 3);
-                    g.part('3062', P.wood, mx, mz, yD); g.part('3062', P.wood, mx, mz, yD + 3);
-                    g.box(mx - 2, mx + 1, mz, mz, yD + 6, yD + 11, sails);
-                    g.part('3062', P.wood, mx, mz, yD + 12); g.part('3062', P.wood, mx, mz, yD + 15);
-                    g.part('4032', P.wood, mx - 1, mz - 1, yD + 18);
-                    if (match === 'pirate ship') g.part('98138', 'WHITE', mx + 1, mz, yD + 12);
+                const mzs = [...Array(masts)].map((_, m) => (masts === 1 ? Math.floor(L / 2) - 1 : m === 0 ? Math.max(3, Math.floor(L / 3)) : Math.floor(2 * L / 3)));
+                const cd = cabin ? (mzs[0] >= 4 ? 4 : 3) : 0;   // the stern cabin's depth in rows
+                const used = new Set([...mzs, 0]);   // the masts' rows and the stern flag's
+                for (let z = 0; z < cd; z++) used.add(z);
+                // A cargo hatch amidships, between the masts where there is room.
+                let hz = null;
+                for (const z of [Math.floor(L / 2), Math.floor(L / 2) - 1, Math.floor(L / 2) + 1, cd + 1, L - 6]) if (!used.has(z) && !used.has(z + 1) && hatch(z)) { hz = z; used.add(z); used.add(z + 1); break; }
+                if (hz !== null) feats.push('an open cargo hatch with barrels below deck');
+                // Cannons on 1x2 plates with round-brick barrels poking through gaps in the gunwales, port and starboard
+                // on alternate rows.
+                const gunner = ['pirate ship', 'galleon', 'frigate'].includes(match), gaps = { 0: new Set(), [W - 1]: new Set() };
+                if (gunner) {
+                    let pairs = 0;
+                    for (let z = cd; z + 1 <= L - 3 && pairs < 2; z++) {
+                        if (used.has(z) || used.has(z + 1) || open.has(z) || open.has(z + 1)) continue;
+                        H.cannon(ctx, 1, z, yD, -1); H.cannon(ctx, W - 3, z + 1, yD, 1);
+                        gaps[0].add(z); gaps[W - 1].add(z + 1); used.add(z); used.add(z + 1); pairs++; z++;
+                    }
+                    if (pairs) feats.push(`${pairs * 2} cannons on plates through the gunwales`);
                 }
+                layDeck();
+                for (const m of mzs) {
+                    g.part('3062', P.wood, mx, m, yD); g.part('3062', P.wood, mx, m, yD + 3);
+                    g.box(mx - 2, mx + 1, m, m, yD + 6, yD + 11, sails);
+                    g.part('3062', P.wood, mx, m, yD + 12); g.part('3062', P.wood, mx, m, yD + 15);
+                    g.part('4032', P.wood, mx - 1, m - 1, yD + 18);
+                    if (match === 'pirate ship') g.part('98138', 'WHITE', mx + 1, m, yD + 12);
+                }
+                if (gunner || match === 'schooner') {
+                    // A one-brick bulwark along both sides of the deck, open where the cannons fire.
+                    for (const x of [0, W - 1]) for (let z = cd; z <= L - 3; z++) if (!gaps[x].has(z)) g.box(x, x, z, z, yD, yD + 2, hull);
+                    feats.push('gunwales along the deck');
+                }
+                const cabTop = yD + 6;
                 // The flag flies from a bar pole on the cabin roof's stern edge; with the cabin removed it drops to the deck.
-                if (sternFlag) feats.push(...H.flagPole(ctx, mx, 0, cabinDflt && cabin ? yD + 4 : yD, { height: 2, color: P.wood, flag: match === 'pirate ship' ? 'BLACK' : P.accent }).feats.map(() => 'a stern flag on a bar pole'));
-                if (cabin) { g.shell(0, W - 1, 0, 2, yD, yD + 2, hull); g.box(0, W - 1, 0, 2, yD + 3, yD + 3, deck, { noBrick: true }); H.window(ctx, 1, 0, yD, 'back', 'TRANS_ORANGE'); feats.push('a raised stern cabin'); }
-                if (match === 'viking ship' || match === 'longship') { for (let z = 2; z < L - 3; z += 2) { g.part('98138', P.accent, 0, z, yD); g.part('98138', P.secondary, W - 1, z, yD); } g.part('59900', 'GOLD', 0, L - 1, 6); feats.push('a row of shields along the gunwales', 'a dragon-head prow'); }
-                feats.push(`${masts} mast${masts > 1 ? 's' : ''} with ${window.LEGO_COLORS[sails].name.toLowerCase()} sails`, "a crow's nest");
+                if (sternFlag) feats.push(...H.flagPole(ctx, mx, 0, cabin ? cabTop + 1 : yD, { height: 2, color: P.wood, flag: match === 'pirate ship' ? 'BLACK' : P.accent }).feats.map(() => 'a stern flag on a bar pole'));
+                if (cabin) {
+                    // The captain's cabin: two bricks of wall with windows on the stern and sides, a table and a chest inside, a plate roof.
+                    g.shell(0, W - 1, 0, cd - 1, yD, yD + 5, hull);
+                    H.window(ctx, 1, 0, yD + 1 + 1, 'back', 'TRANS_ORANGE');
+                    for (const x of [0, W - 1]) g.part('3005', 'TRANS_ORANGE', x, 1, yD + 2);
+                    if (cd >= 4) { H.table(ctx, 1, 1, yD, { color: P.wood === hull ? 'TAN' : P.wood }); g.part('98138', 'GOLD', 1, 1, yD + 4); }
+                    else { g.part('3005', 'BROWN', 1, 1, yD); g.part('98138', 'GOLD', 1, 1, yD + 3); }
+                    if (W >= 6 || cd < 4) { g.part('3005', 'BROWN', W - 2, cd - 2, yD); g.part('3070', 'GOLD', W - 2, cd - 2, yD + 3); }
+                    H.ceiling(ctx, 0, W - 1, 0, cd - 1, cabTop, deck);
+                    feats.push(cd >= 4 ? "a stern cabin with lit windows, the captain's table and a treasure chest" : 'a stern cabin with lit windows and a treasure chest');
+                }
+                if (match === 'viking ship' || match === 'longship') { for (let z = 2; z < L - 3; z += 2) if (!used.has(z)) { g.part('98138', P.accent, 0, z, yD); g.part('98138', P.secondary, W - 1, z, yD); } g.part('59900', 'GOLD', 1, L - 1, yD); feats.push('a row of shields along the gunwales', 'a dragon-head prow'); }
+                feats.push(`${masts} mast${masts > 1 ? 's' : ''} with ${window.LEGO_COLORS[sails].name.toLowerCase()} sails`, "a crow's nest", 'a hollow hull under a planked deck');
                 return { title: { 'pirate ship': 'Pirate Ship', galleon: 'Galleon', frigate: 'Frigate', schooner: 'Schooner', sailboat: 'Sailboat', 'sailing ship': 'Tall Ship', yacht: 'Sailing Yacht', 'viking ship': 'Viking Longship', longship: 'Viking Longship', ark: 'Wooden Ark', catamaran: 'Catamaran' }[match], features: feats };
             }
-            // Motor ships: a superstructure, bridge, radar dish and funnel(s); warships get turrets.
+            // Motor ships: a wheelhouse you can see into, a radar dish and funnel(s); warships get turrets, cargo ships a hold.
             const war = ['battleship', 'destroyer', 'warship', 'aircraft carrier'].includes(match);
+            const cargoShip = match === 'cargo ship' || match === 'container ship' || match === 'barge';
             const sz = Math.floor(L / 2) - 2;
+            if (cargoShip) {
+                // Containers stacked in the hold from the keel slab up through an open hatch.
+                for (let z = 2; z <= sz - 2; z++) open.add(z);
+                for (let z = 2; z + 1 <= sz - 2; z += 3) g.box(1, W - 2, z, z + 1, yW, yD + 2, ctx.pick(['RED', 'BLUE', 'GREEN', 'ORANGE']));
+                feats.push('containers stacked in the hold through an open hatch');
+            } else if (!war && match !== 'aircraft carrier' && hatch(sz + 4)) feats.push('a cargo hatch with barrels below deck');
+            layDeck();
             if (match === 'aircraft carrier') { g.box(-1, W, 0, L - 3, yD, yD, 'DARK_GREY', { noBrick: true }); g.box(W, W, 4, 7, yD + 1, yD + 6, 'LIGHT_GREY'); feats.push(...H.dish(ctx, W, 5, yD + 7, { size: 2, color: P.metal, mastColor: P.dark }).feats); for (let z = 2; z < L - 4; z += 4) g.part('3023', 'YELLOW', 0, z, yD + 1, { rotY: 0 }); feats.push('a flat flight deck with markings', 'an island superstructure'); }
             else {
-                g.shell(1, W - 2, sz, sz + 3, yD, yD + 2, war ? 'LIGHT_GREY' : 'WHITE'); H.window(ctx, 1, sz + 3, yD, 'front'); g.box(1, W - 2, sz, sz + 3, yD + 3, yD + 3, war ? 'DARK_GREY' : 'WHITE', { noBrick: true });
-                g.box(1, W - 2, sz + 1, sz + 2, yD + 4, yD + 6, war ? 'LIGHT_GREY' : 'WHITE'); g.part('3022', P.dark, 1, sz + 1, yD + 7);
-                feats.push(...H.dish(ctx, 1, sz + 1, yD + 8, { size: 2, color: P.metal, mastColor: P.dark }).feats);
+                // The wheelhouse: two bricks of wall across the deck with real windows front and sides; inside, the
+                // helmsman's seat (its backrest brick set into the back wall), the ship's wheel and a chart table.
+                const wc = war ? 'LIGHT_GREY' : 'WHITE', frame = war ? 'DARK_GREY' : P.trim === wc ? 'BLUE' : P.trim;
+                g.shell(0, W - 1, sz, sz + 3, yD, yD + 5, wc);
+                H.realWindow(ctx, 1, sz + 3, yD, { size: '1x2x2', face: 'front', frameColor: frame, glassColor: P.glass });
+                H.realWindow(ctx, 0, sz + 1, yD, { size: '1x2x2', face: 'left', frameColor: frame, glassColor: P.glass });
+                H.realWindow(ctx, W - 1, sz + 2, yD, { size: '1x2x2', face: 'right', frameColor: frame, glassColor: P.glass });
+                H.seat(ctx, 1, sz + 1, yD, { face: 'front', color: H.upholstery(ctx, wc), slope: false });
+                H.steering(ctx, 1, sz + 2, yD, P.wood);
+                H.dashboard(ctx, 2, sz + 2, yD, W - 3, { face: 'front' });
+                H.ceiling(ctx, 0, W - 1, sz, sz + 3, yD + 6, war ? 'DARK_GREY' : wc);
+                feats.push(...H.dish(ctx, 1, sz + 1, yD + 7, { size: 2, color: P.metal, mastColor: P.dark }).feats);
+                feats.push('a wheelhouse with real windows, a helm seat, a ship\'s wheel and a chart table');
                 if (!war) { g.part('3062', P.accent, 1, sz - 1, yD); g.part('3062', 'BLACK', 1, sz - 1, yD + 3); }
-                if (match === 'cruise ship' || match === 'ferry') { for (let z = 1; z + 1 <= L - 4; z += 3) { H.window(ctx, 0, z, 2, 'left'); H.window(ctx, W - 1, z, 2, 'right'); } g.part('3062', P.accent, W - 2, sz - 1, yD); g.part('3062', 'BLACK', W - 2, sz - 1, yD + 3); feats.push('rows of cabin portholes', 'twin funnels'); }
-                if (war) { if (sz >= 3) { g.part('3941', 'DARK_GREY', 1, 1, yD); g.part('3062', 'DARK_GREY', 1, -1, yD, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); } if (sz + 8 <= L - 1) { g.part('3941', 'DARK_GREY', 1, sz + 5, yD); g.part('3062', 'DARK_GREY', 1, sz + 7, yD, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); } g.part('3957', 'LIGHT_GREY', 1, sz + 3, yD + 4); feats.push('gun turrets with round-brick barrels', 'a radio mast'); }
-                if (match === 'cargo ship' || match === 'container ship' || match === 'barge') { for (let z = 1; z < sz - 1; z += 3) { g.box(1, W - 2, z, z + 1, yD, yD + 2, ctx.pick(['RED', 'BLUE', 'GREEN', 'ORANGE'])); } feats.push('a deck stacked with containers'); }
-                if (match === 'tugboat' || match === 'tug' || match === 'fishing boat' || match === 'trawler') { for (let z = 1; z < L - 3; z += 3) { g.part('98138', 'BLACK', 0, z, 2); } g.part('3062', P.wood, W - 2, 2, yD); g.part('3710', P.wood, W - 2, 0, yD + 3, { rotY: 0 }); feats.push('tyre fenders along the hull', 'a boom crane'); }
-                feats.push('a wheelhouse with a bridge', 'a funnel');
+                if (!war && !cargoShip) { H.lifeboat(ctx, 0, sz, yD + 7, 'z'); H.lifeboat(ctx, W - 1, sz + 2, yD + 7, 'z'); feats.push('lifeboats on the wheelhouse roof'); }
+                // Railings of fence panels along the foredeck.
+                if (!war && sz + 7 <= L - 2) { H.fence(ctx, 0, sz + 4, 4, 'z', yD, 'WHITE'); H.fence(ctx, W - 1, sz + 4, 4, 'z', yD, 'WHITE'); feats.push('railings along the foredeck'); }
+                if (match === 'cruise ship' || match === 'ferry') { for (let z = 1; z + 1 <= L - 4; z += 3) { H.window(ctx, 0, z, yW, 'left'); H.window(ctx, W - 1, z, yW, 'right'); } g.part('3062', P.accent, W - 2, sz - 1, yD); g.part('3062', 'BLACK', W - 2, sz - 1, yD + 3); feats.push('rows of cabin portholes', 'twin funnels'); }
+                if (war) { if (sz >= 3) { g.part('3941', 'DARK_GREY', 1, 1, yD); g.part('3062', 'DARK_GREY', 1, -1, yD, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); } if (sz + 8 <= L - 1) { g.part('3941', 'DARK_GREY', 1, sz + 5, yD); g.part('3062', 'DARK_GREY', 1, sz + 7, yD, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); } g.part('3957', 'LIGHT_GREY', W - 2, sz + 3, yD + 7); feats.push('gun turrets with round-brick barrels', 'a radio mast'); }
+                if (match === 'tugboat' || match === 'tug' || match === 'fishing boat' || match === 'trawler') { for (const z of [1, 3]) if (z < sz - 1) { g.part('98138', 'BLACK', 0, z, yD); g.part('98138', 'BLACK', W - 1, z, yD); } g.part('3062', P.wood, W - 2, 2, yD); g.part('3710', P.wood, W - 2, 0, yD + 3, { rotY: 0 }); feats.push('tyre fenders along the deck', 'a boom crane'); }
+                feats.push('a funnel');
             }
-            feats.push(...H.flagPole(ctx, 0, 0, match === 'aircraft carrier' ? yD + 1 : yD, { height: 2, color: P.dark, flag: P.accent }).feats.map(() => 'an ensign on a bar pole'));
+            // The ensign at the stern, or on the wheelhouse roof when a short ship's wheelhouse stands right behind the stern.
+            if (match === 'aircraft carrier' || sz >= 3) feats.push(...H.flagPole(ctx, 0, 0, match === 'aircraft carrier' ? yD + 1 : yD, { height: 2, color: P.dark, flag: P.accent }).feats.map(() => 'an ensign on a bar pole'));
+            else feats.push(...H.flagPole(ctx, 0, sz + 3, yD + 7, { height: 1, color: P.dark, flag: P.accent }).feats.map(() => 'an ensign on the wheelhouse roof'));
+            feats.push('a hollow hull under a plate deck');
             return { title: { ship: 'Cargo Ship', boat: 'Motor Launch', tugboat: 'Harbour Tug', tug: 'Harbour Tug', 'cruise ship': 'Cruise Liner', ferry: 'Ferry', steamboat: 'Paddle Steamer', steamship: 'Steamship', 'cargo ship': 'Cargo Ship', 'container ship': 'Container Ship', battleship: 'Battleship', destroyer: 'Destroyer', warship: 'Warship', 'aircraft carrier': 'Aircraft Carrier', 'fishing boat': 'Fishing Boat', trawler: 'Trawler', houseboat: 'Houseboat', barge: 'River Barge' }[match] || 'Ship', features: feats };
         }
     });
