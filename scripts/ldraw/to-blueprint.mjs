@@ -4,7 +4,10 @@
 //
 // The source is a list of bricks with grid footprints (`fp: { x0, z0, y0, w, l, hp }`, studs/plates), a part id, a
 // catalog id and a colour: the generator's `model.bricks` and the converted OMR models (public/studforge/data/omr/,
-// format `studforge-omr-1`) both have that shape. The encoder works on the occupied cells and the part list:
+// format `studforge-omr-1`) both have that shape. Minifigures and hose segments are skipped, a flagged baseplate
+// becomes the blueprint base, and the third of a real set's pieces that sit off the grid get an approximate
+// footprint from their baked bounding box (data/ldraw/parts) so wheels and bodies stay whole. Vehicles are turned to
+// drive toward +Z (windscreen at the front) like the engine's own. The encoder works on the occupied cells and parts:
 //   1. modules first, where a part group matches one: wheels + axle plates -> `chassis`, window frame + glass ->
 //      `realWindow`, door frame + door -> `realDoor`, headlight brick + lens -> `headlight`;
 //   2. a gable `roof` where the slopes form one (tried along both axes, kept when it explains the cells);
@@ -26,9 +29,12 @@
 // Usage:
 //   node scripts/ldraw/to-blueprint.mjs --generated ["prompt" ...]         encode generated models, print fidelity
 //   node scripts/ldraw/to-blueprint.mjs --omr <dir|file.json> ... [--out public/studforge/data/omr-blueprints]
-//        [--per 2] [--max-ops 60] [--max-bytes 6200] [--lib <ldraw dir>]  encode converted real models; with --out,
-//        write the best one or two per subject (best fidelity under the op budget) plus index.json
-//   node scripts/ldraw/to-blueprint.mjs --check <dir>                      validate + build every shipped example
+//        [--per 2] [--per-minor 1] [--min-iou 0.6] [--max-ops 60] [--max-bytes 6200] [--cache <dir>] [--lib <ldraw>]
+//        encode converted real models; with --out, write the best two per subject with 4+ real sets and the best
+//        one for the rest (highest fidelity, no more than 2 struts, footprint within the 48-stud base) plus
+//        index.json. --cache keeps each model's encoding, so shards can run in parallel and a re-run only selects.
+// Shipped examples are checked by scripts/studforge-blueprint-test.mjs (validate, build, 0 overlaps/loose, <= 2 struts).
+// Results (2026-10): 10 generated models mean IoU 0.88; 90 real OMR models that fit mean IoU 0.75, colour 0.88.
 import fs from 'node:fs';
 import vm from 'node:vm';
 import path from 'node:path';
@@ -55,15 +61,61 @@ export function loadEngine(root = ROOT, { knowledge = true, quiet = true } = {})
 
 /* ══ source models ════════════════════════════════════════════════════════════════════════════════════════════ */
 
-/** Expand a converted OMR model (format studforge-omr-1) into generator-shaped bricks. */
-export function expandOmr(j) {
-    const bricks = j.bricks.map((r) => {
+/** A baked part's local bounding box (public/studforge/data/ldraw/parts/<id>.json, StudForge units and axes), or null. */
+const bboxCache = new Map();
+function bakedBox(id, root = ROOT) {
+    if (bboxCache.has(id)) return bboxCache.get(id);
+    let box = null;
+    try { box = JSON.parse(fs.readFileSync(path.join(root, 'public/studforge/data/ldraw/parts', id + '.json'), 'utf8')).bbox || null; } catch { /* not baked */ }
+    bboxCache.set(id, box);
+    return box;
+}
+
+/** World axis-aligned box of a part: its baked local box through its 3x3 matrix, at its position. */
+function worldBox(box, m, p) {
+    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+    for (const x of [box[0], box[3]]) for (const y of [box[1], box[4]]) for (const z of [box[2], box[5]]) {
+        const w = [m[0] * x + m[1] * y + m[2] * z + p[0], m[3] * x + m[4] * y + m[5] * z + p[1], m[6] * x + m[7] * y + m[8] * z + p[2]];
+        for (let i = 0; i < 3; i++) { lo[i] = Math.min(lo[i], w[i]); hi[i] = Math.max(hi[i], w[i]); }
+    }
+    return { lo, hi };
+}
+
+const median = (a) => { if (!a.length) return 0; const s = a.slice().sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+
+/**
+ * Expand a converted OMR model (format studforge-omr-1) into generator-shaped bricks. Minifigure parts and hose
+ * segments are left out. About a third of a real set's pieces sit off the grid (wheels on half-stud pins, jumpers,
+ * SNOT, tilted parts): those get an APPROXIMATE footprint from their baked bounding box, snapped with the same offset
+ * the converter used for the grid-aligned ones, so wheels and bodies stay whole; they never become `part` ops.
+ */
+export function expandOmr(j, root = ROOT) {
+    const bricks = [];
+    for (const r of j.bricks) {
         const [pi, ci, x, y, z, ...rest] = r;
         const matrix = rest.slice(0, 9), [step, sub, x0, z0, y0, w, l, hp] = rest.slice(9);
-        const [ldrawId, catalogId] = j.parts[pi];
-        return { partId: ldrawId, catalogId: catalogId || null, color: j.colors[ci], x, y, z, matrix, layer: step, sub, fp: x0 === null || x0 === undefined ? null : { x0, z0, y0, w, l, hp } };
-    });
-    return { id: j.id, name: j.name, year: j.year, theme: j.theme, subject: j.subject, source: j.source || {}, bricks, pieces: j.pieces || bricks.length };
+        const [ldrawId, catalogId, , flag] = j.parts[pi];
+        if (flag === 'minifig' || flag === 'segment') continue;
+        bricks.push({ partId: ldrawId, catalogId: catalogId || null, color: j.colors[ci], x, y, z, matrix, layer: step, sub, baseplate: flag === 'baseplate', fp: x0 === null || x0 === undefined ? null : { x0, z0, y0, w, l, hp } });
+    }
+    // The converter's snapping offset, measured on the grid-aligned parts.
+    const off = [[], [], []];
+    for (const b of bricks) {
+        if (!b.fp) continue;
+        const box = bakedBox(b.partId, root); if (!box) continue;
+        const { lo } = worldBox(box, b.matrix, [b.x, b.y, b.z]);
+        off[0].push(b.fp.x0 - lo[0]); off[1].push(b.fp.y0 - lo[1] / 0.4); off[2].push(b.fp.z0 - lo[2]);
+    }
+    const [ox, oy, oz] = off.map(median);
+    let approx = 0;
+    for (const b of bricks) {
+        if (b.fp) continue;
+        const box = bakedBox(b.partId, root); if (!box) continue;
+        const { lo, hi } = worldBox(box, b.matrix, [b.x, b.y, b.z]);
+        b.fp = { x0: Math.round(lo[0] + ox), z0: Math.round(lo[2] + oz), y0: Math.round(lo[1] / 0.4 + oy), w: Math.max(1, Math.round(hi[0] - lo[0])), l: Math.max(1, Math.round(hi[2] - lo[2])), hp: Math.max(1, Math.floor((hi[1] - lo[1]) / 0.4 + 0.3)) };
+        b.approx = true; approx++;
+    }
+    return { id: j.id, name: j.name, year: j.year, theme: j.theme, subject: j.subject, source: j.source || {}, bricks, pieces: bricks.length, approx };
 }
 
 /** The LDraw part's description (first line of its .dat), for parts our catalog does not have. */
@@ -129,27 +181,37 @@ function frameOf(E, model) {
         const def = cid && E.PARTS[cid] ? E.PARTS[cid] : null;
         const kind = classify(def, def ? def.name : ldrawName(b.partId));
         const color = E.COLORS[b.color] ? b.color : 'LIGHT_GREY';
-        items.push({ b, def, cid: def ? cid : null, kind, color, fp: { ...b.fp }, q: quarterTurns(b), ghost: !!(b.ghost || (def && def.ghost)) || ['tyre', 'glass', 'door'].includes(kind) });
+        items.push({ b, def, cid: def && !b.approx ? cid : null, kind, color, fp: { ...b.fp }, q: quarterTurns(b), ghost: !!(b.ghost || (def && def.ghost)) || ['tyre', 'glass', 'door'].includes(kind) });
     }
     if (!items.length) throw new Error('no grid-aligned bricks');
     // Wheels facing X (thin along Z): transpose x <-> z so the wheels stand like the engine's (thin along X).
-    const wheels = items.filter((i) => i.kind === 'wheel' || i.kind === 'trainWheel');
+    const wheels = items.filter((i) => i.kind === 'wheel' || i.kind === 'trainWheel' || i.kind === 'tyre');
     let transposed = false;
     const span = (k) => { let a = Infinity, z = -Infinity; for (const i of items) { const lo = k === 'x' ? i.fp.x0 : i.fp.z0, n = k === 'x' ? i.fp.w : i.fp.l; a = Math.min(a, lo); z = Math.max(z, lo + n); } return z - a; };
-    if (wheels.length >= 2 && wheels.filter((i) => i.fp.l < i.fp.w).length > wheels.length / 2) transposed = true;
+    const thinZ = wheels.filter((i) => i.fp.l < i.fp.w).length, thinX = wheels.filter((i) => i.fp.w < i.fp.l).length;
+    if (wheels.length >= 2 && (thinZ > thinX || (thinZ === thinX && span('x') > span('z')))) transposed = true;
     else if (!wheels.length && span('x') > 48 && span('z') <= 48) transposed = true;
     if (transposed) for (const i of items) { const f = i.fp; i.fp = { x0: f.z0, z0: f.x0, y0: f.y0, w: f.l, l: f.w, hp: f.hp }; i.q = (5 - i.q) % 4; }
     let minX = Infinity, minZ = Infinity, minY = Infinity, maxX = -Infinity, maxZ = -Infinity, maxY = -Infinity;
     for (const { fp } of items) { minX = Math.min(minX, fp.x0); minZ = Math.min(minZ, fp.z0); minY = Math.min(minY, fp.y0); maxX = Math.max(maxX, fp.x0 + fp.w - 1); maxZ = Math.max(maxZ, fp.z0 + fp.l - 1); maxY = Math.max(maxY, fp.y0 + fp.hp - 1); }
     const W = maxX - minX + 1, D = maxZ - minZ + 1;
+    if (Math.min(W, D) > 48 || Math.max(W, D) > 64) throw new Error(`too big for a blueprint (${W}x${D} studs)`);
     // A baseplate: the bottom layer is all plates and covers most of the footprint.
     const bottom = items.filter((i) => i.fp.y0 === minY);
     const cover = new Set(); for (const i of bottom) if (i.fp.hp === 1) for (let x = i.fp.x0; x < i.fp.x0 + i.fp.w; x++) for (let z = i.fp.z0; z < i.fp.z0 + i.fp.l; z++) cover.add(x + ',' + z);
-    const hasBase = bottom.every((i) => i.fp.hp === 1) && cover.size >= 0.6 * W * D && W <= 48 && D <= 48;
+    const hasBase = (bottom.some((i) => i.b.baseplate) || (bottom.every((i) => i.fp.hp === 1) && cover.size >= 0.6 * W * D)) && W <= 48 && D <= 48;
     const dy = hasBase ? -minY : 1 - minY;
     for (const i of items) { i.fp.x0 -= minX; i.fp.z0 -= minZ; i.fp.y0 += dy; }
+    // Vehicles drive toward +Z in StudForge (front = z1, where modules face 'front'): turn one round whose
+    // windscreen and lights (the trans parts) are at the back.
+    let mirrored = false;
+    if (wheels.length >= 2) {
+        const trans = items.filter((i) => /^TRANS_/.test(i.color));
+        const cz = trans.reduce((s, i) => s + i.fp.z0 + (i.fp.l - 1) / 2, 0) / Math.max(1, trans.length);
+        if (trans.length && cz < (D - 1) / 2 - 0.5) { mirrored = true; for (const i of items) { i.fp.z0 = D - (i.fp.z0 + i.fp.l); i.q = (6 - i.q) % 4; } }
+    }
     const NX = Math.min(64, W), NZ = Math.min(64, D), NY = Math.min(61, maxY + dy + 1);
-    return { items, NX, NZ, NY, W, D, hasBase, transposed };
+    return { items, NX, NZ, NY, W, D, hasBase, transposed, mirrored };
 }
 
 /** Colour ids <-> small ints for the typed arrays. */
@@ -377,21 +439,28 @@ function explicitGain(E, F, T, st, op, pal, skipY0) {
 
 /** Wheels + axles -> one `chassis` module (null when the wheels do not pair up into axles). */
 function detectChassis(F, T, pal) {
-    const W = F.items.filter((i) => i.kind === 'wheel' || i.kind === 'trainWheel');
-    if (W.length < 2) return null;
-    // A wheel's envelope is the wheel plus any tyre around it.
     const tyres = F.items.filter((i) => i.kind === 'tyre');
+    // A rim set half a stud off the grid has no footprint while its tyre does: then the tyre stands for the wheel.
+    const meets = (a, b) => a.x0 <= b.x0 + b.w - 1 && b.x0 <= a.x0 + a.w - 1 && a.z0 <= b.z0 + b.l - 1 && b.z0 <= a.z0 + a.l - 1 && a.y0 <= b.y0 + b.hp - 1 && b.y0 <= a.y0 + a.hp - 1;
+    const rims = F.items.filter((i) => i.kind === 'wheel' || i.kind === 'trainWheel');
+    const W = [...rims, ...tyres.filter((t) => !rims.some((r) => meets(r.fp, t.fp)))];
+    if (W.length < 2) return null;
     const env = W.map((w) => {
         let f = { ...w.fp };
         for (const t of tyres) { const g = t.fp; if (g.x0 <= f.x0 + f.w - 1 && g.x0 + g.w - 1 >= f.x0 && g.z0 <= f.z0 + f.l - 1 && g.z0 + g.l - 1 >= f.z0 && g.y0 <= f.y0 + f.hp - 1 && g.y0 + g.hp - 1 >= f.y0) { const x0 = Math.min(f.x0, g.x0), z0 = Math.min(f.z0, g.z0), y0 = Math.min(f.y0, g.y0); f = { x0, z0, y0, w: Math.max(f.x0 + f.w, g.x0 + g.w) - x0, l: Math.max(f.z0 + f.l, g.z0 + g.l) - z0, hp: Math.max(f.y0 + f.hp, g.y0 + g.hp) - y0 }; } }
         return { f, train: w.kind === 'trainWheel', color: w.color };
     });
-    const cx = F.NX / 2;
-    const left = env.filter((e) => e.f.x0 + e.f.w / 2 < cx), right = env.filter((e) => e.f.x0 + e.f.w / 2 >= cx);
-    if (!left.length || !right.length) return null;
-    const pairs = [];
-    for (const l of left) { const r = right.find((r) => Math.abs((r.f.z0 + r.f.l / 2) - (l.f.z0 + l.f.l / 2)) <= 1); if (r) pairs.push([l, r]); }
+    // Axles: wheels at the same z, the outermost two on either side of the body. Pairs that sit on another
+    // track (a trailer beside the truck, a cart) are left to the boxes.
+    const zc = (e) => e.f.z0 + (e.f.l - 1) / 2;
+    const rows = [];
+    for (const e of env.sort((a, b) => zc(a) - zc(b))) { const r = rows.find((r) => Math.abs(zc(r[0]) - zc(e)) <= 1); if (r) r.push(e); else rows.push([e]); }
+    let pairs = rows.filter((r) => r.length >= 2).map((r) => { r.sort((a, b) => a.f.x0 - b.f.x0); return [r[0], r[r.length - 1]]; }).filter(([l, r]) => r.f.x0 > l.f.x0 + l.f.w);
     if (!pairs.length) return null;
+    const track = (p) => `${p[0].f.x0 + p[0].f.w},${p[1].f.x0}`, tally = new Map();
+    for (const p of pairs) tally.set(track(p), (tally.get(track(p)) || 0) + 1);
+    const main = [...tally].sort((a, b) => b[1] - a[1])[0][0];
+    pairs = pairs.filter((p) => { const [a, b] = track(p).split(',').map(Number), [ma, mb] = main.split(',').map(Number); return Math.abs(a - ma) <= 1 && Math.abs(b - mb) <= 1; });
     const hpMed = pairs.map(([l]) => l.f.hp).sort((a, b) => a - b)[Math.floor(pairs.length / 2)];
     const size = pairs[0][0].train ? 'train' : hpMed <= 5 ? 'small' : hpMed <= 9 ? 'medium' : 'large';
     const ENV = { small: { w: 1, l: 2, hp: 5 }, medium: { w: 1, l: 3, hp: 7 }, large: { w: 2, l: 5, hp: 14 }, train: { w: 1, l: 2, hp: 6 } }[size];
@@ -590,6 +659,24 @@ export function encode(E, model, opts = {}) {
     return { blueprint, info: { modules, roofs, parts, boxes: ops.filter((o) => o.op === 'box').length, slabs: ops.filter((o) => o.op === 'slab').length, hasBase: F.hasBase, transposed: F.transposed, dims: [F.W, F.D, F.NY] }, F, T, pal };
 }
 
+/** Which op ends up owning each cell of the build ("x,y,z" -> op index): later boxes repaint, parts reserve. */
+function ownerMap(E, ops) {
+    const owner = new Map(), reserved = new Set();
+    ops.forEach((o, i) => {
+        if (o.op === 'box') {
+            for (let y = o.y0; y <= o.y1; y++) for (let z = o.z0; z <= o.z1; z++) for (let x = o.x0; x <= o.x1; x++) {
+                if (o.hollow && !(x === o.x0 || x === o.x1 || z === o.z0 || z === o.z1)) continue;
+                const k = `${x},${y},${z}`; if (!reserved.has(k)) owner.set(k, i);
+            }
+            return;
+        }
+        let oc; try { oc = opCells(E, null, o); } catch { return; }
+        for (const [x, y, z] of oc.cells) { const k = `${x},${y},${z}`; owner.set(k, i); reserved.add(k); }
+        for (const [x, y, z] of oc.painted) { const k = `${x},${y},${z}`; if (!reserved.has(k)) owner.set(k, i); }
+    });
+    return owner;
+}
+
 /** True when two explicit parts of a build share a cell. */
 function collides(E, base, ops) {
     const { g } = buildGrid(E, base, ops), seen = new Set();
@@ -627,13 +714,16 @@ function formatOp(o) {
     return { op: 'module', id: o.id, x, z, y, params };
 }
 
-/** Does an op paint or place anything in one of these cells ("x,y,z" keys)? Boxes and slabs by extent, others by origin. */
-function opTouches(o, cells) {
-    if (!cells || !cells.size) return false;
-    let r;
-    if (o.op === 'box') r = o; else if (o.op === 'slab') r = { ...o, y0: o.y, y1: o.y + 1 }; else if (o.op === 'part') r = { x0: o.x, x1: o.x, z0: o.z, z1: o.z, y0: o.y, y1: o.y }; else if (o.op === 'module') r = { x0: o.x, x1: o.x, z0: o.z, z1: o.z, y0: o.y, y1: o.y }; else return false;
-    for (let y = r.y0; y <= r.y1; y++) for (let z = r.z0; z <= r.z1; z++) for (let x = r.x0; x <= r.x1; x++) if (cells.has(`${x},${y},${z}`)) return true;
-    return false;
+/** The bounding box of a set of "x,y,z" cells grown by m (null when empty). */
+function nearCells(cells, m) {
+    if (!cells || !cells.size) return null;
+    const b = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity, z0: Infinity, z1: -Infinity };
+    for (const k of cells) { const [x, y, z] = k.split(',').map(Number); b.x0 = Math.min(b.x0, x - m); b.x1 = Math.max(b.x1, x + m); b.y0 = Math.min(b.y0, y - 3 * m); b.y1 = Math.max(b.y1, y + 3 * m); b.z0 = Math.min(b.z0, z - m); b.z1 = Math.max(b.z1, z + m); }
+    return b;
+}
+function opNear(o, b) {
+    const r = o.op === 'box' ? o : o.op === 'slab' ? { ...o, y0: o.y, y1: o.y + 1 } : o.op === 'roof' ? { ...o, y0: o.y, y1: o.y + 30 } : o.op === 'part' || o.op === 'module' ? { x0: o.x - 2, x1: o.x + 2, z0: o.z - 2, z1: o.z + 2, y0: o.y - 6, y1: o.y + 6 } : null;
+    return !!r && r.x0 <= b.x1 && b.x0 <= r.x1 && r.z0 <= b.z1 && b.z0 <= r.z1 && r.y0 <= b.y1 && b.y0 <= r.y1;
 }
 
 /* ══ fidelity ═════════════════════════════════════════════════════════════════════════════════════════════════ */
@@ -671,7 +761,7 @@ export function fidelity(E, enc, model) {
     const union = src.size + reb.size - inter;
     const geo = geometry(m), held = geometry({ bricks: m.bricks.filter((b) => !b.strut) });
     return {
-        looseCells: held.looseCells,
+        looseComps: held.looseComps,
         iou: +(inter / union).toFixed(3), color: +(inter ? same / inter : 0).toFixed(3),
         pieces: +(m.bricks.length / Math.max(1, model.pieces || model.bricks.length)).toFixed(2), srcPieces: model.pieces || model.bricks.length, bpPieces: m.bricks.length,
         hollowSrc: +hollowShare(src).toFixed(3), hollowBp: +hollowShare(reb).toFixed(3),
@@ -691,9 +781,8 @@ export function geometry(m) {
     solids.forEach((b, i) => { if (!b.links) return; for (const [x, y, z] of b.links) { const o = occ.get(`${x},${y},${z}`); if (o !== undefined) union(i, o); } });
     const comps = new Map(); fps.forEach((f, i) => { const r = find(i); if (!comps.has(r)) comps.set(r, []); comps.get(r).push(i); });
     const loose = [...comps.values()].filter((ids) => !ids.some((i) => fps[i].y0 === minY));
-    const looseCells = new Set();
-    for (const ids of loose) for (const i of ids) { const f = fps[i]; for (let y = f.y0; y < f.y0 + f.hp; y++) for (let x = f.x0; x < f.x0 + f.w; x++) for (let z = f.z0; z < f.z0 + f.l; z++) looseCells.add(`${x},${y},${z}`); }
-    return { overlaps, loose: loose.reduce((n, ids) => n + ids.length, 0), looseCells };
+    const looseComps = loose.map((ids) => { const set = new Set(); for (const i of ids) { const f = fps[i]; for (let y = f.y0; y < f.y0 + f.hp; y++) for (let x = f.x0; x < f.x0 + f.w; x++) for (let z = f.z0; z < f.z0 + f.l; z++) set.add(`${x},${y},${z}`); } return set; });
+    return { overlaps, loose: loose.reduce((n, ids) => n + ids.length, 0), looseComps };
 }
 
 /**
@@ -706,14 +795,20 @@ export function encodeChecked(E, model, opts = {}) {
     const without = (e, drop) => ({ ...e, blueprint: { ...e.blueprint, ops: e.blueprint.ops.filter((_, j) => !drop.has(j)) } });
     const bad = (f) => f.struts * 10 + f.overlaps * 10;
     let guard = 0;
-    while ((fid.struts > maxStruts || fid.overlaps) && guard++ < 12) {
-        // First drop everything that only the struts hold up (a wing or a tail the boxes could not attach)...
-        const group = new Set();
-        enc.blueprint.ops.forEach((o, j) => { if (o.op === 'module' && o.id === 'chassis') return; if (opTouches(o, fid.looseCells)) group.add(j); });
-        // ...or the single op whose removal helps most: whichever fixes struts for the least fidelity.
-        const tries = [];
-        if (group.size && group.size < enc.blueprint.ops.length / 2) tries.push(group);
-        for (let i = enc.blueprint.ops.length - 1; i >= 0; i--) tries.push(new Set([i]));
+    while ((fid.struts > maxStruts || fid.overlaps) && guard++ < 20) {
+        // Candidate removals: the ops that own each floating assembly (a wing or a tail the boxes could not attach),
+        // all of them at once, or single ops near what floats; whichever fixes struts for the least fidelity.
+        const ops = enc.blueprint.ops, owner = ownerMap(E, ops), tries = [], all = new Set();
+        const keep = (j) => !(ops[j].op === 'module' && ops[j].id === 'chassis');
+        for (const comp of fid.looseComps || []) {
+            const g = new Set(); for (const k of comp) { const j = owner.get(k); if (j !== undefined && keep(j)) g.add(j); }
+            if (g.size && g.size <= 12) { tries.push(g); for (const j of g) all.add(j); }
+        }
+        if (all.size > 1 && all.size < ops.length / 2) tries.push(all);
+        const cells = new Set(); for (const c of fid.looseComps || []) for (const k of c) cells.add(k);
+        const near = nearCells(cells, 3);
+        const singles = ops.map((o, i) => i).filter((i) => keep(i) && (!near || opNear(ops[i], near)));
+        for (const i of singles.slice(-16)) tries.push(new Set([i]));
         let best = null;
         for (const drop of tries) {
             const t = without(enc, drop);
@@ -776,9 +871,17 @@ function main(argv) {
             const lic = String((j.source && j.source.licence) || '');
             if (lic && !/CC BY/i.test(lic)) { console.log(`${j.id} skipped: licence ${lic}`); continue; }
             const t0 = Date.now();
+            const cacheDir = flag('--cache'), cached = cacheDir && path.join(cacheDir, j.id + '.json');
             try {
-                const desc = `How set ${j.id} ${j.name} (${j.year}) is built, compressed from its LDraw model.`;
-                const { enc, fid } = encodeChecked(E, model, { maxOps, maxBytes, name: j.name, description: desc });
+                let enc, fid;
+                if (cached && fs.existsSync(cached)) ({ enc, fid } = JSON.parse(fs.readFileSync(cached, 'utf8')));
+                else {
+                    const desc = `How set ${j.id} ${j.name} (${j.year}) is built, compressed from its LDraw model.`;
+                    ({ enc, fid } = encodeChecked(E, model, { maxOps, maxBytes, name: j.name, description: desc }));
+                    delete fid.looseComps;
+                    if (cached) { fs.mkdirSync(cacheDir, { recursive: true }); fs.writeFileSync(cached, JSON.stringify({ enc: { blueprint: enc.blueprint, info: enc.info }, fid })); }
+                }
+                delete fid.looseComps;
                 results.push({ j, enc, fid });
                 console.log(`${j.id.padEnd(10)} ${String(j.subject).padEnd(13)} ${fmt(fid)} mods=${JSON.stringify(enc.info.modules)} roof=${enc.info.roofs} parts=${enc.info.parts} dims=${enc.info.dims.join('x')}${enc.info.transposed ? ' T' : ''} ${Date.now() - t0}ms  ${j.name}`);
             } catch (e) { console.log(`${j.id} failed: ${e.message}`); }
@@ -787,11 +890,14 @@ function main(argv) {
         console.log(`\n${results.length} models: mean iou ${mean('iou')}  colour ${mean('color')}  ops ${mean('ops')}`);
         const out = flag('--out');
         if (out) {
-            const per = +flag('--per', 2), minIou = +flag('--min-iou', 0.45);
+            // Two examples for the subjects with many real sets (variants rotate through them), one for the rest.
+            const perMajor = +flag('--per', 2), perMinor = +flag('--per-minor', 1), minIou = +flag('--min-iou', 0.6);
+            const count = new Map(); for (const r of results) count.set(r.j.subject, (count.get(r.j.subject) || 0) + 1);
             fs.mkdirSync(out, { recursive: true });
             const bySubject = new Map();
             for (const r of results) {
                 if (!r.j.subject || r.fid.struts > 2 || r.fid.overlaps || r.fid.loose || r.fid.warnings || r.fid.iou < minIou || r.fid.bytes > maxBytes) continue;
+                if (Math.max(r.enc.info.dims[0], r.enc.info.dims[1]) > 48) continue;   // the base plate must carry it all
                 if (!bySubject.has(r.j.subject)) bySubject.set(r.j.subject, []);
                 bySubject.get(r.j.subject).push(r);
             }
@@ -799,7 +905,7 @@ function main(argv) {
             for (const old of fs.readdirSync(out)) if (old.endsWith('.json')) fs.unlinkSync(path.join(out, old));
             for (const [subject, rs] of [...bySubject].sort()) {
                 rs.sort((a, b) => b.fid.iou + 0.25 * b.fid.color - (a.fid.iou + 0.25 * a.fid.color));
-                for (const r of rs.slice(0, per)) {
+                for (const r of rs.slice(0, (count.get(subject) || 0) >= 4 ? perMajor : perMinor)) {
                     const k = knowledge.subjects[subject], label = k && k.keys ? k.keys[0] : subject.replace(/([A-Z])/g, ' $1').toLowerCase();
                     const ex = { setId: r.j.id, name: r.j.name, year: r.j.year, theme: r.j.theme || null, subject, label, labelPlural: plural(label), authors: (r.j.source && r.j.source.authors) || [], licence: (r.j.source && r.j.source.licence) || 'CC BY 2.0', source: (r.j.source && r.j.source.url) || 'https://library.ldraw.org/omr', blueprint: r.enc.blueprint, fidelity: r.fid };
                     const file = r.j.id.replace(/[^\w.-]+/g, '_') + '.json';

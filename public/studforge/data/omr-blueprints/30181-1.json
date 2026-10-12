@@ -1,0 +1,18 @@
+{"setId":"30181-1","name":"Helicopter","year":2012,"theme":"Creator","subject":"helicopter","label":"helicopter","labelPlural":"helicopters","authors":["Merlijn Wissink [legolijntje]"],"licence":"CC BY 2.0","source":"https://library.ldraw.org/omr/sets/145","blueprint":{"name":"Helicopter","description":"How set 30181-1 Helicopter (2012) is built, compressed from its LDraw model.","base":{"w":9,"d":14,"color":"LIGHT_GREY"},"ops":[
+{"op":"box","x0":4,"x1":5,"z0":5,"z1":12,"y0":1,"y1":8,"color":"WHITE"},
+{"op":"box","x0":3,"x1":3,"z0":7,"z1":8,"y0":1,"y1":3,"color":"ORANGE"},
+{"op":"box","x0":6,"x1":6,"z0":7,"z1":8,"y0":1,"y1":3,"color":"ORANGE"},
+{"op":"box","x0":4,"x1":5,"z0":7,"z1":12,"y0":1,"y1":1,"color":"DARK_GREY"},
+{"op":"box","x0":4,"x1":5,"z0":13,"z1":13,"y0":3,"y1":4,"color":"ORANGE"},
+{"op":"box","x0":7,"x1":7,"z0":0,"z1":1,"y0":5,"y1":9,"color":"BLACK"},
+{"op":"box","x0":4,"x1":5,"z0":0,"z1":4,"y0":6,"y1":8,"color":"WHITE"},
+{"op":"box","x0":4,"x1":5,"z0":1,"z1":12,"y0":6,"y1":7,"color":"ORANGE"},
+{"op":"box","x0":4,"x1":5,"z0":11,"z1":12,"y0":5,"y1":7,"color":"TRANS_CLEAR"},
+{"op":"box","x0":3,"x1":6,"z0":9,"z1":10,"y0":7,"y1":7,"color":"LIGHT_GREY"},
+{"op":"box","x0":3,"x1":6,"z0":8,"z1":8,"y0":7,"y1":8,"color":"LIGHT_GREY"},
+{"op":"box","x0":3,"x1":5,"z0":1,"z1":2,"y0":7,"y1":7,"color":"WHITE"},
+{"op":"box","x0":5,"x1":5,"z0":0,"z1":1,"y0":9,"y1":11,"color":"ORANGE"},
+{"op":"box","x0":4,"x1":5,"z0":8,"z1":9,"y0":9,"y1":9,"color":"BLACK"},
+{"op":"slab","x0":4,"x1":6,"z0":8,"z1":10,"y":10,"color":"BLACK"},
+{"op":"box","x0":5,"x1":8,"z0":4,"z1":4,"y0":10,"y1":10,"color":"BLACK"},
+{"op":"box","x0":0,"x1":0,"z0":5,"z1":8,"y0":10,"y1":10,"color":"BLACK"}]},"fidelity":{"iou":0.665,"color":0.919,"pieces":1.12,"srcPieces":52,"bpPieces":58,"hollowSrc":0.138,"hollowBp":0.05,"ops":17,"struts":2,"overlaps":0,"loose":0,"warnings":0,"bytes":1405}}
