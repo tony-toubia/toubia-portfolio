@@ -93,7 +93,8 @@
             for (let y = y0; y < y0 + hp; y++) for (let x = x0; x < x0 + w; x++) for (let z = z0; z < z0 + l; z++) {
                 this.del(x, y, z); this.res.add(key(x, y, z));
             }
-            this.parts.push({ partId, color, x: x0 + (w - 1) / 2, y: y0 * PLATE, z: z0 + (l - 1) / 2, rotY, rotX: o.rotX || 0, rotZ: o.rotZ || 0, layer: y0, fp: { x0, z0, y0, w, l, hp } });
+            // dx/dz shift the rendered part by a fraction of a stud (a 1x1 on a 2x2 cone's single centre stud); the footprint stays put.
+            this.parts.push({ partId, color, x: x0 + (w - 1) / 2 + (o.dx || 0), y: y0 * PLATE, z: z0 + (l - 1) / 2 + (o.dz || 0), rotY, rotX: o.rotX || 0, rotZ: o.rotZ || 0, layer: y0, dx: o.dx || 0, dz: o.dz || 0, fp: { x0, z0, y0, w, l, hp } });
         }
 
         /* ── reading ──────────────────────────────────────────── */

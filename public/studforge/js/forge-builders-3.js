@@ -121,8 +121,8 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
     /** A minifig-height door: two studs wide, five bricks tall, with a handle. `face` is 'front' (door runs along X at z) or 'left'/'right' (along Z at x). */
     H.minifigDoor = (ctx, x, z, y, face, color) => {
         const { g } = ctx;
-        if (face === 'front') { g.box(x, x + 1, z, z, y, y + 14, color); g.part('98138', 'GOLD', x + 1, z + 1, y + 7, { rotX: PI / 2, w: 1, l: 1, hp: 2, lie: true }); }
-        else { g.box(x, x, z, z + 1, y, y + 14, color); g.part('98138', 'GOLD', face === 'right' ? x + 1 : x - 1, z + 1, y + 7, { rotZ: PI / 2, w: 1, l: 1, hp: 2, lie: true }); }
+        if (face === 'front') { g.box(x, x + 1, z, z, y, y + 14, color); g.part('3023', color, x + 1, z, y + 7, { rotY: 0 }); g.part('98138', 'GOLD', x + 1, z + 1, y + 8); }
+        else { g.box(x, x, z, z + 1, y, y + 14, color); const hx = face === 'right' ? x + 1 : x - 1; g.part('3023', color, Math.min(x, hx), z + 1, y + 7, { rotY: PI / 2, w: 2, l: 1 }); g.part('98138', 'GOLD', hx, z + 1, y + 8); }   // the handle sits on a ledge plate set into the door
     };
 
     /** A window two studs wide and `bricks` (default 2) bricks tall, with a sill tile under it. */
@@ -168,13 +168,13 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
         const { g, chance } = ctx;
         if (kind === 'chicken') { g.part('3062', 'WHITE', x, z, y); g.part('54200', 'RED', x, z, y + 3, { rotY: PI }); return; }
         if (kind === 'pig') {
-            g.box(x, x + 1, z, z + 2, y, y + 2, 'PINK'); g.box(x, x + 1, z + 3, z + 3, y + 1, y + 2, 'PINK');
+            g.box(x, x + 1, z, z + 2, y, y + 2, 'PINK'); g.box(x, x + 1, z + 3, z + 3, y, y + 2, 'PINK');   // the snout reaches the ground like the body
             g.part('98138', 'BLACK', x, z + 3, y + 3); g.part('98138', 'BLACK', x + 1, z + 3, y + 3); g.part('98138', 'PINK', x, z, y + 3);
             return;
         }
         if (kind === 'sheep') {
             for (const [lx, lz] of [[x, z], [x + 1, z], [x, z + 2], [x + 1, z + 2]]) g.part('4073', 'BLACK', lx, lz, y);
-            g.box(x, x + 1, z, z + 2, y + 1, y + 4, 'WHITE'); g.box(x, x + 1, z + 3, z + 3, y + 3, y + 4, 'BLACK');
+            g.box(x, x + 1, z, z + 2, y + 1, y + 4, 'WHITE'); g.part('3023', 'WHITE', x, z + 2, y + 2, { rotY: 0 }); g.part('3023', 'WHITE', x + 1, z + 2, y + 2, { rotY: 0 }); g.box(x, x + 1, z + 3, z + 3, y + 3, y + 4, 'BLACK');   // neck plates carry the head
             g.part('98138', 'WHITE', x, z + 3, y + 5); g.part('98138', 'WHITE', x + 1, z + 3, y + 5);
             return;
         }
@@ -185,10 +185,9 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
         if (kind === 'cow') for (const [sx, sz] of [[x, z + 1], [x + 1, z + 2], [x, z + 3]]) if (chance(0.7)) g.set(sx, y + 6, sz, 'BLACK');
         const hy = kind === 'horse' ? y + 10 : y + 7;
         if (kind === 'horse') { g.box(x, x + 1, z + 3, z + 3, y + 7, y + 9, col); g.part('54200', 'BLACK', x, z + 2, y + 7, { rotY: PI }); }
-        g.box(x, x + 1, z + 3, z + 4, hy, hy + 2, col);
+        g.part('3022', kind === 'cow' ? 'PINK' : col, x, z + 3, hy); g.box(x, x + 1, z + 3, z + 4, hy + 1, hy + 2, col);   // a head plate locked onto the body
         g.part('98138', 'BLACK', x, z + 4, hy + 3); g.part('98138', 'BLACK', x + 1, z + 4, hy + 3);
         g.part(kind === 'cow' ? '4589' : '54200', kind === 'cow' ? 'TAN' : col, x, z + 3, hy + 3, { rotY: PI }); g.part(kind === 'cow' ? '4589' : '54200', kind === 'cow' ? 'TAN' : col, x + 1, z + 3, hy + 3, { rotY: PI });
-        if (kind === 'cow') { g.set(x, hy, z + 4, 'PINK'); g.set(x + 1, hy, z + 4, 'PINK'); }
         g.part('3023', col, x, z - 1, y + 7, { rotY: 0 }); g.part('3062', col, x, z - 1, y + 4);   // the tail hangs off the rump
     };
 
@@ -438,7 +437,10 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             for (const [x, z] of [[-1, 0], [W, 0], [-1, D], [W, D]]) for (let y = 1; y < AW; y += 3) g.part('3062', P.wood, x, z, y);
             for (const z of [0, D]) for (let x = -1; x <= W;) { const l = Math.min(4, W + 1 - x); g.part({ 4: '3710', 3: '3623', 2: '3023', 1: '3024' }[l], P.wood, x, z, AW, { rotY: l > 1 ? PI / 2 : 0, w: l, l: 1 }); x += l; }
             for (let z = 1; z < D; z++) { g.part('3024', P.wood, -1, z, AW); g.part('3024', P.wood, W, z, AW); }
-            for (let x = -1; x <= W; x++) g.box(x, x, 0, D, AW + 1, AW + 1, (x + 1) % 2 ? 'WHITE' : stripe, { noBrick: true });
+            // Each stripe is one 1x6 plate crossing both rails (with a stud of overhang at the back), and a ridge plate along
+            // the back ties every stripe together, so the whole awning is one locked sheet on its four posts.
+            for (let x = -1; x <= W; x++) g.part('3666', (x + 1) % 2 ? 'WHITE' : stripe, x, -1, AW + 1, { rotY: 0, w: 1, l: 6 });
+            H.strip(ctx, -1, 0, W + 2, 'x', AW + 2, P.wood);
             for (let x = -1; x <= W; x += 2) g.part('54200', (x + 1) % 2 ? 'WHITE' : stripe, x, D, AW + 2);   // scalloped front edge
             // Beside the stall: a barrel, a sack and a stack of crates; a chalkboard sign out front.
             g.part('3941', 'BROWN', W + 1, D - 1, 1); g.part('4032', 'DARK_GREY', W + 1, D - 1, 4);
@@ -479,10 +481,10 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             const px0 = 0, px1 = BW + 5, pz0 = BD + 2, pz1 = D - 1;
             H.fenceLine(ctx, px0, pz1, px1, pz1, 1); H.fenceLine(ctx, px1, pz0, px1, pz1 - 1, 1); H.fenceLine(ctx, px0, pz0, px0, pz1 - 1, 1);
             const kinds = herd === 'mixed' ? [pick(['cow', 'horse']), 'sheep', 'pig'] : [herd.slice(0, -1), herd.slice(0, -1), herd.slice(0, -1)];
-            H.farmAnimal(ctx, kinds[0], 2, pz0 + 1, 1); H.farmAnimal(ctx, kinds[1], 6, pz0 + 2, 1); H.farmAnimal(ctx, kinds[2], 10, pz0 + 1, 1);
+            H.farmAnimal(ctx, kinds[0], 2, pz0 + 1, 1); H.farmAnimal(ctx, kinds[1], 6, pz0 + 1, 1); H.farmAnimal(ctx, kinds[2], 10, pz0 + 1, 1);   // all a stud clear of the back fence
             H.farmAnimal(ctx, 'chicken', BW + 1, BD, 1); H.farmAnimal(ctx, 'chicken', BW + 3, BD + 1, 1);
             // A water trough and a haystack.
-            g.box(px1 - 3, px1 - 2, pz0 + 4, pz0 + 4, 1, 1, 'DARK_GREY', { noBrick: true }); g.part('3069', 'TRANS_BLUE', px1 - 3, pz0 + 4, 2, { rotY: PI / 2, w: 2, l: 1 });
+            g.box(BW + 5, BW + 6, BD + 1, BD + 1, 1, 1, 'DARK_GREY', { noBrick: true }); g.part('3069', 'TRANS_BLUE', BW + 5, BD + 1, 2, { rotY: PI / 2, w: 2, l: 1 });
             g.part('553', 'TAN', BW + 3, 3, 1);
             // Rows of crops on the right, and a tree.
             const feats = ['a red barn with a white door and loft window', 'a tall silo', `a fenced paddock with ${herd === 'mixed' ? 'a ' + kinds[0] + ', a sheep and a pig' : herd}`, 'two chickens, a trough and a haystack'];
@@ -628,9 +630,11 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             H.lamp(ctx, 6, z1 + 1, 1);
             // Legs on three-stud feet, a pelvis plate across them, the spine running along the top.
             const zHip = 2, ySp = 15;
-            for (const x of [0, 2]) { g.part('3623', bone, x, zHip - 1, 3, { rotY: 0 }); for (let y = 4; y < ySp - 1; y += 3) g.part('3062', bone, x, zHip, y, { hp: Math.min(3, ySp - 1 - y) }); }
+            for (const x of [0, 2]) { g.part('3623', bone, x, zHip - 1, 3, { rotY: 0 }); for (let y = 4; y < ySp - 1; y += 3) { const h = Math.min(3, ySp - 1 - y); if (h === 3) g.part('3062', bone, x, zHip, y); else for (let k = 0; k < h; k++) g.part('4073', bone, x, zHip, y + k); } }
             g.part('3623', bone, 0, zHip, ySp - 1, { rotY: PI / 2, w: 3, l: 1 });
-            for (let z = 0; z < L;) { const l = Math.min(4, L - z); g.part({ 4: '3710', 3: '3623', 2: '3023', 1: '3024' }[l], bone, 1, z, ySp, { rotY: 0, w: 1, l }); z += l; }
+            // The spine: long plates with no 1-stud stubs, and a 1x2 bridge plate over every joint, so it is one beam.
+            const spine = []; for (let rem = L; rem > 0;) { let l = [10, 8, 6, 4, 3, 2].find((v) => v <= rem && rem - v !== 1); if (!l) l = rem; spine.push(l); rem -= l; }
+            for (let z = 0, i = 0; i < spine.length; z += spine[i++]) { const l = spine[i]; g.part({ 10: '4477', 8: '3460', 6: '3666', 4: '3710', 3: '3623', 2: '3023', 1: '3024' }[l], bone, 1, z, ySp, { rotY: 0, w: 1, l }); if (i > 0) g.part('3023', bone, 1, z - 1, ySp + 1, { rotY: 0 }); }
             // Ribs hang from the spine: a plate across under it and a round brick down from each end.
             for (let i = 0; i < ribs; i++) {
                 const z = zHip + 2 + i * 2;
@@ -644,8 +648,8 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             let ny = ySp, nz = L - 2;
             for (let i = 0; i < neck; i++) { ny += 1; nz += 1; g.part('3023', bone, 1, nz, ny, { rotY: 0 }); }
             const sz = nz + 1, sy = ny + 1;
-            g.box(0, 2, sz, sz + 3, sy, sy + 2, bone);
-            g.set(0, sy + 1, sz + 2, 'BLACK'); g.set(2, sy + 1, sz + 2, 'BLACK');
+            H.slab(ctx, 0, 2, sz, sz + 3, sy, bone); g.box(0, 2, sz, sz + 3, sy + 2, sy + 2, bone);
+            g.set(0, sy + 2, sz + 2, 'BLACK'); g.set(2, sy + 2, sz + 2, 'BLACK');
             g.part('3710', bone, 1, sz + 1, sy - 1, { rotY: 0 });
             for (const z of [sz + 2, sz + 4]) g.part('54200', bone, 1, z, sy - 3);
             // The tail steps down and back from the hip.
