@@ -19,6 +19,7 @@ import ShortcutsWindow from './windows/ShortcutsWindow';
 import MySpace404Window from './windows/MySpace404Window';
 import DuetWindow from './windows/DuetWindow';
 import VoidWardenWindow from './windows/VoidWardenWindow';
+import StudForgeWindow from './windows/StudForgeWindow';
 import InfoBubble from './InfoBubble';
 
 // Icon SVGs
@@ -128,6 +129,15 @@ const icons = {
       <circle cx="24" cy="24" r="14" fill="#000" />
       <circle cx="24" cy="24" r="8" fill="#9d4edd" opacity="0.8" />
       <text x="24" y="28" textAnchor="middle" fontSize="14">🌀</text>
+    </svg>
+  ),
+  studForge: (
+    <svg viewBox="0 0 48 48" className="w-12 h-12">
+      <rect x="4" y="4" width="40" height="40" rx="8" fill="#C91A09" stroke="#F2CD37" strokeWidth="2" />
+      <circle cx="16" cy="16" r="5" fill="#E62310" stroke="#FFF" strokeWidth="1" />
+      <circle cx="32" cy="16" r="5" fill="#E62310" stroke="#FFF" strokeWidth="1" />
+      <circle cx="16" cy="32" r="5" fill="#E62310" stroke="#FFF" strokeWidth="1" />
+      <circle cx="32" cy="32" r="5" fill="#E62310" stroke="#FFF" strokeWidth="1" />
     </svg>
   ),
 };
@@ -397,6 +407,13 @@ export default function Desktop() {
       icon: icons.voidWarden,
       windowContent: <VoidWardenWindow />,
       windowSize: { width: 840, height: 620 },
+    },
+    {
+      id: 'studforge',
+      label: 'StudForge',
+      icon: icons.studForge,
+      windowContent: <StudForgeWindow />,
+      windowSize: { width: 880, height: 640 },
     },
     {
       id: 'shortcuts',

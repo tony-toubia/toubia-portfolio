@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>StudForge | 3D LEGO® Blueprint & Idea Maker</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <!-- Back to Portfolio Link (visible when standalone) -->
+    <a href="/" class="back-to-home" id="btn-back-home">← Back to Portfolio</a>
+
+    <!-- Top App Navigation Bar -->
+    <header class="top-nav">
+        <div class="nav-brand">
+            <div class="brick-logo">
+                <span class="stud s1"></span>
+                <span class="stud s2"></span>
+                <span class="stud s3"></span>
+                <span class="stud s4"></span>
+            </div>
+            <div class="brand-text">
+                <h1 class="brand-title">STUDFORGE</h1>
+                <span class="brand-sub">3D LEGO® BLUEPRINT & IDEA MAKER</span>
+            </div>
+        </div>
+
+        <!-- Quick actions -->
+        <div class="nav-actions">
+            <button id="btn-audio" class="nav-icon-btn" title="Toggle Sound">🔊</button>
+        </div>
+    </header>
+
+    <!-- Main App Container -->
+    <main class="app-layout">
+
+        <!-- Top Input & Inspiration Tray -->
+        <section class="prompt-section">
+            <div class="input-bar-wrap">
+                <div class="input-icon">💡</div>
+                <input 
+                    type="text" 
+                    id="input-prompt" 
+                    placeholder="Describe any LEGO idea (e.g. 'Micro yellow submarine', 'A cozy lighthouse on rocky shore', 'Cyberpunk speeder')..."
+                    autocomplete="off"
+                    spellcheck="false"
+                />
+                <button id="btn-generate" class="forge-btn">
+                    <span>⚡</span> FORGE IDEA
+                </button>
+            </div>
+
+            <!-- Inspire Me Pills -->
+            <div class="inspo-scroll-wrap">
+                <span class="inspo-label">INSPIRE ME:</span>
+                <div id="inspo-pills" class="inspo-pills">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Studio Workspace (3D Viewport + BOM Side Panel) -->
+        <div class="studio-grid">
+
+            <!-- 3D Studio Canvas Viewport -->
+            <div class="viewport-card">
+                <div id="viewport-3d" class="canvas-3d-box"></div>
+
+                <!-- Floating Model Header Info -->
+                <div class="viewport-overlay-header">
+                    <div class="model-badge-row">
+                        <span id="model-badge" class="badge-pill">🚀 SPACE</span>
+                        <span id="model-piece-count" class="badge-pill highlight">14 BRICKS</span>
+                        <span id="model-est-time" class="badge-pill">⏱️ 20 MINS</span>
+                    </div>
+                    <h2 id="model-title" class="active-model-title">Apollo Micro Rocket</h2>
+                    <p id="model-desc" class="active-model-desc">Multi-stage Saturn V exploration rocket with umbilical gantry tower.</p>
+                </div>
+
+                <!-- Camera Preset View Toolbar -->
+                <div class="viewport-cam-controls">
+                    <button id="btn-cam-iso" class="cam-btn" title="Isometric View">ISO</button>
+                    <button id="btn-cam-front" class="cam-btn" title="Front Elevation">FRONT</button>
+                    <button id="btn-cam-top" class="cam-btn" title="Top-Down Plan">TOP</button>
+                    <button id="btn-cam-side" class="cam-btn" title="Side Profile">SIDE</button>
+                    <button id="btn-cam-reset" class="cam-btn" title="Reset View">RESET</button>
+                </div>
+
+                <!-- Bottom Floating Studio Toolbars (Exploded View & Step Assembly) -->
+                <div class="viewport-bottom-bar">
+                    <!-- Exploded View Slider -->
+                    <div class="studio-tool-group">
+                        <div class="tool-label-row">
+                            <span class="tool-name">💥 EXPLODED LAYER VIEW</span>
+                            <span id="val-explode" class="tool-val">0%</span>
+                        </div>
+                        <input type="range" id="slider-explode" min="0" max="1" step="0.02" value="0" class="tech-slider" />
+                    </div>
+
+                    <!-- Step-by-Step Assembly Stepper -->
+                    <div class="studio-tool-group">
+                        <div class="tool-label-row">
+                            <span class="tool-name">🛠️ STEP-BY-STEP BUILD</span>
+                            <span id="val-step" class="tool-val">STEP 1 / 1</span>
+                        </div>
+                        <div class="step-controls-row">
+                            <button id="btn-prev-step" class="step-btn">◀ PREV</button>
+                            <input type="range" id="slider-step" min="0" max="1" step="1" value="1" class="tech-slider" />
+                            <button id="btn-next-step" class="step-btn">NEXT ▶</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Viewport Interaction Helper Hint -->
+                <div class="viewport-hint">
+                    🖱️ Drag to rotate 360° | Scroll / Pinch to zoom | Inspect layers with Exploded slider
+                </div>
+            </div>
+
+            <!-- Bill of Materials (BOM) & Parts List Panel -->
+            <aside class="bom-card">
+                <div class="bom-header">
+                    <div>
+                        <h3 class="bom-title">PARTS MANIFEST</h3>
+                        <span class="bom-sub">OFFICIAL LEGO® BILL OF MATERIALS</span>
+                    </div>
+                    <div class="bom-counts">
+                        <span id="total-unique-parts" class="sub-count">0 unique</span>
+                        <span id="total-pieces-count" class="main-count">0 pieces</span>
+                    </div>
+                </div>
+
+                <!-- Parts Table Scroll Box -->
+                <div class="bom-table-wrap">
+                    <table class="bom-table">
+                        <thead>
+                            <tr>
+                                <th>ELEMENT & DESIGN ID</th>
+                                <th class="text-right">QTY</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bom-table-body">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Export & Action Toolbar -->
+                <div class="bom-actions">
+                    <button id="btn-copy-bom" class="action-btn secondary" title="Copy formatted checklist to clipboard">
+                        📋 COPY LIST
+                    </button>
+                    <button id="btn-export-xml" class="action-btn primary" title="Download BrickLink Wanted List XML to buy real bricks">
+                        🛒 BRICKLINK XML
+                    </button>
+                    <button id="btn-print-card" class="action-btn tertiary" title="Print full blueprint sheet">
+                        🖨️ PRINT
+                    </button>
+                </div>
+            </aside>
+
+        </div>
+
+    </main>
+
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- Modular App Scripts -->
+    <script src="js/colors.js"></script>
+    <script src="js/parts-catalog.js"></script>
+    <script src="js/brick-builder.js"></script>
+    <script src="js/models-db.js"></script>
+    <script src="js/generator.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/viewer.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

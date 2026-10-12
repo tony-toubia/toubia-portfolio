@@ -6,6 +6,7 @@ import DuetWindow from './DuetWindow';
 import AMZToolsWindow from './AMZToolsWindow';
 import PrimalHuntWindow from './PrimalHuntWindow';
 import VoidWardenWindow from './VoidWardenWindow';
+import StudForgeWindow from './StudForgeWindow';
 
 interface Project {
   id: string;
@@ -77,6 +78,21 @@ const projects: Project[] = [
     windowContent: <VoidWardenWindow />,
     windowSize: { width: 840, height: 620 },
   },
+  {
+    id: 'studforge',
+    name: 'StudForge',
+    icon: (
+      <svg viewBox="0 0 48 48" className="w-10 h-10">
+        <rect x="4" y="4" width="40" height="40" rx="6" fill="#C91A09" />
+        <circle cx="16" cy="16" r="5" fill="#E62310" stroke="#FFF" strokeWidth="1" />
+        <circle cx="32" cy="16" r="5" fill="#E62310" stroke="#FFF" strokeWidth="1" />
+        <circle cx="16" cy="32" r="5" fill="#E62310" stroke="#FFF" strokeWidth="1" />
+        <circle cx="32" cy="32" r="5" fill="#E62310" stroke="#FFF" strokeWidth="1" />
+      </svg>
+    ),
+    windowContent: <StudForgeWindow />,
+    windowSize: { width: 880, height: 640 },
+  },
 ];
 
 export default function ProjectsWindow() {
@@ -141,6 +157,17 @@ export default function ProjectsWindow() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   /void-warden-game ↗
+                </a>
+              )}
+              {project.id === 'studforge' && (
+                <a
+                  href="/studforge"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[9px] text-yellow-400 hover:underline mt-0.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  /studforge ↗
                 </a>
               )}
               {project.id === 'primal-hunt' && (

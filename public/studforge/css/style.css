@@ -1,0 +1,715 @@
+/* StudForge — 3D LEGO Idea Maker Stylesheet */
+
+:root {
+    --bg-main: #0c0f17;
+    --bg-card: #131822;
+    --bg-card-hover: #19202e;
+    --border-main: rgba(255, 255, 255, 0.08);
+    --border-active: rgba(242, 205, 55, 0.45);
+    
+    --lego-red: #c91a09;
+    --lego-yellow: #f2cd37;
+    --lego-blue: #0055bf;
+    --lego-green: #184e32;
+    --lego-orange: #fe8a18;
+    
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+
+    --font-heading: 'Orbitron', -apple-system, sans-serif;
+    --font-body: 'Rajdhani', -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+}
+
+/* Standalone Back to Portfolio Button */
+.back-to-home {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 9999;
+    background: rgba(19, 24, 34, 0.9);
+    color: var(--lego-yellow);
+    border: 1px solid var(--lego-yellow);
+    padding: 6px 14px;
+    font-family: var(--font-heading);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+    border-radius: 4px;
+    text-decoration: none;
+    display: none;
+    backdrop-filter: blur(8px);
+    transition: all 0.2s ease;
+    box-shadow: 0 0 12px rgba(242, 205, 55, 0.2);
+}
+
+.back-to-home:hover {
+    background: var(--lego-yellow);
+    color: #000;
+    box-shadow: 0 0 20px rgba(242, 205, 55, 0.6);
+}
+
+body:not(.in-iframe) .back-to-home {
+    display: block;
+}
+
+/* Top App Header */
+.top-nav {
+    height: 52px;
+    background: #090c13;
+    border-bottom: 1px solid var(--border-main);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 18px;
+    position: relative;
+    z-index: 10;
+}
+
+.nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.brick-logo {
+    width: 26px;
+    height: 26px;
+    background: var(--lego-red);
+    border-radius: 4px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 3px;
+    padding: 4px;
+    box-shadow: 0 2px 8px rgba(201, 26, 9, 0.5);
+}
+
+.brick-logo .stud {
+    background: #e62310;
+    border-radius: 50%;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.6), 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.brand-title {
+    font-family: var(--font-heading);
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: 1.5px;
+    color: #fff;
+    line-height: 1;
+}
+
+.brand-sub {
+    font-size: 10px;
+    font-family: var(--font-heading);
+    letter-spacing: 1px;
+    color: var(--lego-yellow);
+    font-weight: 600;
+}
+
+.nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nav-icon-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border-main);
+    color: var(--text-primary);
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.nav-icon-btn:hover {
+    border-color: var(--lego-yellow);
+    background: var(--bg-card-hover);
+}
+
+/* App Layout */
+.app-layout {
+    height: calc(100% - 52px);
+    display: flex;
+    flex-direction: column;
+    padding: 12px 18px 16px;
+    gap: 12px;
+}
+
+/* Prompt & Inspiration Section */
+.prompt-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.input-bar-wrap {
+    display: flex;
+    align-items: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border-main);
+    border-radius: 8px;
+    padding: 4px 6px 4px 14px;
+    gap: 10px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input-bar-wrap:focus-within {
+    border-color: var(--lego-yellow);
+    box-shadow: 0 0 16px rgba(242, 205, 55, 0.25);
+}
+
+.input-icon {
+    font-size: 18px;
+}
+
+.input-bar-wrap input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #fff;
+    font-family: var(--font-body);
+    font-size: 16px;
+    font-weight: 600;
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+.input-bar-wrap input::placeholder {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.forge-btn {
+    background: linear-gradient(135deg, var(--lego-yellow) 0%, #d4a017 100%);
+    color: #0c0f17;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-family: var(--font-heading);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: transform 0.1s ease, filter 0.2s ease;
+}
+
+.forge-btn:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+}
+
+.forge-btn:active {
+    transform: translateY(0);
+}
+
+.inspo-scroll-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+.inspo-label {
+    font-family: var(--font-heading);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.inspo-pills {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.inspo-pill {
+    background: var(--bg-card);
+    border: 1px solid var(--border-main);
+    color: var(--text-secondary);
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+}
+
+.inspo-pill:hover {
+    background: var(--bg-card-hover);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.inspo-pill.active {
+    background: rgba(242, 205, 55, 0.12);
+    border-color: var(--lego-yellow);
+    color: var(--lego-yellow);
+    font-weight: 700;
+}
+
+/* Studio Main Workspace Grid */
+.studio-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 14px;
+    min-height: 0;
+}
+
+/* 3D Viewport Card */
+.viewport-card {
+    position: relative;
+    background: var(--bg-card);
+    border: 1px solid var(--border-main);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.canvas-3d-box {
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+}
+
+.canvas-3d-box:active {
+    cursor: grabbing;
+}
+
+/* Viewport Floating Info */
+.viewport-overlay-header {
+    position: absolute;
+    top: 14px;
+    left: 16px;
+    pointer-events: none;
+    z-index: 5;
+    max-width: 65%;
+}
+
+.model-badge-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.badge-pill {
+    background: rgba(9, 12, 19, 0.85);
+    border: 1px solid var(--border-main);
+    color: var(--text-secondary);
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-family: var(--font-heading);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    backdrop-filter: blur(6px);
+}
+
+.badge-pill.highlight {
+    color: var(--lego-yellow);
+    border-color: rgba(242, 205, 55, 0.4);
+}
+
+.active-model-title {
+    font-family: var(--font-heading);
+    font-size: 20px;
+    font-weight: 800;
+    color: #fff;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+    line-height: 1.2;
+}
+
+.active-model-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+/* Floating Camera Buttons */
+.viewport-cam-controls {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    display: flex;
+    gap: 4px;
+    z-index: 5;
+}
+
+.cam-btn {
+    background: rgba(19, 24, 34, 0.85);
+    border: 1px solid var(--border-main);
+    color: var(--text-secondary);
+    font-family: var(--font-heading);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    backdrop-filter: blur(6px);
+    transition: all 0.15s ease;
+}
+
+.cam-btn:hover {
+    color: #fff;
+    border-color: var(--lego-yellow);
+}
+
+/* Viewport Bottom Toolbars (Exploded View & Stepper) */
+.viewport-bottom-bar {
+    position: absolute;
+    bottom: 12px;
+    left: 14px;
+    right: 14px;
+    display: flex;
+    gap: 12px;
+    z-index: 5;
+    pointer-events: auto;
+}
+
+.studio-tool-group {
+    flex: 1;
+    background: rgba(19, 24, 34, 0.88);
+    border: 1px solid var(--border-main);
+    border-radius: 8px;
+    padding: 8px 14px;
+    backdrop-filter: blur(10px);
+}
+
+.tool-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.tool-name {
+    font-family: var(--font-heading);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+}
+
+.tool-val {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--lego-yellow);
+}
+
+.tech-slider {
+    width: 100%;
+    accent-color: var(--lego-yellow);
+    height: 4px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.step-controls-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.step-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-main);
+    color: var(--text-primary);
+    font-family: var(--font-heading);
+    font-size: 9px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.step-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.viewport-hint {
+    position: absolute;
+    bottom: 74px;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    pointer-events: none;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+/* Bill of Materials (BOM) Side Panel */
+.bom-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-main);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.bom-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-main);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(9, 12, 19, 0.4);
+}
+
+.bom-title {
+    font-family: var(--font-heading);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #fff;
+}
+
+.bom-sub {
+    font-size: 10px;
+    color: var(--text-muted);
+    display: block;
+    letter-spacing: 0.5px;
+}
+
+.bom-counts {
+    text-align: right;
+}
+
+.main-count {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--lego-yellow);
+    display: block;
+}
+
+.sub-count {
+    font-size: 10px;
+    color: var(--text-muted);
+    display: block;
+}
+
+/* BOM Parts Table */
+.bom-table-wrap {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 8px;
+}
+
+.bom-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.bom-table th {
+    text-align: left;
+    padding: 8px 6px;
+    font-family: var(--font-heading);
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border-main);
+}
+
+.bom-table td {
+    padding: 8px 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.part-preview-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.color-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    flex-shrink: 0;
+}
+
+.part-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.part-name {
+    font-weight: 600;
+    color: #e2e8f0;
+    line-height: 1.2;
+}
+
+.part-meta {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.qty-badge {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.text-right {
+    text-align: right;
+}
+
+/* Action Buttons (Export, Copy, Print) */
+.bom-actions {
+    padding: 12px 14px;
+    border-top: 1px solid var(--border-main);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: rgba(9, 12, 19, 0.4);
+}
+
+.action-btn {
+    width: 100%;
+    padding: 9px;
+    border-radius: 6px;
+    font-family: var(--font-heading);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.action-btn.primary {
+    background: linear-gradient(135deg, var(--lego-yellow) 0%, #d4a017 100%);
+    color: #0c0f17;
+}
+
+.action-btn.primary:hover {
+    filter: brightness(1.1);
+}
+
+.action-btn.secondary {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    border: 1px solid var(--border-main);
+}
+
+.action-btn.secondary:hover {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.action-btn.tertiary {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.action-btn.tertiary:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Mobile & Tablet Responsiveness */
+@media (max-width: 900px) {
+    .app-layout {
+        overflow-y: auto;
+    }
+
+    .studio-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: 460px auto;
+    }
+
+    .viewport-overlay-header {
+        max-width: 85%;
+    }
+
+    .viewport-bottom-bar {
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .viewport-hint {
+        bottom: 120px;
+    }
+}
+
+/* Print Stylesheet (Blueprint Sheet) */
+@media print {
+    body {
+        background: #fff !important;
+        color: #000 !important;
+    }
+    .top-nav, .prompt-section, .viewport-bottom-bar, .bom-actions, .viewport-cam-controls, .back-to-home, .viewport-hint {
+        display: none !important;
+    }
+    .studio-grid {
+        display: block !important;
+    }
+    .bom-card {
+        border: 1px solid #ccc !important;
+        background: #fff !important;
+        color: #000 !important;
+    }
+    .bom-table th, .bom-table td {
+        color: #000 !important;
+        border-bottom: 1px solid #eee !important;
+    }
+    .part-name, .qty-badge {
+        color: #000 !important;
+    }
+}
