@@ -209,6 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
         viewer, generator, forge, reforge, on, emit, registerPanel, dock, widget, showPanel, goStep, state,
         get model() { return currentModel; }, get bom() { return bomParts; }, promptInput,
         setPrompt(p) { promptInput.value = p; forgeLabel(); },
+        load(model) { loadBlueprint(model); return model; },   // a model built outside the generator (mosaic mode) through the same pipeline
     };
     populateInspirations();
     document.dispatchEvent(new CustomEvent('studforge:ready'));
