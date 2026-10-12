@@ -1,0 +1,32 @@
+{
+  "name": "Ember Ladder Truck",
+  "description": "A red fire engine on a plate chassis with rubber-tyred wheels, a bracket-mounted grille, headlight bricks, real cab windows and a grey ladder racked over the lockers.",
+  "tagline": "Sirens on, ladder up: every window in this cab is real glass.",
+  "category": "Vehicles",
+  "base": { "w": 12, "d": 18, "color": "LIGHT_GREY" },
+  "ops": [
+    { "op": "module", "id": "chassis", "x": 4, "z": 3, "y": 1, "params": { "width": 4, "length": 12, "axles": [1, 8], "size": "medium", "color": "BLACK" } },
+    { "op": "box", "x0": 4, "x1": 7, "z0": 3, "z1": 10, "y0": 6, "y1": 13, "color": "RED" },
+    { "op": "box", "x0": 4, "x1": 7, "z0": 11, "z1": 14, "y0": 6, "y1": 18, "color": "RED" },
+    { "op": "module", "id": "bracketMount", "x": 4, "z": 14, "y": 8, "params": { "face": "front", "part": "2412", "dir": "down", "color": "RED", "partColor": "DARK_GREY" } },
+    { "op": "module", "id": "bracketMount", "x": 6, "z": 14, "y": 8, "params": { "face": "front", "part": "2412", "dir": "down", "color": "RED", "partColor": "DARK_GREY" } },
+    { "op": "module", "id": "headlight", "x": 4, "z": 14, "y": 9, "params": { "face": "front", "color": "RED", "lens": "TRANS_CLEAR" } },
+    { "op": "module", "id": "headlight", "x": 7, "z": 14, "y": 9, "params": { "face": "front", "color": "RED", "lens": "TRANS_CLEAR" } },
+    { "op": "module", "id": "realWindow", "x": 4, "z": 14, "y": 12, "params": { "size": "1x2x2", "face": "front", "frameColor": "BLACK", "glassColor": "TRANS_CLEAR" } },
+    { "op": "module", "id": "realWindow", "x": 6, "z": 14, "y": 12, "params": { "size": "1x2x2", "face": "front", "frameColor": "BLACK", "glassColor": "TRANS_CLEAR" } },
+    { "op": "module", "id": "realWindow", "x": 7, "z": 13, "y": 12, "params": { "size": "1x2x2", "face": "right", "frameColor": "BLACK", "glassColor": "TRANS_CLEAR" } },
+    { "op": "module", "id": "realWindow", "x": 4, "z": 12, "y": 12, "params": { "size": "1x2x2", "face": "left", "frameColor": "BLACK", "glassColor": "TRANS_CLEAR" } },
+    { "op": "part", "id": "3023", "color": "TRANS_BLUE", "x": 5, "z": 12, "y": 19, "rotY": 1 },
+    { "op": "part", "id": "4477", "color": "LIGHT_GREY", "x": 4, "z": 1, "y": 14 },
+    { "op": "part", "id": "4477", "color": "LIGHT_GREY", "x": 7, "z": 1, "y": 14 },
+    { "op": "part", "id": "3710", "color": "LIGHT_GREY", "x": 4, "z": 2, "y": 15, "rotY": 1 },
+    { "op": "part", "id": "3710", "color": "LIGHT_GREY", "x": 4, "z": 5, "y": 15, "rotY": 1 },
+    { "op": "part", "id": "3710", "color": "LIGHT_GREY", "x": 4, "z": 8, "y": 15, "rotY": 1 },
+    { "op": "module", "id": "realWindow", "x": 7, "z": 8, "y": 7, "params": { "size": "1x2x2", "face": "right", "frameColor": "DARK_GREY", "glassColor": "TRANS_CLEAR" } },
+    { "op": "module", "id": "realWindow", "x": 7, "z": 5, "y": 7, "params": { "size": "1x2x2", "face": "right", "frameColor": "DARK_GREY", "glassColor": "TRANS_CLEAR" } },
+    { "op": "module", "id": "realWindow", "x": 4, "z": 4, "y": 7, "params": { "size": "1x2x2", "face": "left", "frameColor": "DARK_GREY", "glassColor": "TRANS_CLEAR" } },
+    { "op": "module", "id": "realWindow", "x": 4, "z": 7, "y": 7, "params": { "size": "1x2x2", "face": "left", "frameColor": "DARK_GREY", "glassColor": "TRANS_CLEAR" } },
+    { "op": "module", "id": "headlight", "x": 4, "z": 3, "y": 6, "params": { "face": "back", "color": "RED", "lens": "TRANS_RED" } },
+    { "op": "module", "id": "headlight", "x": 7, "z": 3, "y": 6, "params": { "face": "back", "color": "RED", "lens": "TRANS_RED" } }
+  ]
+}

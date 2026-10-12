@@ -5,6 +5,9 @@
 // grid is tiled into real bricks and plates (forge-grid.js), and the result
 // is named and described from what was actually built. The same prompt always
 // forges the same model; a different `variant` re-rolls the random choices.
+// With the real-set knowledge loaded (knowledge.js) a subject with no colour
+// words takes the palette real sets of it use, and a model with no size word is
+// forged once more at a nudged scale when its piece count is far from theirs.
 class BrickGenerator {
     constructor() {
         // Only unambiguous colour words: "forest", "rose" or "stone" are subjects, not colours.
@@ -79,12 +82,16 @@ class BrickGenerator {
         for (const [id, s] of Object.entries(this.styles)) if (s.words.some((w) => has(w))) { style = id; break; }
         let scale = 1.25, scaleWord = null;   // a little chunkier than minimum by default
         for (const w of words) if (this.scaleWords[w]) { scale = this.scaleWords[w]; scaleWord = w; }
+        // No size word: the real-set calibration (see calibrate) may be re-forging at a nudged scale.
+        if (!scaleWord && this._scaleNudge && this._scaleNudge !== 1) scale = Math.max(0.6, Math.min(1.8, scale * this._scaleNudge));
         // "bakery with a garden" is a bakery: the subject comes before the first preposition.
         const m = text.match(/^(.*?)\s(with|on|in|near|at|by|under|over|beside|next to|from|eating|holding|carrying|riding|wearing|behind|above|inside)\s/);
         const subject = m ? m[1] : text;
         // "minifig scale house", "cafe for minifigs": buildings sized for figures (see forgeOne).
         const minifig = has('minifig', 'minifigure', 'minifig scale', 'for minifigs', 'for minifigures');
-        return { text, words, has, colors, style, scale, scaleWord, subject, minifig };
+        // What real sets of this subject are made of (null without the knowledge file or a match).
+        const knowledge = this.knowledgeFor(text);
+        return { text, words, has, colors, style, scale, scaleWord, subject, minifig, knowledge };
     }
 
     /**
@@ -116,9 +123,106 @@ class BrickGenerator {
 
     palette(parsed) {
         const P = { primary: 'RED', secondary: 'WHITE', accent: 'YELLOW', trim: 'LIGHT_GREY', glass: 'TRANS_BLUE', dark: 'DARK_GREY', metal: 'LIGHT_GREY', wood: 'BROWN', ground: 'GREEN', light: 'TRANS_ORANGE', roof: 'DARK_RED', water: 'TRANS_BLUE', leaf: 'GREEN', explicit: false };
+        // Layers, each one winning over the last: generic defaults, what real sets of the subject are
+        // coloured like, a style word ("haunted"), then the colours the prompt names outright.
+        if (parsed.knowledge && !parsed.colors.length) Object.assign(P, this.knowledgePalette(parsed.knowledge) || {});
         if (parsed.style) Object.assign(P, this.styles[parsed.style].P);
         if (parsed.colors.length) { P.explicit = true; P.primary = parsed.colors[0]; if (parsed.colors[1]) P.secondary = parsed.colors[1]; if (parsed.colors[2]) P.accent = parsed.colors[2]; if (parsed.colors[0] === 'GREEN' || parsed.colors[0] === 'LIME') P.ground = 'TAN'; }
         return P;
+    }
+
+    /* ── real-set knowledge ──────────────────────────────────── */
+
+    /** The knowledge entry (knowledge.js) for a prompt, or null when the file is missing or nothing matches. */
+    knowledgeFor(text) {
+        const K = window.FORGE && window.FORGE.knowledge;
+        if (!K || !K.ready) return null;
+        try { return K.subjectFor(text) || null; } catch (e) { return null; }
+    }
+
+    /**
+     * Palette roles from a subject's real-set palette ([[colorId, share], ...], best first).
+     * Deterministic. Black and dark grey are structural (tyres, chassis, baseplates) and only
+     * become the body colour when they truly dominate; a light neutral (white, light grey, tan)
+     * is the body when no real colour reaches 55% of its share, which is how castles come out
+     * light grey, rockets white and fire trucks red. Returns null when there is nothing usable.
+     */
+    knowledgePalette(entry) {
+        const pal = (entry && entry.palette || []).filter(([c, s]) => window.LEGO_COLORS[c] && s > 0);
+        if (!pal.length) return null;
+        const share = (c) => { const e = pal.find((x) => x[0] === c); return e ? e[1] : 0; };
+        const DARKS = ['BLACK', 'DARK_GREY'], LIGHTS = ['WHITE', 'LIGHT_GREY', 'TAN'];
+        const isTrans = (c) => c.startsWith('TRANS_');
+        const isNeutral = (c) => DARKS.includes(c) || LIGHTS.includes(c);
+        const chroma = pal.map(([c]) => c).filter((c) => !isNeutral(c) && !isTrans(c) && c !== 'BROWN');   // brown is the wood role, not an accent
+        const topChroma = chroma[0] || (pal.some(([c]) => c === 'BROWN') ? 'BROWN' : null);
+        const topLight = LIGHTS.map((c) => [c, share(c)]).sort((a, b) => b[1] - a[1])[0];
+        const topDark = DARKS.map((c) => [c, share(c)]).sort((a, b) => b[1] - a[1])[0];
+        let primary = topChroma;
+        if (topDark[1] > 0.4) primary = topDark[0];
+        else if (topLight[1] > 0.4 || !topChroma || share(topChroma) < 0.55 * topLight[1]) primary = topLight[1] > 0 ? topLight[0] : topChroma;
+        if (!primary) return null;
+        const P = { primary };
+        // Secondary: the next real or light colour by share (darks are the `dark` role, not a second body colour).
+        const secondary = pal.map(([c]) => c).find((c) => c !== primary && !isTrans(c) && !DARKS.includes(c));
+        if (secondary) P.secondary = secondary;
+        // Accent: the brightest remaining colour, or any remaining real colour.
+        const rest = chroma.filter((c) => c !== primary && c !== secondary);
+        const BRIGHT = ['YELLOW', 'ORANGE', 'RED', 'LIME', 'PINK', 'GOLD'];
+        const accent = rest.find((c) => BRIGHT.includes(c)) || rest[0];
+        if (accent) P.accent = accent;
+        // Greys: dark, trim and metal, by how much real sets use them.
+        const greys = pal.map(([c]) => c).filter((c) => isNeutral(c) && c !== primary && c !== secondary);
+        const dark = greys.find((c) => c === 'BLACK') || greys.find((c) => c === 'DARK_GREY') || greys[0];
+        if (dark) P.dark = dark;
+        const trim = greys.find((c) => c !== dark);
+        if (trim) P.trim = trim;
+        if (share('LIGHT_GREY')) P.metal = 'LIGHT_GREY'; else if (share('DARK_GREY')) P.metal = 'DARK_GREY';
+        if (share('BROWN')) P.wood = 'BROWN';
+        // Transparent parts: clear or blue glass, orange lights.
+        const trans = pal.map(([c]) => c).filter(isTrans);
+        P.glass = trans.find((c) => c === 'TRANS_CLEAR') || trans.find((c) => c === 'TRANS_BLUE') || trans[0] || 'TRANS_BLUE';
+        if (trans.includes('TRANS_ORANGE')) P.light = 'TRANS_ORANGE';
+        if (primary === 'GREEN' || primary === 'LIME') P.ground = 'TAN';   // a green body on green grass would vanish
+        return P;
+    }
+
+    /** What a builder may read as ctx.knowledge: the subject id, its piece-count percentiles, palette and top parts. */
+    knowledgeCtx(entry) {
+        if (!entry) return null;
+        return { subject: entry.id, key: entry.key || null, n: entry.n, pieces: entry.pieces || null, palette: entry.palette || [], parts: entry.parts || [] };
+    }
+
+    /**
+     * Size calibration against real sets. `forge` is the plain forge: run it once and, when the
+     * prompt gives no size (no size word, no opts.scale, no brief scale, not minifig scale), compare
+     * the piece count with the subject's real sets: far under the median (< p50/2) re-forges once at
+     * scale x1.25, far over the upper quartile (> 2*p75) once at x0.8. One retry at most, same seed,
+     * so a prompt still forges the same model every time. Scenes keep their size (two subjects add up).
+     * Every model gets `model.knowledge` ({ subject, key, n, pieces, palette, wanted, calibration }) or null.
+     */
+    calibrate(forge, promptText, variant, opts) {
+        const nudged = (k) => { this._scaleNudge = k; try { return forge.call(this, promptText, variant, opts); } finally { this._scaleNudge = 1; } };
+        let model = nudged(1);
+        const brief = opts.brief || null;
+        const parsed = this.parse(brief && brief.subject ? brief.subject : promptText);
+        const K = parsed.knowledge, pcs = K && K.pieces;
+        let calibration = null;
+        const minifig = parsed.minifig || !!(opts.features && opts.features.minifig) || !!(brief && brief.features && brief.features.minifig);
+        const sized = parsed.scaleWord || typeof opts.scale === 'number' || (brief && typeof brief.scale === 'number') || minifig || !!opts.blueprint;
+        if (pcs && !sized && model && model.bricks && model.kind !== 'scene' && model.kind !== 'monogram') {
+            const n = model.bricks.length, s = parsed.scale;
+            const k = n < 0.5 * pcs.p50 && s < 1.5 ? 1.25 : n > 2 * pcs.p75 && s > 0.8 ? 0.8 : 0;
+            if (k) {
+                // Builders with fixed footprints may not grow at all; then the first forge stands (smaller scale, same model).
+                const again = nudged(k), to = again.bricks.length;
+                const kept = k > 1 ? to > n : to < n;
+                calibration = { from: n, to, scale: [s, Math.max(0.6, Math.min(1.8, s * k))], kept };
+                if (kept) model = again;
+            }
+        }
+        if (model && typeof model === 'object') model.knowledge = K ? { subject: K.id, key: K.key || null, n: K.n, pieces: K.pieces || null, palette: K.palette || [], wanted: (K.wanted || []).slice(0, 5), calibration } : null;
+        return model;
     }
 
     /* ── forging ─────────────────────────────────────────────── */
@@ -132,6 +236,9 @@ class BrickGenerator {
      * The model reports the options the builder declared in `model.options`.
      */
     generateFromPrompt(promptText, variant = 0, opts = {}) {
+        // A blueprint (a design Claude wrote, see blueprint.js) is assembled as it is; an invalid one falls through
+        // to the ordinary paths, so the caller always gets a model.
+        if (opts.blueprint && window.FORGE.blueprint) { const designed = this.forgeBlueprint(promptText, variant, opts); if (designed) return designed; }
         const brief = opts.brief || null;
         // "lighthouse next to a pirate ship": two or three ideas, each built by its own builder, on one plate.
         if (!(brief && brief.subject)) { const scene = this.combine(promptText, variant, opts); if (scene) return scene; }
@@ -152,6 +259,43 @@ class BrickGenerator {
             title: one.result.title, features: one.result.features, lead: brief && brief.description ? String(brief.description).slice(0, 220) + ' ' : null,
             options, palette: one.P, opts: { colors: opts.colors || {}, scale: opts.scale || null, features }, brief, matchKey: one.key,
         });
+    }
+
+    /**
+     * Build a model from a blueprint (`opts.blueprint`, the format in blueprint.js) instead of a builder: the
+     * ops run on a fresh grid through the same helpers and modules the builders use, then the usual assemble
+     * (tiling + anchoring) makes it a model of kind 'blueprint' carrying the design as `model.blueprint`.
+     * Returns null when the blueprint does not validate.
+     */
+    forgeBlueprint(promptText, variant, opts) {
+        const B = window.FORGE.blueprint, H = window.FORGE.helpers;
+        const v = B.validate(opts.blueprint);
+        if (!v.ok) { console.warn('StudForge: blueprint rejected:', v.errors.join('; ')); return null; }
+        const bp = v.bp, parsed = this.parse(promptText);
+        const seed = (this.hash(parsed.text + '|' + bp.name) + variant * 7919) >>> 0;
+        const rnd = this.rng(seed || 1);
+        // The design's own colours become the palette roles the modules fall back to.
+        const P = this.palette(parsed), used = [];
+        for (const op of bp.ops) { const c = op.color || (op.params && op.params.color); if (c && !used.includes(c)) used.push(c); }
+        if (used[0]) P.primary = used[0]; if (used[1]) P.secondary = used[1]; if (used[2]) P.accent = used[2];
+        P.ground = bp.base.color;
+        const ctx = {
+            P, rnd, pick: (a) => a[Math.floor(rnd() * a.length)], chance: (p) => rnd() < p,
+            S: 1, sc: (n) => Math.max(1, Math.round(n)), style: parsed.style, has: parsed.has, words: parsed.words,
+            match: 'blueprint', prompt: promptText, explicitColors: parsed.colors, minifig: false,
+            declare: (o) => o.default, opt: (id, dflt) => dflt,
+        };
+        const built = B.build(bp, ctx);
+        if (built.warnings.length) console.warn('StudForge: blueprint ops skipped:', built.warnings.join('; '));
+        H.dress({ g: built.g, P, rnd, chance: ctx.chance, pick: ctx.pick });
+        const model = this.assemble(built.g, {
+            id: `forge-${seed.toString(36)}`, name: bp.name, category: bp.category || 'Custom Creation', icon: '✨', kind: 'blueprint', prompt: promptText, variant, seed,
+            title: bp.name, features: built.feats, lead: bp.description ? bp.description + ' ' : null,
+            options: [], palette: P, opts: { colors: opts.colors || {}, scale: opts.scale || null, features: opts.features || {} }, brief: opts.brief || null, matchKey: 'blueprint',
+        });
+        model.blueprint = bp;
+        model.warnings = built.warnings;
+        return model;
     }
 
     /**
@@ -188,6 +332,8 @@ class BrickGenerator {
             g, P, rnd, pick: (a) => a[Math.floor(rnd() * a.length)], chance: (p) => rnd() < p,
             S: scale, sc: (n) => Math.max(1, Math.round(n * scale)), style: parsed.style, has: parsed.has, words: parsed.words,
             match: key, prompt: promptText, explicitColors: parsed.colors, minifig,
+            // What real sets of this subject are made of ({ subject, key, n, pieces, palette, parts }), or null.
+            knowledge: this.knowledgeCtx(parsed.knowledge),
             // A builder declares the choices it offers ({ id, label, type: 'bool'|'choice', default, choices }) and reads the answer with opt().
             declare, opt: (id, dflt) => (features[id] !== undefined ? features[id] : dflt),
         };
@@ -378,6 +524,16 @@ class BrickGenerator {
         if (!parts.length) parts.push(this.epithets[(this.hash(parsed.text) + variant) % this.epithets.length]);
         return parts.join(' ') + ' ' + title;
     }
+}
+
+// Real-set calibration wraps the plain forge (see calibrate): forge, compare the piece count with
+// real sets of the subject, re-forge once at a nudged scale when it is far off, and attach
+// `model.knowledge`. Kept outside generateFromPrompt so the builder dispatch stays untouched.
+{
+    const forgePlain = BrickGenerator.prototype.generateFromPrompt;
+    BrickGenerator.prototype.generateFromPrompt = function (promptText, variant = 0, opts = {}) {
+        return this.calibrate(forgePlain, promptText, variant, opts || {});
+    };
 }
 
 window.BrickGenerator = BrickGenerator;
