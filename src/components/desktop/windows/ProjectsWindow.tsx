@@ -118,7 +118,8 @@ export default function ProjectsWindow() {
       id: project.id,
       title: project.name,
       isMinimized: false,
-      isMaximized: false,
+      // StudForge needs the whole screen on a phone.
+      isMaximized: isMobile && project.id === 'studforge',
       position: { x: centerX, y: centerY },
       size: windowSize,
       content: project.windowContent,
@@ -135,12 +136,15 @@ export default function ProjectsWindow() {
             <div
               key={project.id}
               className="flex flex-col items-center gap-1 w-24 cursor-pointer group p-1 rounded hover:bg-[var(--selection-bg)] hover:bg-opacity-20 transition-colors"
-              onClick={() => {
+              onClick={(e) => {
                 if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                  // Don't let the click bubble to the folder window, which would
+                  // re-focus it on top of the window we just opened.
+                  e.stopPropagation();
                   handleDoubleClick(project);
                 }
               }}
-              onDoubleClick={() => handleDoubleClick(project)}
+              onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClick(project); }}
             >
               <div className="p-1">
                 {project.icon}

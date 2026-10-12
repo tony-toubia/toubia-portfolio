@@ -45,9 +45,9 @@ export default function StudForgeWindow() {
         />
       </div>
 
-      {/* Status bar */}
-      <div className="flex items-center justify-between px-2 py-1 border-t border-[var(--button-highlight)] bg-[var(--button-face)]">
-        <span className="text-xs text-[var(--window-text)]">Describe ideas | Inspect 3D exploded view | Export BrickLink BOM</span>
+      {/* Status bar (hidden on phones to give the app the room) */}
+      <div className="hidden sm:flex items-center justify-between px-2 py-1 border-t border-[var(--button-highlight)] bg-[var(--button-face)]">
+        <span className="text-xs text-[var(--window-text)]">Describe any idea | Exploded view & build steps | Export BrickLink BOM</span>
         <span className="text-xs text-[var(--window-text)]">🧱 🚀 🏰 🏎️</span>
       </div>
     </div>

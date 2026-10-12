@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>StudForge | 3D LEGO® Blueprint & Idea Maker</title>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=2">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -45,13 +45,14 @@
                 <input 
                     type="text" 
                     id="input-prompt" 
-                    placeholder="Describe any LEGO idea (e.g. 'Micro yellow submarine', 'A cozy lighthouse on rocky shore', 'Cyberpunk speeder')..."
+                    placeholder="Describe any LEGO idea: 'cozy bakery with a garden', 'giant red dragon', 'cyberpunk hover speeder'..."
                     autocomplete="off"
                     spellcheck="false"
                 />
                 <button id="btn-generate" class="forge-btn">
                     <span>⚡</span> FORGE IDEA
                 </button>
+                <button id="btn-surprise" class="forge-btn surprise" title="A random idea">🎲</button>
             </div>
 
             <!-- Inspire Me Pills -->
@@ -76,6 +77,7 @@
                         <span id="model-badge" class="badge-pill">🚀 SPACE</span>
                         <span id="model-piece-count" class="badge-pill highlight">14 BRICKS</span>
                         <span id="model-est-time" class="badge-pill">⏱️ 20 MINS</span>
+                        <span id="model-dims" class="badge-pill dims"></span>
                     </div>
                     <h2 id="model-title" class="active-model-title">Apollo Micro Rocket</h2>
                     <p id="model-desc" class="active-model-desc">Multi-stage Saturn V exploration rocket with umbilical gantry tower.</p>
@@ -104,7 +106,7 @@
                     <!-- Step-by-Step Assembly Stepper -->
                     <div class="studio-tool-group">
                         <div class="tool-label-row">
-                            <span class="tool-name">🛠️ STEP-BY-STEP BUILD</span>
+                            <span class="tool-name">🛠️ STEP-BY-STEP BUILD <span id="val-step-hint" class="tool-hint"></span></span>
                             <span id="val-step" class="tool-val">STEP 1 / 1</span>
                         </div>
                         <div class="step-controls-row">
@@ -121,8 +123,11 @@
                 </div>
             </div>
 
+            <!-- On phones the parts list folds away under this button -->
+            <button id="btn-bom-toggle" class="bom-toggle">🧱 PARTS</button>
+
             <!-- Bill of Materials (BOM) & Parts List Panel -->
-            <aside class="bom-card">
+            <aside class="bom-card" id="bom-card">
                 <div class="bom-header">
                     <div>
                         <h3 class="bom-title">PARTS MANIFEST</h3>
@@ -167,17 +172,20 @@
 
     </main>
 
-    <!-- Three.js CDN -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Three.js r128, served with the site -->
+    <script src="vendor/three.min.js"></script>
 
     <!-- Modular App Scripts -->
-    <script src="js/colors.js"></script>
-    <script src="js/parts-catalog.js"></script>
-    <script src="js/brick-builder.js"></script>
-    <script src="js/models-db.js"></script>
-    <script src="js/generator.js"></script>
-    <script src="js/audio.js"></script>
-    <script src="js/viewer.js"></script>
-    <script src="js/main.js"></script>
+    <script src="js/colors.js?v=2"></script>
+    <script src="js/parts-catalog.js?v=2"></script>
+    <script src="js/brick-builder.js?v=2"></script>
+    <script src="js/forge-grid.js?v=2"></script>
+    <script src="js/forge-builders.js?v=2"></script>
+    <script src="js/forge-builders-2.js?v=2"></script>
+    <script src="js/models-db.js?v=2"></script>
+    <script src="js/generator.js?v=2"></script>
+    <script src="js/audio.js?v=2"></script>
+    <script src="js/viewer.js?v=2"></script>
+    <script src="js/main.js?v=2"></script>
 </body>
 </html>

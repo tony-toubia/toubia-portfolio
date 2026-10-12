@@ -1,293 +1,147 @@
-// Natural Language Prompt to LEGO Brick Model Procedural Generator
+// Natural language prompt -> LEGO blueprint.
+//
+// The prompt is read for its subject (which picks a builder), colours, a
+// style, a scale and any extra wishes. The builder paints a stud grid, the
+// grid is tiled into real bricks and plates (forge-grid.js), and the result
+// is named and described from what was actually built. The same prompt always
+// forges the same model; a different `variant` re-rolls the random choices.
 class BrickGenerator {
     constructor() {
-        this.colorKeywords = {
-            'red': 'RED', 'crimson': 'DARK_RED', 'ruby': 'DARK_RED',
-            'blue': 'BLUE', 'azure': 'BLUE', 'navy': 'DARK_BLUE',
-            'yellow': 'YELLOW', 'gold': 'GOLD', 'golden': 'GOLD',
-            'green': 'GREEN', 'lime': 'LIME', 'emerald': 'GREEN',
-            'orange': 'ORANGE', 'amber': 'ORANGE',
-            'white': 'WHITE', 'snow': 'WHITE',
-            'black': 'BLACK', 'shadow': 'BLACK', 'dark': 'DARK_GREY',
-            'grey': 'LIGHT_GREY', 'gray': 'LIGHT_GREY', 'silver': 'LIGHT_GREY',
-            'brown': 'BROWN', 'wood': 'BROWN', 'tan': 'TAN', 'sand': 'TAN',
-            'purple': 'PURPLE', 'violet': 'PURPLE', 'pink': 'PINK'
+        // Only unambiguous colour words: "forest", "rose" or "stone" are subjects, not colours.
+        this.colorWords = {
+            red: 'RED', crimson: 'DARK_RED', scarlet: 'RED', maroon: 'DARK_RED', burgundy: 'DARK_RED',
+            blue: 'BLUE', azure: 'BLUE', navy: 'DARK_BLUE', cobalt: 'DARK_BLUE', teal: 'BLUE', cyan: 'TRANS_BLUE', turquoise: 'BLUE',
+            yellow: 'YELLOW', gold: 'GOLD', golden: 'GOLD', lemon: 'YELLOW', mustard: 'YELLOW',
+            green: 'GREEN', lime: 'LIME', olive: 'GREEN', mint: 'LIME',
+            orange: 'ORANGE', amber: 'ORANGE', peach: 'ORANGE',
+            white: 'WHITE', ivory: 'WHITE', cream: 'TAN',
+            black: 'BLACK', charcoal: 'DARK_GREY', ebony: 'BLACK',
+            grey: 'LIGHT_GREY', gray: 'LIGHT_GREY', silver: 'LIGHT_GREY', chrome: 'LIGHT_GREY', slate: 'DARK_GREY',
+            brown: 'BROWN', wooden: 'BROWN', chocolate: 'BROWN', copper: 'BROWN', bronze: 'BROWN',
+            tan: 'TAN', beige: 'TAN', khaki: 'TAN',
+            purple: 'PURPLE', violet: 'PURPLE', lavender: 'PURPLE', magenta: 'PINK', pink: 'PINK',
         };
+        this.shortColor = { RED: 'Red', DARK_RED: 'Dark Red', BLUE: 'Blue', DARK_BLUE: 'Navy', YELLOW: 'Yellow', GOLD: 'Gold', GREEN: 'Green', LIME: 'Lime', ORANGE: 'Orange', WHITE: 'White', BLACK: 'Black', LIGHT_GREY: 'Grey', DARK_GREY: 'Dark Grey', BROWN: 'Brown', TAN: 'Tan', PURPLE: 'Purple', PINK: 'Pink', TRANS_BLUE: 'Neon Blue', TRANS_ORANGE: 'Amber', TRANS_RED: 'Ruby', TRANS_CLEAR: 'Crystal' };
+        // Words that name a whole family; a more specific key in the same prompt wins over them.
+        this.generic = new Set(['tree', 'house', 'car', 'boat', 'ship', 'plane', 'bird', 'fish', 'tower', 'figure', 'robot', 'space', 'truck', 'bike', 'flower', 'bug', 'vehicle', 'monster', 'person', 'man', 'woman', 'character', 'hero']);
+        this.styles = {
+            cyberpunk: { words: ['cyberpunk', 'cyber', 'neon', 'futuristic', 'sci-fi', 'scifi', 'hi-tech', 'high-tech', 'synthwave'], P: { primary: 'BLACK', secondary: 'DARK_GREY', accent: 'TRANS_BLUE', trim: 'PURPLE', glass: 'TRANS_BLUE', ground: 'DARK_GREY', roof: 'DARK_GREY', light: 'TRANS_BLUE' }, word: 'Cyber' },
+            medieval: { words: ['medieval', 'stone', 'castle', 'gothic', 'ancient', 'old', 'fantasy', 'kingdom', 'dungeon'], P: { primary: 'LIGHT_GREY', secondary: 'DARK_GREY', accent: 'DARK_RED', trim: 'BROWN', roof: 'DARK_RED' }, word: 'Medieval' },
+            steampunk: { words: ['steampunk', 'victorian', 'brass', 'clockwork'], P: { primary: 'BROWN', secondary: 'GOLD', accent: 'DARK_RED', trim: 'GOLD', metal: 'GOLD', roof: 'DARK_GREY' }, word: 'Steampunk' },
+            cozy: { words: ['cozy', 'cosy', 'rustic', 'alpine', 'country', 'quaint', 'charming', 'cottagecore', 'timber'], P: { primary: 'WHITE', secondary: 'BROWN', accent: 'RED', trim: 'BROWN', roof: 'DARK_RED' }, word: 'Cozy' },
+            modern: { words: ['modern', 'minimal', 'minimalist', 'sleek', 'contemporary', 'luxury', 'glass'], P: { primary: 'WHITE', secondary: 'LIGHT_GREY', accent: 'BLACK', trim: 'DARK_GREY', glass: 'TRANS_CLEAR', roof: 'DARK_GREY' }, word: 'Modern' },
+            haunted: { words: ['haunted', 'spooky', 'halloween', 'creepy', 'scary', 'ghostly', 'cursed', 'vampire'], P: { primary: 'BLACK', secondary: 'DARK_GREY', accent: 'PURPLE', trim: 'PURPLE', glass: 'TRANS_ORANGE', ground: 'DARK_GREY', roof: 'BLACK', leaf: 'DARK_GREY' }, word: 'Haunted' },
+            tropical: { words: ['tropical', 'beach', 'island', 'hawaiian', 'caribbean', 'seaside', 'coastal'], P: { primary: 'TAN', secondary: 'BLUE', accent: 'ORANGE', ground: 'TAN', water: 'TRANS_BLUE' }, word: 'Tropical' },
+            winter: { words: ['winter', 'snow', 'snowy', 'arctic', 'ice', 'icy', 'frozen', 'christmas', 'festive'], P: { primary: 'WHITE', secondary: 'BLUE', accent: 'RED', ground: 'WHITE', roof: 'WHITE', glass: 'TRANS_CLEAR' }, word: 'Winter' },
+            desert: { words: ['desert', 'egyptian', 'egypt', 'sahara', 'western', 'wild west'], P: { primary: 'TAN', secondary: 'BROWN', accent: 'GOLD', ground: 'TAN', roof: 'TAN' }, word: 'Desert' },
+            military: { words: ['military', 'army', 'camo', 'combat', 'battle', 'war'], P: { primary: 'GREEN', secondary: 'DARK_GREY', accent: 'TAN', ground: 'TAN' }, word: 'Military' },
+            racing: { words: ['racing', 'race', 'turbo', 'sport', 'sports', 'fast', 'speed'], P: { primary: 'RED', secondary: 'WHITE', accent: 'BLACK' }, word: 'Turbo' },
+            pastel: { words: ['pastel', 'candy', 'cute', 'kawaii', 'sweet', 'kids', 'cartoon'], P: { primary: 'PINK', secondary: 'LIME', accent: 'YELLOW', roof: 'PINK' }, word: 'Candy' },
+            fire: { words: ['fiery', 'lava', 'volcanic', 'flaming', 'inferno', 'hellish'], P: { primary: 'RED', secondary: 'ORANGE', accent: 'TRANS_ORANGE', ground: 'DARK_GREY', roof: 'BLACK' }, word: 'Inferno' },
+            ocean: { words: ['ocean', 'sea', 'underwater', 'nautical', 'marine', 'deep sea', 'aquatic'], P: { primary: 'BLUE', secondary: 'WHITE', accent: 'TRANS_BLUE', ground: 'TAN', water: 'TRANS_BLUE' }, word: 'Nautical' },
+            space: { words: ['galactic', 'orbital', 'martian', 'interstellar', 'cosmic'], P: { primary: 'WHITE', secondary: 'DARK_GREY', accent: 'TRANS_BLUE', ground: 'LIGHT_GREY' }, word: 'Galactic' },
+            royal: { words: ['royal', 'regal', 'imperial', 'golden', 'majestic'], P: { primary: 'PURPLE', secondary: 'GOLD', accent: 'DARK_RED', trim: 'GOLD', roof: 'DARK_BLUE' }, word: 'Royal' },
+        };
+        this.scaleWords = { micro: 0.7, tiny: 0.7, mini: 0.75, small: 0.8, little: 0.8, pocket: 0.7, big: 1.3, large: 1.3, tall: 1.25, huge: 1.5, giant: 1.6, massive: 1.6, mega: 1.6, epic: 1.5, enormous: 1.6, colossal: 1.6, jumbo: 1.5 };
+        this.epithets = ['Harbour', 'Summit', 'Ember', 'Nova', 'Falcon', 'Meadow', 'Thunder', 'Willow', 'Atlas', 'Comet', 'Juniper', 'Ridge', 'Lantern', 'Raven', 'Maple', 'Coral', 'Onyx', 'Pioneer', 'Zephyr', 'Sable'];
     }
 
-    generateFromPrompt(promptText) {
-        const text = (promptText || '').toLowerCase().trim();
+    /* ── seeded randomness ───────────────────────────────────── */
 
-        // 1. Direct match with inspiration library
-        for (const preset of window.INSPIRATION_MODELS) {
-            if (text.includes(preset.id) || text.includes(preset.name.toLowerCase())) {
-                return JSON.parse(JSON.stringify(preset));
+    hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+    rng(seed) { let s = seed || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return (s % 100000) / 100000; }; }
+
+    /* ── reading the prompt ──────────────────────────────────── */
+
+    parse(prompt) {
+        const text = (prompt || '').toLowerCase().replace(/[^a-z0-9\s'-]/g, ' ').replace(/\s+/g, ' ').trim();
+        const words = text.split(' ').filter(Boolean);
+        const singular = (w) => (w.length > 4 && w.endsWith('ies') ? w.slice(0, -3) + 'y' : w.length > 3 && w.endsWith('es') && !w.endsWith('ses') ? w.slice(0, -2) : w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w);
+        const forms = new Set(words.concat(words.map(singular)));
+        const padded = ' ' + text + ' ' + words.map(singular).join(' ') + ' ';
+        const has = (...keys) => keys.some((k) => (k.includes(' ') || k.includes('-') ? padded.includes(' ' + k + ' ') : forms.has(k)));
+        const colors = [];
+        for (const w of words) { const c = this.colorWords[w]; if (c && !colors.includes(c)) colors.push(c); }
+        let style = null;
+        for (const [id, s] of Object.entries(this.styles)) if (s.words.some((w) => has(w))) { style = id; break; }
+        let scale = 1.25, scaleWord = null;   // a little chunkier than minimum by default
+        for (const w of words) if (this.scaleWords[w]) { scale = this.scaleWords[w]; scaleWord = w; }
+        // "bakery with a garden" is a bakery: the subject comes before the first preposition.
+        const m = text.match(/^(.*?)\s(with|on|in|near|at|by|under|over|beside|next to|from|eating|holding|carrying|riding|wearing|behind|above|inside)\s/);
+        const subject = m ? m[1] : text;
+        return { text, words, has, colors, style, scale, scaleWord, subject };
+    }
+
+    /**
+     * Pick the builder whose key best matches. Longer and multi-word keys win
+     * ("fire truck" over "fire" and "truck"), the last word of a compound is
+     * the head noun ("table lamp" is a lamp, "tree frog" a frog), and family
+     * words like "tree" lose to anything more specific.
+     */
+    pickBuilder(parsed) {
+        let best = null, bestScore = -Infinity, bestKey = null;
+        const subjWords = parsed.subject.split(' '), last = subjWords[subjWords.length - 1] || '';
+        const inSubject = (k) => (' ' + parsed.subject + ' ').includes(' ' + k + ' ') || (' ' + parsed.subject + ' ').includes(' ' + k + 's ');
+        for (const b of window.FORGE.builders) {
+            for (const k of b.keys) {
+                if (!parsed.has(k)) continue;
+                const score = k.length + (k.includes(' ') ? 4 : 0) - (this.generic.has(k) ? 3 : 0) + (inSubject(k) ? 6 : 0) + (last === k || last === k + 's' || k.endsWith(' ' + last) ? 2 : 0) - parsed.text.indexOf(k) / 100;
+                if (score > bestScore) { best = b; bestScore = score; bestKey = k; }
             }
         }
-
-        // 2. Extract primary & secondary colors from prompt
-        let primaryColor = 'RED';
-        let secondaryColor = 'WHITE';
-        let accentColor = 'YELLOW';
-
-        const words = text.split(/\s+/);
-        const detectedColors = [];
-        for (const w of words) {
-            if (this.colorKeywords[w] && !detectedColors.includes(this.colorKeywords[w])) {
-                detectedColors.push(this.colorKeywords[w]);
-            }
-        }
-
-        if (detectedColors.length > 0) primaryColor = detectedColors[0];
-        if (detectedColors.length > 1) secondaryColor = detectedColors[1];
-        if (detectedColors.length > 2) accentColor = detectedColors[2];
-
-        // 3. Archetype classification
-        if (text.includes('sub') || text.includes('submarine') || text.includes('underwater')) {
-            return this.buildSubmarine(primaryColor === 'RED' ? 'YELLOW' : primaryColor);
-        }
-        if (text.includes('ship') || text.includes('boat') || text.includes('yacht') || text.includes('vessel')) {
-            return this.buildBoat(primaryColor, secondaryColor);
-        }
-        if (text.includes('speeder') || text.includes('hover') || text.includes('future') || text.includes('cyber')) {
-            return this.buildCyberSpeeder(primaryColor, secondaryColor);
-        }
-        if (text.includes('pyramid') || text.includes('monument') || text.includes('egypt')) {
-            return this.buildPyramid(primaryColor === 'RED' ? 'TAN' : primaryColor);
-        }
-        if (text.includes('house') || text.includes('cabin') || text.includes('cottage') || text.includes('villa')) {
-            return this.buildCozyCottage(primaryColor, secondaryColor);
-        }
-        if (text.includes('sword') || text.includes('blade') || text.includes('dagger')) {
-            return this.buildPixelSword(primaryColor, secondaryColor);
-        }
-        if (text.includes('camera') || text.includes('vintage') || text.includes('lens')) {
-            return this.buildVintageCamera();
-        }
-        if (text.includes('ufo') || text.includes('alien') || text.includes('saucer')) {
-            return this.buildSaucer(primaryColor);
-        }
-
-        // 4. General Procedural Architectural Sculpture
-        return this.buildProceduralCreation(promptText, primaryColor, secondaryColor, accentColor);
+        return { builder: best, key: bestKey };
     }
 
-    buildSubmarine(hullColor = 'YELLOW') {
-        return {
-            id: 'custom-submarine',
-            name: `Micro ${window.LEGO_COLORS[hullColor].name} Submarine`,
-            category: 'Vehicles',
-            icon: '🌊',
-            difficulty: 'Intermediate',
-            estTime: '20 mins',
-            description: 'Exploration submersible with rounded bow, viewing ports, conning tower, and twin observation periscopes.',
-            bricks: [
-                // Keel & Base
-                { partId: '3020', color: 'DARK_GREY', x: 0, y: 0, z: 0, rotY: 0, layer: 0 },
-                // Lower Hull
-                { partId: '3001', color: hullColor, x: 0, y: 0.4, z: 0, rotY: 0, layer: 1 },
-                { partId: '3003', color: hullColor, x: 0, y: 0.4, z: 2.5, rotY: 0, layer: 1 },
-                // Bow & Stern Slopes
-                { partId: '3039', color: hullColor, x: 0, y: 1.6, z: 2.5, rotY: Math.PI, layer: 2 },
-                { partId: '3004', color: hullColor, x: 0, y: 1.6, z: 0.5, rotY: 0, layer: 2 },
-                { partId: '3004', color: hullColor, x: 0, y: 1.6, z: -1.0, rotY: 0, layer: 2 },
-                // Conning Tower
-                { partId: '3003', color: hullColor, x: 0, y: 2.8, z: 0, rotY: 0, layer: 3 },
-                // Periscope Mast
-                { partId: '3062', color: 'LIGHT_GREY', x: 0, y: 4.0, z: 0, rotY: 0, layer: 4 },
-                { partId: '3024', color: 'TRANS_BLUE', x: 0, y: 5.2, z: 0.4, rotY: 0, layer: 5 },
-                // Propeller Stern Thruster
-                { partId: '4589', color: 'BLACK', x: 0, y: 0.8, z: -2.2, rotY: -Math.PI / 2, layer: 1 }
-            ]
-        };
+    palette(parsed) {
+        const P = { primary: 'RED', secondary: 'WHITE', accent: 'YELLOW', trim: 'LIGHT_GREY', glass: 'TRANS_BLUE', dark: 'DARK_GREY', metal: 'LIGHT_GREY', wood: 'BROWN', ground: 'GREEN', light: 'TRANS_ORANGE', roof: 'DARK_RED', water: 'TRANS_BLUE', leaf: 'GREEN', explicit: false };
+        if (parsed.style) Object.assign(P, this.styles[parsed.style].P);
+        if (parsed.colors.length) { P.explicit = true; P.primary = parsed.colors[0]; if (parsed.colors[1]) P.secondary = parsed.colors[1]; if (parsed.colors[2]) P.accent = parsed.colors[2]; if (parsed.colors[0] === 'GREEN' || parsed.colors[0] === 'LIME') P.ground = 'TAN'; }
+        return P;
     }
 
-    buildBoat(hullColor = 'WHITE', cabinColor = 'BLUE') {
-        return {
-            id: 'custom-boat',
-            name: 'Coastal Patrol Cruiser',
-            category: 'Vehicles',
-            icon: '🛥️',
-            difficulty: 'Intermediate',
-            estTime: '20 mins',
-            description: 'V-shaped planing hull cutter with enclosed wheelhouse, radar dome, and aft boarding deck.',
-            bricks: [
-                { partId: '3020', color: 'DARK_BLUE', x: 0, y: 0, z: 0, rotY: 0, layer: 0 },
-                { partId: '3001', color: hullColor, x: 0, y: 0.4, z: 0, rotY: 0, layer: 1 },
-                { partId: '3039', color: hullColor, x: 0, y: 1.6, z: 2.0, rotY: Math.PI, layer: 2 },
-                { partId: '3004', color: cabinColor, x: 0, y: 1.6, z: 0, rotY: 0, layer: 2 },
-                { partId: '3068', color: 'WHITE', x: 0, y: 2.8, z: 0, rotY: 0, layer: 3 },
-                { partId: '98138', color: 'TRANS_ORANGE', x: 0, y: 3.2, z: 0, rotY: 0, layer: 4 }
-            ]
+    /* ── forging ─────────────────────────────────────────────── */
+
+    generateFromPrompt(promptText, variant = 0) {
+        const parsed = this.parse(promptText);
+        const seed = (this.hash(parsed.text) + variant * 7919) >>> 0;
+        const rnd = this.rng(seed || 1);
+        const { builder, key } = this.pickBuilder(parsed);
+        const g = new window.ForgeGrid();
+        const ctx = {
+            g, P: this.palette(parsed), rnd, pick: (a) => a[Math.floor(rnd() * a.length)], chance: (p) => rnd() < p,
+            S: parsed.scale, sc: (n) => Math.max(1, Math.round(n * parsed.scale)), style: parsed.style, has: parsed.has, words: parsed.words,
+            match: key, prompt: promptText, explicitColors: parsed.colors,
         };
+        let result, kind, category, icon;
+        if (builder) { result = builder.build(ctx); kind = builder.kind; category = builder.category; icon = builder.icon; window.FORGE.helpers.dress(ctx); }
+        else {
+            const letters = window.FORGE.helpers.monogram(ctx, promptText);
+            result = { title: `"${letters}" Monogram`, features: ['the idea\'s initials as a pixel wall', 'a tiled plinth'] };
+            kind = 'monogram'; category = 'Custom Creation'; icon = '✨';
+        }
+        const bricks = g.tile();
+        const b = g.bounds();
+        const steps = new Set(bricks.map((p) => p.layer)).size;
+        const pieces = bricks.length;
+        const difficulty = pieces < 60 ? 'Beginner' : pieces < 140 ? 'Intermediate' : pieces < 260 ? 'Advanced' : 'Master Builder';
+        const mins = Math.max(10, Math.round(pieces * 0.11 / 5) * 5);
+        const name = this.name(parsed, result.title, variant);
+        const w = b.x1 - b.x0 + 1, d = b.z1 - b.z0 + 1, h = b.y1 - b.y0 + 1;
+        const feats = result.features.slice(0, 5);
+        const list = feats.length > 1 ? feats.slice(0, -1).join(', ') + ' and ' + feats[feats.length - 1] : feats[0] || '';
+        const description = `A ${pieces}-piece ${result.title.toLowerCase()} with ${list}. ${w}×${d} studs, ${Math.round(h / 3)} bricks tall, built in ${steps} steps.`;
+        return { id: `forge-${seed.toString(36)}`, name, category, icon, difficulty, estTime: `${mins} mins`, description, bricks, kind, prompt: promptText, variant, seed, dims: { w, d, h: Math.round(h / 3) }, steps };
     }
 
-    buildCyberSpeeder(primary = 'PURPLE', secondary = 'TRANS_BLUE') {
-        return {
-            id: 'custom-speeder',
-            name: 'Cyberpunk Grav-Speeder',
-            category: 'Space & Sci-Fi',
-            icon: '⚡',
-            difficulty: 'Intermediate',
-            estTime: '20 mins',
-            description: 'High-speed anti-gravity street skimmer featuring twin plasma repulsors and neon canopy.',
-            bricks: [
-                { partId: '3020', color: 'BLACK', x: 0, y: 0, z: 0, rotY: 0, layer: 0 },
-                // Repulsor pods
-                { partId: '3023', color: secondary, x: -1.4, y: 0.4, z: 0, rotY: 0, layer: 1 },
-                { partId: '3023', color: secondary, x: 1.4, y: 0.4, z: 0, rotY: 0, layer: 1 },
-                // Cockpit Core
-                { partId: '3003', color: primary, x: 0, y: 0.4, z: 0, rotY: 0, layer: 1 },
-                { partId: '3040', color: secondary, x: 0, y: 1.6, z: 0.6, rotY: 0, layer: 2 },
-                { partId: '54200', color: primary, x: -1.0, y: 1.6, z: -1.0, rotY: 0, layer: 2 },
-                { partId: '54200', color: primary, x: 1.0, y: 1.6, z: -1.0, rotY: 0, layer: 2 }
-            ]
-        };
-    }
-
-    buildPyramid(stoneColor = 'TAN') {
-        return {
-            id: 'custom-pyramid',
-            name: 'Giza Sandstone Pyramid',
-            category: 'Architecture',
-            icon: '📐',
-            difficulty: 'Beginner',
-            estTime: '15 mins',
-            description: 'Ancient stepped monument constructed from sun-bleached limestone with ceremonial capstone.',
-            bricks: [
-                // Base tier 1 (4x4)
-                { partId: '3020', color: stoneColor, x: 0, y: 0, z: 0, rotY: 0, layer: 0 },
-                { partId: '3020', color: stoneColor, x: 0, y: 0, z: 2.0, rotY: 0, layer: 0 },
-                // Tier 2 (3x3)
-                { partId: '3002', color: stoneColor, x: 0, y: 0.4, z: 0.5, rotY: 0, layer: 1 },
-                // Tier 3 (2x2)
-                { partId: '3003', color: stoneColor, x: 0, y: 1.6, z: 0.5, rotY: 0, layer: 2 },
-                // Capstone (Gold)
-                { partId: '54200', color: 'GOLD', x: 0, y: 2.8, z: 0.5, rotY: 0, layer: 3 }
-            ]
-        };
-    }
-
-    buildCozyCottage(wallColor = 'WHITE', roofColor = 'DARK_RED') {
-        return {
-            id: 'custom-cottage',
-            name: 'Alpine Timber Cottage',
-            category: 'Architecture',
-            icon: '🏡',
-            difficulty: 'Intermediate',
-            estTime: '25 mins',
-            description: 'Charming mountain dwelling with stone foundation, white timber walls, and pitched gabled roof.',
-            bricks: [
-                { partId: '3020', color: 'GREEN', x: 0, y: 0, z: 0, rotY: 0, layer: 0 },
-                // Walls
-                { partId: '3001', color: wallColor, x: 0, y: 0.4, z: 0, rotY: 0, layer: 1 },
-                { partId: '3004', color: wallColor, x: -1.0, y: 1.6, z: 0, rotY: 0, layer: 2 },
-                { partId: '3004', color: wallColor, x: 1.0, y: 1.6, z: 0, rotY: 0, layer: 2 },
-                // Door & Window Plate
-                { partId: '3024', color: 'BROWN', x: 0, y: 1.6, z: 1.0, rotY: 0, layer: 2 },
-                // Gabled Roof
-                { partId: '3039', color: roofColor, x: 0, y: 2.8, z: 0, rotY: 0, layer: 3 },
-                // Chimney
-                { partId: '3005', color: 'DARK_GREY', x: 1.0, y: 4.0, z: -0.5, rotY: 0, layer: 4 }
-            ]
-        };
-    }
-
-    buildPixelSword(bladeColor = 'LIGHT_GREY', hiltColor = 'GOLD') {
-        return {
-            id: 'custom-sword',
-            name: 'Heroic Pixel Broadsword',
-            category: 'Pop Culture & Tech',
-            icon: '⚔️',
-            difficulty: 'Beginner',
-            estTime: '15 mins',
-            description: 'Classic fantasy pixel blade featuring gleaming crossguard, gripped hilt, and steel fuller.',
-            bricks: [
-                // Pommel
-                { partId: '98138', color: hiltColor, x: 0, y: 0, z: 0, rotY: 0, layer: 0 },
-                // Grip
-                { partId: '3005', color: 'BROWN', x: 0, y: 0.4, z: 0, rotY: 0, layer: 1 },
-                // Crossguard
-                { partId: '3710', color: hiltColor, x: 0, y: 1.6, z: 0, rotY: 0, layer: 2 },
-                // Blade Segments
-                { partId: '3004', color: bladeColor, x: 0, y: 2.0, z: 0, rotY: Math.PI / 2, layer: 3 },
-                { partId: '3004', color: bladeColor, x: 0, y: 3.2, z: 0, rotY: Math.PI / 2, layer: 4 },
-                { partId: '3004', color: bladeColor, x: 0, y: 4.4, z: 0, rotY: Math.PI / 2, layer: 5 },
-                // Pointed Tip
-                { partId: '54200', color: bladeColor, x: 0, y: 5.6, z: 0, rotY: 0, layer: 6 }
-            ]
-        };
-    }
-
-    buildVintageCamera() {
-        return {
-            id: 'custom-camera',
-            name: 'Classic Rangefinder Camera',
-            category: 'Pop Culture & Tech',
-            icon: '📷',
-            difficulty: 'Intermediate',
-            estTime: '20 mins',
-            description: 'Retro 35mm rangefinder with textured leatherette body, chrome dials, and front lens element.',
-            bricks: [
-                { partId: '3020', color: 'BLACK', x: 0, y: 0, z: 0, rotY: 0, layer: 0 },
-                { partId: '3001', color: 'BLACK', x: 0, y: 0.4, z: 0, rotY: 0, layer: 1 },
-                { partId: '3001', color: 'LIGHT_GREY', x: 0, y: 1.6, z: 0, rotY: 0, layer: 2 },
-                // Large Round Lens
-                { partId: '3941', color: 'BLACK', x: 0, y: 0.8, z: 1.2, rotY: Math.PI / 2, layer: 2 },
-                { partId: '98138', color: 'TRANS_BLUE', x: 0, y: 0.8, z: 1.8, rotY: Math.PI / 2, layer: 3 },
-                // Shutter Button & Flash Cold Shoe
-                { partId: '98138', color: 'RED', x: -1.2, y: 2.8, z: 0, rotY: 0, layer: 3 },
-                { partId: '3024', color: 'LIGHT_GREY', x: 0.8, y: 2.8, z: 0, rotY: 0, layer: 3 }
-            ]
-        };
-    }
-
-    buildSaucer(hullColor = 'LIGHT_GREY') {
-        return {
-            id: 'custom-ufo',
-            name: 'Classic Sci-Fi Flying Saucer',
-            category: 'Space & Sci-Fi',
-            icon: '🛸',
-            difficulty: 'Beginner',
-            estTime: '15 mins',
-            description: 'Retro flying disc with equatorial thruster rim and central translucent dome cockpit.',
-            bricks: [
-                // Base
-                { partId: '3022', color: 'DARK_GREY', x: 0, y: 0, z: 0, rotY: 0, layer: 0 },
-                // Saucer Disc Body (3x3 / 4x4)
-                { partId: '3020', color: hullColor, x: 0, y: 0.4, z: 0, rotY: 0, layer: 1 },
-                { partId: '3020', color: hullColor, x: 0, y: 0.4, z: 0, rotY: Math.PI / 2, layer: 1 },
-                // Edge Warning Beacons
-                { partId: '98138', color: 'TRANS_ORANGE', x: -1.8, y: 0.8, z: 0, rotY: 0, layer: 2 },
-                { partId: '98138', color: 'TRANS_ORANGE', x: 1.8, y: 0.8, z: 0, rotY: 0, layer: 2 },
-                // Cockpit Dome
-                { partId: '3062', color: 'TRANS_BLUE', x: 0, y: 0.8, z: 0, rotY: 0, layer: 2 },
-                { partId: '4589', color: 'TRANS_BLUE', x: 0, y: 2.0, z: 0, rotY: 0, layer: 3 }
-            ]
-        };
-    }
-
-    buildProceduralCreation(prompt, primary, secondary, accent) {
-        // Synthesizes a clean, structurally sound micro-scale artistic sculpture
-        return {
-            id: 'procedural-creation',
-            name: `Micro ${prompt.charAt(0).toUpperCase() + prompt.slice(1)}`,
-            category: 'Custom Creation',
-            icon: '✨',
-            difficulty: 'Intermediate',
-            estTime: '20 mins',
-            description: `A custom LEGO blueprint inspired by: "${prompt}". Designed with interlocking structural stability.`,
-            bricks: [
-                // Foundation Plinth
-                { partId: '3020', color: 'DARK_GREY', x: 0, y: 0, z: 0, rotY: 0, layer: 0 },
-                { partId: '3001', color: primary, x: 0, y: 0.4, z: 0, rotY: 0, layer: 1 },
-                { partId: '3003', color: secondary, x: -0.5, y: 1.6, z: 0, rotY: 0, layer: 2 },
-                { partId: '3004', color: primary, x: 0.8, y: 1.6, z: 0, rotY: Math.PI / 2, layer: 2 },
-                { partId: '3040', color: accent, x: -0.5, y: 2.8, z: 0.5, rotY: 0, layer: 3 },
-                { partId: '3062', color: secondary, x: 0.8, y: 2.8, z: 0, rotY: 0, layer: 3 },
-                { partId: '4589', color: accent, x: 0.8, y: 4.0, z: 0, rotY: 0, layer: 4 }
-            ]
-        };
+    /** "Micro Cozy Blue Cottage", "Giant Red Dragon", "Harbour Lighthouse on a Rocky Shore"... */
+    name(parsed, title, variant) {
+        const parts = [];
+        if (parsed.scaleWord) parts.push(parsed.scale <= 0.8 ? 'Micro' : parsed.scale >= 1.5 ? 'Giant' : 'Grand');
+        if (parsed.style && !title.toLowerCase().includes(this.styles[parsed.style].word.toLowerCase())) parts.push(this.styles[parsed.style].word);
+        const cw = parsed.colors.length ? this.shortColor[parsed.colors[0]] : null;
+        if (cw && !title.toLowerCase().includes(cw.toLowerCase())) parts.push(cw);
+        if (!parts.length) parts.push(this.epithets[(this.hash(parsed.text) + variant) % this.epithets.length]);
+        return parts.join(' ') + ' ' + title;
     }
 }
 

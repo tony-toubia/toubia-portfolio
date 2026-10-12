@@ -42,8 +42,8 @@ html, body {
 /* Standalone Back to Portfolio Button */
 .back-to-home {
     position: fixed;
-    top: 12px;
-    left: 12px;
+    top: 10px;
+    right: 56px;
     z-index: 9999;
     background: rgba(19, 24, 34, 0.9);
     color: var(--lego-yellow);
@@ -663,29 +663,74 @@ body:not(.in-iframe) .back-to-home {
     border-color: rgba(255, 255, 255, 0.2);
 }
 
-/* Mobile & Tablet Responsiveness */
+.forge-btn.surprise { padding: 8px 12px; font-size: 15px; background: rgba(255, 255, 255, 0.08); color: #fff; border: 1px solid var(--border-main); }
+.forge-btn.surprise:hover { border-color: var(--lego-yellow); }
+.badge-pill.dims { color: var(--text-muted); }
+.tool-hint { font-weight: 600; color: var(--text-muted); letter-spacing: 0; margin-left: 4px; }
+.bom-toggle { display: none; }
+
+/* Small windows (the app inside a desktop window, or a short viewport) */
+@media (max-height: 640px) {
+    .top-nav { height: 40px; padding: 0 12px; }
+    .brand-sub { display: none; }
+    .app-layout { height: calc(100% - 40px); padding: 8px 12px 10px; gap: 8px; }
+    .inspo-pill { padding: 3px 10px; font-size: 11px; }
+    .viewport-hint { display: none; }
+    .active-model-desc { display: none; }
+    .active-model-title { font-size: 16px; }
+    .studio-tool-group { padding: 6px 10px; }
+    .viewport-bottom-bar { bottom: 8px; left: 10px; right: 10px; }
+}
+
+/* Tablets and phones: the parts list stacks under the viewport */
 @media (max-width: 900px) {
-    .app-layout {
-        overflow-y: auto;
-    }
+    .app-layout { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .studio-grid { grid-template-columns: 1fr; grid-template-rows: auto auto; }
+    .viewport-card { height: 62vh; min-height: 380px; }
+    .viewport-overlay-header { max-width: 85%; }
+    .viewport-bottom-bar { flex-direction: column; gap: 6px; }
+    .viewport-hint { bottom: 120px; }
+}
 
-    .studio-grid {
-        grid-template-columns: 1fr;
-        grid-template-rows: 460px auto;
-    }
-
-    .viewport-overlay-header {
-        max-width: 85%;
-    }
-
-    .viewport-bottom-bar {
-        flex-direction: column;
-        gap: 6px;
-    }
-
-    .viewport-hint {
-        bottom: 120px;
-    }
+/* Phones: everything fits one screen width, the parts list folds away */
+@media (max-width: 600px) {
+    html, body { overflow: hidden; }
+    .top-nav { height: 44px; padding: 0 12px; }
+    .brand-sub { display: none; }
+    .brand-title { font-size: 14px; }
+    .back-to-home { top: 8px; left: auto; right: 54px; padding: 5px 9px; font-size: 10px; }
+    .app-layout { height: calc(100% - 44px); padding: 8px 10px 10px; gap: 8px; }
+    .input-bar-wrap { padding: 4px 4px 4px 10px; gap: 6px; }
+    .input-bar-wrap input { font-size: 14px; min-width: 0; }
+    .input-icon { font-size: 15px; }
+    .forge-btn { padding: 8px 10px; font-size: 10px; letter-spacing: 0.5px; }
+    .forge-btn.surprise { padding: 8px 9px; }
+    .inspo-label { display: none; }
+    .inspo-scroll-wrap { margin: 0 -10px; padding: 0 10px 2px; }
+    .studio-grid { gap: 8px; grid-template-rows: auto auto auto; }
+    .viewport-card { height: calc(100dvh - 190px); min-height: 330px; }
+    .viewport-overlay-header { top: 8px; left: 10px; max-width: 70%; }
+    .model-badge-row { gap: 4px; flex-wrap: wrap; }
+    .badge-pill { padding: 2px 7px; font-size: 9px; }
+    .badge-pill.dims { display: none; }
+    .active-model-title { font-size: 15px; }
+    .active-model-desc { display: none; }
+    .viewport-cam-controls { top: auto; bottom: 118px; right: 8px; left: 8px; justify-content: center; }
+    .cam-btn { padding: 4px 7px; font-size: 9px; }
+    .viewport-bottom-bar { bottom: 6px; left: 6px; right: 6px; gap: 4px; }
+    .studio-tool-group { padding: 5px 8px; border-radius: 6px; }
+    .tool-label-row { margin-bottom: 2px; }
+    .tool-name { font-size: 8px; }
+    .tool-hint { display: none; }
+    .tool-val { font-size: 10px; }
+    .step-btn { padding: 3px 6px; font-size: 8px; }
+    .viewport-hint { display: none; }
+    .bom-toggle { display: block; width: 100%; padding: 10px; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--border-main); color: var(--lego-yellow); font-family: var(--font-heading); font-size: 11px; font-weight: 800; letter-spacing: 1px; }
+    .bom-toggle.on { border-color: var(--lego-yellow); }
+    .bom-card { display: none; max-height: 60vh; }
+    .bom-card.open { display: flex; }
+    .bom-actions { flex-direction: row; }
+    .action-btn { padding: 8px 4px; font-size: 9px; letter-spacing: 0.3px; }
 }
 
 /* Print Stylesheet (Blueprint Sheet) */
