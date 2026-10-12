@@ -2,21 +2,41 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { GATE_COOKIE, GATE_MAX_AGE, gateToken, passwordMatches } from '@/lib/wrtt/gate';
 
 /**
- * Two jobs, in order.
+ * Three jobs, in order.
  *
- * 1. Serve the SLT work on its own domain. slt.ventures points at this same
+ * 1. Make paths case-insensitive. People type /StudForge and paste
+ *    /Studforge/, and the router answers 404 to both where /studforge works.
+ *    Any path with an uppercase ASCII letter is redirected, permanently, to
+ *    its lowercase spelling - the path only, never the query string, whose
+ *    values (?from=, ?password=) mean exactly what they say. This runs
+ *    first so the host and gate rules below only ever see lowercase.
+ *
+ * 2. Serve the SLT work on its own domain. slt.ventures points at this same
  *    deployment, and requests arriving on that host are rewritten into /slt -
  *    so slt.ventures/wrtt is /slt/wrtt with the prefix off the address bar.
  *    The /slt paths keep working on the primary domain, and an internal link
  *    to /slt/... followed on slt.ventures redirects to the short form rather
  *    than doubling the prefix.
  *
- * 2. Gate the WRTT console. Not a security boundary: it keeps the console
+ * 3. Gate the WRTT console. Not a security boundary: it keeps the console
  *    from being stumbled into by anyone who finds the URL, which matters
  *    because the sheets name real private individuals. A single shared
  *    password, no rate limiting, no per-user identity - rely on it for
  *    nothing stronger than that.
  */
+
+/** Paths the case rule leaves as spelled. /_next and /api are Next's own,
+ *  and the API routes are case-sensitive by design. The other two are
+ *  third-party drops inside the Primal Hunt build - the vendored three.js
+ *  loaders, and Kenney's models, whose .glb files reference
+ *  Textures/colormap.png by that spelling - so their mixed-case names are
+ *  not ours to flatten. Everything else on disk is already lowercase. */
+const CASE_SENSITIVE = /^\/(_next\/|api\/|map-mobile-game\/(vendor|models)\/)/;
+
+/** A path ending in a file extension. The matcher admits files so the case
+ *  rule can reach them; the host and gate rules were written for page
+ *  paths and never see them. */
+const HAS_EXTENSION = /\.[a-z0-9]+$/i;
 
 const SLT_HOST = /(^|\.)slt\.ventures$/i;
 
@@ -29,6 +49,18 @@ export async function middleware(req: NextRequest) {
   const host = (req.headers.get('host') ?? '').split(':')[0];
   const onSlt = SLT_HOST.test(host);
   const { pathname } = req.nextUrl;
+
+  // Lowercase is canonical. A 308 keeps the method, so a mis-cased POST is
+  // replayed rather than turned into a GET, and only the path changes.
+  if (/[A-Z]/.test(pathname) && !CASE_SENSITIVE.test(pathname)) {
+    const url = req.nextUrl.clone();
+    url.pathname = pathname.toLowerCase();
+    return NextResponse.redirect(url, 308);
+  }
+
+  // Files fall through here exactly as they did when the matcher excluded
+  // them: /slt/site.css on slt.ventures is served as-is, not rewritten.
+  if (HAS_EXTENSION.test(pathname)) return NextResponse.next();
 
   // Long form on the short domain: canonicalize instead of serving the same
   // page at two paths (and instead of rewriting /slt/slt/... into a 404).
@@ -111,8 +143,10 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // Host-based routing means the matcher cannot stay scoped to /slt/wrtt:
-  // on slt.ventures every path needs the rewrite. Static assets and files
-  // with extensions are excluded; everything else falls through untouched
-  // on the primary domain.
-  matcher: ['/((?!_next/|api/|.*\\..*).*)'],
+  // on slt.ventures every path needs the rewrite, and the case rule needs
+  // files too, so /StudForge/index.html finds its way to the lowercase
+  // file. Only Next's own /_next and the API routes are excluded here; the
+  // function returns early for files, so on the primary domain everything
+  // else falls through untouched.
+  matcher: ['/((?!_next/|api/).*)'],
 };
