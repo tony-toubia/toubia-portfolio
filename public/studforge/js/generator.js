@@ -82,7 +82,9 @@ class BrickGenerator {
         // "bakery with a garden" is a bakery: the subject comes before the first preposition.
         const m = text.match(/^(.*?)\s(with|on|in|near|at|by|under|over|beside|next to|from|eating|holding|carrying|riding|wearing|behind|above|inside)\s/);
         const subject = m ? m[1] : text;
-        return { text, words, has, colors, style, scale, scaleWord, subject };
+        // "minifig scale house", "cafe for minifigs": buildings sized for figures (see forgeOne).
+        const minifig = has('minifig', 'minifigure', 'minifig scale', 'for minifigs', 'for minifigures');
+        return { text, words, has, colors, style, scale, scaleWord, subject, minifig };
     }
 
     /**
@@ -95,14 +97,21 @@ class BrickGenerator {
         let best = null, bestScore = -Infinity, bestKey = null;
         const subjWords = parsed.subject.split(' '), last = subjWords[subjWords.length - 1] || '';
         const inSubject = (k) => (' ' + parsed.subject + ' ').includes(' ' + k + ' ') || (' ' + parsed.subject + ' ').includes(' ' + k + 's ');
+        const mini = !!parsed.minifig;
         for (const b of window.FORGE.builders) {
+            // A minifig-scale builder ("minifig house", "minifig cafe") matches on the subject alone once
+            // the prompt says minifig, and gets a boost so it beats the ordinary house builder.
+            const miniB = mini && b.keys.some((x) => x.startsWith('minifig '));
             for (const k of b.keys) {
-                if (!parsed.has(k)) continue;
-                const score = k.length + (k.includes(' ') ? 4 : 0) - (this.generic.has(k) ? 3 : 0) + (inSubject(k) ? 6 : 0) + (last === k || last === k + 's' || k.endsWith(' ' + last) ? 2 : 0) - parsed.text.indexOf(k) / 100;
+                const kk = miniB && k.startsWith('minifig ') ? k.slice(8) : k;
+                if (!parsed.has(kk)) continue;
+                let score = k.length + (k.includes(' ') ? 4 : 0) - (this.generic.has(kk) ? 3 : 0) + (inSubject(kk) ? 6 : 0) + (last === kk || last === kk + 's' || kk.endsWith(' ' + last) ? 2 : 0) - parsed.text.indexOf(kk) / 100;
+                if (mini) score += miniB ? 8 : (kk === 'minifig' || kk === 'minifigure' ? -10 : 0);   // "minifig castle" is a castle, "a minifig" a figure
+                score += b.priority || 0;   // a later builder family may claim a key an earlier one also lists
                 if (score > bestScore) { best = b; bestScore = score; bestKey = k; }
             }
         }
-        return { builder: best, key: bestKey };
+        return { builder: best, key: bestKey, score: bestScore };
     }
 
     palette(parsed) {
@@ -124,6 +133,8 @@ class BrickGenerator {
      */
     generateFromPrompt(promptText, variant = 0, opts = {}) {
         const brief = opts.brief || null;
+        // "lighthouse next to a pirate ship": two or three ideas, each built by its own builder, on one plate.
+        if (!(brief && brief.subject)) { const scene = this.combine(promptText, variant, opts); if (scene) return scene; }
         const parsed = this.parse(brief && brief.subject ? brief.subject : promptText);
         if (brief) {
             if (brief.style && this.styles[brief.style]) parsed.style = brief.style;
@@ -131,9 +142,33 @@ class BrickGenerator {
             if (typeof brief.scale === 'number') parsed.scale = Math.max(0.6, Math.min(1.8, brief.scale));
         }
         if (typeof opts.scale === 'number') { parsed.scale = Math.max(0.6, Math.min(1.8, opts.scale)); parsed.scaleWord = parsed.scale <= 0.8 ? 'micro' : parsed.scale >= 1.45 ? 'giant' : parsed.scale > 1.3 ? 'big' : null; }
+        const features = Object.assign({}, brief && brief.features, opts.features);
+        const options = [];
+        const one = this.forgeOne(parsed, promptText, variant, opts, features, options);
+        if (one.builder) window.FORGE.helpers.dress(one.ctx);
+        const name = brief && brief.name ? String(brief.name).slice(0, 60) : this.name(parsed, one.result.title, variant);
+        return this.assemble(one.g, {
+            id: `forge-${one.seed.toString(36)}`, name, category: one.category, icon: one.icon, kind: one.kind, prompt: promptText, variant, seed: one.seed,
+            title: one.result.title, features: one.result.features, lead: brief && brief.description ? String(brief.description).slice(0, 220) + ' ' : null,
+            options, palette: one.P, opts: { colors: opts.colors || {}, scale: opts.scale || null, features }, brief, matchKey: one.key,
+        });
+    }
+
+    /**
+     * Paint one subject into a fresh grid with the builder that matches `parsed`
+     * (or the monogram fallback). Shared by a plain forge and by a combined scene.
+     * `features`/`options` are shared so a scene's parts declare into one list.
+     */
+    forgeOne(parsed, promptText, variant, opts, features, options) {
         const seed = (this.hash(parsed.text) + variant * 7919) >>> 0;
         const rnd = this.rng(seed || 1);
-        const { builder, key } = this.pickBuilder(parsed);
+        let { builder, key } = this.pickBuilder(parsed);
+        // An AI brief may name the builder kind outright; it wins over keyword scoring (with a key the builder understands).
+        const brief = opts.brief || null;
+        if (brief && brief.kind && (!builder || builder.kind !== brief.kind)) {
+            const forced = window.FORGE.builders.find((b) => b.kind === brief.kind);
+            if (forced) { builder = forced; key = forced.keys.find((k) => parsed.has(k)) || forced.keys[0]; }
+        }
         const g = new window.ForgeGrid();
         const P = this.palette(parsed);
         if (opts.colors) {
@@ -141,36 +176,112 @@ class BrickGenerator {
             for (const [k, v] of Object.entries(opts.colors)) { const id = this.colorId(v); if (id) P[k] = id; }
             if (this.colorId(opts.colors.primary)) P.explicit = true;
         }
-        const features = Object.assign({}, brief && brief.features, opts.features);
-        const options = [];
+        const declare = (o) => { if (!options.some((x) => x.id === o.id)) options.push(o); return features[o.id] !== undefined ? features[o.id] : o.default; };
+        // Minifig scale: buildings offer it as an option; builders flagged `minifig` are already sized for figures,
+        // the others are forged 1.6x so a figure fits through the door.
+        const building = !!builder && (builder.category === 'Architecture' || builder.kind === 'castle' || !!builder.minifig);
+        let minifig = !!parsed.minifig;
+        if (building && !builder.minifig) minifig = !!declare({ id: 'minifig', label: 'Minifig scale', type: 'bool', default: !!parsed.minifig });
+        let scale = parsed.scale;
+        if (minifig && building && !builder.minifig && typeof opts.scale !== 'number') scale = Math.max(scale, 1.6);
         const ctx = {
             g, P, rnd, pick: (a) => a[Math.floor(rnd() * a.length)], chance: (p) => rnd() < p,
-            S: parsed.scale, sc: (n) => Math.max(1, Math.round(n * parsed.scale)), style: parsed.style, has: parsed.has, words: parsed.words,
-            match: key, prompt: promptText, explicitColors: parsed.colors,
+            S: scale, sc: (n) => Math.max(1, Math.round(n * scale)), style: parsed.style, has: parsed.has, words: parsed.words,
+            match: key, prompt: promptText, explicitColors: parsed.colors, minifig,
             // A builder declares the choices it offers ({ id, label, type: 'bool'|'choice', default, choices }) and reads the answer with opt().
-            declare: (o) => { if (!options.some((x) => x.id === o.id)) options.push(o); return features[o.id] !== undefined ? features[o.id] : o.default; },
-            opt: (id, dflt) => (features[id] !== undefined ? features[id] : dflt),
+            declare, opt: (id, dflt) => (features[id] !== undefined ? features[id] : dflt),
         };
         let result, kind, category, icon;
-        if (builder) { result = builder.build(ctx); kind = builder.kind; category = builder.category; icon = builder.icon; window.FORGE.helpers.dress(ctx); }
+        if (builder) { result = builder.build(ctx); kind = builder.kind; category = builder.category; icon = builder.icon; }
         else {
             const letters = window.FORGE.helpers.monogram(ctx, promptText);
             result = { title: `"${letters}" Monogram`, features: ['the idea\'s initials as a pixel wall', 'a tiled plinth'] };
             kind = 'monogram'; category = 'Custom Creation'; icon = '✨';
         }
+        return { g, ctx, P, seed, builder, key, result, kind, category, icon };
+    }
+
+    /**
+     * Tile a painted grid into bricks and wrap it as a model. `meta` carries the
+     * naming (`title`, `features`, `lead`, `name`) and identity fields; features
+     * (mosaic mode, for one) use this to put their own grids through the pipeline.
+     */
+    assemble(g, meta) {
         const bricks = g.tile();
         const b = g.bounds();
         const steps = new Set(bricks.map((p) => p.layer)).size;
         const pieces = bricks.length;
         const difficulty = pieces < 60 ? 'Beginner' : pieces < 140 ? 'Intermediate' : pieces < 260 ? 'Advanced' : 'Master Builder';
         const mins = Math.max(10, Math.round(pieces * 0.11 / 5) * 5);
-        const name = brief && brief.name ? String(brief.name).slice(0, 60) : this.name(parsed, result.title, variant);
         const w = b.x1 - b.x0 + 1, d = b.z1 - b.z0 + 1, h = b.y1 - b.y0 + 1;
-        const feats = result.features.slice(0, 5);
+        const feats = (meta.features || []).slice(0, 5);
         const list = feats.length > 1 ? feats.slice(0, -1).join(', ') + ' and ' + feats[feats.length - 1] : feats[0] || '';
-        const description = (brief && brief.description ? String(brief.description).slice(0, 220) + ' ' : `A ${pieces}-piece ${result.title.toLowerCase()} with ${list}. `) + `${w}×${d} studs, ${Math.round(h / 3)} bricks tall, built in ${steps} steps.`;
-        return { id: `forge-${seed.toString(36)}`, name, category, icon, difficulty, estTime: `${mins} mins`, description, bricks, kind, prompt: promptText, variant, seed, dims: { w, d, h: Math.round(h / 3) }, steps,
-            options, palette: { ...P }, opts: { colors: opts.colors || {}, scale: opts.scale || null, features }, brief: brief || null, matchKey: key || null };
+        const description = (meta.lead || `A ${pieces}-piece ${(meta.title || meta.name).toLowerCase()} with ${list}. `) + `${w}×${d} studs, ${Math.round(h / 3)} bricks tall, built in ${steps} steps.`;
+        return { id: meta.id, name: meta.name, category: meta.category, icon: meta.icon, difficulty, estTime: `${mins} mins`, description, bricks, kind: meta.kind, prompt: meta.prompt, variant: meta.variant || 0, seed: meta.seed || 0, dims: { w, d, h: Math.round(h / 3) }, steps,
+            options: meta.options || [], palette: { ...(meta.palette || {}) }, opts: meta.opts || { colors: {}, scale: null, features: {} }, brief: meta.brief || null, matchKey: meta.matchKey || null };
+    }
+
+    /* ── combining ideas ─────────────────────────────────────── */
+
+    /**
+     * "castle with a dragon", "cat on a sofa", "house and a tree": split the
+     * prompt at a combinator, forge each side with its own builder and lay them
+     * out on one plate ("on" stacks the first onto the second). Returns null when
+     * a side matches nothing (so "lighthouse on a rocky shore" stays a lighthouse),
+     * or when a "with" names something the main builder handles itself (gardens,
+     * props, towers), so "house with a garden" is still the house builder.
+     */
+    combine(promptText, variant, opts) {
+        const H = window.FORGE.helpers;
+        if (!H.sideBySide || !H.stackOn) return null;
+        const full = this.parse(promptText);
+        const re = /\s(next to|beside|on top of|in front of|behind|and|with an?|on an?)\s/;
+        const texts = [], rels = [];
+        let rest = full.text;
+        while (texts.length < 2) {
+            const m = rest.match(re);
+            if (!m) break;
+            texts.push(rest.slice(0, m.index)); rels.push(m[1].split(' ')[0]);   // 'next', 'beside', 'on', 'in', 'behind', 'and', 'with'
+            rest = rest.slice(m.index + m[0].length);
+        }
+        if (!rels.length) return null;
+        texts.push(rest);
+        const parts = [];
+        for (let i = 0; i < texts.length; i++) {
+            const p = this.parse(texts[i]);
+            if (!p.words.length) return null;
+            if (!p.style) p.style = full.style;
+            if (typeof opts.scale === 'number') p.scale = Math.max(0.6, Math.min(1.8, opts.scale));
+            const pb = this.pickBuilder(p);
+            if (!pb.builder) return null;
+            // A weak "with": only a clearly named creature, vehicle, building or figure counts as a second subject.
+            if (i > 0 && rels[i - 1] === 'with' && (pb.score < 12 || ['nature', 'object', 'standee', 'monogram'].includes(pb.builder.kind))) return null;
+            parts.push({ parsed: p, pick: pb });
+        }
+        const features = Object.assign({}, opts.features), options = [];
+        const built = parts.map((pt) => this.forgeOne(pt.parsed, promptText, variant, opts, features, options));
+        const ground = built[0].P.ground;
+        const short = (t) => t.replace(/ (on|with|in|&) .*$/, '');   // "Lighthouse on a Rocky Shore" -> "Lighthouse"
+        let g = built[0].g, title = short(built[0].result.title);
+        const phrases = { next: 'next to', beside: 'beside', on: 'on top of', in: 'in front of', behind: 'behind', and: 'next to', with: 'with' };
+        let lead = `A scene: a ${title.toLowerCase()} with ${built[0].result.features.slice(0, 2).join(' and ')}`;
+        for (let i = 1; i < built.length; i++) {
+            const rel = rels[i - 1], nxt = built[i], t = short(nxt.result.title);
+            if (rel === 'on') { g = H.stackOn(g, nxt.g); title = `${title} on ${/^[aeiou]/i.test(t) ? 'an' : 'a'} ${t}`; }
+            else if (rel === 'in') { g = H.sideBySide(nxt.g, g, 'z', 2, ground); title = `${title} & ${t}`; }
+            else if (rel === 'behind') { g = H.sideBySide(g, nxt.g, 'z', 2, ground); title = `${title} & ${t}`; }
+            else { g = H.sideBySide(g, nxt.g, 'x', 3, ground); title = `${title} & ${t}`; }
+            if (!g) return null;
+            lead += `, ${phrases[rel]} a ${t.toLowerCase()} with ${nxt.result.features.slice(0, 2).join(' and ')}`;
+        }
+        const first = built[0];
+        H.dress({ g, P: first.P, rnd: first.ctx.rnd, chance: first.ctx.chance, pick: first.ctx.pick });
+        const seed = (this.hash(full.text) + variant * 7919) >>> 0;
+        return this.assemble(g, {
+            id: `forge-${seed.toString(36)}`, name: this.name(full, title, variant), category: 'Scene', icon: first.icon, kind: 'scene', prompt: promptText, variant, seed,
+            title, features: built.flatMap((x) => x.result.features.slice(0, 2)), lead: lead + '. ',
+            options, palette: first.P, opts: { colors: opts.colors || {}, scale: opts.scale || null, features }, brief: null, matchKey: built.map((x) => x.key).join('+'),
+        });
     }
 
     /** "Micro Cozy Blue Cottage", "Giant Red Dragon", "Harbour Lighthouse on a Rocky Shore"... */
