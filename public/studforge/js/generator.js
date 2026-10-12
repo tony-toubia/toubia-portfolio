@@ -133,7 +133,12 @@ class BrickGenerator {
         if (typeof opts.scale === 'number') { parsed.scale = Math.max(0.6, Math.min(1.8, opts.scale)); parsed.scaleWord = parsed.scale <= 0.8 ? 'micro' : parsed.scale >= 1.45 ? 'giant' : parsed.scale > 1.3 ? 'big' : null; }
         const seed = (this.hash(parsed.text) + variant * 7919) >>> 0;
         const rnd = this.rng(seed || 1);
-        const { builder, key } = this.pickBuilder(parsed);
+        let { builder, key } = this.pickBuilder(parsed);
+        // An AI brief may name the builder kind outright; it wins over keyword scoring (with a key the builder understands).
+        if (brief && brief.kind && (!builder || builder.kind !== brief.kind)) {
+            const forced = window.FORGE.builders.find((b) => b.kind === brief.kind);
+            if (forced) { builder = forced; key = forced.keys.find((k) => parsed.has(k)) || forced.keys[0]; }
+        }
         const g = new window.ForgeGrid();
         const P = this.palette(parsed);
         if (opts.colors) {
