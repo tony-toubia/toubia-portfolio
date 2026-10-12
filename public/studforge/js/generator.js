@@ -48,6 +48,19 @@ class BrickGenerator {
 
     /* ── seeded randomness ───────────────────────────────────── */
 
+    // Resolve a colour id or word ("LIME", "lime", "dark red", "trans-blue") to a catalog id, or null.
+    colorId(v) {
+        if (!v || typeof v !== 'string') return null;
+        const up = v.trim().toUpperCase().replace(/[\s-]+/g, '_');
+        if (window.LEGO_COLORS[up]) return up;
+        const w = v.trim().toLowerCase().split(/[\s-]+/);
+        const joined = w.join(' ');
+        const map = { 'dark red': 'DARK_RED', 'dark blue': 'DARK_BLUE', 'dark green': 'DARK_GREEN', 'dark grey': 'DARK_GREY', 'dark gray': 'DARK_GREY', 'light grey': 'LIGHT_GREY', 'light gray': 'LIGHT_GREY', 'trans blue': 'TRANS_BLUE', 'trans clear': 'TRANS_CLEAR', 'trans orange': 'TRANS_ORANGE', 'trans red': 'TRANS_RED', 'trans green': 'TRANS_GREEN', 'trans yellow': 'TRANS_YELLOW' };
+        if (map[joined] && window.LEGO_COLORS[map[joined]]) return map[joined];
+        for (const x of w) if (this.colorWords[x]) return this.colorWords[x];
+        return null;
+    }
+
     hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
     rng(seed) { let s = seed || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return (s % 100000) / 100000; }; }
 
@@ -101,16 +114,42 @@ class BrickGenerator {
 
     /* ── forging ─────────────────────────────────────────────── */
 
-    generateFromPrompt(promptText, variant = 0) {
-        const parsed = this.parse(promptText);
+    /**
+     * `opts` lets the UI (and an AI brief) steer a forge without changing the prompt:
+     *   colors   { primary, secondary, accent, roof, ... }  palette roles to override
+     *   scale    a number (0.7 micro ... 1.6 giant)
+     *   features { name: value }  answers to the options a builder declares with ctx.declare()
+     *   brief    { subject, style, colors: [...], scale, features, name, description }  from the idea service
+     * The model reports the options the builder declared in `model.options`.
+     */
+    generateFromPrompt(promptText, variant = 0, opts = {}) {
+        const brief = opts.brief || null;
+        const parsed = this.parse(brief && brief.subject ? brief.subject : promptText);
+        if (brief) {
+            if (brief.style && this.styles[brief.style]) parsed.style = brief.style;
+            if (Array.isArray(brief.colors) && brief.colors.length) parsed.colors = brief.colors.filter((c) => window.LEGO_COLORS[c]);
+            if (typeof brief.scale === 'number') parsed.scale = Math.max(0.6, Math.min(1.8, brief.scale));
+        }
+        if (typeof opts.scale === 'number') { parsed.scale = Math.max(0.6, Math.min(1.8, opts.scale)); parsed.scaleWord = parsed.scale <= 0.8 ? 'micro' : parsed.scale >= 1.45 ? 'giant' : parsed.scale > 1.3 ? 'big' : null; }
         const seed = (this.hash(parsed.text) + variant * 7919) >>> 0;
         const rnd = this.rng(seed || 1);
         const { builder, key } = this.pickBuilder(parsed);
         const g = new window.ForgeGrid();
+        const P = this.palette(parsed);
+        if (opts.colors) {
+            // Accept colour ids ("DARK_RED") as well as plain words ("crimson", "dark red").
+            for (const [k, v] of Object.entries(opts.colors)) { const id = this.colorId(v); if (id) P[k] = id; }
+            if (this.colorId(opts.colors.primary)) P.explicit = true;
+        }
+        const features = Object.assign({}, brief && brief.features, opts.features);
+        const options = [];
         const ctx = {
-            g, P: this.palette(parsed), rnd, pick: (a) => a[Math.floor(rnd() * a.length)], chance: (p) => rnd() < p,
+            g, P, rnd, pick: (a) => a[Math.floor(rnd() * a.length)], chance: (p) => rnd() < p,
             S: parsed.scale, sc: (n) => Math.max(1, Math.round(n * parsed.scale)), style: parsed.style, has: parsed.has, words: parsed.words,
             match: key, prompt: promptText, explicitColors: parsed.colors,
+            // A builder declares the choices it offers ({ id, label, type: 'bool'|'choice', default, choices }) and reads the answer with opt().
+            declare: (o) => { if (!options.some((x) => x.id === o.id)) options.push(o); return features[o.id] !== undefined ? features[o.id] : o.default; },
+            opt: (id, dflt) => (features[id] !== undefined ? features[id] : dflt),
         };
         let result, kind, category, icon;
         if (builder) { result = builder.build(ctx); kind = builder.kind; category = builder.category; icon = builder.icon; window.FORGE.helpers.dress(ctx); }
@@ -125,12 +164,13 @@ class BrickGenerator {
         const pieces = bricks.length;
         const difficulty = pieces < 60 ? 'Beginner' : pieces < 140 ? 'Intermediate' : pieces < 260 ? 'Advanced' : 'Master Builder';
         const mins = Math.max(10, Math.round(pieces * 0.11 / 5) * 5);
-        const name = this.name(parsed, result.title, variant);
+        const name = brief && brief.name ? String(brief.name).slice(0, 60) : this.name(parsed, result.title, variant);
         const w = b.x1 - b.x0 + 1, d = b.z1 - b.z0 + 1, h = b.y1 - b.y0 + 1;
         const feats = result.features.slice(0, 5);
         const list = feats.length > 1 ? feats.slice(0, -1).join(', ') + ' and ' + feats[feats.length - 1] : feats[0] || '';
-        const description = `A ${pieces}-piece ${result.title.toLowerCase()} with ${list}. ${w}×${d} studs, ${Math.round(h / 3)} bricks tall, built in ${steps} steps.`;
-        return { id: `forge-${seed.toString(36)}`, name, category, icon, difficulty, estTime: `${mins} mins`, description, bricks, kind, prompt: promptText, variant, seed, dims: { w, d, h: Math.round(h / 3) }, steps };
+        const description = (brief && brief.description ? String(brief.description).slice(0, 220) + ' ' : `A ${pieces}-piece ${result.title.toLowerCase()} with ${list}. `) + `${w}×${d} studs, ${Math.round(h / 3)} bricks tall, built in ${steps} steps.`;
+        return { id: `forge-${seed.toString(36)}`, name, category, icon, difficulty, estTime: `${mins} mins`, description, bricks, kind, prompt: promptText, variant, seed, dims: { w, d, h: Math.round(h / 3) }, steps,
+            options, palette: { ...P }, opts: { colors: opts.colors || {}, scale: opts.scale || null, features }, brief: brief || null, matchKey: key || null };
     }
 
     /** "Micro Cozy Blue Cottage", "Giant Red Dragon", "Harbour Lighthouse on a Rocky Shore"... */

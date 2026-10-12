@@ -64,6 +64,9 @@
             </div>
         </section>
 
+        <!-- A row features can add controls to (tweak chips, scale, mosaic upload...) -->
+        <div id="tool-dock" class="tool-dock"></div>
+
         <!-- Studio Workspace (3D Viewport + BOM Side Panel) -->
         <div class="studio-grid">
 
@@ -117,6 +120,9 @@
                     </div>
                 </div>
 
+                <!-- Features add floating viewport widgets here (inspector, studio settings...) -->
+                <div id="viewport-widgets" class="viewport-widgets"></div>
+
                 <!-- Viewport Interaction Helper Hint -->
                 <div class="viewport-hint">
                     🖱️ Drag to rotate 360° | Scroll / Pinch to zoom | Inspect layers with Exploded slider
@@ -126,8 +132,11 @@
             <!-- On phones the parts list folds away under this button -->
             <button id="btn-bom-toggle" class="bom-toggle">🧱 PARTS</button>
 
-            <!-- Bill of Materials (BOM) & Parts List Panel -->
+            <!-- Side panel: the parts list, plus any panels features register (instructions, tweaks, gallery...) -->
             <aside class="bom-card" id="bom-card">
+                <nav class="side-tabs" id="side-tabs"><button class="side-tab on" data-panel="parts">🧱 PARTS</button></nav>
+                <div class="side-panels" id="side-panels">
+                <section class="side-panel on" id="panel-parts">
                 <div class="bom-header">
                     <div>
                         <h3 class="bom-title">PARTS MANIFEST</h3>
@@ -166,6 +175,8 @@
                         🖨️ PRINT
                     </button>
                 </div>
+                </section>
+                </div>
             </aside>
 
         </div>
@@ -186,6 +197,8 @@
     <script src="js/generator.js?v=2"></script>
     <script src="js/audio.js?v=2"></script>
     <script src="js/viewer.js?v=2"></script>
-    <script src="js/main.js?v=2"></script>
+    <script src="js/main.js?v=3"></script>
+    <!-- Feature modules register themselves with window.studForge; load them after main.js -->
+    <div id="feature-scripts"></div>
 </body>
 </html>
