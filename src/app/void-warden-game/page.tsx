@@ -8,24 +8,24 @@ export const metadata: Metadata = {
 
 export default function VoidWardenGamePage() {
   return (
-    <main className="w-screen h-screen overflow-hidden bg-black flex flex-col">
-      <div className="bg-[#0e121e] border-b border-[#00f3ff]/30 px-3 py-2 flex items-center justify-between z-50 text-xs text-white">
+    <main className="w-full h-full h-[100dvh] max-h-[100dvh] overflow-hidden bg-black flex flex-col fixed inset-0">
+      <div className="bg-[#0e121e] border-b border-[#00f3ff]/30 px-3 py-1.5 flex items-center justify-between z-50 text-xs text-white shrink-0">
         <Link 
           href="/" 
-          className="font-bold text-[#00f3ff] hover:underline flex items-center gap-1.5 transition-colors"
+          className="font-bold text-[#00f3ff] hover:underline flex items-center gap-1.5 transition-colors text-[11px] sm:text-xs"
         >
-          <span>←</span> Back to Tony Toubia Portfolio
+          <span>←</span> Back to Portfolio
         </Link>
-        <span className="font-mono text-gray-400 hidden sm:inline">
+        <span className="font-mono text-gray-400 hidden sm:inline text-xs">
           VOID WARDEN: ZOMBIE SWARM DEFENSE
         </span>
         <div className="flex items-center gap-2">
-          <span className="text-[#00ff88] text-[11px] font-bold">
-            3D WEBGL ENGINE
+          <span className="text-[#00ff88] text-[10px] sm:text-[11px] font-bold">
+            3D WEBGL
           </span>
         </div>
       </div>
-      <div className="flex-1 w-full h-full relative">
+      <div className="flex-1 w-full h-full relative overflow-hidden">
         <iframe
           src="/void-warden-game/index.html"
           className="w-full h-full border-0 absolute inset-0"
