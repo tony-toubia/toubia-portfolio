@@ -193,6 +193,38 @@ class BrickGenerator {
         return { subject: entry.id, key: entry.key || null, n: entry.n, pieces: entry.pieces || null, palette: entry.palette || [], parts: entry.parts || [] };
     }
 
+    /** The construction profile (construction.js) of a knowledge entry's subject, or null. */
+    constructionFor(entry) {
+        const C = window.FORGE && window.FORGE.construction;
+        if (!entry || !C || !C.ready) return null;
+        try { return C.profile(entry.id) || null; } catch (e) { return null; }
+    }
+    /** Only profiles measured on real reconstructions (two or more sets) steer a forge; a generated baseline never does. */
+    constructionReal(cons) { return !!cons && cons.source === 'omr' && cons.n >= 2; }
+
+    /**
+     * Length calibration against real reconstructions: when the subject's real sets were measured (construction
+     * profile) and this forge's body is clearly shorter or longer than theirs (under 0.7x or over 1.4x the
+     * median length, display base excluded), forge once more at a scale nudged toward it (x0.75…x1.35, on top
+     * of any piece-count nudge) and keep it when it lands nearer. Returns { from, to, target, kept } or null.
+     */
+    calibrateLength(nudged, model, k0, parsed) {
+        const C = window.FORGE.construction;
+        const cons = this.constructionFor(parsed.knowledge);
+        const target = cons && this.constructionReal(cons) && cons.proportions && cons.proportions.len ? cons.proportions.len[1] : 0;
+        if (!target || !C) return null;
+        const lenOf = (m) => { try { const r = C.measure(C.normalize(m)); return r ? r.proportions.len : 0; } catch (e) { return 0; } };
+        const len = lenOf(model.m);
+        if (!len || (len >= 0.7 * target && len <= 1.4 * target)) return null;
+        const k = Math.max(0.75, Math.min(1.35, target / len));
+        const s = parsed.scale * k0;
+        if ((k > 1 && s >= 1.75) || (k < 1 && s <= 0.65)) return null;
+        const again = nudged(k0 * k), len2 = lenOf(again);
+        const kept = len2 > 0 && Math.abs(Math.log(len2 / target)) < Math.abs(Math.log(len / target)) - 0.05;
+        if (kept) model.m = again;
+        return { from: len, to: len2, target, kept };
+    }
+
     /**
      * Size calibration against real sets. `forge` is the plain forge: run it once and, when the
      * prompt gives no size (no size word, no opts.scale, no brief scale, not minifig scale), compare
@@ -210,6 +242,7 @@ class BrickGenerator {
         let calibration = null;
         const minifig = parsed.minifig || !!(opts.features && opts.features.minifig) || !!(brief && brief.features && brief.features.minifig);
         const sized = parsed.scaleWord || typeof opts.scale === 'number' || (brief && typeof brief.scale === 'number') || minifig || !!opts.blueprint;
+        let k0 = 1;
         if (pcs && !sized && model && model.bricks && model.kind !== 'scene' && model.kind !== 'monogram') {
             const n = model.bricks.length, s = parsed.scale;
             const k = n < 0.5 * pcs.p50 && s < 1.5 ? 1.25 : n > 2 * pcs.p75 && s > 0.8 ? 0.8 : 0;
@@ -218,9 +251,16 @@ class BrickGenerator {
                 const again = nudged(k), to = again.bricks.length;
                 const kept = k > 1 ? to > n : to < n;
                 calibration = { from: n, to, scale: [s, Math.max(0.6, Math.min(1.8, s * k))], kept };
-                if (kept) model = again;
+                if (kept) { model = again; k0 = k; }
             }
         }
+        let lengthCal = null;
+        if (!sized && model && model.bricks && model.kind !== 'scene' && model.kind !== 'monogram' && model.kind !== 'blueprint') {
+            const box = { m: model };
+            lengthCal = this.calibrateLength(nudged, box, k0, parsed);
+            model = box.m;
+        }
+        if (model && model.construction && lengthCal) model.construction.length = lengthCal;
         if (model && typeof model === 'object') model.knowledge = K ? { subject: K.id, key: K.key || null, n: K.n, pieces: K.pieces || null, palette: K.palette || [], wanted: (K.wanted || []).slice(0, 5), calibration } : null;
         return model;
     }
@@ -258,6 +298,7 @@ class BrickGenerator {
             id: `forge-${one.seed.toString(36)}`, name, category: one.category, icon: one.icon, kind: one.kind, prompt: promptText, variant, seed: one.seed,
             title: one.result.title, features: one.result.features, lead: brief && brief.description ? String(brief.description).slice(0, 220) + ' ' : null,
             options, palette: one.P, opts: { colors: opts.colors || {}, scale: opts.scale || null, features }, brief, matchKey: one.key,
+            construction: one.ctx.construction,
         });
     }
 
@@ -334,6 +375,9 @@ class BrickGenerator {
             match: key, prompt: promptText, explicitColors: parsed.colors, minifig,
             // What real sets of this subject are made of ({ subject, key, n, pieces, palette, parts }), or null.
             knowledge: this.knowledgeCtx(parsed.knowledge),
+            // How real sets of this subject are built (construction.js: proportions, hollowness, layers, build order,
+            // interiors, techniques), or null.
+            construction: this.constructionFor(parsed.knowledge),
             // A builder declares the choices it offers ({ id, label, type: 'bool'|'choice', default, choices }) and reads the answer with opt().
             declare, opt: (id, dflt) => (features[id] !== undefined ? features[id] : dflt),
         };
@@ -355,6 +399,9 @@ class BrickGenerator {
     assemble(g, meta) {
         const anchored = this.anchor(g.tile());
         const bricks = anchored.bricks;
+        // Finish exposed top plates with tiles where real sets of the subject do (only on real-set profiles).
+        const cons = meta.construction || null;
+        const tops = cons && this.constructionReal(cons) && window.FORGE.construction ? window.FORGE.construction.finishTops(bricks, cons) : null;
         const b = g.bounds();
         const steps = new Set(bricks.map((p) => p.layer)).size;
         const pieces = bricks.length;
@@ -365,7 +412,8 @@ class BrickGenerator {
         const list = feats.length > 1 ? feats.slice(0, -1).join(', ') + ' and ' + feats[feats.length - 1] : feats[0] || '';
         const description = (meta.lead || `A ${pieces}-piece ${(meta.title || meta.name).toLowerCase()} with ${list}. `) + `${w}×${d} studs, ${Math.round(h / 3)} bricks tall, built in ${steps} steps.`;
         return { id: meta.id, name: meta.name, category: meta.category, icon: meta.icon, difficulty, estTime: `${mins} mins`, description, bricks, kind: meta.kind, prompt: meta.prompt, variant: meta.variant || 0, seed: meta.seed || 0, dims: { w, d, h: Math.round(h / 3) }, steps,
-            options: meta.options || [], palette: { ...(meta.palette || {}) }, opts: meta.opts || { colors: {}, scale: null, features: {} }, brief: meta.brief || null, matchKey: meta.matchKey || null, anchor: anchored.stats };
+            options: meta.options || [], palette: { ...(meta.palette || {}) }, opts: meta.opts || { colors: {}, scale: null, features: {} }, brief: meta.brief || null, matchKey: meta.matchKey || null, anchor: anchored.stats,
+            construction: cons ? { subject: cons.id, source: cons.source, n: cons.n, tops } : null };
     }
 
     /* ── anchoring: nothing floats ───────────────────────────── */
