@@ -100,7 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modelTitle.innerText = model.name;
         modelDesc.innerText = model.description;
         modelBadge.innerText = `${model.icon} ${model.category.toUpperCase()}`;
-        modelPieceCount.innerText = `${model.bricks.length} BRICKS`;
+        modelPieceCount.innerText = `${pieceCount(model)} BRICKS`;
         modelEstTime.innerText = `⏱️ ${model.estTime}`;
         if (modelDims) modelDims.innerText = model.dims ? `${model.dims.w}×${model.dims.d}×${model.dims.h} · ${model.difficulty.toUpperCase()}` : model.difficulty.toUpperCase();
         explodeSlider.value = 0; explodeVal.innerText = '0%';
@@ -116,11 +116,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /* ── bill of materials ────────────────────────────────────── */
+    // A real set's flexible hose is drawn as many short segments (`segment`), but it is one piece: they are not counted.
+    const pieceCount = (model) => model.bricks.reduce((n, b) => n + (b.segment ? 0 : 1), 0);
     function computeBOM(model) {
         const partsMap = new Map();
         model.bricks.forEach((b) => {
+            if (b.segment) return;
             const key = `${b.partId}_${b.color}`;
-            const partInfo = window.LEGO_PARTS[b.partId] || { name: `Element ${b.partId}`, category: 'Standard' };
+            const partInfo = window.LEGO_PARTS[b.partId] || window.BrickBuilder.partInfo(b.partId) || { name: `Element ${b.partId}`, category: 'Standard' };
             const colorInfo = window.LEGO_COLORS[b.color] || { name: b.color, hex: '#cccccc', blId: 0 };
             if (!partsMap.has(key)) partsMap.set(key, { partId: b.partId, partName: partInfo.name, category: partInfo.category, colorKey: b.color, colorName: colorInfo.name, colorHex: colorInfo.hex, blColorId: colorInfo.blId, quantity: 0 });
             partsMap.get(key).quantity++;
@@ -138,8 +141,8 @@ document.addEventListener('DOMContentLoaded', () => {
             bomTableBody.appendChild(tr);
         }
         $('total-unique-parts').innerText = `${parts.length} unique elements`;
-        $('total-pieces-count').innerText = `${currentModel.bricks.length} total pieces`;
-        if (btnBomToggle) btnBomToggle.innerText = `🧱 PARTS (${currentModel.bricks.length})`;
+        $('total-pieces-count').innerText = `${pieceCount(currentModel)} total pieces`;
+        if (btnBomToggle) btnBomToggle.innerText = `🧱 PARTS (${pieceCount(currentModel)})`;
     }
 
     /* ── prompt handlers ──────────────────────────────────────── */
@@ -188,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('btn-copy-bom').addEventListener('click', () => {
         if (!currentModel) return;
         let text = `📦 STUDFORGE PARTS MANIFEST: ${currentModel.name.toUpperCase()}\n${currentModel.description}\n`;
-        text += `Total Pieces: ${currentModel.bricks.length} | Unique Elements: ${bomParts.length}\n\n[ ] QTY | ELEMENT | DESIGN ID | COLOR\n----------------------------------------------------\n`;
+        text += `Total Pieces: ${pieceCount(currentModel)} | Unique Elements: ${bomParts.length}\n\n[ ] QTY | ELEMENT | DESIGN ID | COLOR\n----------------------------------------------------\n`;
         for (const p of bomParts) text += `[ ] ${p.quantity.toString().padEnd(4)} | ${p.partName.padEnd(34)} | #${p.partId.padEnd(6)} | ${p.colorName}\n`;
         text += `\nGenerated with StudForge 3D LEGO Idea Maker (https://tonytoubia.com/studforge) from the idea "${currentModel.prompt || currentModel.name}"`;
         navigator.clipboard.writeText(text).then(() => { const b = $('btn-copy-bom'), orig = b.innerHTML; b.innerHTML = `✓ COPIED!`; setTimeout(() => { b.innerHTML = orig; }, 1800); });

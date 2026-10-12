@@ -3,6 +3,7 @@
 //
 //   ?idea=<prompt>&v=<variant>[&o=<base64url JSON opts>]   addresses a forge; the URL
 //   follows the current model (replaceState) and is honoured on load.
+//   ?ref=<setId>   addresses a real set (reference.js opens it on load).
 //
 // Everything here degrades: no localStorage (private mode) → the gallery
 // explains itself and share links still work; no clipboard → a text fallback.
@@ -32,14 +33,17 @@
         if (opts.features && Object.keys(opts.features).length) o.features = opts.features;
         return o;
     };
-    const shareQuery = (prompt, variant, opts) => {
+    // A real set shown by reference.js has no idea to re-forge: its address is the set number.
+    const refOf = () => { const m = window.studForge && window.studForge.model; return m && m.kind === 'reference' && m.reference ? String(m.reference.setId) : null; };
+    const shareQuery = (prompt, variant, opts, ref = null) => {
+        if (ref) return `ref=${encodeURIComponent(ref)}`;
         let q = `idea=${encodeURIComponent(prompt)}&v=${variant | 0}`;
         const o = compactOpts(opts);
         if (Object.keys(o).length) q += `&o=${b64url.encode(o)}`;
         return q;
     };
     /** The standalone app URL (works locally and at tonytoubia.com/studforge/index.html, also from inside the portfolio iframe). */
-    const shareLink = (prompt, variant, opts) => `${location.origin}${location.pathname}?${shareQuery(prompt, variant, opts)}`;
+    const shareLink = (prompt, variant, opts, ref) => `${location.origin}${location.pathname}?${shareQuery(prompt, variant, opts, ref)}`;
     const parseShare = () => {
         const sp = new URLSearchParams(location.search);
         const prompt = (sp.get('idea') || '').trim();
@@ -49,12 +53,12 @@
         return { prompt: prompt.slice(0, 200), variant, opts: compactOpts(opts) };
     };
     /** Keep the address bar in step with the model, leaving other params alone and adding no history entries. */
-    const syncUrl = (prompt, variant, opts) => {
+    const syncUrl = (prompt, variant, opts, ref) => {
         try {
             const sp = new URLSearchParams(location.search);
-            sp.delete('idea'); sp.delete('v'); sp.delete('o');
+            sp.delete('idea'); sp.delete('v'); sp.delete('o'); sp.delete('ref');
             const rest = sp.toString();
-            history.replaceState(history.state, '', `${location.pathname}?${rest ? rest + '&' : ''}${shareQuery(prompt, variant, opts)}${location.hash}`);
+            history.replaceState(history.state, '', `${location.pathname}?${rest ? rest + '&' : ''}${shareQuery(prompt, variant, opts, ref)}${location.hash}`);
         } catch (e) { /* sandboxed iframe or file:// */ }
     };
 
@@ -204,7 +208,8 @@
         ctx.fillText([`${model.bricks.length} PIECES`, dims, String(model.difficulty || '').toUpperCase()].filter(Boolean).join('  ·  '), lx, y);
         y += 56;
         ctx.font = `italic 500 27px ${BODY}`; ctx.fillStyle = '#cbd5e1';
-        for (const l of wrapText(ctx, `“${model.prompt || model.name}”`, lw, 3)) { ctx.fillText(l, lx, y); y += 34; }
+        const quote = model.kind === 'reference' && model.reference ? `Real set ${model.reference.setId}, rebuilt from its LDraw OMR file (CC BY, LDraw.org)` : `“${model.prompt || model.name}”`;
+        for (const l of wrapText(ctx, quote, lw, 3)) { ctx.fillText(l, lx, y); y += 34; }
         // footer with the brick logo
         const fy = H - 56;
         ctx.fillStyle = '#c91a09'; round(lx, fy - 14, 34, 24, 4); ctx.fill();
@@ -232,8 +237,8 @@
         const shareBtn = el('button', 'tool-chip', '🔗 SHARE'); shareBtn.title = 'Copy a link to this build';
         const cardBtn = el('button', 'tool-chip', '🖼️ CARD'); cardBtn.title = 'Download a share card image (PNG)';
         sf.dock(shareBtn); sf.dock(cardBtn);
-        const currentLink = () => shareLink(sf.state.prompt, sf.state.variant, sf.state.opts);
-        const shareText = () => `${sf.model.name} — ${sf.model.bricks.length} pieces, forged from "${sf.state.prompt}" on StudForge`;
+        const currentLink = () => shareLink(sf.state.prompt, sf.state.variant, sf.state.opts, refOf());
+        const shareText = () => (refOf() ? `${sf.model.name} (set ${refOf()}) — ${sf.model.bricks.length} pieces, a real set to build step by step on StudForge` : `${sf.model.name} — ${sf.model.bricks.length} pieces, forged from "${sf.state.prompt}" on StudForge`);
         let sharing = false;
         shareBtn.addEventListener('click', async () => {
             if (!sf.model || sharing) return;
@@ -268,7 +273,7 @@
         });
 
         // ── gallery data
-        const sameBuild = (a, b) => a.prompt === b.prompt && (a.variant | 0) === (b.variant | 0) && JSON.stringify(compactOpts(a.opts)) === JSON.stringify(compactOpts(b.opts));
+        const sameBuild = (a, b) => (a.ref || null) === (b.ref || null) && a.prompt === b.prompt && (a.variant | 0) === (b.variant | 0) && JSON.stringify(compactOpts(a.opts)) === JSON.stringify(compactOpts(b.opts));
         let saved = canStore ? (store.get(KEY_GALLERY, []) || []).filter((e) => e && e.prompt) : [];
         let recent = canStore ? (store.get(KEY_RECENT, []) || []).filter((e) => e && e.prompt) : [];
         /** Persist the gallery; on a full quota, shed thumbnails then the oldest builds and try again. */
@@ -285,11 +290,13 @@
         const saveCurrent = () => {
             const m = sf.model; if (!m) return null;
             const entry = { id: m.id, name: m.name, prompt: sf.state.prompt, variant: sf.state.variant | 0, opts: compactOpts(sf.state.opts), pieces: m.bricks.length, dims: m.dims, category: m.category, icon: m.icon, savedAt: Date.now(), thumb: thumbOf() };
+            if (refOf()) entry.ref = refOf();
             saved = [entry, ...saved.filter((e) => !sameBuild(e, entry))].slice(0, MAX_SAVED);
             persistSaved();
             return entry;
         };
         const noteRecent = (prompt, variant) => {
+            if (refOf()) return;   // the recent strip is ideas; a real set lives in REAL SETS
             recent = [{ prompt, variant: variant | 0, at: Date.now() }, ...recent.filter((r) => !(r.prompt === prompt && (r.variant | 0) === (variant | 0)))].slice(0, MAX_RECENT);
             if (canStore) store.set(KEY_RECENT, recent);
         };
@@ -303,7 +310,10 @@
         const recentWrap = el('div'), savedWrap = el('div');
         body.append(saveBtn, hint, recentWrap, savedWrap);
         const isCurrent = (e) => sf.state.prompt === e.prompt && (sf.state.variant | 0) === (e.variant | 0) && (e.opts === undefined || JSON.stringify(compactOpts(sf.state.opts)) === JSON.stringify(compactOpts(e.opts)));
-        const reforgeEntry = (e) => { sf.setPrompt(e.prompt); sf.forge(e.prompt, e.variant | 0, { ...compactOpts(e.opts) }); };
+        const reforgeEntry = (e) => {
+            if (e.ref && sf.reference) { sf.reference.load(e.ref); return; }
+            sf.setPrompt(e.prompt); sf.forge(e.prompt, e.variant | 0, { ...compactOpts(e.opts) });
+        };
         function render() {
             recentWrap.innerHTML = '';
             if (recent.length) {
@@ -326,10 +336,11 @@
             const grid = el('div', 'sfg-grid'); grid.id = 'sfg-grid';
             saved.forEach((e, idx) => {
                 const card = el('div', 'sfg-card' + (isCurrent(e) ? ' on' : '')); card.tabIndex = 0; card.setAttribute('role', 'button'); card.dataset.id = e.id; card.title = `Forge "${e.prompt}" again`;
+                if (e.ref) card.title = `Build the real set ${e.ref} again`;
                 card.innerHTML = `<div class="sfg-thumb">${e.thumb ? `<img alt="" src="${e.thumb}">` : `<span>${esc(e.icon || '🧱')}</span>`}</div><div class="sfg-card-body"><div class="sfg-card-name">${esc(e.name)}</div><div class="sfg-card-meta"><b>${e.pieces} PCS</b> · ${ago(e.savedAt)}</div></div>`;
                 const actions = el('div', 'sfg-card-actions');
                 const link = el('button', 'sfg-icon-btn', '🔗'); link.title = 'Copy share link';
-                link.addEventListener('click', async (ev) => { ev.stopPropagation(); const ok = await copyText(shareLink(e.prompt, e.variant, e.opts)); toast(ok ? '✓ LINK COPIED' : shareLink(e.prompt, e.variant, e.opts)); });
+                link.addEventListener('click', async (ev) => { ev.stopPropagation(); const url = shareLink(e.prompt, e.variant, e.opts, e.ref); const ok = await copyText(url); toast(ok ? '✓ LINK COPIED' : url); });
                 const del = el('button', 'sfg-icon-btn danger', '✕'); del.title = 'Remove from gallery';
                 del.addEventListener('click', (ev) => {
                     ev.stopPropagation();
@@ -356,7 +367,7 @@
 
         // ── follow every forge: URL, recent strip, highlight
         sf.on('model', () => {
-            syncUrl(sf.state.prompt, sf.state.variant, sf.state.opts);
+            syncUrl(sf.state.prompt, sf.state.variant, sf.state.opts, refOf());
             noteRecent(sf.state.prompt, sf.state.variant);
             render();
         });

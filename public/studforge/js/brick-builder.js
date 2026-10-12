@@ -88,6 +88,7 @@ class BrickBuilder {
 
     /** One mesh per part. `options.layer` is the build step; `options.position` its home position. */
     createBrickMesh(partId, colorKey, options = {}) {
+        if (BrickBuilder.isBaked(partId, options.baked)) return this.createBakedMesh(partId, colorKey, options);
         const part = window.LEGO_PARTS[partId] || window.LEGO_PARTS['3001'];
         const lying = !!(options.rotX || options.rotZ);
         const colorDef = window.LEGO_COLORS[colorKey];
@@ -745,6 +746,376 @@ class BrickBuilder {
         out.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
         return out;
     }
+
+    /* ── baked LDraw geometry (real sets) ─────────────────────── */
+    //
+    // A reference model (a real set rebuilt from its LDraw file) renders every part with geometry
+    // baked from the LDraw parts library into data/ldraw/parts/<partId>.json: StudForge units and
+    // axes, part-local around the LDraw origin (a brick's origin is the centre of its top face, not
+    // its base). Each file is fetched once (BrickBuilder.preload) into one shared geometry, so 40
+    // copies of a 1x2 plate are 40 meshes over one buffer. The viewer applies the brick's `matrix`.
+    // LDraw winding is only reliable in BFC-certified files, so baked meshes use double-sided twins
+    // of the colour materials, kept in materialsCache so lighting moods and quality switches reach them.
+
+    /** A mesh for a baked part, pivot at its LDraw origin. Falls back to a box until (or unless) the geometry arrives. */
+    createBakedMesh(partId, colorKey, options = {}) {
+        const id = BrickBuilder.bakedId(partId);
+        const plate = !!options.baseplate;   // baseplates are drawn here, not fetched (their files are huge and plain)
+        const entry = plate ? null : BrickBuilder.bakedCache.get(id);
+        const colorDef = window.LEGO_COLORS[colorKey];
+        const isTrans = !!(colorDef && colorDef.category === 'Transparent');
+        const lite = !!(entry && entry.heavy && this.quality === 'lite');   // a part over the triangle cap: a box on phones
+        const geom = entry ? (lite ? this.heavyBox(entry) : this.quality === 'lite' ? entry.liteGeometry : entry.geometry) : plate ? this.baseplateGeometry(options) : this.bakedFallback(options);
+        const mesh = new THREE.Mesh(geom, this.bakedMaterial(colorKey, entry && entry.rubber ? 'rubber' : 'plastic'));
+        mesh.castShadow = !isTrans;
+        mesh.receiveShadow = true;
+        mesh.userData = {
+            partId: String(partId), partName: entry ? entry.name : plate ? 'Baseplate' : `LDraw part ${partId}`, colorKey,
+            width: entry ? entry.size[0] : 1, length: entry ? entry.size[2] : 1, height: entry ? entry.size[1] : 1.2,
+            layer: options.layer || 0, baked: true,
+            originalPosition: options.position ? options.position.clone() : new THREE.Vector3()
+        };
+        if (entry && !lite) this.addBakedDetails(mesh, entry);
+        else if (!entry && !plate && !BrickBuilder.bakedCache.has(id)) {
+            // Not preloaded (a caller skipped BrickBuilder.preload): swap the real geometry in when it lands.
+            BrickBuilder.preload([partId]).then(() => {
+                const e = BrickBuilder.bakedCache.get(id);
+                if (!e || mesh.geometry !== geom) return;
+                const box = e.heavy && this.quality === 'lite';
+                mesh.geometry = box ? this.heavyBox(e) : this.quality === 'lite' ? e.liteGeometry : e.geometry;
+                if (e.rubber) mesh.material = this.bakedMaterial(colorKey, 'rubber');
+                Object.assign(mesh.userData, { partName: e.name, width: e.size[0], length: e.size[2], height: e.size[1] });
+                if (!box) this.addBakedDetails(mesh, e);
+            });
+        }
+        return mesh;
+    }
+
+    /**
+     * A baseplate in the part's own frame: LDraw baseplates have their origin at the centre of the top
+     * face, so a thin slab (y −0.2..0) under a grid of simple 8-sided studs. Its size comes from the
+     * brick's grid footprint turned into the part's frame (a baseplate is always on the grid), else 16×16.
+     */
+    baseplateGeometry(options) {
+        let w = 16, l = 16;
+        const fp = options.fp, R = Array.isArray(options.matrix) && options.matrix.length === 9 ? options.matrix : [1, 0, 0, 0, 1, 0, 0, 0, 1];
+        if (fp && fp.w > 0 && fp.l > 0) {
+            // |Rᵀ| maps the world extents onto the part's axes (exact for 90° turns).
+            w = Math.round(Math.abs(R[0]) * fp.w + Math.abs(R[3]) * 0 + Math.abs(R[6]) * fp.l);
+            l = Math.round(Math.abs(R[2]) * fp.w + Math.abs(R[8]) * fp.l);
+            w = Math.max(1, Math.min(64, w)); l = Math.max(1, Math.min(64, l));
+        }
+        const key = `ldraw:baseplate:${w}x${l}`;
+        if (this.geometryCache.has(key)) return this.geometryCache.get(key);
+        const slab = this.box(-w / 2 + 0.01, w / 2 - 0.01, -0.2, 0, -l / 2 + 0.01, l / 2 - 0.01).toNonIndexed();
+        const pos = [], nrm = [], seg = 8, r = this.studRadius, h = this.studHeight;
+        for (let i = 0; i < w; i++) for (let k = 0; k < l; k++) {
+            const cx = -w / 2 + i + 0.5, cz = -l / 2 + k + 0.5;
+            for (let s = 0; s < seg; s++) {
+                const a0 = (s / seg) * Math.PI * 2, a1 = ((s + 1) / seg) * Math.PI * 2;
+                const c0 = Math.cos(a0), s0 = Math.sin(a0), c1 = Math.cos(a1), s1 = Math.sin(a1);
+                const p00 = [cx + r * c0, 0, cz + r * s0], p01 = [cx + r * c0, h, cz + r * s0], p10 = [cx + r * c1, 0, cz + r * s1], p11 = [cx + r * c1, h, cz + r * s1];
+                pos.push(...p00, ...p11, ...p10, ...p00, ...p01, ...p11, cx, h, cz, ...p11, ...p01);
+                nrm.push(c0, 0, s0, c1, 0, s1, c1, 0, s1, c0, 0, s0, c0, 0, s0, c1, 0, s1, 0, 1, 0, 0, 1, 0, 0, 1, 0);
+            }
+        }
+        const studs = new THREE.BufferGeometry();
+        studs.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        studs.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+        const geom = this.merge([slab, studs]);
+        geom.computeBoundingBox(); geom.computeBoundingSphere();
+        this.geometryCache.set(key, geom);
+        return geom;
+    }
+
+    /** The lite-tier stand-in for a heavy part: its bounding box, shared per part. */
+    heavyBox(entry) {
+        if (!entry.liteBox) { const b = entry.bbox, g = this.gap / 2; entry.liteBox = this.box(b[0] + g, b[3] - g, b[1], b[4], b[2] + g, b[5] - g); }
+        return entry.liteBox;
+    }
+
+    /** Fixed-colour pieces of a multi-colour part (prints, a tyre moulded onto its rim) ride along as child meshes. */
+    addBakedDetails(mesh, entry) {
+        for (const d of entry.details) {
+            const child = new THREE.Mesh(d.geometry, this.bakedMaterial(d.colorKey));
+            const c = window.LEGO_COLORS[d.colorKey];
+            child.castShadow = !(c && c.category === 'Transparent');
+            child.receiveShadow = true;
+            child.userData = { detail: true, colorKey: d.colorKey };
+            mesh.add(child);
+        }
+    }
+
+    /** The double-sided twin of a colour's material (same look, both faces drawn), shared per colour and finish. */
+    bakedMaterial(colorKey, finish = 'plastic') {
+        const key = `${this.materialKey(colorKey, finish)}:2s`;
+        if (this.materialsCache.has(key)) return this.materialsCache.get(key);
+        const base = this.getMaterial(colorKey, finish);
+        const mat = base.clone();
+        mat.side = THREE.DoubleSide;
+        mat.userData = Object.assign({}, base.userData);
+        this.materialsCache.set(key, mat);
+        return mat;
+    }
+
+    /**
+     * A stand-in for a part with no baked file: its grid footprint as a box (`options.fp` in world
+     * studs/plates, moved into the part's frame through `position` and `matrix`), else a 1x1 brick
+     * hanging below the origin like an LDraw brick.
+     */
+    bakedFallback(options) {
+        const fp = options.fp, p = options.position, m = options.matrix;
+        if (fp && p && fp.w > 0 && fp.l > 0 && fp.hp > 0) {
+            const g = this.gap / 2, lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+            const R = Array.isArray(m) && m.length === 9 ? m : [1, 0, 0, 0, 1, 0, 0, 0, 1];
+            for (const wx of [fp.x0 + g, fp.x0 + fp.w - g]) for (const wy of [fp.y0 * 0.4, (fp.y0 + fp.hp) * 0.4 - 0.01]) for (const wz of [fp.z0 + g, fp.z0 + fp.l - g]) {
+                const d = [wx - p.x, wy - p.y, wz - p.z];
+                // local = Rᵀ · (world − position)
+                const q = [R[0] * d[0] + R[3] * d[1] + R[6] * d[2], R[1] * d[0] + R[4] * d[1] + R[7] * d[2], R[2] * d[0] + R[5] * d[1] + R[8] * d[2]];
+                for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], q[a]); hi[a] = Math.max(hi[a], q[a]); }
+            }
+            return this.box(lo[0], hi[0], lo[1], hi[1], lo[2], hi[2]);
+        }
+        if (!this.geometryCache.has('ldraw:fallback')) {
+            const g = this.getGeometry(window.LEGO_PARTS['3005'] || window.LEGO_PARTS['3001']).clone();
+            g.translate(0, -1.2, 0);
+            this.geometryCache.set('ldraw:fallback', g);
+        }
+        return this.geometryCache.get('ldraw:fallback');
+    }
 }
+
+/* ── the shared baked-part cache ─────────────────────────────── */
+BrickBuilder.bakedBase = 'data/ldraw/parts/';   // relative to the page, like data/knowledge.json
+BrickBuilder.bakedCache = new Map();            // id → { geometry, details, name, size, rubber } | null (no file)
+BrickBuilder.bakedPending = new Map();          // id → Promise, so concurrent requests share one fetch
+/** LDraw file name → baked id: lower case, no `.dat`, `/` → `_` (matches the baker). */
+BrickBuilder.bakedId = (partId) => String(partId).trim().toLowerCase().replace(/\.dat$/, '').replace(/[\\/]/g, '_');
+/** Real-set bricks say `baked: true`; anything our catalog does not know is baked too. */
+BrickBuilder.isBaked = (partId, flag) => !!flag || !(window.LEGO_PARTS && window.LEGO_PARTS[partId]);
+/** A real-set brick the converter flagged as a baseplate (drawn procedurally, never fetched). */
+BrickBuilder.isBaseplate = (b) => !!(b && (b.baseplate === true || b.flag === 'baseplate' || b.kind === 'baseplate' || b.partKind === 'baseplate'));
+/** Catalog entry, else what the baked file says (name and size), else null. For parts lists and inspectors. */
+BrickBuilder.partInfo = (partId) => {
+    const cat = window.LEGO_PARTS && window.LEGO_PARTS[partId];
+    if (cat) return cat;
+    const e = BrickBuilder.bakedCache.get(BrickBuilder.bakedId(partId));
+    return e ? { id: String(partId), name: e.name, category: 'LDraw', width: e.size[0], length: e.size[2], height: e.size[1] } : null;
+};
+
+/** Fetch and build the baked geometry of these parts; resolves (never rejects) once every one is ready or known missing. */
+/**
+ * The baker's manifest (data/ldraw/manifest.json: { parts: { id: { name, tris, ... } } }), loaded once: it names
+ * the parts (the part files carry geometry only) and says which ids exist, so a part that was never baked
+ * goes straight to its fallback box instead of a 404. Resolves null when there is no manifest.
+ */
+BrickBuilder.manifest = null;
+BrickBuilder.loadManifest = () => BrickBuilder.manifestP || (BrickBuilder.manifestP = (typeof fetch !== 'function' ? Promise.resolve(null)
+    : fetch(BrickBuilder.bakedBase.replace(/parts\/?$/, 'manifest.json')).then((r) => (r.ok ? r.json() : null)).catch(() => null))
+    .then((m) => { BrickBuilder.manifest = m && m.parts && typeof m.parts === 'object' ? m : null; return BrickBuilder.manifest; }));
+
+/** Fetch and build the baked geometry of these parts; resolves (never rejects) once every one is ready or known missing. */
+BrickBuilder.preload = (partIds) => {
+    const ids = [...new Set((partIds || []).map(BrickBuilder.bakedId))];
+    return BrickBuilder.loadManifest().then((manifest) => Promise.all(ids.map((id) => {
+        if (BrickBuilder.bakedCache.has(id)) return null;
+        if (BrickBuilder.bakedPending.has(id)) return BrickBuilder.bakedPending.get(id);
+        const known = manifest ? manifest.parts[id] : undefined;
+        if (!/^[a-z0-9][a-z0-9_.-]*$/.test(id) || typeof fetch !== 'function' || (manifest && !known)) { BrickBuilder.bakedCache.set(id, null); return null; }
+        const p = fetch(`${BrickBuilder.bakedBase}${encodeURIComponent(id)}.json`)
+            .then((r) => (r.ok ? r.json() : null))
+            .then((doc) => { BrickBuilder.bakedCache.set(id, doc ? BrickBuilder.buildBaked(doc, known && known.name) : null); })
+            .catch(() => { BrickBuilder.bakedCache.set(id, null); })
+            .then(() => { BrickBuilder.bakedPending.delete(id); });
+        BrickBuilder.bakedPending.set(id, p);
+        return p;
+    }))).then(() => undefined);
+};
+
+// LDraw colour codes a baked file may give individual triangles (`c`), mapped to our palette.
+// 16 (main) and 24 (edge) follow the brick's own colour; anything unknown does too.
+BrickBuilder.LDRAW_COLORS = {
+    0: 'BLACK', 1: 'BLUE', 2: 'GREEN', 4: 'RED', 5: 'PINK', 6: 'BROWN', 7: 'LIGHT_GREY', 8: 'DARK_GREY', 10: 'LIME', 13: 'PINK', 14: 'YELLOW', 15: 'WHITE',
+    19: 'TAN', 22: 'PURPLE', 25: 'ORANGE', 27: 'LIME', 28: 'TAN', 70: 'BROWN', 71: 'LIGHT_GREY', 72: 'DARK_GREY', 272: 'DARK_BLUE', 288: 'GREEN', 320: 'DARK_RED',
+    297: 'GOLD', 334: 'GOLD', 33: 'TRANS_BLUE', 43: 'TRANS_BLUE', 36: 'TRANS_RED', 46: 'TRANS_ORANGE', 57: 'TRANS_ORANGE', 47: 'TRANS_CLEAR', 40: 'TRANS_CLEAR',
+};
+
+/**
+ * A baked file → { geometry (main colour, studs included), details: [{ colorKey, geometry }], name, size, bbox,
+ * rubber, heavy }, or null if malformed. `name` comes from the manifest (newer files carry geometry only).
+ */
+BrickBuilder.buildBaked = (doc, name) => {
+    const v = doc && doc.v, idx = doc && doc.i;
+    if (!Array.isArray(v) || !Array.isArray(idx) || v.length % 3 || idx.length % 3 || !idx.length) return null;
+    const nv = v.length / 3;
+    for (let k = 0; k < idx.length; k++) if (!(idx[k] >= 0 && idx[k] < nv)) return null;
+    const T = idx.length / 3;
+    // Split the triangles by colour: the main colour (16/24/unknown) and any fixed colours.
+    const byColor = new Map([['', []]]);
+    const c = Array.isArray(doc.c) && doc.c.length === T ? doc.c : null;
+    for (let t = 0; t < T; t++) {
+        let key = '';
+        if (c && c[t] != null && c[t] !== 16 && c[t] !== 24 && c[t] !== '16' && c[t] !== '24') {
+            key = (typeof c[t] === 'string' && window.LEGO_COLORS && window.LEGO_COLORS[c[t]]) ? c[t] : (BrickBuilder.LDRAW_COLORS[+c[t]] || '');
+        }
+        if (!byColor.has(key)) byColor.set(key, []);
+        byColor.get(key).push(t);
+    }
+    let bb = Array.isArray(doc.bbox) && doc.bbox.length === 6 ? doc.bbox : null;
+    if (!bb) {
+        bb = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
+        for (let k = 0; k < nv; k++) for (let a = 0; a < 3; a++) { bb[a] = Math.min(bb[a], v[k * 3 + a]); bb[a + 3] = Math.max(bb[a + 3], v[k * 3 + a]); }
+    }
+    // LDraw marks aliases and moved parts with a leading = or ~ in the title: not part of the name.
+    name = String(name || doc.name || doc.id || 'LDraw part').replace(/^[=~_|]+\s*/, '').replace(/\s+/g, ' ').trim();
+    const details = [];
+    for (const [key, tris] of byColor) if (key && tris.length) details.push({ colorKey: key, geometry: BrickBuilder.creaseGeometry(v, idx, tris) });
+    // Studs always; the underside tubes and posts only on the high tier (nobody sees them on a phone).
+    const body = BrickBuilder.withStuds(BrickBuilder.creaseGeometry(v, idx, byColor.get('')), doc.studs);
+    const tubes = BrickBuilder.tubeGeometry(doc.tubes);
+    return {
+        geometry: tubes ? BrickBuilder.bounded(BrickBuilder.protos().helper.merge([body, tubes])) : body,
+        liteGeometry: body,
+        details, name, bbox: bb, heavy: !!doc.heavy,
+        size: [bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2]],
+        rubber: /\b(tyre|tire)\b/i.test(name),
+    };
+};
+
+/**
+ * Newer baked files list their studs instead of meshing them: `studs: [[x, y, z, dx, dy, dz, type], ...]` (base
+ * centre and outward direction, StudForge units; type 0 solid, 1 hollow, 2 other). One shared low-poly stud in
+ * brick-builder's own look (LDraw's 6 LDU radius) is placed at each, aimed along its direction, and merged into
+ * the part's geometry, so a brick stays one mesh and one draw call.
+ */
+BrickBuilder.bounded = (g) => { g.computeBoundingBox(); g.computeBoundingSphere(); return g; };
+/** The shared stud shapes and a helper builder (for merge), made once. */
+BrickBuilder.protos = () => {
+    if (!BrickBuilder.studProtos) {
+        const h = new BrickBuilder({ quality: 'lite' }), r = 0.3, inner = 0.2;
+        const hollow = h.lathe([[inner, 0], [r, 0], [r, h.studHeight], [inner, h.studHeight]], 10);
+        BrickBuilder.studProtos = { solid: h.studGeometry(r), hollow, helper: h };
+    }
+    return BrickBuilder.studProtos;
+};
+BrickBuilder.withStuds = (geom, studs) => {
+    if (!Array.isArray(studs) || !studs.length) return geom;
+    const { solid, hollow, helper } = BrickBuilder.protos();
+    const up = new THREE.Vector3(0, 1, 0), dir = new THREE.Vector3(), q = new THREE.Quaternion(), m = new THREE.Matrix4(), one = new THREE.Vector3(1, 1, 1), at = new THREE.Vector3();
+    const pieces = [geom];
+    for (const s of studs) {
+        if (!Array.isArray(s) || s.length < 6 || !s.slice(0, 6).every(Number.isFinite)) continue;
+        dir.set(s[3], s[4], s[5]);
+        if (dir.lengthSq() < 1e-9) dir.copy(up); else dir.normalize();
+        q.setFromUnitVectors(up, dir);
+        m.compose(at.set(s[0], s[1], s[2]), q, one);
+        pieces.push((s[6] === 1 ? hollow : solid).clone().applyMatrix4(m));
+    }
+    const out = helper.merge(pieces);
+    out.computeBoundingBox();
+    out.computeBoundingSphere();
+    return out;
+};
+
+/**
+ * The underside tubes and posts a baked file lists (`tubes: [[x1, y1, z1, x2, y2, z2, radius, kind], ...]`, kind 3
+ * a solid post, 4 an open tube) as plain 8-sided cylinders: a post gets a bottom cap, a tube an inner wall at 3/4
+ * of its radius and a bottom ring. Null when there are none.
+ */
+BrickBuilder.tubeGeometry = (tubes) => {
+    if (!Array.isArray(tubes) || !tubes.length) return null;
+    const pos = [], nrm = [], seg = 8;
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), axis = new THREE.Vector3(), u = new THREE.Vector3(), w = new THREE.Vector3();
+    const P = (p) => pos.push(p.x, p.y, p.z), N = (n) => nrm.push(n.x, n.y, n.z);
+    for (const t of tubes) {
+        if (!Array.isArray(t) || t.length < 7 || !t.slice(0, 7).every(Number.isFinite)) continue;
+        a.set(t[0], t[1], t[2]); b.set(t[3], t[4], t[5]);
+        axis.subVectors(b, a); if (axis.lengthSq() < 1e-8) continue;
+        axis.normalize();
+        u.set(Math.abs(axis.y) < 0.9 ? 0 : 1, Math.abs(axis.y) < 0.9 ? 1 : 0, 0).cross(axis).normalize(); w.crossVectors(axis, u);
+        // the end nearer the part's underside (lower y) gets the cap or ring
+        const lo = a.y <= b.y ? a : b, down = a.y <= b.y ? axis.clone().negate() : axis.clone();
+        const ring = (r, k) => { const ang = (k / seg) * Math.PI * 2; return u.clone().multiplyScalar(Math.cos(ang) * r).addScaledVector(w, Math.sin(ang) * r); };
+        const wall = (r, inward) => {
+            for (let k = 0; k < seg; k++) {
+                const d0 = ring(r, k), d1 = ring(r, k + 1), n0 = d0.clone().normalize(), n1 = d1.clone().normalize();
+                if (inward) { n0.negate(); n1.negate(); }
+                const a0 = a.clone().add(d0), a1 = a.clone().add(d1), b0 = b.clone().add(d0), b1 = b.clone().add(d1);
+                P(a0); P(b1); P(a1); P(a0); P(b0); P(b1);
+                N(n0); N(n1); N(n1); N(n0); N(n0); N(n1);
+            }
+        };
+        const r = t[6];
+        wall(r, false);
+        if (t[7] === 4) {
+            const ri = r * 0.75;
+            wall(ri, true);
+            for (let k = 0; k < seg; k++) {   // the bottom ring between the walls
+                const o0 = lo.clone().add(ring(r, k)), o1 = lo.clone().add(ring(r, k + 1)), i0 = lo.clone().add(ring(ri, k)), i1 = lo.clone().add(ring(ri, k + 1));
+                P(o0); P(o1); P(i1); P(o0); P(i1); P(i0);
+                for (let q = 0; q < 6; q++) N(down);
+            }
+        } else {
+            for (let k = 0; k < seg; k++) { P(lo); P(lo.clone().add(ring(r, k))); P(lo.clone().add(ring(r, k + 1))); N(down); N(down); N(down); }
+        }
+    }
+    if (!pos.length) return null;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+    return g;
+};
+
+/**
+ * Non-indexed geometry for some triangles of an indexed mesh, with crease-angle normals: corners
+ * that share a position average the normals of the faces meeting there within the crease angle,
+ * so a wheel or a round brick shades smooth while box edges and slope ridges stay crisp. Faces are
+ * compared by |dot| and sign-aligned, so mixed winding still averages correctly. Vertical faces
+ * (stud and round-brick walls, 8 or 16 facets) smooth up to 50°, everything else up to 40°.
+ */
+BrickBuilder.creaseGeometry = (v, idx, tris) => {
+    const T = tris.length, COS_WALL = Math.cos(50 * Math.PI / 180), COS_ANY = Math.cos(40 * Math.PI / 180);
+    const pos = new Float32Array(T * 9), nrm = new Float32Array(T * 9), fn = new Float32Array(T * 3), fa = new Float32Array(T);
+    const groups = new Map();
+    for (let t = 0; t < T; t++) {
+        const ti = tris[t];
+        for (let k = 0; k < 3; k++) {
+            const vi = idx[ti * 3 + k], o = t * 9 + k * 3;
+            pos[o] = v[vi * 3]; pos[o + 1] = v[vi * 3 + 1]; pos[o + 2] = v[vi * 3 + 2];
+            const key = `${Math.round(pos[o] * 1000)},${Math.round(pos[o + 1] * 1000)},${Math.round(pos[o + 2] * 1000)}`;
+            let g = groups.get(key); if (!g) groups.set(key, g = []);
+            g.push(t * 3 + k);
+        }
+        const o = t * 9;
+        const ax = pos[o + 3] - pos[o], ay = pos[o + 4] - pos[o + 1], az = pos[o + 5] - pos[o + 2];
+        const bx = pos[o + 6] - pos[o], by = pos[o + 7] - pos[o + 1], bz = pos[o + 8] - pos[o + 2];
+        const nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx, len = Math.hypot(nx, ny, nz);
+        fa[t] = len / 2;
+        if (len > 1e-12) { fn[t * 3] = nx / len; fn[t * 3 + 1] = ny / len; fn[t * 3 + 2] = nz / len; }
+    }
+    for (const g of groups.values()) {
+        for (const a of g) {
+            const ta = (a / 3) | 0, ax = fn[ta * 3], ay = fn[ta * 3 + 1], az = fn[ta * 3 + 2];
+            let sx = 0, sy = 0, sz = 0;
+            for (const b of g) {
+                const tb = (b / 3) | 0, bx = fn[tb * 3], by = fn[tb * 3 + 1], bz = fn[tb * 3 + 2];
+                const d = ax * bx + ay * by + az * bz;
+                const lim = Math.abs(ay) < 0.15 && Math.abs(by) < 0.15 ? COS_WALL : COS_ANY;
+                if (Math.abs(d) < lim) continue;
+                const w = (d < 0 ? -1 : 1) * fa[tb];
+                sx += bx * w; sy += by * w; sz += bz * w;
+            }
+            const l = Math.hypot(sx, sy, sz);
+            if (l > 1e-12) { sx /= l; sy /= l; sz /= l; } else { sx = ax; sy = ay; sz = az; }
+            nrm[a * 3] = sx; nrm[a * 3 + 1] = sy; nrm[a * 3 + 2] = sz;
+        }
+    }
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geom.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+    geom.computeBoundingBox();
+    geom.computeBoundingSphere();
+    return geom;
+};
 
 window.BrickBuilder = BrickBuilder;

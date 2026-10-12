@@ -6,7 +6,10 @@
 //   DESIGN  the idea is sent with { mode: 'blueprint' } and the engine's vocabulary (modules, parts, colours, the
 //           knowledge base's subject data); Claude answers with a BLUEPRINT (blueprint.js) that the engine
 //           assembles from primitives and modules: Claude designs the model, not just picks a builder. RE-FORGE
-//           asks Claude for a different design (the variant number goes with the request). When the route has no
+//           asks Claude for a different design (the variant number goes with the request). The subject's id goes
+//           with it too: when the server has a real set of that subject compressed into a blueprint
+//           (data/omr-blueprints/), Claude is shown it as an example of real construction and the design's
+//           description credits the set ("Inspired by how real fire trucks are built (set ...)"). When the route has no
 //           design (validation failed, rate limit) the idea falls back to BRIEF behaviour.
 // Anything that goes wrong (no key, no route, timeout) falls back to the plain local forge, silently.
 // Exposes studForge.ai = { mode, enabled, ask(prompt), design(prompt, variant), offline } for other features.
@@ -97,7 +100,7 @@
             if (!data) return null;
             const v = B.validate(data.blueprint);
             if (!v.ok) { console.warn('StudForge: Claude\'s blueprint did not validate:', v.errors.join('; ')); return null; }
-            return { blueprint: v.bp, fixture: !!data.fixture };
+            return { blueprint: v.bp, fixture: !!data.fixture, example: data.example || null };
         }
 
         /* ── intercept the FORGE button and Enter: ask first, then forge with the brief or the blueprint ── */
@@ -124,7 +127,7 @@
                 if (d) {
                     const model = sf.forge(prompt, variant, { blueprint: d.blueprint });
                     built = model && model.kind === 'blueprint';
-                    if (built) console.info(`StudForge: Claude designed "${model.name}"${d.fixture ? ' (fixture)' : ''}: ${d.blueprint.ops.length} ops, ${model.bricks.length} pieces, struts: ${(model.anchor && model.anchor.struts) || 0}`);
+                    if (built) console.info(`StudForge: Claude designed "${model.name}"${d.fixture ? ' (fixture)' : ''}: ${d.blueprint.ops.length} ops, ${model.bricks.length} pieces, struts: ${(model.anchor && model.anchor.struts) || 0}${d.example ? `, learning from real set ${d.example.setId} ${d.example.name} (LDraw model by ${(d.example.authors || []).join(', ') || 'unknown'}, ${d.example.licence})` : ''}`);
                 }
                 if (!built && !offline) {
                     // No design: the brief path (one brief per prompt, reused across variants like BRIEF mode).

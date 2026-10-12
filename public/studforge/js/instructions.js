@@ -107,7 +107,7 @@ body.sfi-booklet-open { overflow: hidden; }
     /* ── helpers ────────────────────────────────────────────────── */
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const colorOf = (key) => window.LEGO_COLORS[key] || { name: key, hex: '#cccccc' };
-    const partOf = (id) => window.LEGO_PARTS[id] || { name: `Element ${id}`, category: 'Standard' };
+    const partOf = (id) => window.LEGO_PARTS[id] || (window.BrickBuilder && window.BrickBuilder.partInfo(id)) || { name: `Element ${id}`, category: 'Standard' };
 
     /** Parts grouped per build step, from the viewer's meshes (their `layer` is the step index). */
     function stepParts(viewer) {
@@ -384,7 +384,7 @@ body.sfi-booklet-open { overflow: hidden; }
                 <img class="sfi-img" src="${shots.hero}" alt="${esc(model.name)}">
                 <h2>All the parts · ${bom.length} unique elements</h2>
                 <div class="sfi-cols">${ptable(bom)}</div>
-                <p class="sfi-foot-note">Forged from the idea “${esc(model.prompt || model.name)}” · tonytoubia.com/studforge</p>
+                <p class="sfi-foot-note">${model.kind === 'reference' && model.reference ? `Real set ${esc(model.reference.setId)}, rebuilt from the LDraw OMR file by ${esc([].concat(model.reference.authors || []).join(', ') || 'the LDraw community')} · ${esc(model.reference.licence || 'CC BY')} · LDraw.org` : `Forged from the idea “${esc(model.prompt || model.name)}”`} · tonytoubia.com/studforge</p>
             </section>`;
             let run = 0;
             steps.forEach((st, i) => {
