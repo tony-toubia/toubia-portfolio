@@ -5,6 +5,7 @@ import AuraWindow from './AuraWindow';
 import DuetWindow from './DuetWindow';
 import AMZToolsWindow from './AMZToolsWindow';
 import PrimalHuntWindow from './PrimalHuntWindow';
+import VoidWardenWindow from './VoidWardenWindow';
 
 interface Project {
   id: string;
@@ -72,6 +73,20 @@ const projects: Project[] = [
     windowContent: <PrimalHuntWindow />,
     windowSize: { width: 800, height: 600 },
   },
+  {
+    id: 'void-warden',
+    name: 'Void Warden',
+    icon: (
+      <svg viewBox="0 0 48 48" className="w-10 h-10">
+        <rect x="4" y="4" width="40" height="40" rx="4" fill="#080c18" />
+        <circle cx="24" cy="24" r="14" fill="#000" stroke="#00f3ff" strokeWidth="2" />
+        <circle cx="24" cy="24" r="8" fill="#9d4edd" opacity="0.7" />
+        <text x="24" y="28" textAnchor="middle" fontSize="12">🌀</text>
+      </svg>
+    ),
+    windowContent: <VoidWardenWindow />,
+    windowSize: { width: 840, height: 620 },
+  },
 ];
 
 export default function ProjectsWindow() {
@@ -113,15 +128,42 @@ export default function ProjectsWindow() {
           {projects.map((project) => (
             <div
               key={project.id}
-              className="flex flex-col items-center gap-1 w-20 cursor-pointer group"
+              className="flex flex-col items-center gap-1 w-24 cursor-pointer group p-1 rounded hover:bg-[var(--selection-bg)] hover:bg-opacity-20 transition-colors"
+              onClick={() => {
+                if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                  handleDoubleClick(project);
+                }
+              }}
               onDoubleClick={() => handleDoubleClick(project)}
             >
-              <div className="p-1 group-hover:bg-[var(--selection-bg)] group-hover:bg-opacity-30">
+              <div className="p-1">
                 {project.icon}
               </div>
-              <span className="text-xs text-center text-[var(--window-text)] group-hover:text-[var(--selection-bg)] break-words w-full">
+              <span className="text-xs text-center text-[var(--window-text)] group-hover:text-[var(--selection-bg)] break-words w-full font-medium">
                 {project.name}
               </span>
+              {project.id === 'void-warden' && (
+                <a
+                  href="/void-warden-game"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[9px] text-cyan-400 hover:underline mt-0.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  /void-warden-game ↗
+                </a>
+              )}
+              {project.id === 'primal-hunt' && (
+                <a
+                  href="/map-mobile-game/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[9px] text-green-400 hover:underline mt-0.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  /map-mobile-game ↗
+                </a>
+              )}
             </div>
           ))}
         </div>

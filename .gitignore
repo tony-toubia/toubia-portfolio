@@ -70,3 +70,4 @@ data/*
 !data/org-scan-targets.json
 
 .cache/
+.turbo/

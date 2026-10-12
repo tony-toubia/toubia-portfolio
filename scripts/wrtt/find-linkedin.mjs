@@ -13,13 +13,17 @@
  * It never scrapes LinkedIn. It reads a search API's result list and keeps the
  * profile URLs, which is what a researcher does by hand, faster.
  *
- * Confidence is earned, not assumed. A hit only counts as strong when the
- * result text corroborates the person independently - their town, or one of
- * the organizations we already know they serve. Measured on a hand sample:
- * distinctive names with a professional footprint resolve cleanly, common
- * names return several plausible profiles and none of them provable, and
- * grassroots organizers frequently have no profile at all. Anything short of
- * corroborated is emitted for a human to judge, never auto-accepted.
+ * Confidence is earned, not assumed. A hit counts as corroborated only when
+ * the result names an ORGANIZATION we already hold for that person. The town
+ * is not enough on its own: the first real run accepted two people on a bare
+ * "Naperville" in the snippet, and neither had any traceable link to the org
+ * we hold for them - in a city of 150,000 that phrase places someone among
+ * their neighbours, not among the handful who sit on a given board.
+ *
+ * Measured over 22 Naperville candidates: 5 corroborated, and every one of
+ * the five youth-sports organizers missed entirely. That skew matters more
+ * than the yield - the index is tuned to surface the soccer parent over the
+ * bank director, and this path can only reach the bank director.
  *
  * Usage:
  *   SERPER_API_KEY=... node scripts/wrtt/find-linkedin.mjs --from-db --top 25 --load
@@ -117,8 +121,18 @@ const words = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').s
 
 /**
  * Does this result independently place the person? A slug containing their
- * name proves only that the search worked. Corroboration is the town or an
- * organization we already know they serve appearing in the title or snippet.
+ * name proves only that the search worked.
+ *
+ * The two kinds of corroboration are not equal, and treating them as equal
+ * put two wrong people through on the first real run. An organization match
+ * is specific: a handful of people sit on the board of Riverwalk Adult Day
+ * Services, and if the profile names it, that is the person. A town match is
+ * not: "Naperville" in a snippet places someone among 150,000 neighbours.
+ * Martin Bell and Madhu Uppal both cleared on town alone and neither turned
+ * out to have any traceable link to the org we hold for them.
+ *
+ * So a town reason is kept - it is worth something to a human reading the
+ * shortlist - but it can no longer carry an automatic accept by itself.
  */
 function corroboration(result, cand) {
   const hay = `${result.title} ${result.snippet}`.toLowerCase();
@@ -130,6 +144,8 @@ function corroboration(result, cand) {
   }
   return reasons;
 }
+
+const hasOrgReason = (reasons) => reasons.some((r) => r.startsWith('org:'));
 
 /**
  * People do not file their taxes under the name they use on LinkedIn.
@@ -290,10 +306,17 @@ async function findFor(cand, search) {
   ].filter(Boolean);
 
   const seen = new Map();
+  // A /pub/dir/ page is LinkedIn stating outright that this name belongs to
+  // many people - "10+ Madhu Uppal profiles". isPersonLink drops those from
+  // the candidate set, correctly, but the first run threw the fact away with
+  // them and then called a common name unambiguous. Keep the signal.
+  let commonName = false;
+
   for (const q of queries) {
     let results = [];
     try { results = await search(`site:linkedin.com/in ${q}`); } catch { continue; }
     for (const r of results) {
+      if (/\/pub\/dir\//i.test(r.link) && nameMatchesSlug(r.link, cand.name).surname) commonName = true;
       if (!isPersonLink(r.link)) continue;
       const slug = profileSlug(r.link);
       if (!slug) continue;
@@ -307,20 +330,26 @@ async function findFor(cand, search) {
                          snippet: r.snippet, reasons, forename_match: nm.forename, score, query: q });
       }
     }
-    if ([...seen.values()].some((c) => c.reasons.length)) break;   // corroborated; stop paying
+    // Only an organization match is worth stopping on. A town match is cheap
+    // to find and does not settle anything, so keep spending the second query.
+    if ([...seen.values()].some((c) => hasOrgReason(c.reasons))) break;
   }
 
   const cands = [...seen.values()].sort((a, b) => b.score - a.score);
   const best = cands[0];
-  // Automatic accept needs three things at once: the surname in the slug, the
-  // result independently placing the person, and no rival with equal standing.
   const rivals = cands.filter((c) => c.score === best?.score).length;
+
+  // Automatic accept needs the surname in the slug, an ORGANIZATION we already
+  // hold for this person named in the result, no rival of equal standing, and
+  // no sign the name is a common one. Town-only matches are real information
+  // and go to a human as 'ambiguous'; they are not a match.
   const verdict = !best ? 'none'
-    : best.reasons.length && rivals === 1 ? 'corroborated'
+    : hasOrgReason(best.reasons) && rivals === 1 && !commonName ? 'corroborated'
     : best.reasons.length ? 'ambiguous'
     : 'uncorroborated';
 
-  return { person_id: cand.id, name: cand.name, market: cand.market, verdict, candidates: cands.slice(0, 4) };
+  return { person_id: cand.id, name: cand.name, market: cand.market, verdict,
+           common_name: commonName, candidates: cands.slice(0, 4) };
 }
 
 async function main() {

@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Void Warden: Zombie Swarm | Tactical Defense</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Back to Home link when loaded directly -->
+    <a href="/" class="back-to-home" id="btn-back-home">← Back to Portfolio</a>
+
+    <!-- Canvas Container -->
+    <div id="canvas-container"></div>
+
+    <!-- UI Overlay Layer -->
+    <div id="ui-overlay">
+
+        <!-- Header / HUD (visible in game) -->
+        <header id="hud" class="hidden">
+            <div class="hud-top-left">
+                <div class="gate-status-panel">
+                    <div class="hud-label-row">
+                        <span class="hud-icon">🛡️</span>
+                        <span class="hud-title">SANCTUARY GATE</span>
+                        <span id="gate-hp-text" class="hud-value">100%</span>
+                    </div>
+                    <div class="hud-bar-bg">
+                        <div id="gate-hp-bar" class="hud-bar-fill gate-bar"></div>
+                    </div>
+                </div>
+
+                <div class="wave-panel">
+                    <span class="wave-tag">DEFENSE PHASE</span>
+                    <span id="wave-display" class="wave-title">WAVE 1 / 5</span>
+                </div>
+            </div>
+
+            <div class="hud-top-center">
+                <div class="score-box">
+                    <div class="score-label">CONTAINED MASS</div>
+                    <div id="score-val" class="score-number">0</div>
+                </div>
+                <div id="combo-badge" class="combo-badge hidden">
+                    <span id="combo-text">x2 COMBO!</span>
+                </div>
+            </div>
+
+            <div class="hud-top-right">
+                <div class="tier-panel">
+                    <div class="hud-label-row">
+                        <span class="hud-icon">🌀</span>
+                        <span id="tier-name" class="hud-title">TIER 1 RIFT</span>
+                        <span id="tier-progress-text" class="hud-value">0 / 250</span>
+                    </div>
+                    <div class="hud-bar-bg">
+                        <div id="tier-bar" class="hud-bar-fill tier-bar"></div>
+                    </div>
+                </div>
+
+                <div class="hud-btn-row">
+                    <button id="btn-sound-toggle" class="hud-icon-btn" title="Toggle Audio">🔊</button>
+                    <button id="btn-pause" class="hud-icon-btn" title="Pause Game">⏸</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Dynamic Warnings / Alerts -->
+        <div id="alert-banner" class="alert-banner hidden"></div>
+
+        <!-- Ability Button (Bottom-Right for mobile & desktop) -->
+        <div id="ability-controls" class="hidden">
+            <button id="btn-ability" class="ability-btn">
+                <div class="ability-cooldown-overlay" id="ability-cd-overlay"></div>
+                <div class="ability-icon">⚡</div>
+                <div class="ability-label">SINGULARITY</div>
+                <div class="ability-key">[SPACE]</div>
+            </button>
+        </div>
+
+        <!-- Floating Joystick Touch Area (Mobile) -->
+        <div id="joystick-zone">
+            <div id="joystick-base" class="hidden">
+                <div id="joystick-stick"></div>
+            </div>
+        </div>
+
+        <!-- Screens -->
+
+        <!-- 1. Main Menu Screen -->
+        <div id="screen-menu" class="screen-modal active">
+            <div class="modal-box menu-box">
+                <div class="cyber-badge">CONTAINMENT BREACH IN PROGRESS</div>
+                <h1 class="glitch-title" data-text="VOID WARDEN">VOID WARDEN</h1>
+                <p class="subtitle">ZOMBIE SWARM DEFENSE</p>
+                <p class="flavor-text">
+                    Control a growing interdimensional rift. Consume the incoming undead horde.
+                    Protect the civilian sanctuary at all costs.
+                </p>
+
+                <div class="menu-rules-summary">
+                    <div class="rule-chip positive">
+                        <span class="chip-icon">🕳️</span>
+                        <span>Swallow Zombies to Grow</span>
+                    </div>
+                    <div class="rule-chip warning">
+                        <span class="chip-icon">🏃</span>
+                        <span>DO NOT Eat Civilians</span>
+                    </div>
+                    <div class="rule-chip hazard">
+                        <span class="chip-icon">☣️</span>
+                        <span>Avoid Acid Bloaters</span>
+                    </div>
+                    <div class="rule-chip danger">
+                        <span class="chip-icon">👹</span>
+                        <span>Brutes Require Tier 3</span>
+                    </div>
+                </div>
+
+                <div class="menu-actions">
+                    <button id="btn-start-game" class="btn-cyber primary">INITIALIZE RIFT</button>
+                    <button id="btn-how-to-play" class="btn-cyber secondary">TACTICAL GUIDE</button>
+                </div>
+
+                <div class="mobile-controls-hint">
+                    <span class="hint-icon">📱</span> Touch & Drag anywhere to steer | <span>💻</span> WASD / Arrow Keys + Space
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. How to Play Modal -->
+        <div id="screen-guide" class="screen-modal hidden">
+            <div class="modal-box guide-box">
+                <h2>TACTICAL FIELD MANUAL</h2>
+                <div class="guide-grid">
+                    <div class="guide-card">
+                        <div class="guide-card-icon green">🧟</div>
+                        <h3>Shamblers & Sprinters</h3>
+                        <p>Standard infected. Walkers are slow fodder; sprinters rush the sanctuary gate. Swallow them to feed the rift and gain mass.</p>
+                    </div>
+                    <div class="guide-card">
+                        <div class="guide-card-icon blue">🏃</div>
+                        <h3>Panicked Civilians</h3>
+                        <p>Surviving humans fleeing toward the gate. <strong class="text-hazard">DO NOT CONSUME!</strong> Eating humans deducts points and weakens the gate shield.</p>
+                    </div>
+                    <div class="guide-card">
+                        <div class="guide-card-icon yellow">☣️</div>
+                        <h3>Acid Bloaters</h3>
+                        <p>Highly corrosive mutants. Consuming one causes <em>Acid Indigestion</em>: your hole shrinks by 15% and is temporarily slowed!</p>
+                    </div>
+                    <div class="guide-card">
+                        <div class="guide-card-icon purple">👹</div>
+                        <h3>Mutated Brutes</h3>
+                        <p>Colossal tanks. If your hole is below Tier 3, they will stomp the ground and stun your rift. Reach Tier 3 before taking them on!</p>
+                    </div>
+                </div>
+
+                <div class="guide-footer">
+                    <button id="btn-close-guide" class="btn-cyber secondary">RETURN TO MAIN MENU</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Between-Waves Perk Selection Modal -->
+        <div id="screen-perks" class="screen-modal hidden">
+            <div class="modal-box perks-box">
+                <div class="cyber-badge success">WAVE SECURED!</div>
+                <h2>CHOOSE RIFT MUTATION</h2>
+                <p class="flavor-text">Select an anomaly enhancement for the upcoming onslaught:</p>
+
+                <div id="perk-cards-container" class="perk-grid">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Pause Screen -->
+        <div id="screen-pause" class="screen-modal hidden">
+            <div class="modal-box pause-box">
+                <h2>CONTAINMENT PAUSED</h2>
+                <p>The anomaly is held in stasis.</p>
+                <div class="pause-actions">
+                    <button id="btn-resume" class="btn-cyber primary">RESUME BATTLE</button>
+                    <button id="btn-restart" class="btn-cyber secondary">RESTART WAVE</button>
+                    <button id="btn-quit" class="btn-cyber danger">ABORT MISSION</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. Game Over Screen -->
+        <div id="screen-gameover" class="screen-modal hidden">
+            <div class="modal-box gameover-box">
+                <div class="cyber-badge danger">SANCTUARY BREACHED</div>
+                <h2 class="text-danger">MISSION FAILED</h2>
+                <p class="flavor-text">The undead breached the defense perimeter and the sanctuary fell.</p>
+
+                <div class="stats-summary">
+                    <div class="stat-item">
+                        <span class="stat-label">Mass Captured</span>
+                        <span id="stat-mass" class="stat-number">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Zombies Swallowed</span>
+                        <span id="stat-zombies" class="stat-number">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Civilians Saved</span>
+                        <span id="stat-civilians-saved" class="stat-number green">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Civilian Casualties</span>
+                        <span id="stat-civilians-lost" class="stat-number red">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Highest Combo</span>
+                        <span id="stat-combo" class="stat-number">x0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Final Rift Tier</span>
+                        <span id="stat-tier" class="stat-number">Tier 1</span>
+                    </div>
+                </div>
+
+                <div class="menu-actions">
+                    <button id="btn-retry" class="btn-cyber primary">RE-INITIALIZE RIFT</button>
+                    <button id="btn-gameover-menu" class="btn-cyber secondary">MAIN MENU</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. Victory Screen -->
+        <div id="screen-victory" class="screen-modal hidden">
+            <div class="modal-box victory-box">
+                <div class="cyber-badge success">SECTOR LIBERATED</div>
+                <h2 class="text-success">DEFENSE TRIUMPH</h2>
+                <p class="flavor-text">All zombie waves neutralized. The human sanctuary survived the outbreak!</p>
+
+                <div class="stats-summary">
+                    <div class="stat-item">
+                        <span class="stat-label">Final Score</span>
+                        <span id="vic-score" class="stat-number gold">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Sanctuary Health</span>
+                        <span id="vic-gate" class="stat-number green">100%</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Total Eliminations</span>
+                        <span id="vic-kills" class="stat-number">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Survivor Evacuees</span>
+                        <span id="vic-survivors" class="stat-number green">0</span>
+                    </div>
+                </div>
+
+                <div class="menu-actions">
+                    <button id="btn-endless" class="btn-cyber primary">ENTER ENDLESS SURVIVAL</button>
+                    <button id="btn-victory-menu" class="btn-cyber secondary">MAIN MENU</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- Game Scripts -->
+    <script src="js/audio.js"></script>
+    <script src="js/particles.js"></script>
+    <script src="js/entities.js"></script>
+    <script src="js/hole.js"></script>
+    <script src="js/controls.js"></script>
+    <script src="js/waves.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

@@ -8,24 +8,28 @@
  * send. The IRS Business Master File supplies the ORGANIZATION's address, and
  * that turns out to be the interesting key.
  *
- * WHY AN ORG ADDRESS IS A REASONABLE KEY FOR A PERSON
+ * WHOSE ADDRESS IS IT
  *
- * A small nonprofit is frequently registered at a board member's house. So
- * for a soccer club run out of somebody's kitchen, the org address IS a home
- * address, and name-plus-address resolves the person who lives there. For a
- * hospital foundation in an office tower it resolves nobody.
+ * The first version of this asked whether each board member lived at the
+ * organization's address. It missed 50 times out of 50, and it deserved to.
+ * EASTLAKE BOYS SELECT BASKETBALL is registered at an address in care of KERI
+ * GREENHECK, so asking whether HOLLY AUNGST lives there is asking whether
+ * Holly lives at Keri's house. A ten-person board at one member's home gives
+ * one true binding and nine false ones, and there was no way to guess which.
  *
- * That failure mode is the useful one. Every method tried so far - Clay,
- * LinkedIn search, FEC employers - reaches the lawyer and misses the soccer
- * coach, because all three key on work identity. This one runs the other way:
- * the orgs whose address is a house are education (57% residential), cultural
- * (50%), arts and faith (43%), youth sports (38%), while economic development
- * (15%) and employers (0%) sit in real offices. It is the first mechanism
- * pointing at the people the index exists to find.
+ * The BMF answers it outright: the in-care-of field names the person whose
+ * address it is. wrtt.person_address keeps only the rows where that name is
+ * someone we already index at that organization, so the binding is evidenced
+ * rather than inferred - and it is the treasurer or president the club runs
+ * out of, who is the person worth reaching anyway.
  *
- * And it self-selects usefully. Of a ten-person board registered at the
- * treasurer's house, nine will miss and the treasurer will hit - the person
- * most central to the organization, which is who we wanted anyway.
+ * A small nonprofit is frequently registered at a board member's house, and
+ * that is what makes this the first mechanism in the project pointing toward
+ * the people the index exists to find rather than away from them. Every other
+ * route - Clay, LinkedIn search, FEC employers - keys on work identity and so
+ * reaches the lawyer and misses the soccer coach. Here the residential orgs
+ * are education (57%), cultural (50%), arts and faith (43%) and youth sports
+ * (38%), against economic development (15%) and employers (0%).
  *
  * MATCH TYPE IS NOT OPTIONAL READING
  *
@@ -116,31 +120,29 @@ async function main() {
 
   const sql = await connect();
 
-  // One row per person-address. Residential-looking addresses first: those are
-  // the ones where a person's name can actually match, and trying them first
-  // means a capped run spends its budget where a hit is possible.
+  // wrtt.person_address holds only bindings the BMF's in-care-of field
+  // evidences; trying every board member against the org address is what
+  // produced 50 misses from 50. Residential first within that, since a name
+  // can only match at a home, so a capped run spends where a hit is possible.
   const rows = await sql`
     with latest as (
       select distinct on (market_id) id, market_id from wrtt.score_run order by market_id, run_at desc
     )
-    select distinct on (p.id, o.id)
-           p.id as person_id, p.display_name, s.rank_in_market,
-           o.name as org, o.street, o.city, o.state, o.zip, o.premises_type,
-           case o.premises_type when 'residential' then 0 when 'likely_residential' then 1
-                                when 'unknown' then 2 else 3 end as home_rank
-      from wrtt.score s
+    select distinct on (pa.person_id, pa.organization_id)
+           pa.person_id, pa.display_name, s.rank_in_market,
+           pa.org, pa.street, pa.city, pa.addr_state as state, pa.zip, pa.premises_type,
+           case pa.premises_type when 'residential' then 0 when 'likely_residential' then 1
+                                 when 'unknown' then 2 else 3 end as home_rank
+      from wrtt.person_address pa
+      join wrtt.score s on s.person_id = pa.person_id
       join latest l on l.id = s.score_run_id
-      join wrtt.person p on p.id = s.person_id
-      join wrtt.affiliation a on a.person_id = p.id
-      join wrtt.organization o on o.id = a.organization_id
      where s.rank_in_market <= ${top}
-       and o.street is not null and o.city is not null and o.zip is not null
-       and not p.suppressed
        and not exists (select 1 from wrtt.contact c
-                        where c.person_id = p.id and c.channel = 'email' and c.source = 'atdata_eappend')
+                        where c.person_id = pa.person_id and c.channel = 'email'
+                          and c.source = 'atdata_eappend')
        and (${residentialOnly}::boolean = false
-            or o.premises_type in ('residential','likely_residential'))
-     order by p.id, o.id, home_rank
+            or pa.premises_type in ('residential','likely_residential'))
+     order by pa.person_id, pa.organization_id, home_rank
   `;
 
   // Re-sort globally: every person's best shot before anybody's second.
