@@ -48,8 +48,8 @@
         // Engine ids map onto the modes: quick → off, plan → brief, design → design. Picking a Claude engine on a
         // browser that has not unlocked asks for the password straight away; cancelling goes back to Quick.
         const ENGINE_MODE = { quick: 'off', plan: 'brief', design: 'design' }, MODE_ENGINE = { off: 'quick', brief: 'plan', design: 'design' };
-        const plan = sf.registerEngine({ id: 'plan', icon: '✨', label: 'Claude plans it', short: 'Claude: plan', hint: 'Claude writes the brief, the engine builds it · about 5 s', order: 10 });
-        const designE = sf.registerEngine({ id: 'design', icon: '✨', label: 'Claude designs it', short: 'Claude: design', hint: 'Claude lays out every section from real-set examples · slower', order: 20 });
+        const plan = sf.registerEngine({ id: 'plan', icon: '✨', label: 'Claude plans it', short: 'Claude: plan', hint: 'Claude writes the brief, the engine builds it · about 5 s', tiny: 'Claude · ~5 s', order: 10 });
+        const designE = sf.registerEngine({ id: 'design', icon: '✨', label: 'Claude designs it', short: 'Claude: design', hint: 'Claude lays out every section from real-set examples · slower', tiny: 'Claude · slower', order: 20 });
         let unlocked = false;
         const paintLock = () => { plan.setLocked(!unlocked && !offline); designE.setLocked(!unlocked && !offline); };
         const gate = window.studForgeGate;

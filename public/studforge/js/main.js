@@ -244,8 +244,9 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const it of $('engine-list').children) it.classList.toggle('on', it.dataset.engine === engine);
         createBar.dataset.engine = engine;
     };
-    const registerEngine = ({ id, icon, label, short, hint, order = 100 }) => {
-        const it = el('button', 'sf-menu-item engine-item', `<span class="mi-ico">${icon}</span><span class="mi-text"><span class="en-name">${esc(label)}<span class="lock">🔒</span></span>${hint ? `<small>${esc(hint)}</small>` : ''}</span>`);
+    const registerEngine = ({ id, icon, label, short, hint, tiny, order = 100 }) => {
+        // `tiny` is the hint on the phone's three-way switch, where there is room for two or three words.
+        const it = el('button', 'sf-menu-item engine-item', `<span class="mi-ico">${icon}</span><span class="mi-text"><span class="en-name">${esc(short || label)}<span class="lock">🔒</span></span><span class="en-long">${esc(label)}<span class="lock">🔒</span></span>${hint ? `<small class="en-hint">${esc(hint)}</small>` : ''}${tiny ? `<small class="en-tiny">${esc(tiny)}</small>` : ''}</span>`);
         it.type = 'button'; it.dataset.engine = id;
         it.addEventListener('click', () => setEngine(id));
         insertOrdered($('engine-list'), it, order);
@@ -259,7 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
         engine = id; store.set('studforge.engine', id); paintEngine();
         if (changed || id !== 'quick') emit('engine', id);
     }
-    registerEngine({ id: 'quick', icon: '⚡', label: 'Quick', hint: 'The built-in engine · free · instant', order: 0 });
+    registerEngine({ id: 'quick', icon: '⚡', label: 'Quick', hint: 'The built-in engine · free · instant', tiny: 'free · instant', order: 0 });
     if (!engines[engine]) engine = 'quick';
 
     /* ── suggestions (the inspiration models) ─────────────────── */
