@@ -18,7 +18,6 @@ import AIMWindow from './windows/AIMWindow';
 import ShortcutsWindow from './windows/ShortcutsWindow';
 import MySpace404Window from './windows/MySpace404Window';
 import DuetWindow from './windows/DuetWindow';
-import VoidWardenWindow from './windows/VoidWardenWindow';
 import StudForgeWindow from './windows/StudForgeWindow';
 import InfoBubble from './InfoBubble';
 
@@ -402,13 +401,6 @@ export default function Desktop() {
       windowSize: { width: 250, height: 360 },
     },
     {
-      id: 'void-warden',
-      label: 'Void Warden',
-      icon: icons.voidWarden,
-      windowContent: <VoidWardenWindow />,
-      windowSize: { width: 840, height: 620 },
-    },
-    {
       id: 'studforge',
       label: 'StudForge',
       icon: icons.studForge,
@@ -424,8 +416,10 @@ export default function Desktop() {
     },
   ];
 
-  const handleIconClick = (id: string) => {
+  const handleIconClick = (id: string, item?: DesktopItem) => {
     setSelectedIcon(id);
+    // On a phone a double-tap is easy to miss: a single tap opens the icon.
+    if (item && typeof window !== 'undefined' && window.innerWidth < 768) handleIconDoubleClick(item);
   };
 
   const handleIconDoubleClick = (item: DesktopItem) => {
@@ -502,7 +496,7 @@ export default function Desktop() {
                 key={item.id}
                 icon={item.icon}
                 label={item.label}
-                onClick={() => handleIconClick(item.id)}
+                onClick={() => handleIconClick(item.id, item)}
                 onDoubleClick={() => handleIconDoubleClick(item)}
                 isSelected={selectedIcon === item.id}
               />
@@ -513,7 +507,7 @@ export default function Desktop() {
             <DesktopIcon
               icon={recycleBinItem.icon}
               label={recycleBinItem.label}
-              onClick={() => handleIconClick(recycleBinItem.id)}
+              onClick={() => handleIconClick(recycleBinItem.id, recycleBinItem)}
               onDoubleClick={() => handleIconDoubleClick(recycleBinItem)}
               isSelected={selectedIcon === recycleBinItem.id}
             />
@@ -528,7 +522,7 @@ export default function Desktop() {
                 key={item.id}
                 icon={item.icon}
                 label={item.label}
-                onClick={() => handleIconClick(item.id)}
+                onClick={() => handleIconClick(item.id, item)}
                 onDoubleClick={() => handleIconDoubleClick(item)}
                 isSelected={selectedIcon === item.id}
               />
@@ -542,7 +536,7 @@ export default function Desktop() {
                 key={item.id}
                 icon={item.icon}
                 label={item.label}
-                onClick={() => handleIconClick(item.id)}
+                onClick={() => handleIconClick(item.id, item)}
                 onDoubleClick={() => handleIconDoubleClick(item)}
                 isSelected={selectedIcon === item.id}
               />
@@ -554,7 +548,7 @@ export default function Desktop() {
             <DesktopIcon
               icon={recycleBinItem.icon}
               label={recycleBinItem.label}
-              onClick={() => handleIconClick(recycleBinItem.id)}
+              onClick={() => handleIconClick(recycleBinItem.id, recycleBinItem)}
               onDoubleClick={() => handleIconDoubleClick(recycleBinItem)}
               isSelected={selectedIcon === recycleBinItem.id}
             />
