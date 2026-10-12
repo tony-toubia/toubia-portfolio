@@ -31,7 +31,7 @@ const prompts = process.argv.slice(2).length ? process.argv.slice(2) : [
     'gizmo', 'the eiffel tower', 'my dog max', 'tony', 'a cup of tea', 'haunted mansion', 'steampunk airship', 'micro yellow submarine', 'giant blue whale', 'huge castle', 'tiny cottage',
 ];
 let totalPieces = 0, bad = 0;
-const rows = [];
+const rows = [], struts = [];
 for (const pr of prompts) {
     let m;
     try { m = gen.generateFromPrompt(pr); } catch (e) { console.log(`ERROR "${pr}": ${e.message}\n${e.stack.split('\n').slice(1, 3).join('\n')}`); bad++; continue; }
@@ -39,25 +39,31 @@ for (const pr of prompts) {
     let overlaps = 0;
     const fps = m.bricks.map(footprint);
     fps.forEach((f, i) => { for (let y = f.y0; y < f.y0 + f.hp; y++) for (let x = f.x0; x < f.x0 + f.w; x++) for (let z = f.z0; z < f.z0 + f.l; z++) { const k = `${x},${y},${z}`; if (occ.has(k)) overlaps++; else occ.set(k, i); } });
-    let floating = 0;
+    // Connectivity: parts join only top-to-bottom (studs into tubes). Every assembly must reach the ground.
     const minY = Math.min(...fps.map((f) => f.y0));
-    fps.forEach((f, i) => {
-        if (f.y0 === minY || m.bricks[i].rotX || m.bricks[i].rotZ) return;
-        let ok = false;
-        for (let x = f.x0; x < f.x0 + f.w && !ok; x++) for (let z = f.z0; z < f.z0 + f.l; z++) { const k = `${x},${f.y0 - 1},${z}`; if (occ.has(k) && occ.get(k) !== i) { ok = true; break; } }
-        if (!ok) { for (let x = f.x0; x < f.x0 + f.w && !ok; x++) for (let z = f.z0; z < f.z0 + f.l; z++) { const k = `${x},${f.y0 + f.hp},${z}`; if (occ.has(k) && occ.get(k) !== i) { ok = true; break; } } }
-        if (!ok) floating++;
-    });
-    totalPieces += m.bricks.length;
-    if (overlaps || floating > 2) bad++;
-    if (process.env.DETAIL && (overlaps || floating)) {
-        // Name the offenders so the builder can be fixed.
-        const seen = new Map(); const ovl = [], fl = [];
+    const parent = fps.map((_, i) => i); const find = (a) => (parent[a] === a ? a : (parent[a] = find(parent[a]))); const union = (a, b) => { parent[find(a)] = find(b); };
+    fps.forEach((f, i) => { for (let x = f.x0; x < f.x0 + f.w; x++) for (let z = f.z0; z < f.z0 + f.l; z++) { const d = occ.get(`${x},${f.y0 - 1},${z}`); if (d !== undefined) union(i, d); const u = occ.get(`${x},${f.y0 + f.hp},${z}`); if (u !== undefined) union(i, u); } });
+    const comps = new Map(); fps.forEach((f, i) => { const r = find(i); if (!comps.has(r)) comps.set(r, []); comps.get(r).push(i); });
+    const loose = [...comps.values()].filter((ids) => !ids.some((i) => fps[i].y0 === minY));
+    const floating = loose.reduce((n, ids) => n + ids.length, 0);
+    const an = m.anchor || { struts: 0, maxStrut: 0, dropped: 0 };
+    if (an.struts) struts.push({ kind: m.kind, prompt: pr, struts: an.struts, max: an.maxStrut, pieces: an.strutPieces });
+    if (overlaps || floating) bad++;
+    if (process.env.DETAIL && (overlaps || floating || an.struts)) {
+        const seen = new Map(); const ovl = [];
         fps.forEach((f, i) => { let hit = null; for (let y = f.y0; y < f.y0 + f.hp && !hit; y++) for (let x = f.x0; x < f.x0 + f.w && !hit; x++) for (let z = f.z0; z < f.z0 + f.l; z++) { const k = `${x},${y},${z}`; if (seen.has(k)) { hit = seen.get(k); break; } seen.set(k, i); } if (hit !== null) ovl.push(`${m.bricks[hit].partId}@(${fps[hit].x0},${fps[hit].y0},${fps[hit].z0}) x ${m.bricks[i].partId}@(${f.x0},${f.y0},${f.z0})`); });
-        fps.forEach((f, i) => { if (f.y0 === minY || m.bricks[i].rotX || m.bricks[i].rotZ) return; let ok = false; for (let x = f.x0; x < f.x0 + f.w && !ok; x++) for (let z = f.z0; z < f.z0 + f.l; z++) { if (occ.has(`${x},${f.y0 - 1},${z}`) || occ.has(`${x},${f.y0 + f.hp},${z}`)) { ok = true; break; } } if (!ok) fl.push(`${m.bricks[i].partId}@(${f.x0},${f.y0},${f.z0})`); });
-        console.log(`  "${pr}": overlaps ${ovl.slice(0, 4).join('; ')} | floating ${fl.slice(0, 6).join('; ')}`);
+        const fl = loose.map((ids) => ids.slice(0, 4).map((i) => `${m.bricks[i].partId}/${m.bricks[i].color}@(${fps[i].x0},${fps[i].y0},${fps[i].z0})`).join('+') + (ids.length > 4 ? `+${ids.length - 4} more` : ''));
+        const st = m.bricks.filter((b) => b.strut).map((b) => `${b.color}@(${b.fp.x0},${b.fp.y0},${b.fp.z0})x${b.fp.hp}`);
+        console.log(`  "${pr}": overlaps ${ovl.slice(0, 4).join('; ')} | loose ${fl.slice(0, 6).join('; ')} | struts ${st.slice(0, 8).join(' ')}`);
     }
-    rows.push(`${String(m.bricks.length).padStart(4)} pcs ${String(m.steps).padStart(3)} steps  ${String(m.dims.w + 'x' + m.dims.d + 'x' + m.dims.h).padEnd(9)} ovl=${overlaps} float=${floating}  ${m.kind.padEnd(10)} ${m.name}  <- "${pr}"`);
+    totalPieces += m.bricks.length;
+    rows.push(`${String(m.bricks.length).padStart(4)} pcs ${String(m.steps).padStart(3)} steps  ${String(m.dims.w + 'x' + m.dims.d + 'x' + m.dims.h).padEnd(9)} ovl=${overlaps} loose=${floating} struts=${an.struts}${an.maxStrut ? '/' + an.maxStrut + 'p' : ''}  ${m.kind.padEnd(10)} ${m.name}  <- "${pr}"`);
 }
 console.log(rows.join('\n'));
 console.log(`\n${prompts.length} prompts, mean ${(totalPieces / prompts.length).toFixed(0)} pieces, ${bad} flagged`);
+// Struts are the safety net; a builder that leans on tall ones wants a hand-fix.
+if (struts.length) {
+    const byKind = new Map();
+    for (const s of struts) { const k = byKind.get(s.kind) || { n: 0, max: 0, worst: '' }; k.n++; if (s.max > k.max) { k.max = s.max; k.worst = s.prompt; } byKind.set(s.kind, k); }
+    console.log(`${struts.length} forges needed struts: ` + [...byKind.entries()].sort((a, b) => b[1].max - a[1].max).map(([k, v]) => `${k} ×${v.n} (tallest ${v.max}p: "${v.worst}")`).join(', '));
+}

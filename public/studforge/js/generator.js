@@ -207,7 +207,8 @@ class BrickGenerator {
      * (mosaic mode, for one) use this to put their own grids through the pipeline.
      */
     assemble(g, meta) {
-        const bricks = g.tile();
+        const anchored = this.anchor(g.tile());
+        const bricks = anchored.bricks;
         const b = g.bounds();
         const steps = new Set(bricks.map((p) => p.layer)).size;
         const pieces = bricks.length;
@@ -218,7 +219,87 @@ class BrickGenerator {
         const list = feats.length > 1 ? feats.slice(0, -1).join(', ') + ' and ' + feats[feats.length - 1] : feats[0] || '';
         const description = (meta.lead || `A ${pieces}-piece ${(meta.title || meta.name).toLowerCase()} with ${list}. `) + `${w}×${d} studs, ${Math.round(h / 3)} bricks tall, built in ${steps} steps.`;
         return { id: meta.id, name: meta.name, category: meta.category, icon: meta.icon, difficulty, estTime: `${mins} mins`, description, bricks, kind: meta.kind, prompt: meta.prompt, variant: meta.variant || 0, seed: meta.seed || 0, dims: { w, d, h: Math.round(h / 3) }, steps,
-            options: meta.options || [], palette: { ...(meta.palette || {}) }, opts: meta.opts || { colors: {}, scale: null, features: {} }, brief: meta.brief || null, matchKey: meta.matchKey || null };
+            options: meta.options || [], palette: { ...(meta.palette || {}) }, opts: meta.opts || { colors: {}, scale: null, features: {} }, brief: meta.brief || null, matchKey: meta.matchKey || null, anchor: anchored.stats };
+    }
+
+    /* ── anchoring: nothing floats ───────────────────────────── */
+
+    /**
+     * Guarantee that every assembly is stud-connected down to the ground.
+     * Parts connect only through their tops and bottoms (studs into tubes), so
+     * a component is "grounded" when a chain of such contacts reaches the
+     * lowest plate. For each loose component, first try gravity (drop it up
+     * to three plates onto something grounded), otherwise raise a strut of
+     * 1x1 bricks and plates from the nearest grounded piece (or the ground)
+     * up to the component. Builders should place things properly; this is the
+     * safety net that makes the rule hold for every forge.
+     */
+    anchor(bricks) {
+        const PLATE = window.FORGE_PLATE || 0.4;
+        const stats = { dropped: 0, struts: 0, strutPieces: 0, maxStrut: 0, stuck: 0 };
+        if (!bricks.length) return { bricks, stats };
+        const key = (x, y, z) => `${x},${y},${z}`;
+        const occ = new Map();   // cell -> brick index
+        const cellsOf = (f) => { const out = []; for (let y = f.y0; y < f.y0 + f.hp; y++) for (let x = f.x0; x < f.x0 + f.w; x++) for (let z = f.z0; z < f.z0 + f.l; z++) out.push([x, y, z]); return out; };
+        const put = (i) => { for (const [x, y, z] of cellsOf(bricks[i].fp)) occ.set(key(x, y, z), i); };
+        const lift = (i) => { for (const [x, y, z] of cellsOf(bricks[i].fp)) occ.delete(key(x, y, z)); };
+        bricks.forEach((_, i) => put(i));
+        const minY = Math.min(...bricks.map((b) => b.fp.y0));
+        for (let round = 0; round < 60; round++) {
+            // Components by vertical contact.
+            const parent = bricks.map((_, i) => i);
+            const find = (a) => (parent[a] === a ? a : (parent[a] = find(parent[a])));
+            const union = (a, b) => { parent[find(a)] = find(b); };
+            bricks.forEach((b, i) => { const f = b.fp; for (let x = f.x0; x < f.x0 + f.w; x++) for (let z = f.z0; z < f.z0 + f.l; z++) { const d = occ.get(key(x, f.y0 - 1, z)); if (d !== undefined) union(i, d); const u = occ.get(key(x, f.y0 + f.hp, z)); if (u !== undefined) union(i, u); } });
+            const comp = new Map();
+            bricks.forEach((b, i) => { const r = find(i); if (!comp.has(r)) comp.set(r, []); comp.get(r).push(i); });
+            const grounded = new Set();
+            for (const [r, ids] of comp) if (ids.some((i) => bricks[i].fp.y0 === minY)) grounded.add(r);
+            const loose = [...comp.entries()].filter(([r]) => !grounded.has(r)).map(([, ids]) => ids);
+            if (!loose.length) break;
+            // Lowest-hanging component first, so stacks of loose parts resolve bottom-up.
+            loose.sort((a, b) => Math.min(...a.map((i) => bricks[i].fp.y0)) - Math.min(...b.map((i) => bricks[i].fp.y0)));
+            const ids = loose[0], mine = new Set(ids);
+            const isGroundedCell = (x, y, z) => { const o = occ.get(key(x, y, z)); return o !== undefined && !mine.has(o) && grounded.has(find(o)); };
+            // 1. Gravity: drop up to three plates onto something grounded (or the ground) without hitting anything.
+            let done = false;
+            for (let d = 1; d <= 3 && !done; d++) {
+                let clear = true, lands = false;
+                for (const i of ids) { for (const [x, y, z] of cellsOf(bricks[i].fp)) { const o = occ.get(key(x, y - d, z)); if (o !== undefined && !mine.has(o)) { clear = false; break; } } if (!clear) break; }
+                if (!clear) break;
+                for (const i of ids) { const f = bricks[i].fp; for (let x = f.x0; x < f.x0 + f.w && !lands; x++) for (let z = f.z0; z < f.z0 + f.l; z++) { if (f.y0 - d === minY || isGroundedCell(x, f.y0 - d - 1, z)) { lands = true; break; } } if (lands) break; }
+                if (lands) {
+                    // Lift the whole component before any piece moves, or a piece could land in a neighbour's old cells.
+                    for (const i of ids) lift(i);
+                    for (const i of ids) { const b = bricks[i]; b.fp.y0 -= d; b.layer = b.fp.y0; b.y = b.fp.y0 * PLATE; put(i); }
+                    stats.dropped++; done = true;
+                }
+            }
+            if (done) continue;
+            // 2. Strut: the shortest column from the component down (or up) to a grounded cell or the ground.
+            let best = null;
+            const columns = new Map();
+            for (const i of ids) for (const [x, y, z] of cellsOf(bricks[i].fp)) { const k = `${x},${z}`; const c = columns.get(k) || { x, z, lo: Infinity, hi: -Infinity, loBrick: i }; if (y < c.lo) { c.lo = y; c.loBrick = i; } c.hi = Math.max(c.hi, y); columns.set(k, c); }
+            for (const c of columns.values()) {
+                // Downward.
+                let y = c.lo - 1, blocked = false;
+                while (y >= minY) { const o = occ.get(key(c.x, y, c.z)); if (o !== undefined) { if (!mine.has(o) && grounded.has(find(o))) break; blocked = true; break; } y--; }
+                if (!blocked) { const h = c.lo - 1 - y; const to = y + 1; if (h > 0 && (!best || h < best.h)) best = { h, x: c.x, z: c.z, y0: to, color: bricks[c.loBrick].color }; }
+                // Upward (something grounded hangs above, e.g. a roof): a column up from the component's top.
+                let yu = c.hi + 1, hit = -1, lim = c.hi + 40;
+                while (yu < lim) { const o = occ.get(key(c.x, yu, c.z)); if (o !== undefined) { if (!mine.has(o) && grounded.has(find(o))) hit = yu; break; } yu++; }
+                if (hit > 0) { const h = hit - c.hi - 1; if (h > 0 && (!best || h < best.h)) best = { h, x: c.x, z: c.z, y0: c.hi + 1, color: bricks[c.loBrick].color }; }
+            }
+            if (!best) { stats.stuck++; break; }
+            let y = best.y0, left = best.h;
+            while (left > 0) {
+                const hp = left >= 3 ? 3 : 1, partId = hp === 3 ? '3005' : '3024';
+                bricks.push({ partId, color: best.color, x: best.x, y: y * PLATE, z: best.z, rotY: 0, rotX: 0, rotZ: 0, layer: y, strut: true, fp: { x0: best.x, z0: best.z, y0: y, w: 1, l: 1, hp } });
+                put(bricks.length - 1); stats.strutPieces++; y += hp; left -= hp;
+            }
+            stats.struts++; stats.maxStrut = Math.max(stats.maxStrut, best.h);
+        }
+        return { bricks, stats };
     }
 
     /* ── combining ideas ─────────────────────────────────────── */
