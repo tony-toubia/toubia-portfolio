@@ -81,11 +81,11 @@ def('3957', 'Antenna 1 x 4', 'Misc', 1, 1, 2.4, { isAntenna: true, hasStuds: fal
 def('4600', 'Plate 2 x 2 with Wheel Holders', 'Wheels', 2, 2, 0.4, { isPlate: true, isAxlePlate: true });
 def('2926', 'Plate 1 x 4 with Wheel Holders', 'Wheels', 1, 4, 0.4, { isPlate: true, isAxlePlate: true });
 def('4624', 'Wheel 8mm D. x 6mm', 'Wheels', 1, 1, 1.0, { isWheel: true, diameter: 1.0, hasStuds: false });
-def('3641', 'Tire 15mm D. x 6mm', 'Wheels', 1, 2, 2.0, { isTire: true, diameter: 1.9, hasStuds: false, ghost: true });
+def('3641', 'Tire 15mm D. x 6mm', 'Wheels', 1, 2, 2.0, { isTire: true, diameter: 1.9, rim: 1.0, thick: 1.2, hasStuds: false, ghost: true });   // render hints: `rim` = the matching wheel's diameter, `thick` = tyre width along X
 def('6014', 'Wheel 11mm D. x 12mm', 'Wheels', 1, 2, 1.4, { isWheel: true, diameter: 1.4, hasStuds: false });
-def('6015', 'Tire 21mm D. x 12mm', 'Wheels', 1, 3, 2.6, { isTire: true, diameter: 2.6, hasStuds: false, ghost: true });
+def('6015', 'Tire 21mm D. x 12mm', 'Wheels', 1, 3, 2.6, { isTire: true, diameter: 2.6, rim: 1.4, thick: 1.5, hasStuds: false, ghost: true });
 def('56904', 'Wheel 30.4mm D. x 20mm', 'Wheels', 2, 4, 3.8, { isWheel: true, diameter: 3.8, hasStuds: false });
-def('56898', 'Tire 43.2mm D. x 14mm', 'Wheels', 2, 5, 5.4, { isTire: true, diameter: 5.4, hasStuds: false, ghost: true });
+def('56898', 'Tire 43.2mm D. x 14mm', 'Wheels', 2, 5, 5.4, { isTire: true, diameter: 5.4, rim: 3.8, thick: 2.2, hasStuds: false, ghost: true });
 def('55423', 'Train Wheel with Axle Hole', 'Wheels', 1, 2, 2.2, { isWheel: true, diameter: 2.2, hasStuds: false });
 def('3705', 'Technic Axle 4', 'Technic', 1, 4, 0.4, { isBar: true, hasStuds: false });
 def('2780', 'Technic Pin with Friction', 'Technic', 1, 1, 0.4, { isPin: true, hasStuds: false });
