@@ -164,6 +164,7 @@ class BrickGenerator {
         const rnd = this.rng(seed || 1);
         let { builder, key } = this.pickBuilder(parsed);
         // An AI brief may name the builder kind outright; it wins over keyword scoring (with a key the builder understands).
+        const brief = opts.brief || null;
         if (brief && brief.kind && (!builder || builder.kind !== brief.kind)) {
             const forced = window.FORGE.builders.find((b) => b.kind === brief.kind);
             if (forced) { builder = forced; key = forced.keys.find((k) => parsed.has(k)) || forced.keys[0]; }
