@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import fs from 'node:fs';
 import path from 'node:path';
 import { AI_COOKIE, tokenValid } from '@/lib/studforge/gate';
+import { blueprintUserMessage, exampleFor, withCredit, type DesignSubject } from '@/lib/studforge/omr-examples';
 
 /**
  * POST /api/studforge/idea
@@ -22,6 +23,12 @@ import { AI_COOKIE, tokenValid } from '@/lib/studforge/gate';
  *   design stays inside what the engine can build and what real sets look like. The answer is validated with the
  *   same rules as `FORGE.blueprint.validate` (known ops/ids/colours, numeric ranges, ≤ 60 ops, base ≤ 48×48,
  *   y ≤ 60) and returned as { blueprint, source: 'claude' }. `variant` > 0 asks for a different design.
+ *   Real-set example: when public/studforge/data/omr-blueprints/ has a compressed real set for the subject the page
+ *   resolved (`subject.id`, e.g. 'fireTruck'), it is read from disk here (src/lib/studforge/omr-examples.ts; never
+ *   taken from the request) and added to the USER message as a few-shot example of how real sets of that subject are
+ *   constructed, so the system prompt stays cacheable; variants rotate through a subject's examples. A design made
+ *   with an example gets the set credit appended to its description and the answer carries
+ *   `example: { setId, name, year, authors, licence }`. No example for the subject: exactly the old behaviour.
  *   With STUDFORGE_BLUEPRINT_FIXTURE=1 (never in production) and no key, a fixture from
  *   public/studforge/data/blueprints is returned instead, so the client flow can be exercised offline.
  *
@@ -128,7 +135,7 @@ const ROOFS = ['gable', 'flat', 'curved'];
 type ParamSpec = { id: string; type: string; choices?: (string | number)[]; default?: unknown; note?: string };
 type ModuleSpec = { id: string; title: string; describe: string; params: ParamSpec[] };
 type PartSpec = { id: string; name: string; w: number; l: number; hp: number; ghost?: boolean };
-type Subject = { id: string; n?: number; palette: [string, number][]; pieces: { p25: number; p50: number; p75: number } | null; parts: [string, number][] };
+type Subject = DesignSubject;
 type BlueprintVocab = { prompt: string; variant: number; modules: ModuleSpec[]; colors: string[]; parts: PartSpec[]; subject: Subject | null };
 type Op = Record<string, unknown>;
 type Blueprint = { name: string; description: string; tagline?: string; category?: string; base: { w: number; d: number; color: string }; ops: Op[] };
@@ -214,24 +221,13 @@ function blueprintSystemPrompt(v: BlueprintVocab): string {
     '4. Use the modules for the parts a good builder would use real parts for: chassis (never draw wheels with boxes), realDoor/realWindow/archDoor in walls, hingeJaw for mouths, hingedWing for wings, clipTail for tails, turret for cannons, headlight and bracketMount and grilleBumper for vehicle faces, propeller and rotorMast for aircraft, fence/flagPole/lamp2 for gardens and streets. Set them INTO a painted wall or body; keep modules apart from each other and from parts.',
     '5. Colour like the real sets: when the subject data gives a palette, use those colours in roughly those proportions (the main colour is rarely more than a third of the pieces); black or dark grey for chassis, wheels and bases of mechanisms; trans colours only for glass and lights. Keep to the colour ids above.',
     '6. Size to the subject piece budget: aim near the p50 piece count (within about 30 percent) when it is given; otherwise 80-250 pieces. A box tiles into roughly (w*d*plates)/24 bricks.',
-    '7. Keep the blueprint to 10-40 ops: one op per feature, not one per brick. Keep all coordinates on or near the base plate (base w, d <= 48; y <= 60).',
-    '8. The name is fun and short (max 40 chars), the description one or two sentences naming the real techniques used, the tagline one playful line. Never mention LEGO trademarks.',
+    '7. Build inside-out like real sets: the chassis or a floor slab first, then the interior on it (seats, a steering wheel, a console, furniture), then 1-stud walls around it (box hollow: bodies, cabs and rooms are hollow shells, not solid blocks), windows and doors set into those walls so the interior shows through them, the roof last on a slab over the walls.',
+    '8. When the message shows how a real set of the subject is built (a blueprint), learn its construction (what is hollow, wall thickness, floor and roof, where the modules go) and its proportions, then design your own model for the idea: never copy its coordinates.',
+    '9. Keep the blueprint to 10-40 ops: one op per feature, not one per brick. Keep all coordinates on or near the base plate (base w, d <= 48; y <= 60).',
+    '10. The name is fun and short (max 40 chars), the description one or two sentences naming the real techniques used, the tagline one playful line. Never mention LEGO trademarks.',
     '',
     'Respond with ONLY a JSON object, no prose, no code fences, exactly: {"name": string, "description": string, "tagline": string, "category": string (one of Vehicles, Architecture, Creatures, Space, Nature, Objects, Figures), "base": {"w": int, "d": int, "color": colourId}, "ops": [ ... ]}',
   ].join('\n');
-}
-
-function blueprintUserMessage(v: BlueprintVocab): string {
-  const lines = [`Idea: ${v.prompt}`];
-  const s = v.subject;
-  if (s) {
-    const pal = s.palette.map(([c, share]) => `${c} ${Math.round(share * 100)}%`).join(', ');
-    const pcs = s.pieces ? `piece count p25 ${s.pieces.p25} / p50 ${s.pieces.p50} / p75 ${s.pieces.p75}` : 'no piece-count data';
-    const top = s.parts.map(([id, share]) => `${id} (${Math.round(share * 100)}%)`).join(', ');
-    lines.push(`Real sets of this subject (${s.id}${s.n ? ', ' + s.n + ' sets' : ''}): palette ${pal || 'unknown'}; ${pcs}; parts most sets use: ${top || 'unknown'}.`);
-  }
-  if (v.variant > 0) lines.push(`This is design attempt #${v.variant + 1} for the same idea: give me a DIFFERENT design from before (another layout, pose, proportion or set of features), not a repeat.`);
-  return lines.join('\n');
 }
 
 /* ── validate the blueprint with the client's rules (blueprint.js `validate`), against the vocab it sent ── */
@@ -383,17 +379,24 @@ export async function POST(req: NextRequest) {
     if (!key) {
       if (process.env.STUDFORGE_BLUEPRINT_FIXTURE === '1' && process.env.NODE_ENV !== 'production') {
         const checked = validateBlueprint(fixtureBlueprint(vocab), vocab);
+        // The fixture stands in for Claude, credit included, so the client's example path runs offline too.
+        const example = exampleFor(vocab.subject?.id, vocab.variant);
+        if (checked.ok && example) return NextResponse.json({ blueprint: { ...checked.bp, description: withCredit(checked.bp.description, example) }, source: 'claude', fixture: true, example: { setId: example.setId, name: example.name, year: example.year, authors: example.authors, licence: example.licence } }, { headers: NO_STORE });
         if (checked.ok) return NextResponse.json({ blueprint: checked.bp, source: 'claude', fixture: true }, { headers: NO_STORE });
       }
       return local('no-key');
     }
     if (limited(ip)) return local('rate-limited', 429);
-    const ans = await askClaude(key, { system: blueprintSystemPrompt(vocab), user: blueprintUserMessage(vocab), maxTokens: 4000, effort: 'medium', timeoutMs: BLUEPRINT_TIMEOUT_MS, cache: true });
+    const example = exampleFor(vocab.subject?.id, vocab.variant);
+    const ans = await askClaude(key, { system: blueprintSystemPrompt(vocab), user: blueprintUserMessage(vocab.prompt, vocab.variant, vocab.subject, example), maxTokens: 4000, effort: 'medium', timeoutMs: BLUEPRINT_TIMEOUT_MS, cache: true });
     if (!ans.ok) return local(ans.reason, ans.status);
     if (ans.refused) return local('no-blueprint');
     const checked = validateBlueprint(parseJson(ans.text), vocab);
     if (!checked.ok) { console.warn('[studforge] blueprint rejected:', checked.errors.slice(0, 5).join('; ')); return local('no-blueprint'); }
-    return NextResponse.json({ blueprint: checked.bp, source: 'claude' }, { headers: NO_STORE });
+    if (!example) return NextResponse.json({ blueprint: checked.bp, source: 'claude' }, { headers: NO_STORE });
+    // CC BY: the design learnt from a real set's LDraw model, so it says which one.
+    const blueprint = { ...checked.bp, description: withCredit(checked.bp.description, example) };
+    return NextResponse.json({ blueprint, source: 'claude', example: { setId: example.setId, name: example.name, year: example.year, authors: example.authors, licence: example.licence } }, { headers: NO_STORE });
   }
 
   if (!key) return local('no-key');
