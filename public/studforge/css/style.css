@@ -482,7 +482,7 @@ body:not(.in-iframe) .back-to-home {
 }
 
 /* Side panel tabs: parts, plus whatever feature panels register */
-.side-tabs { display: flex; gap: 2px; padding: 6px 6px 0; border-bottom: 1px solid var(--border-main); background: rgba(9, 12, 19, 0.4); overflow-x: auto; flex-shrink: 0; }
+.side-tabs { display: flex; flex-wrap: wrap; gap: 2px; padding: 6px 6px 0; border-bottom: 1px solid var(--border-main); background: rgba(9, 12, 19, 0.4); flex-shrink: 0; }
 .side-tab { background: transparent; border: 1px solid transparent; border-bottom: none; color: var(--text-muted); font-family: var(--font-heading); font-size: 10px; font-weight: 700; letter-spacing: 0.6px; padding: 7px 10px; border-radius: 6px 6px 0 0; cursor: pointer; white-space: nowrap; }
 .side-tab:hover { color: #fff; }
 .side-tab.on { color: var(--lego-yellow); background: var(--bg-card); border-color: var(--border-main); }
@@ -750,6 +750,8 @@ body:not(.in-iframe) .back-to-home {
     .bom-card { display: none; }
     .bom-card.open { display: flex; height: 70vh; min-height: 320px; flex-shrink: 0; }
     .side-tab { padding: 6px 8px; font-size: 9px; }
+    .tool-dock { gap: 4px; }
+    .tool-chip { padding: 3px 8px; font-size: 10px; gap: 4px; }
     .viewport-widgets { top: 40px; right: 8px; }
     .bom-actions { flex-direction: row; }
     .action-btn { padding: 8px 4px; font-size: 9px; letter-spacing: 0.3px; }
