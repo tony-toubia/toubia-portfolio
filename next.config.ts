@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   // sure the file ships with the function bundle on Vercel.
   outputFileTracingIncludes: {
     '/slt/wrtt/deck': ['./src/app/slt/wrtt/deck/*.pdf'],
+    // DESIGN mode reads the compressed real-set examples from disk at runtime (src/lib/studforge/omr-examples.ts).
+    '/api/studforge/idea': ['./public/studforge/data/omr-blueprints/*.json'],
   },
   async rewrites() {
     return [
