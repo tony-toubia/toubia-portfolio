@@ -35,7 +35,7 @@ export default function VoidWardenWindow() {
           </div>
         )}
         <iframe
-          src="/void-warden-game/"
+          src="/void-warden-game/index.html"
           className="w-full h-full border-0"
           onLoad={() => setIsLoading(false)}
           title="Void Warden Game"
