@@ -118,8 +118,8 @@ export default function ProjectsWindow() {
       id: project.id,
       title: project.name,
       isMinimized: false,
-      // StudForge needs the whole screen on a phone.
-      isMaximized: isMobile && project.id === 'studforge',
+      // The games and StudForge need the whole screen on a phone.
+      isMaximized: isMobile && ['studforge', 'void-warden', 'primal-hunt'].includes(project.id),
       position: { x: centerX, y: centerY },
       size: windowSize,
       content: project.windowContent,
