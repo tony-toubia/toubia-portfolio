@@ -187,7 +187,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
         if (kind === 'horse') { g.box(x, x + 1, z + 3, z + 3, y + 7, y + 9, col); g.part('54200', 'BLACK', x, z + 2, y + 7, { rotY: PI }); }
         g.part('3022', kind === 'cow' ? 'PINK' : col, x, z + 3, hy); g.box(x, x + 1, z + 3, z + 4, hy + 1, hy + 2, col);   // a head plate locked onto the body
         g.part('98138', 'BLACK', x, z + 4, hy + 3); g.part('98138', 'BLACK', x + 1, z + 4, hy + 3);
-        g.part(kind === 'cow' ? '4589' : '54200', kind === 'cow' ? 'TAN' : col, x, z + 3, hy + 3, { rotY: PI }); g.part(kind === 'cow' ? '4589' : '54200', kind === 'cow' ? 'TAN' : col, x + 1, z + 3, hy + 3, { rotY: PI });
+        g.part(kind === 'cow' ? '59900' : '54200', kind === 'cow' ? 'TAN' : col, x, z + 3, hy + 3, { rotY: PI }); g.part(kind === 'cow' ? '59900' : '54200', kind === 'cow' ? 'TAN' : col, x + 1, z + 3, hy + 3, { rotY: PI });
         g.part('3023', col, x, z - 1, y + 7, { rotY: 0 }); g.part('3062', col, x, z - 1, y + 4);   // the tail hangs off the rump
     };
 
@@ -284,7 +284,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 g.shell(tx, tx + 3, -3, 0, 1, TH, wall); H.ceiling(ctx, tx, tx + 3, -3, 0, TH + 1, P.dark);
                 g.box(tx, tx + 3, -3, 0, TH + 2, TH + 2, P.dark, { noBrick: true });
                 H.minifigWindow(ctx, tx + 1, 0, 13, 'front', 1); H.minifigWindow(ctx, tx + 1, 0, 25, 'front', 1);
-                g.part('4589', 'GOLD', tx + 1, -2, TH + 3); H.flag(ctx, tx + 2, -1, TH + 3, P.accent);
+                g.part('59900', 'GOLD', tx + 1, -2, TH + 3); H.flag(ctx, tx + 2, -1, TH + 3, P.accent);
                 feats.push('a hose tower with a bell');
             }
             H.lamp(ctx, W + 1, D + 1, 1);
@@ -319,7 +319,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             const segs = [];
             for (let z = z1 - 3; z >= z0 + 4; z -= 2) { g.part('3941', 'BLACK', 1, z, 6, { rotX: PI / 2, w: 2, l: 2, hp: 5, lie: true }); segs.push(z); }
             g.part('3941', trim, 1, z1 - 1, 6, { rotX: PI / 2, w: 2, l: 2, hp: 5, lie: true });   // the smokebox door
-            g.part('3062', 'BLACK', 1, segs[0], 11); g.part('4589', 'BLACK', 1, segs[0], 14);   // funnel
+            g.part('3062', 'BLACK', 1, segs[0], 11); g.part('59900', 'BLACK', 1, segs[0], 14);   // funnel
             g.part('4032', 'GOLD', 1, segs[1], 11); g.part('553', body, 1, segs[1], 12);   // steam dome
             g.part('98138', 'TRANS_ORANGE', 2, z1 - 1, 11);                                    // headlamp
             g.part('3040', 'DARK_GREY', 1, z1, 3, { rotY: PI / 2, w: 2, l: 1 });               // cow-catcher
@@ -473,7 +473,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             H.window(ctx, 1, 0, 4, 'back'); H.window(ctx, 5, 0, 4, 'back');
             H.ceiling(ctx, 0, BW - 1, 0, BD - 1, 10, 'WHITE');
             const roof = H.gableRoof(ctx, 0, BW - 1, 0, BD - 1, 11, P.roof === 'DARK_RED' ? 'DARK_GREY' : P.roof, 'x');
-            g.part('4589', 'GOLD', 1, Math.floor((roof.a + roof.b) / 2), roof.y + 1);
+            g.part('59900', 'GOLD', 1, Math.floor((roof.a + roof.b) / 2), roof.y + 1);
             // The silo beside it.
             for (let i = 0; i < 5; i++) g.part('3941', 'LIGHT_GREY', BW + 1, 1, 1 + i * 3);
             g.part('553', 'LIGHT_GREY', BW + 1, 1, 16);
@@ -548,7 +548,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             const tx = W - 5, tz = zW + 5;
             g.part('3039', P.accent, tx, tz, 1, { rotY: PI }); g.part('3039', P.accent, tx, tz + 2, 1, { rotY: 0 });
             g.part('3039', P.accent, tx + 2, tz, 1, { rotY: PI }); g.part('3039', P.accent, tx + 2, tz + 2, 1, { rotY: 0 });
-            g.part('3062', 'BROWN', tx - 1, tz + 4, 1); g.part('4589', 'TRANS_ORANGE', tx - 1, tz + 4, 4);
+            g.part('3062', 'BROWN', tx - 1, tz + 4, 1); g.part('59900', 'TRANS_ORANGE', tx - 1, tz + 4, 4);
             feats.push('a besiegers\' camp with a tent and campfire');
             if (chance(0.6)) H.tree(ctx, 2, D - 2, 1, 'pine');
             return { title: ctx.match === 'catapult' || ctx.match === 'trebuchet' ? 'Catapult at the Walls' : 'Castle Siege', features: feats };

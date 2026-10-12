@@ -141,8 +141,8 @@
             if (A.ears === 'round') { g.part('4032', col2, hx - 1, hz - 2, eyeY); g.part('4032', col2, hx + hw - 1, hz - 2, eyeY); }
             if (A.ears === 'down' || A.ears === 'side') { const ey = Math.max(hy + 2, hy + hh - 2); g.part('3023', col2, hx - 1, hz - 1, ey, { rotY: PI / 2, w: 2, l: 1 }); g.part('3023', col2, hx + hw - 1, hz - 1, ey, { rotY: PI / 2, w: 2, l: 1 }); }
             if (A.ears === 'big') { g.part('3031', col2, hx - 3, hz - 1, hy + 2, { w: 4, l: 4 }); g.part('3031', col2, hx + hw - 1, hz - 1, hy + 2, { w: 4, l: 4 }); }
-            if (A.horns) { g.part('4589', 'WHITE', hx, hz - 1, eyeY); g.part('4589', 'WHITE', hx + hw - 1, hz - 1, eyeY); feats.push('horns'); }
-            if (A.horn) { g.part('4589', A.title === 'Unicorn' ? 'GOLD' : 'WHITE', hx + Math.floor(hw / 2), hz + hl - 2, eyeY); feats.push('a horn'); }
+            if (A.horns) { g.part('59900', 'WHITE', hx, hz - 1, eyeY); g.part('59900', 'WHITE', hx + hw - 1, hz - 1, eyeY); feats.push('horns'); }
+            if (A.horn) { g.part('59900', A.title === 'Unicorn' ? 'GOLD' : 'WHITE', hx + Math.floor(hw / 2), hz + hl - 2, eyeY); feats.push('a horn'); }
             if (A.antlers) { for (const x of [hx, hx + hw - 1]) { g.part('3062', 'TAN', x, hz - 1, eyeY); g.part('3023', 'TAN', x, hz - 2, eyeY + 3, { rotY: 0 }); g.part('4073', 'TAN', x, hz - 2, eyeY + 4); } feats.push('antlers'); }
             if (A.frill) { const tot = hw + 2; let L1 = 0; if (!H.plateLen(tot)) for (let l = 2; l <= hw; l++) if (H.plateLen(l) && H.plateLen(tot - l)) { L1 = l; break; } if (L1) { H.strip(ctx, hx - 1, hz - 1, L1, 'x', hy + 2, col2); H.strip(ctx, hx - 1 + L1, hz - 1, tot - L1, 'x', hy + 2, col2); } else H.strip(ctx, hx - 1, hz - 1, tot, 'x', hy + 2, col2); g.box(hx - 1, hx + hw, hz - 1, hz - 1, hy + 3, hy + hh + 2, col2); feats.push('a bony frill'); }
             if (A.trunk) {
@@ -156,7 +156,7 @@
                 const fx = hx + Math.floor(hw / 2);
                 g.part('3710', col2, fx, hz + hl - 2, hy - 1, { rotY: 0, w: 1, l: 4 });
                 g.part('3062', 'TRANS_ORANGE', fx, hz + hl - 1, hy, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true });
-                g.part('4589', 'TRANS_ORANGE', fx, hz + hl + 1, hy, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true });
+                g.part('59900', 'TRANS_ORANGE', fx, hz + hl + 1, hy, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true });
                 feats.push('a plume of fire');
             }
             // Tail: 1x2 plates stepping back and down, each overlapping the one before.
@@ -209,7 +209,7 @@
             if (sea) {
                 const col = P.explicit ? P.primary : { shark: 'LIGHT_GREY', whale: 'BLUE', dolphin: 'LIGHT_GREY', orca: 'BLACK', octopus: 'PURPLE', squid: 'PINK', jellyfish: 'TRANS_BLUE', goldfish: 'ORANGE', seahorse: 'YELLOW', starfish: 'ORANGE' }[match] || 'BLUE';
                 g.box(-5, 6, -6, 9, 0, 0, P.water, { noBrick: true });
-                g.disc(0.5, 0.5, 5, 1, 1, 'TAN'); g.part('3062', 'TAN', -4, 1, 2); g.part('4589', 'TAN', 4, -1, 2);
+                g.disc(0.5, 0.5, 5, 1, 1, 'TAN'); g.part('3062', 'TAN', -4, 1, 2); g.part('59900', 'TAN', 4, -1, 2);
                 if (match === 'octopus' || match === 'squid' || match === 'jellyfish') {
                     g.part('3941', col, 0, 0, 2); g.part('4073', 'WHITE', 0, 1, 5); g.part('4073', 'WHITE', 1, 1, 5); g.part('98138', 'BLACK', 0, 1, 6); g.part('98138', 'BLACK', 1, 1, 6);
                     g.part('3941', col, 0, 0, 7); g.part('553', col, 0, 0, 10);
@@ -292,7 +292,7 @@
                 const rock = ice ? 'WHITE' : vol ? 'DARK_GREY' : 'LIGHT_GREY';
                 let y = 1;
                 for (let r = R; r > 0.6; r -= 1) { g.disc(0.5 + (rnd() - 0.5), 0.5 + (rnd() - 0.5), r, y, y + 2, r < 2.6 && !vol && !ice ? 'WHITE' : rock); y += 3; }
-                if (vol) { g.disc(0.5, 0.5, 1.5, y - 3, y - 1, 'TRANS_ORANGE'); g.part('3062', 'TRANS_ORANGE', 0, 0, y); g.part('4589', 'TRANS_ORANGE', 0, 0, y + 3); for (let i = 0; i < 5; i++) { const a = i / 5 * PI * 2 + rnd() * 0.8, d = R + 1.5; const x = Math.round(Math.cos(a) * d), z = Math.round(Math.sin(a) * d); if (!g.has(x, 1, z)) g.part('98138', 'TRANS_ORANGE', x, z, 1); } }
+                if (vol) { g.disc(0.5, 0.5, 1.5, y - 3, y - 1, 'TRANS_ORANGE'); g.part('3062', 'TRANS_ORANGE', 0, 0, y); g.part('59900', 'TRANS_ORANGE', 0, 0, y + 3); for (let i = 0; i < 5; i++) { const a = i / 5 * PI * 2 + rnd() * 0.8, d = R + 1.5; const x = Math.round(Math.cos(a) * d), z = Math.round(Math.sin(a) * d); if (!g.has(x, 1, z)) g.part('98138', 'TRANS_ORANGE', x, z, 1); } }
                 else if (!ice) { for (let i = 0; i < 4; i++) H.tree(ctx, Math.round(Math.cos(i * 1.6) * (R + 1)), Math.round(Math.sin(i * 1.6) * (R + 1)), 1, 'pine'); g.box(-R - 1, -R + 1, R - 1, R + 2, 1, 1, P.water, { noBrick: true }); }
                 return { title: vol ? 'Erupting Volcano' : ice ? 'Iceberg' : 'Snow-Capped Mountain', features: vol ? ['stacked rock tiers', 'a glowing lava crater', 'lava bombs on the slopes'] : ice ? ['stacked ice shelves', 'open water'] : ['stacked rock tiers', 'a snow cap', 'a ring of pine trees and an alpine lake'] };
             }
@@ -312,7 +312,7 @@
                 g.box(0, 0, 0, 0, 8, 19, P.leaf);
                 g.part('3023', P.leaf, -1, 0, 11, { rotY: PI / 2, w: 2, l: 1 }); g.part('3023', P.leaf, 0, 0, 14, { rotY: PI / 2, w: 2, l: 1 });
                 const yF = 20;
-                if (match === 'tulip') { g.part('3941', col, 0, 0, yF); g.part('4589', col, 0, 0, yF + 3); g.part('54200', col, 1, 1, yF + 3, { rotY: PI }); }
+                if (match === 'tulip') { g.part('3941', col, 0, 0, yF); g.part('59900', col, 0, 0, yF + 3); g.part('54200', col, 1, 1, yF + 3, { rotY: PI }); }
                 else { g.part('3031', P.leaf, -1, -1, yF, { w: 4, l: 4 }); for (const [x, z] of [[-1, -1], [0, -1], [1, -1], [2, -1], [-1, 2], [0, 2], [1, 2], [2, 2], [-1, 0], [-1, 1], [2, 0], [2, 1]]) g.part('4073', col, x, z, yF + 1); g.part('14769', match === 'sunflower' ? 'BROWN' : 'YELLOW', 0, 0, yF + 1); }
                 return { title: match === 'flower' ? 'Potted Flower' : match[0].toUpperCase() + match.slice(1), features: ['a terracotta pot', 'a round-brick stem with leaves', 'a ring of petal plates'] };
             }
@@ -326,7 +326,7 @@
                 for (const y of [16, 19, 22]) g.part('3941', P.leaf, 0, 0, y);
                 g.part('3941', P.leaf, -2, 0, 12); g.part('3941', P.leaf, -2, 0, 15);
                 g.part('3941', P.leaf, 2, 0, 16); g.part('3941', P.leaf, 2, 0, 19);
-                g.part('98138', 'PINK', 0, 0, 25); g.part('98138', 'PINK', 1, 1, 25); g.part('4589', 'TAN', -3, 3, 1);
+                g.part('98138', 'PINK', 0, 0, 25); g.part('98138', 'PINK', 1, 1, 25); g.part('59900', 'TAN', -3, 3, 1);
                 return { title: 'Saguaro Cactus', features: ['a tall round-brick trunk', 'two upturned arms', 'pink blossoms', 'a sandy pot'] };
             }
             if (match === 'mushroom' || match === 'toadstool') {
@@ -356,7 +356,7 @@
                 const xmas = match === 'christmas tree' || match === 'xmas tree';
                 g.part('3941', 'BROWN', 0, 0, 1); let y = 4;
                 for (let r = 4; r >= 1; r -= 1) { H.discSlab(ctx, 0.5, 0.5, r, y, P.leaf); if (xmas && r > 1) for (let i = 0; i < r * 2; i++) { const a = i / (r * 2) * PI * 2; g.part('98138', pick(['RED', 'YELLOW', 'TRANS_BLUE', 'PINK']), Math.round(0.5 + Math.cos(a) * (r - 0.3)), Math.round(0.5 + Math.sin(a) * (r - 0.3)), y + 2); } y += 3; }
-                g.part('4589', P.leaf, 0, 0, y - 1); g.part('4589', P.leaf, 1, 1, y - 1);
+                g.part('59900', P.leaf, 0, 0, y - 1); g.part('59900', P.leaf, 1, 1, y - 1);
                 if (xmas) { g.part('98138', 'YELLOW', 0, 0, y + 2); g.part('3022', 'RED', 3, 3, 1); g.part('3022', 'BLUE', -3, 2, 1); g.part('3022', 'YELLOW', 2, -3, 1); feats.push('baubles on every tier', 'a star', 'presents under the tree'); }
                 return { title: xmas ? 'Christmas Tree' : 'Pine Tree', features: ['stacked tapering tiers of foliage', ...feats] };
             }
@@ -443,7 +443,7 @@
                 g.box(-4, 3, -1, 1, 1, 6, cols({}, 'DARK_GREY')); g.part('14769', 'BLACK', -4, -1, 7); g.part('14769', 'BLACK', 2, -1, 7); g.part('3069', 'TRANS_ORANGE', -1, 1, 7, { rotY: PI / 2 }); g.part('3957', 'LIGHT_GREY', 3, -1, 7);
                 return { title: match === 'radio' ? 'Retro Radio' : match === 'record player' || match === 'turntable' || match === 'vinyl' ? 'Turntable' : 'Boombox', features: ['twin round speakers', 'a lit dial', 'an antenna'] };
             }
-            if (['lamp', 'lantern', 'candle', 'lightbulb', 'light bulb'].includes(match)) { if (match === 'candle') { g.part('4032', 'GOLD', 0, 0, 1); g.part('3941', 'WHITE', 0, 0, 2); g.part('3941', 'WHITE', 0, 0, 5); g.part('98138', 'TRANS_ORANGE', 0, 0, 8); g.part('4589', 'TRANS_ORANGE', 0, 0, 9); return { title: 'Candle', features: ['a brass holder', 'a wax pillar with a flame'] }; } g.part('3941', 'DARK_GREY', 0, 0, 1); for (let i = 0; i < 3; i++) g.part('3062', 'LIGHT_GREY', 0, 0, 4 + i * 3); g.part('3958', cols({}, 'YELLOW'), -2, -2, 13, { w: 6, l: 6 }); g.shell(-2, 3, -2, 3, 14, 16, cols({}, 'YELLOW')); g.part('98138', 'TRANS_ORANGE', 0, 0, 14); return { title: match === 'lantern' ? 'Lantern' : 'Table Lamp', features: ['a weighted base', 'a slim stem', 'a brick shade with a warm bulb'] }; }
+            if (['lamp', 'lantern', 'candle', 'lightbulb', 'light bulb'].includes(match)) { if (match === 'candle') { g.part('4032', 'GOLD', 0, 0, 1); g.part('3941', 'WHITE', 0, 0, 2); g.part('3941', 'WHITE', 0, 0, 5); g.part('98138', 'TRANS_ORANGE', 0, 0, 8); g.part('59900', 'TRANS_ORANGE', 0, 0, 9); return { title: 'Candle', features: ['a brass holder', 'a wax pillar with a flame'] }; } g.part('3941', 'DARK_GREY', 0, 0, 1); for (let i = 0; i < 3; i++) g.part('3062', 'LIGHT_GREY', 0, 0, 4 + i * 3); g.part('3958', cols({}, 'YELLOW'), -2, -2, 13, { w: 6, l: 6 }); g.shell(-2, 3, -2, 3, 14, 16, cols({}, 'YELLOW')); g.part('98138', 'TRANS_ORANGE', 0, 0, 14); return { title: match === 'lantern' ? 'Lantern' : 'Table Lamp', features: ['a weighted base', 'a slim stem', 'a brick shade with a warm bulb'] }; }
             if (['chair', 'armchair', 'sofa', 'couch', 'throne', 'bed', 'table', 'desk', 'bookshelf'].includes(match)) {
                 const c = cols({ throne: 'GOLD', bed: 'BLUE' }, 'RED');
                 if (match === 'table' || match === 'desk') { for (const [x, z] of [[-3, -1], [3, -1], [-3, 2], [3, 2]]) { g.part('3062', 'BROWN', x, z, 1); g.part('3062', 'BROWN', x, z, 4); } g.part('3036', 'BROWN', -3, -2, 7, { w: 8, l: 6, rotY: PI / 2 }); g.part('3941', 'WHITE', 0, 0, 8); g.part('98138', 'RED', 0, 0, 11); return { title: match === 'desk' ? 'Writing Desk' : 'Dining Table', features: ['four turned legs', 'a plated top', 'a vase of flowers'] }; }
@@ -453,7 +453,7 @@
                 const x0 = wide ? -3 : -1, x1 = wide ? 4 : 2;
                 g.box(x0, x1, 0, 2, 1, 3, c); g.box(x0, x1, 0, 0, 4, match === 'throne' ? 14 : 8, c); g.box(x0, x0, 0, 2, 4, 6, c); g.box(x1, x1, 0, 2, 4, 6, c);
                 g.box(x0 + 1, x1 - 1, 1, 2, 4, 4, match === 'throne' ? 'DARK_RED' : col2 === c ? 'WHITE' : col2, { noBrick: true });
-                if (match === 'throne') { g.part('4589', 'GOLD', x0, 0, 15); g.part('4589', 'GOLD', x1, 0, 15); g.part('98138', 'TRANS_RED', 0, 0, 15); g.box(x0 - 1, x1 + 1, -1, 3, 1, 1, 'DARK_RED', { noBrick: true }); }
+                if (match === 'throne') { g.part('59900', 'GOLD', x0, 0, 15); g.part('59900', 'GOLD', x1, 0, 15); g.part('98138', 'TRANS_RED', 0, 0, 15); g.box(x0 - 1, x1 + 1, -1, 3, 1, 1, 'DARK_RED', { noBrick: true }); }
                 return { title: { throne: 'Royal Throne', sofa: 'Sofa', couch: 'Sofa', armchair: 'Armchair' }[match] || 'Chair', features: ['a padded seat', 'a tall back', 'armrests', match === 'throne' ? 'gold finials and a jewel' : 'a cushion'] };
             }
             if (['chest', 'treasure chest', 'crate', 'barrel', 'treasure', 'coins', 'gift', 'present', 'suitcase', 'toolbox'].includes(match)) {
@@ -474,14 +474,14 @@
                 if (match === 'rubber duck') { g.box(0, 1, 3, 3, 8, 10, c); g.part('54200', 'ORANGE', 0, 4, 8); g.part('54200', 'ORANGE', 1, 4, 8); g.part('98138', 'BLACK', 0, 3, 11); g.part('98138', 'BLACK', 1, 3, 11); }
                 return { title: { pumpkin: 'Jack-o\'-Lantern', apple: 'Red Apple', watermelon: 'Watermelon', strawberry: 'Strawberry', egg: 'Egg', 'dinosaur egg': 'Dinosaur Egg', 'rubber duck': 'Rubber Duck' }[match], features: ['a rounded stacked body', match === 'pumpkin' ? 'a carved face and a stalk' : 'a stalk and leaf'] };
             }
-            if (match === 'snowman') { g.box(-5, 6, -5, 6, 1, 1, 'WHITE', { noBrick: true }); g.disc(0.5, 0.5, 3, 2, 6, 'WHITE'); g.disc(0.5, 0.5, 2.5, 7, 7, 'WHITE'); g.disc(0.5, 0.5, 2, 8, 12, 'WHITE'); g.part('3941', 'WHITE', 0, 0, 13); g.part('553', 'WHITE', 0, 0, 16); g.part('98138', 'BLACK', 0, 2, 13); g.part('98138', 'BLACK', 1, 2, 13); g.part('4589', 'ORANGE', 0, 2, 14, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3022', 'BLACK', 0, 0, 19); g.part('3062', 'BLACK', 0, 0, 20); g.part('3023', 'BROWN', -3, 0, 9, { rotY: PI / 2, w: 2, l: 1 }); g.part('3023', 'BROWN', 3, 0, 9, { rotY: PI / 2, w: 2, l: 1 }); for (const z of [3, 5, 7]) g.set(0, z, 1, 'BLACK', { noBrick: true }); g.box(-2, 3, 0, 1, 8, 8, 'RED', { noBrick: true }); return { title: 'Snowman', features: ['three stacked snowballs', 'a carrot nose and coal buttons', 'stick arms', 'a top hat and scarf'] }; }
+            if (match === 'snowman') { g.box(-5, 6, -5, 6, 1, 1, 'WHITE', { noBrick: true }); g.disc(0.5, 0.5, 3, 2, 6, 'WHITE'); g.disc(0.5, 0.5, 2.5, 7, 7, 'WHITE'); g.disc(0.5, 0.5, 2, 8, 12, 'WHITE'); g.part('3941', 'WHITE', 0, 0, 13); g.part('553', 'WHITE', 0, 0, 16); g.part('98138', 'BLACK', 0, 2, 13); g.part('98138', 'BLACK', 1, 2, 13); g.part('59900', 'ORANGE', 0, 2, 14, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3022', 'BLACK', 0, 0, 19); g.part('3062', 'BLACK', 0, 0, 20); g.part('3023', 'BROWN', -3, 0, 9, { rotY: PI / 2, w: 2, l: 1 }); g.part('3023', 'BROWN', 3, 0, 9, { rotY: PI / 2, w: 2, l: 1 }); for (const z of [3, 5, 7]) g.set(0, z, 1, 'BLACK', { noBrick: true }); g.box(-2, 3, 0, 1, 8, 8, 'RED', { noBrick: true }); return { title: 'Snowman', features: ['three stacked snowballs', 'a carrot nose and coal buttons', 'stick arms', 'a top hat and scarf'] }; }
             if (['dice', 'clock', 'hourglass', 'globe', 'telescope', 'toaster', 'umbrella', 'anchor', 'bell', 'robot vacuum', 'cauldron', 'potion'].includes(match)) {
                 if (match === 'dice') { g.box(-2, 3, -2, 3, 1, 6, 'WHITE'); for (const [x, z] of [[-2, -2], [3, 3], [0, 0], [-2, 3], [3, -2]]) g.part('98138', 'BLACK', x, z, 7); return { title: 'Giant Die', features: ['a white cube', 'round-tile pips'] }; }
                 if (match === 'globe') { g.part('3941', 'BROWN', 0, 0, 1); g.part('3062', 'GOLD', 0, 0, 4); g.disc(0.5, 0.5, 2, 7, 7, 'BLUE'); g.disc(0.5, 0.5, 3, 8, 12, 'BLUE'); g.disc(0.5, 0.5, 2, 13, 13, 'BLUE'); g.part('3941', 'BLUE', 0, 0, 14); g.part('553', 'BLUE', 0, 0, 17); for (const [x, z, y] of [[-2, 0, 9], [2, 1, 11], [0, 2, 10], [1, -2, 12]]) g.part('3022', 'GREEN', x, z, y + 3, { w: 2, l: 2 }); return { title: 'Desk Globe', features: ['a round blue planet', 'green continents', 'a brass stand'] }; }
                 if (match === 'hourglass') { g.part('3031', 'BROWN', -1, -1, 1, { w: 4, l: 4 }); g.part('3941', 'TRANS_CLEAR', 0, 0, 2); g.part('3062', 'TRANS_CLEAR', 0, 0, 5); g.part('3941', 'TRANS_CLEAR', 0, 0, 8); g.part('3031', 'BROWN', -1, -1, 11, { w: 4, l: 4 }); g.part('4073', 'TAN', 0, 0, 3); g.part('3062', 'BROWN', -1, -1, 2); g.part('3062', 'BROWN', 2, 2, 2); g.part('3062', 'BROWN', -1, -1, 5); g.part('3062', 'BROWN', 2, 2, 5); g.part('3062', 'BROWN', -1, -1, 8); g.part('3062', 'BROWN', 2, 2, 8); return { title: 'Hourglass', features: ['two glass bulbs', 'wooden end plates and posts'] }; }
                 if (match === 'telescope') { g.part('3941', 'BLACK', 0, 0, 1); for (let i = 0; i < 3; i++) g.part('3062', 'LIGHT_GREY', 0, 0, 4 + i * 3); g.part('3666', 'BLACK', 0, 0, 13, { rotY: 0, w: 1, l: 6 }); g.part('3666', 'BLACK', 1, 0, 13, { rotY: 0, w: 1, l: 6 }); g.part('3941', 'WHITE', 0, 0, 14, { rotX: PI / 2, w: 2, l: 2, hp: 5, lie: true }); g.part('3062', 'WHITE', 0, 2, 14, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('98138', 'TRANS_BLUE', 0, 4, 14, { rotX: PI / 2, w: 1, l: 1, hp: 2, lie: true }); return { title: 'Telescope', features: ['a tripod column', 'a round tube with a lens'] }; }
                 if (match === 'toaster') { g.box(-2, 3, -1, 1, 1, 6, 'LIGHT_GREY'); g.part('3069', 'BLACK', 0, 0, 7, { rotY: PI / 2 }); g.part('3005', 'TAN', 0, 0, 8); g.part('3005', 'TAN', 1, 0, 8); g.part('98138', 'RED', 3, 1, 7); return { title: 'Toaster', features: ['a chrome body', 'two slices of toast', 'a lever'] }; }
-                if (match === 'umbrella') { for (let i = 0; i < 4; i++) g.part('3062', 'BLACK', 0, 0, 1 + i * 3); g.disc(0.5, 0.5, 4, 13, 13, cols({}, 'RED')); g.disc(0.5, 0.5, 3, 14, 14, cols({}, 'RED')); g.disc(0.5, 0.5, 2, 15, 15, cols({}, 'RED')); g.part('4589', cols({}, 'RED'), 0, 0, 16); return { title: 'Umbrella', features: ['a long handle', 'a stepped canopy'] }; }
+                if (match === 'umbrella') { for (let i = 0; i < 4; i++) g.part('3062', 'BLACK', 0, 0, 1 + i * 3); g.disc(0.5, 0.5, 4, 13, 13, cols({}, 'RED')); g.disc(0.5, 0.5, 3, 14, 14, cols({}, 'RED')); g.disc(0.5, 0.5, 2, 15, 15, cols({}, 'RED')); g.part('59900', cols({}, 'RED'), 0, 0, 16); return { title: 'Umbrella', features: ['a long handle', 'a stepped canopy'] }; }
                 if (match === 'anchor') { g.box(-3, 4, 0, 0, 1, 2, 'DARK_GREY'); g.box(0, 1, 0, 0, 3, 11, 'DARK_GREY'); g.part('3710', 'DARK_GREY', -1, 0, 12, { rotY: PI / 2, w: 4, l: 1 }); g.part('4073', 'DARK_GREY', 0, 0, 13); g.part('54200', 'DARK_GREY', -3, 0, 3, { rotY: -PI / 2 }); g.part('54200', 'DARK_GREY', 4, 0, 3, { rotY: PI / 2 }); return { title: 'Ship\'s Anchor', features: ['a curved crown', 'a shank and stock'] }; }
                 if (match === 'bell') { g.part('3031', 'BROWN', -1, -1, 1, { w: 4, l: 4 }); g.disc(0.5, 0.5, 2.5, 2, 2, 'GOLD'); g.disc(0.5, 0.5, 2, 3, 6, 'GOLD'); g.part('3941', 'GOLD', 0, 0, 7); g.part('553', 'GOLD', 0, 0, 10); g.part('4073', 'GOLD', 0, 0, 13); return { title: 'Golden Bell', features: ['a flared gold body', 'a wooden base'] }; }
                 if (match === 'cauldron' || match === 'potion') { g.disc(0.5, 0.5, 3, 1, 1, 'BLACK'); g.ring(0.5, 0.5, 3.5, 2, 5, 'BLACK'); g.disc(0.5, 0.5, 2.5, 5, 5, 'LIME'); g.part('3062', 'TRANS_CLEAR', 0, 0, 6); g.part('98138', 'LIME', 1, 1, 6); g.part('3062', 'BROWN', -3, 3, 1); g.part('3062', 'TRANS_ORANGE', -3, 3, 4); return { title: 'Witch\'s Cauldron', features: ['a round iron pot', 'bubbling green brew', 'a fire beside it'] }; }
@@ -508,7 +508,7 @@
                 if (match === 'trophy') { g.box(-2, 3, -2, 3, 1, 3, 'BLACK'); g.part('3069', 'GOLD', 0, -2, 4, { rotY: PI / 2 }); g.part('3941', 'GOLD', 0, 0, 4); g.part('3062', 'GOLD', 0, 0, 7); g.part('3062', 'GOLD', 1, 1, 7); g.part('4032', 'GOLD', 0, 0, 10); g.part('3941', 'GOLD', 0, 0, 11); g.part('3941', 'GOLD', 0, 0, 14); g.part('3031', 'GOLD', -1, -1, 17, { w: 4, l: 4 }); g.part('3062', 'GOLD', -1, 0, 11, { hp: 3 }); g.part('3062', 'GOLD', -1, 0, 14, { hp: 3 }); g.part('3062', 'GOLD', 2, 1, 11, { hp: 3 }); g.part('3062', 'GOLD', 2, 1, 14, { hp: 3 }); return { title: 'Champion\'s Trophy', features: ['a marble base with a plaque', 'a gold cup with two handles'] }; }
                 const c = P.explicit ? P.primary : { ruby: 'TRANS_RED', emerald: 'TRANS_BLUE', diamond: 'TRANS_CLEAR', crystal: 'TRANS_BLUE' }[match] || 'TRANS_BLUE';
                 g.part('3031', 'BLACK', -1, -1, 1, { w: 4, l: 4 }); g.part('3022', 'GOLD', 0, 0, 2);
-                g.box(0, 1, 0, 1, 3, 5, c); g.box(-1, 2, -1, 2, 6, 8, c); g.box(0, 1, 0, 1, 9, 11, c); g.part('4589', c, 0, 0, 12); g.part('4589', c, 1, 1, 12);
+                g.box(0, 1, 0, 1, 3, 5, c); g.box(-1, 2, -1, 2, 6, 8, c); g.box(0, 1, 0, 1, 9, 11, c); g.part('59900', c, 0, 0, 12); g.part('59900', c, 1, 1, 12);
                 if (match === 'ring') { g.ring(0.5, 0.5, 3, 3, 4, 'GOLD'); }
                 return { title: { ring: 'Jewelled Ring', ruby: 'Ruby Gem', emerald: 'Emerald Gem', diamond: 'Diamond', crystal: 'Crystal' }[match] || 'Gemstone', features: ['a faceted translucent stone', 'a gold setting on a black plinth'] };
             }
@@ -605,7 +605,7 @@
             const cape = ctx.declare({ id: 'cape', label: 'Cape', type: 'bool', default: capeDflt });
             // Hats and props.
             if (['wizard', 'witch'].includes(match)) { g.part('3022', torso, hx, 0, 21); g.part('3942', torso, hx, 0, 22); g.part('3062', 'BROWN', W + 1, 0, 3); g.part('3062', 'BROWN', W + 1, 0, 6); g.part('3062', 'BROWN', W + 1, 0, 9); g.part('3062', 'BROWN', W + 1, 0, 12); g.part('98138', 'TRANS_BLUE', W + 1, 0, 15); feats.push('a pointed hat', 'a staff'); }
-            else if (['knight', 'viking', 'samurai', 'king', 'queen', 'prince', 'princess'].includes(match)) { g.part('3022', 'GOLD', hx, 0, 21); g.part('4589', 'GOLD', hx, 0, 22); g.part('4589', 'GOLD', hx + 1, 1, 22); if (match === 'knight' || match === 'viking' || match === 'samurai') { g.part('3710', 'LIGHT_GREY', W + 1, 0, 6, { rotY: 0, w: 1, l: 4 }); g.part('3005', 'BROWN', W + 1, 0, 3); } feats.push('a crowned helm'); }
+            else if (['knight', 'viking', 'samurai', 'king', 'queen', 'prince', 'princess'].includes(match)) { g.part('3022', 'GOLD', hx, 0, 21); g.part('59900', 'GOLD', hx, 0, 22); g.part('59900', 'GOLD', hx + 1, 1, 22); if (match === 'knight' || match === 'viking' || match === 'samurai') { g.part('3710', 'LIGHT_GREY', W + 1, 0, 6, { rotY: 0, w: 1, l: 4 }); g.part('3005', 'BROWN', W + 1, 0, 3); } feats.push('a crowned helm'); }
             else if (['astronaut', 'spaceman', 'diver', 'stormtrooper', 'darth vader'].includes(match)) { g.part('3941', torso, hx, 0, 21); g.part('553', match === 'darth vader' ? 'BLACK' : 'TRANS_CLEAR', hx, 0, 24); g.box(-1, W, 0, 0, 10, 15, 'LIGHT_GREY'); feats.push('a domed helmet', 'a backpack'); }
             else if (['santa', 'chef', 'firefighter', 'cowboy', 'pirate', 'police officer', 'mario', 'luigi'].includes(match)) { g.box(hx, hx + 1, 0, 1, 21, 22, match === 'chef' ? 'WHITE' : torso); g.part('3031', match === 'chef' ? 'WHITE' : torso, hx - 1, -1, 21, { w: 4, l: 4 }); if (match === 'santa') g.part('98138', 'WHITE', hx, 0, 23); feats.push('a brimmed hat'); }
             else if (capeDflt) { if (cape) { g.box(-1, W, -1, -1, 3, 20, match === 'batman' ? 'BLACK' : 'RED'); feats.push('a flowing cape'); } }   // the cape falls to the plinth

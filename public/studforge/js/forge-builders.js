@@ -25,7 +25,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             g.part('3062', P.wood, x, z, y);
             H.slab(ctx, x - 1, x + 1, z - 1, z + 1, y + 3, P.leaf);
             g.box(x, x, z, z, y + 5, y + 6, P.leaf);
-            g.part('4589', P.leaf, x, z, y + 7);
+            g.part('59900', P.leaf, x, z, y + 7);
             return;
         }
         g.part('3062', P.wood, x, z, y); g.part('3062', P.wood, x, z, y + 3);
@@ -297,7 +297,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 // A bell tower at the back corner.
                 g.shell(W, W + 3, -3, 0, 2, 2 + 6 * 4 - 1, wall); H.ceiling(ctx, W, W + 3, -3, 0, 2 + 6 * 4, wall);
                 H.gableRoof(ctx, W, W + 3, -3, 0, 2 + 6 * 4 + 1, P.roof, 'x');
-                g.part('4589', 'GOLD', W + 1, -2, 2 + 6 * 4 + 4);
+                g.part('59900', 'GOLD', W + 1, -2, 2 + 6 * 4 + 4);
                 feats.push('a bell tower');
             }
             const names = { barn: 'Red Barn', cabin: 'Log Cabin', cottage: 'Cottage', villa: 'Villa', mansion: 'Manor House', hut: 'Hut', shack: 'Shack', cafe: 'Corner Café', 'coffee shop': 'Coffee Shop', bakery: 'Bakery', pub: 'Village Pub', tavern: 'Tavern', inn: 'Roadside Inn', church: 'Chapel', chapel: 'Chapel', office: 'Office Block', hotel: 'Boutique Hotel', library: 'Library', greenhouse: 'Greenhouse', garage: 'Garage', chalet: 'Chalet', lodge: 'Lodge', farmhouse: 'Farmhouse', treehouse: 'Treehouse', 'tree house': 'Treehouse', warehouse: 'Warehouse', factory: 'Factory', school: 'Schoolhouse' };
@@ -400,7 +400,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                     y += 8;
                 }
                 g.box(1, 2, 1, 2, y, y, 'GOLD', { noBrick: true });
-                g.part('3062', 'GOLD', 1, 1, y + 1); g.part('4589', 'GOLD', 1, 1, y + 4);
+                g.part('3062', 'GOLD', 1, 1, y + 1); g.part('59900', 'GOLD', 1, 1, y + 4);
                 H.tree(ctx, -3, 5, 1, 'round'); g.part('3005', 'LIGHT_GREY', 6, -3, 1); g.part('4073', 'TRANS_ORANGE', 6, -3, 4);
                 return { title: 'Pagoda Shrine', features: [`${tiers} tiers with sweeping ${window.LEGO_COLORS[P.roof].name.toLowerCase()} eaves`, 'a gold finial', 'a stone plinth with steps', 'a garden lantern and tree'] };
             }
@@ -474,7 +474,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             const yT = Hb * 3 + 1;
             H.slab(ctx, -1, 4, -1, 4, yT, clock || bell ? 'DARK_GREY' : P.wood);   // the overhanging top stage stands on one locked slab
             if (clock) { g.shell(-1, 4, -1, 4, yT + 2, yT + 6, 'DARK_GREY'); H.ceiling(ctx, -1, 4, -1, 4, yT + 7, 'DARK_GREY'); g.part('14769', 'WHITE', 1, 1, yT + 8); H.gableRoof(ctx, -1, 4, -1, 4, yT + 9, P.roof, 'x'); feats.push('a four-faced clock stage', 'a steep spire roof'); }
-            else if (bell) { for (const [x, z] of [[-1, -1], [4, -1], [-1, 4], [4, 4]]) g.box(x, x, z, z, yT + 2, yT + 6, P.dark); H.ceiling(ctx, -1, 4, -1, 4, yT + 7, P.roof); g.part('4589', 'GOLD', 1, 1, yT + 2); g.part('3942', P.roof, 1, 1, yT + 8); feats.push('an open belfry with a gold bell', 'a conical roof'); }
+            else if (bell) { for (const [x, z] of [[-1, -1], [4, -1], [-1, 4], [4, 4]]) g.box(x, x, z, z, yT + 2, yT + 6, P.dark); H.ceiling(ctx, -1, 4, -1, 4, yT + 7, P.roof); g.part('59900', 'GOLD', 1, 1, yT + 2); g.part('3942', P.roof, 1, 1, yT + 8); feats.push('an open belfry with a gold bell', 'a conical roof'); }
             else {
                 const banner = declare({ id: 'flag', label: 'Banner', type: 'bool', default: true });
                 H.crenellate(ctx, -1, 4, -1, 4, yT + 2, P.primary === 'RED' ? 'LIGHT_GREY' : P.primary);
@@ -497,7 +497,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 const stone = P.explicit ? P.primary : 'TAN';
                 let a = 0, b = N - 1, y = 1;
                 while (b >= a) { g.box(a, b, a, b, y, y + (match === 'pyramid' ? 1 : 2), stone); a++; b--; y += match === 'pyramid' ? 2 : 3; }
-                g.part('4589', 'GOLD', Math.floor(N / 2), Math.floor(N / 2), y);
+                g.part('59900', 'GOLD', Math.floor(N / 2), Math.floor(N / 2), y);
                 g.part('3004', P.dark, Math.floor(N / 2) - 1, N, 1, { rotY: PI / 2 });
                 H.tree(ctx, N + 1, -2, 1, 'round');
                 return { title: match === 'pyramid' ? 'Great Pyramid' : 'Ziggurat', features: [`${Math.ceil(N / 2)} stepped tiers`, 'a gold capstone', 'a sandstone entrance'] };
@@ -596,7 +596,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                     H.ceiling(ctx, 0, W - 1, 0, cabZ - 2, yB + 9, 'LIGHT_GREY');
                     if (match === 'ambulance') { g.part('3070', 'RED', 2, cabZ - 3, yB + 10); g.part('3070', 'RED', 3, cabZ - 3, yB + 10); g.part('98138', 'TRANS_BLUE', 2, cabZ, yB + 7); g.part('98138', 'TRANS_RED', 3, cabZ, yB + 7); feats.push('a red cross and emergency lights'); }
                     if (match === 'fire truck' || match === 'fire engine') { if (cabZ >= 5) { g.part('3005', 'LIGHT_GREY', 0, 1, yB + 10); g.part('3005', 'LIGHT_GREY', 0, cabZ - 3, yB + 10); g.part('3460', 'LIGHT_GREY', 0, 0, yB + 13, { rotY: 0, l: Math.min(8, cabZ - 2) }); feats.push('a roof-mounted ladder'); } g.part('98138', 'TRANS_BLUE', 2, cabZ, yB + 7); feats.push('a blue beacon'); }
-                    if (match === 'ice cream truck' || match === 'food truck') { g.part('3069', P.accent, 2, cabZ - 3, yB + 10); g.part('4589', 'PINK', 1, 0, yB + 10); g.part('98138', 'WHITE', 2, 0, yB + 10); feats.push('a serving hatch and a giant ice cream'); }
+                    if (match === 'ice cream truck' || match === 'food truck') { g.part('3069', P.accent, 2, cabZ - 3, yB + 10); g.part('59900', 'PINK', 1, 0, yB + 10); g.part('98138', 'WHITE', 2, 0, yB + 10); feats.push('a serving hatch and a giant ice cream'); }
                     feats.push('a tall cargo box');
                 } else if (cargo === 'bed') {
                     g.shell(0, W - 1, 0, cabZ - 2, yB, yB + 2, body); g.box(1, W - 2, 1, cabZ - 3, yB, yB, 'BLACK', { noBrick: true });
@@ -686,7 +686,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             g.box(0, 3, cabZ + 4, L - 1, 5, 5, body, { noBrick: true });
             for (let z = cabZ + 4; z <= L - 4; z += 2) g.part('3941', body, 1, z, 6, { rotX: PI / 2, w: 2, l: 2, hp: 5, lie: true });
             g.part('3941', 'BLACK', 1, L - 2, 6, { rotX: PI / 2, w: 2, l: 2, hp: 5, lie: true });
-            g.part('3062', 'BLACK', 1, L - 3, 11); g.part('4589', 'BLACK', 1, L - 3, 14); g.part('3062', 'GOLD', 2, cabZ + 5, 11);
+            g.part('3062', 'BLACK', 1, L - 3, 11); g.part('59900', 'BLACK', 1, L - 3, 14); g.part('3062', 'GOLD', 2, cabZ + 5, 11);
             g.part('3040', 'DARK_GREY', 1, L - 1, 3, { rotY: PI / 2, w: 2, l: 1 });
             g.shell(0, 3, cabZ, cabZ + 3, 5, 10, body); H.window(ctx, 0, cabZ + 1, 7, 'left'); H.window(ctx, 3, cabZ + 1, 7, 'right');
             g.box(0, 3, cabZ, cabZ + 3, 11, 11, 'BLACK', { noBrick: true });
@@ -869,7 +869,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 // The flag stands on the cabin roof; with the cabin removed it drops to the deck.
                 if (sternFlag) H.flag(ctx, mx, 1, cabinDflt && cabin ? yD + 4 : yD, match === 'pirate ship' ? 'BLACK' : P.accent);
                 if (cabin) { g.shell(0, W - 1, 0, 2, yD, yD + 2, hull); g.box(0, W - 1, 0, 2, yD + 3, yD + 3, deck, { noBrick: true }); H.window(ctx, 1, 0, yD, 'back', 'TRANS_ORANGE'); feats.push('a raised stern cabin'); }
-                if (match === 'viking ship' || match === 'longship') { for (let z = 2; z < L - 3; z += 2) { g.part('98138', P.accent, 0, z, yD); g.part('98138', P.secondary, W - 1, z, yD); } g.part('4589', 'GOLD', 0, L - 2, 5); feats.push('a row of shields along the gunwales', 'a dragon-head prow'); }
+                if (match === 'viking ship' || match === 'longship') { for (let z = 2; z < L - 3; z += 2) { g.part('98138', P.accent, 0, z, yD); g.part('98138', P.secondary, W - 1, z, yD); } g.part('59900', 'GOLD', 0, L - 2, 5); feats.push('a row of shields along the gunwales', 'a dragon-head prow'); }
                 feats.push(`${masts} mast${masts > 1 ? 's' : ''} with ${window.LEGO_COLORS[sails].name.toLowerCase()} sails`, "a crow's nest");
                 if (sternFlag) feats.push('a stern flag');
                 return { title: { 'pirate ship': 'Pirate Ship', galleon: 'Galleon', frigate: 'Frigate', schooner: 'Schooner', sailboat: 'Sailboat', 'sailing ship': 'Tall Ship', yacht: 'Sailing Yacht', 'viking ship': 'Viking Longship', longship: 'Viking Longship', ark: 'Wooden Ark', catamaran: 'Catamaran' }[match], features: feats };
@@ -906,11 +906,11 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 const gantry = ctx.declare({ id: 'gantry', label: 'Gantry tower', type: 'bool', default: true });
                 g.box(-4, 6, -4, 5, 0, 0, 'DARK_GREY', { noBrick: true });
                 g.box(-2, 3, -2, 3, 1, 1, 'DARK_GREY', { noBrick: true }); g.box(-1, 2, -1, 2, 2, 2, 'LIGHT_GREY', { noBrick: true });
-                for (const [x, z] of [[-1, -1], [2, -1], [-1, 2], [2, 2]]) g.part('4589', 'DARK_GREY', x, z, 3);
+                for (const [x, z] of [[-1, -1], [2, -1], [-1, 2], [2, 2]]) g.part('59900', 'DARK_GREY', x, z, 3);
                 for (let i = 0; i < stages; i++) g.part('3941', i === 1 || i === stages - 2 ? 'BLACK' : white, 0, 0, 3 + i * 3);
                 const yTop = 3 + stages * 3;
                 // The 2x2 cone has one centre stud, so the escape tower sits half a stud in from the corner cell it occupies.
-                g.part('3942', white, 0, 0, yTop); g.part('3062', 'LIGHT_GREY', 0, 0, yTop + 6, { dx: 0.5, dz: 0.5 }); g.part('4589', P.accent, 0, 0, yTop + 9, { dx: 0.5, dz: 0.5 });
+                g.part('3942', white, 0, 0, yTop); g.part('3062', 'LIGHT_GREY', 0, 0, yTop + 6, { dx: 0.5, dz: 0.5 }); g.part('59900', P.accent, 0, 0, yTop + 9, { dx: 0.5, dz: 0.5 });
                 for (const [x, z, r] of [[-1, 0, -PI / 2], [2, 1, PI / 2], [0, -1, PI], [1, 2, 0]]) g.part('54200', P.accent, x, z, 3, { rotY: r });
                 // Gantry tower with service arms.
                 if (gantry) {
@@ -918,7 +918,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                     for (let i = 1; i < stages; i += 2) g.part('3623', 'RED', -3, 0, 3 + i * 3, { rotY: PI / 2, w: 3, l: 1 });
                     g.part('3022', 'DARK_GREY', -4, -1, 4 + stages * 3); g.part('98138', 'TRANS_RED', -4, -1, 5 + stages * 3);
                 }
-                g.part('3062', 'TRANS_ORANGE', 4, 3, 1); g.part('4589', 'TRANS_ORANGE', 4, 3, 4);
+                g.part('3062', 'TRANS_ORANGE', 4, 3, 1); g.part('59900', 'TRANS_ORANGE', 4, 3, 4);
                 const title = (match === 'saturn v' || match === 'moon rocket' ? 'Moon Rocket' : 'Launch Rocket') + (gantry ? ' & Gantry' : '');
                 return { title, features: [`a ${stages}-stage round-brick booster`, 'four engine bells and fins', 'a command capsule and escape tower', ...(gantry ? ['a red gantry with service arms'] : []), 'a flame deflector pad'] };
             }

@@ -69,7 +69,7 @@ const CATALOG = ctx.LEGO_PARTS;
 const OUR_IDS = new Set(Object.keys(CATALOG));
 // Our catalog uses BrickLink design ids where Rebrickable keys the same mould differently, and one id per
 // shape where Rebrickable separates old and current moulds (cone with/without top groove, jumper, clips).
-const ALIAS = { 6141: '4073', 85861: '4073', 38340: '55423', 2879: '55423', 59900: '4589', 3794: '15573', 60897: '4085', 15712: '2555', 87697: '6015', 60700: '6015' };
+const ALIAS = { 6141: '4073', 85861: '4073', 38340: '55423', 2879: '55423', 59900: '59900', 3794: '15573', 60897: '4085', 15712: '2555', 87697: '6015', 60700: '6015' };
 
 // Rebrickable colour id → our LEGO_COLORS key. Shades we do not stock map to the nearest we do;
 // anything not listed is left out of the palettes (it still counts in the denominator).

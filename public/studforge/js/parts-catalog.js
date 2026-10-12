@@ -70,7 +70,7 @@ def('3298', 'Slope 33 3 x 2', 'Slopes', 2, 3, 1.2, { isSlope: true, slopeStuds: 
 // --- ROUND, CONES & DOMES ---
 def('3062', 'Brick 1 x 1 Round', 'Round', 1, 1, 1.2, { isRound: true });
 def('3941', 'Brick 2 x 2 Round', 'Round', 2, 2, 1.2, { isRound: true });
-def('4589', 'Cone 1 x 1 with Top Groove', 'Round', 1, 1, 1.2, { isCone: true });
+def('59900', 'Cone 1 x 1 with Top Groove', 'Round', 1, 1, 1.2, { isCone: true });
 def('3942', 'Cone 2 x 2 x 2', 'Round', 2, 2, 2.4, { isCone: true });
 def('553', 'Brick 2 x 2 Round with Dome Top', 'Round', 2, 2, 1.2, { isDome: true, hasStuds: false });
 def('3957', 'Antenna 1 x 4', 'Misc', 1, 1, 2.4, { isAntenna: true, hasStuds: false });
@@ -111,11 +111,11 @@ def('60478', 'Plate 1 x 2 with Bar Handle on End', 'Clips', 1, 3, 0.4, { isBarHa
 def('48729', 'Bar 1L with Clip Mechanical Claw', 'Clips', 1, 1, 0.4, { isClip: 'claw', hasStuds: false });
 def('30374', 'Bar 4L', 'Clips', 1, 1, 1.6, { isBar: true, hasStuds: false });
 def('2335', 'Flag 2 x 2 Square', 'Clips', 1, 2, 1.6, { isFlag: true, hasStuds: false });
-def('4617', 'Propeller 2 Blade 4 Diameter', 'Clips', 1, 4, 0.4, { isPropeller: true, hasStuds: false });
+def('4617', 'Propeller 3 Blade 5.5 Diameter', 'Clips', 1, 4, 0.4, { isPropeller: true, blades: 3, hasStuds: false });
 
 // --- BRACKETS & SIDEWAYS STUDS (SNOT) ---
-def('99780', 'Bracket 1 x 2 - 1 x 2', 'Brackets', 1, 2, 0.4, { isBracket: 'down', isPlate: true });
-def('99781', 'Bracket 1 x 2 - 1 x 2 Inverted', 'Brackets', 1, 2, 0.4, { isBracket: 'up', isPlate: true });
+def('99780', 'Bracket 1 x 2 - 1 x 2 Inverted', 'Brackets', 1, 2, 0.4, { isBracket: 'up', isPlate: true });
+def('99781', 'Bracket 1 x 2 - 1 x 2', 'Brackets', 1, 2, 0.4, { isBracket: 'down', isPlate: true });
 def('44728', 'Bracket 1 x 2 - 2 x 2', 'Brackets', 2, 2, 0.4, { isBracket: 'down2', isPlate: true });
 def('87087', 'Brick 1 x 1 with Stud on Side', 'Brackets', 1, 1, 1.2, { sideStuds: 1 });
 def('4070', 'Brick 1 x 1 Headlight', 'Brackets', 1, 1, 1.2, { isHeadlight: true });
