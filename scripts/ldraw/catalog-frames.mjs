@@ -373,8 +373,8 @@ const NOTES = {
     '30374': 'the real bar is 4 studs (4.0) long; the catalog height is 1.6',
     '6005': 'real 6005 is a one-sided arch: a studded high end and a curve falling to the far end; turned like a slope (high end at -Z)',
     '6091': 'real 6091 has its stud on a 1-brick step at -Z; the curve peaks at the middle and falls to +Z',
-    '43722': 'LDraw 43722 (Right) is the mirror of our right convention: swap the isWedge flags of 43722/43723 (and 41769/41770) to match real parts',
-    '43723': 'mirror of our left convention (see 43722)', '41769': 'mirror of our right convention (see 43722)', '41770': 'mirror of our left convention (see 43722)',
+    '43722': 'real right-hand wedge: drawn with the engine\'s left shape (catalog flags swapped to match the real parts)',
+    '43723': 'real left-hand wedge (see 43722)', '41769': 'real right-hand wedge (see 43722)', '41770': 'real left-hand wedge (see 43722)',
 };
 
 const frames = {}, report = [];

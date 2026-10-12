@@ -1384,7 +1384,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 const last = span - 1 - ((span - 1) % 2);
                 for (let i = 0; i < span; i += 2) {
                     const yy = Y + 3 + (i % 4 === 2 ? 1 : 0), off = i === 0 ? 0 : i - 1, tip = i === last && i > 0;
-                    g.part(tip ? '41770' : '3020', body, -3 - off, wz - i / 2, yy, { rotY: tip ? -PI / 2 : PI / 2, w: 4, l: 2 }); g.part(tip ? '41769' : '3020', body, W - 1 + off, wz - i / 2, yy, { rotY: PI / 2, w: 4, l: 2 });
+                    g.part(tip ? '41769' : '3020', body, -3 - off, wz - i / 2, yy, { rotY: tip ? -PI / 2 : PI / 2, w: 4, l: 2 }); g.part(tip ? '41770' : '3020', body, W - 1 + off, wz - i / 2, yy, { rotY: PI / 2, w: 4, l: 2 });
                 }
                 g.part('3062', 'DARK_GREY', -1, wz - 1, Y + 5, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3062', 'DARK_GREY', W, wz - 1, Y + 5, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true });
                 feats.push('swept wings with wedge-plate tips', 'twin engine pods');
@@ -1748,8 +1748,8 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 g.box(0, 1, 0, L - 1, 9, 10, body, { noBrick: true });
                 // Stepped swept wings ending in wedge plates, a wedge-plate nose, cannons and engines.
                 for (let i = 0; i < 3; i++) {
-                    g.part(i === 0 ? '41770' : '3020', body, -4 + i, 2 + i, 10 - (i % 2), { rotY: i === 0 ? -PI / 2 : PI / 2, w: 4, l: 2 });
-                    g.part(i === 2 ? '41769' : '3020', body, 1 + i, 2 + i, 10 - (i % 2), { rotY: PI / 2, w: 4, l: 2 });
+                    g.part(i === 0 ? '41769' : '3020', body, -4 + i, 2 + i, 10 - (i % 2), { rotY: i === 0 ? -PI / 2 : PI / 2, w: 4, l: 2 });
+                    g.part(i === 2 ? '41770' : '3020', body, 1 + i, 2 + i, 10 - (i % 2), { rotY: PI / 2, w: 4, l: 2 });
                 }
                 g.part('3062', P.metal, -4, 2, 11, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true }); g.part('3062', P.metal, 4, 2, 11, { rotX: PI / 2, w: 1, l: 2, hp: 3, lie: true });
                 feats.push(...H.wedgeNose(ctx, -1, L - 1, 10, { width: 4, color: body, face: 'front' }).feats);

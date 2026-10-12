@@ -139,10 +139,11 @@ def('60623', 'Door 1 x 4 x 6 with Stud Handle', 'Windows', 1, 4, 7.2, { isDoor: 
 def('3185', 'Fence 1 x 4 x 2', 'Windows', 1, 4, 2.4, { isFence: true, hasStuds: false });
 
 // --- WEDGES, CURVES & INVERTED SLOPES ---
-def('43722', 'Wedge Plate 2 x 3 Right', 'Plates', 2, 3, 0.4, { isPlate: true, isWedge: 'right' });
-def('43723', 'Wedge Plate 2 x 3 Left', 'Plates', 2, 3, 0.4, { isPlate: true, isWedge: 'left' });
-def('41769', 'Wedge Plate 4 x 2 Right', 'Plates', 2, 4, 0.4, { isPlate: true, isWedge: 'right' });
-def('41770', 'Wedge Plate 4 x 2 Left', 'Plates', 2, 4, 0.4, { isPlate: true, isWedge: 'left' });
+// The real right-hand wedges are the mirror of the engine's 'right' drawing, so each id carries the shape that matches the real part.
+def('43722', 'Wedge Plate 2 x 3 Right', 'Plates', 2, 3, 0.4, { isPlate: true, isWedge: 'left' });
+def('43723', 'Wedge Plate 2 x 3 Left', 'Plates', 2, 3, 0.4, { isPlate: true, isWedge: 'right' });
+def('41769', 'Wedge Plate 4 x 2 Right', 'Plates', 2, 4, 0.4, { isPlate: true, isWedge: 'left' });
+def('41770', 'Wedge Plate 4 x 2 Left', 'Plates', 2, 4, 0.4, { isPlate: true, isWedge: 'right' });
 def('11477', 'Slope Curved 2 x 1', 'Slopes', 1, 2, 0.8, { isSlope: true, curved: true, slopeStuds: 0 });
 def('15068', 'Slope Curved 2 x 2 x 2/3', 'Slopes', 2, 2, 0.8, { isSlope: true, curved: true, slopeStuds: 0 });
 def('6091', 'Brick 1 x 2 x 1 1/3 with Curved Top', 'Slopes', 1, 2, 1.6, { isSlope: true, curved: true, slopeStuds: 1 });

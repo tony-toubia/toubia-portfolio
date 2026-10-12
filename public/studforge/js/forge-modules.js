@@ -396,7 +396,7 @@ window.FORGE.modules = window.FORGE.modules || {};
         put('2430', 1, 4, 0, 1, y, PI / 2, { links: [[0, y, 0]] });
         // Wing plates over the swivel top, a wedge plate at the tip, a spar on top bridging the joints.
         for (const [off, n] of (span > 4 ? PLATES.split(span - 4) : [])) put(n === 1 ? '3023' : PLATES.two[n], 1 + off, off + n, 0, 2, y + 1, n === 1 ? 0 : PI / 2);
-        put(side === 1 ? '41769' : '41770', span - 3, span, 0, 2, y + 1, side === 1 ? PI / 2 : -PI / 2);
+        put(side === 1 ? '41770' : '41769', span - 3, span, 0, 2, y + 1, side === 1 ? PI / 2 : -PI / 2);
         const sparColor = o.sparColor || P.trim || color;
         for (const [off, n] of PLATES.split(span - 3)) {
             const b = box(2 + off, 1 + off + n, 0, 1), sw = swung(2 + off, 1 + off + n, 0, 1);
@@ -559,8 +559,8 @@ window.FORGE.modules = window.FORGE.modules || {};
         const { g, P } = ctx, fr = frame(g, x, z, o.face);
         const width = Math.max(4, (o.width || 4) - ((o.width || 4) % 2)), color = o.color || P.primary, back = o.overlap === undefined ? 1 : o.overlap;
         const v0 = -back, L = 3;
-        fr.part('43723', color, 0, v0, y, { w: 2, l: L });
-        fr.part('43722', color, width - 2, v0, y, { w: 2, l: L });
+        fr.part('43722', color, 0, v0, y, { w: 2, l: L });
+        fr.part('43723', color, width - 2, v0, y, { w: 2, l: L });
         for (let u = 2; u < width - 2; u += 2) fr.part('3021', color, u, v0, y, { w: 2, l: L });
         return { feats: ['a tapered wedge-plate nose'], tip: fr.cell(width / 2 - 1, v0 + L - 1) };
     };
