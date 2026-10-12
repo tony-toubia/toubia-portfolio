@@ -204,15 +204,16 @@ class BrickGenerator {
 
     /**
      * Length calibration against real reconstructions: when the subject's real sets were measured (construction
-     * profile) and this forge's body is clearly shorter or longer than theirs (under 0.7x or over 1.4x the
-     * median length, display base excluded), forge once more at a scale nudged toward it (x0.75…x1.35, on top
+     * profile) and this vehicle's or building's body is clearly shorter or longer than theirs (under 0.7x or over
+     * 1.4x the median length of the real sets of a typical piece count, display base excluded), forge once more at a scale nudged toward it (x0.75…x1.35, on top
      * of any piece-count nudge) and keep it when it lands nearer. Returns { from, to, target, kept } or null.
      */
     calibrateLength(nudged, model, k0, parsed) {
         const C = window.FORGE.construction;
         const cons = this.constructionFor(parsed.knowledge);
-        const target = cons && this.constructionReal(cons) && cons.proportions && cons.proportions.len ? cons.proportions.len[1] : 0;
-        if (!target || !C) return null;
+        // Only sets of a typical size for the subject count (lenTypical), and only vehicles, buildings and castles.
+        const target = cons && this.constructionReal(cons) && cons.proportions && cons.proportions.lenTypical ? cons.proportions.lenTypical[1] : 0;
+        if (!target || !C || !(model.m.category === 'Vehicles' || model.m.category === 'Architecture' || model.m.kind === 'castle')) return null;
         const lenOf = (m) => { try { const r = C.measure(C.normalize(m)); return r ? r.proportions.len : 0; } catch (e) { return 0; } };
         const len = lenOf(model.m);
         if (!len || (len >= 0.7 * target && len <= 1.4 * target)) return null;

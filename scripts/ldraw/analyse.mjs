@@ -111,7 +111,11 @@ const trio = (a) => { const b = a.filter((v) => v != null); return b.length ? [M
 const meanShares = (list, top) => { const acc = {}; for (const o of list) for (const [k, v] of Object.entries(o || {})) acc[k] = (acc[k] || 0) + v; return Object.fromEntries(Object.entries(acc).map(([k, v]) => [k, r2(v / list.length)]).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, top || 99)); };
 const meanColors = (list, top) => { const acc = {}; for (const cs of list) for (const [c, v] of cs || []) acc[c] = (acc[c] || 0) + v; return Object.entries(acc).sort((a, b) => b[1] - a[1]).slice(0, top).map(([c, v]) => [c, r2(v / list.length)]); };
 
-function aggregate(ms) {
+function aggregate(ms, id) {
+    // Lengths of the sets of a typical size for the subject (Rebrickable p25–p75 piece counts): a 1,000-piece
+    // display car must not set the length of a minifig-scale one. The generator calibrates on these only.
+    const kp = id && knowledge.subjects[id] && knowledge.subjects[id].pieces;
+    const typical = kp ? ms.filter((m) => m.metrics.pieces >= kp.p25 * 0.8 && m.metrics.pieces <= kp.p75 * 1.25) : [];
     const P = ms.map((m) => m.metrics.proportions), Hh = ms.map((m) => m.metrics.hollow), T = ms.map((m) => m.metrics.techniques), B = ms.map((m) => m.metrics.buildOrder);
     const bases = {}; for (const p of P) bases[p.base.kind] = (bases[p.base.kind] || 0) + 1;
     const walls = Hh.map((h) => h.wall).filter(Boolean);
@@ -127,7 +131,7 @@ function aggregate(ms) {
     }
     return {
         n: ms.length,
-        proportions: { wid: trio(P.map((p) => p.wid)), len: trio(P.map((p) => p.len)), hb: trio(P.map((p) => p.hb)), wl: med(P.map((p) => p.wl)), hl: med(P.map((p) => p.hl)), base: Object.entries(bases).sort((a, b) => b[1] - a[1])[0][0], baseShare: Object.fromEntries(Object.entries(bases).map(([k, v]) => [k, r2(v / ms.length)])), pieces: trio(ms.map((m) => m.metrics.pieces)) },
+        proportions: { wid: trio(P.map((p) => p.wid)), len: trio(P.map((p) => p.len)), hb: trio(P.map((p) => p.hb)), wl: med(P.map((p) => p.wl)), hl: med(P.map((p) => p.hl)), base: Object.entries(bases).sort((a, b) => b[1] - a[1])[0][0], baseShare: Object.fromEntries(Object.entries(bases).map(([k, v]) => [k, r2(v / ms.length)])), pieces: trio(ms.map((m) => m.metrics.pieces)), lenTypical: typical.length >= 2 ? trio(typical.map((m) => m.metrics.proportions.len)) : null, typicalN: typical.length },
         hollow: { share: med(Hh.map((h) => h.share)), interior: med(Hh.map((h) => h.interior)), wall: walls.length ? { median: med(walls.map((w) => w.median)), s1: mean(walls.map((w) => w.s1)), s2: mean(walls.map((w) => w.s2)), s3: mean(walls.map((w) => w.s3)) } : null, solidShare: r2(1 - walls.length / ms.length) },
         layers,
         buildOrder: { steps: med(B.map((b) => b.steps)), perStep: med(B.map((b) => b.perStep)), per100: med(B.map((b) => b.per100)), heightCorr: med(B.map((b) => b.heightCorr)), phases, interiorAt: med(B.map((b) => b.interiorAt)), wallsAt: med(B.map((b) => b.wallsAt)), roofAt: med(B.map((b) => b.roofAt)), subFreq: r2(B.filter((b) => b.subs.length).length / B.length), subsPer: mean(B.map((b) => b.subs.length)), subShare: mean(B.map((b) => b.subShare)), roles: Object.entries(roles).sort((a, b) => b[1] - a[1]).slice(0, 8), subNames },
@@ -186,9 +190,9 @@ const out = { generated: new Date().toISOString().slice(0, 10), source: GENERATE
 const report = [];
 for (const id of subjectIds) {
     const ours = forgeSubject(id);
-    const oursAgg = ours.ms.length ? aggregate(ours.ms) : null;
+    const oursAgg = ours.ms.length ? aggregate(ours.ms, id) : null;
     const realMs = real.get(id) || [];
-    const main = GENERATED_ONLY ? oursAgg : aggregate(realMs);
+    const main = GENERATED_ONLY ? oursAgg : aggregate(realMs, id);
     if (!main) continue;
     out.subjects[id] = Object.assign(main, { examples: GENERATED_ONLY ? ours.prompts.slice(0, 4) : realMs.slice(0, 6).map((m) => m.id) }, oursAgg ? { ours: compactOurs(oursAgg, ours.prompts) } : {});
     report.push({ id, real: GENERATED_ONLY ? null : main, realModels: realMs, ours: oursAgg, prompts: ours.prompts });
@@ -223,6 +227,7 @@ for (const r of report) {
     row('width × length (studs)', (x) => `${tr(x.proportions.wid)} × ${tr(x.proportions.len)}`);
     row('height (bricks)', (x) => tr(x.proportions.hb));
     row('pieces (structure)', (x) => tr(x.proportions.pieces));
+    row('length of typical-size sets', (x) => (x.proportions.lenTypical ? `${tr(x.proportions.lenTypical)} (${x.proportions.typicalN} sets)` : `– (${x.proportions.typicalN} sets of typical size)`));
     row('w:l, h:l', (x) => `${x.proportions.wl}, ${x.proportions.hl}`);
     row('base', (x) => `${x.proportions.base} (${Object.entries(x.proportions.baseShare).map(([k, v]) => `${k} ${pc(v)}`).join(', ')})`);
     row('hollow (air in envelope)', (x) => `${pc(x.hollow.share)} (interior ${pc(x.hollow.interior)} of the box)`);
