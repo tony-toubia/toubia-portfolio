@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import fs from 'node:fs';
 import path from 'node:path';
+import { AI_COOKIE, tokenValid } from '@/lib/studforge/gate';
 
 /**
  * POST /api/studforge/idea
@@ -361,6 +362,10 @@ async function askClaude(key: string, a: Ask): Promise<Answer> {
 
 export async function POST(req: NextRequest) {
   const key = process.env.ANTHROPIC_API_KEY;
+  // Password gate: every call here spends API credit, so only a browser that has unlocked with
+  // STUDFORGE_AI_PASSWORD (see /api/studforge/auth) gets past this line. Checked before the body
+  // is even read; an unconfigured server still answers 'no-key' so the page can stop asking.
+  if (key && !tokenValid(req.cookies.get(AI_COOKIE)?.value)) return local('locked', 401);
   let body: unknown;
   let text: string;
   try { text = await req.text(); } catch { return bad('bad json'); }
