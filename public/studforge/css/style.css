@@ -777,3 +777,10 @@ body:not(.in-iframe) .back-to-home {
         color: #000 !important;
     }
 }
+
+/* ── instructions ── */
+/* On phones the open parts card sat in an auto grid row that collapsed to 0 (a scroll container has no
+   automatic minimum size), so the side panels could never be reached; a real height fixes the row. */
+@media (max-width: 600px) {
+    .bom-card.open { height: 70vh; }
+}
