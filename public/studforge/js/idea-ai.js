@@ -1,23 +1,34 @@
 // StudForge feature: "Claude in the loop".
-// With the chip ON, a new idea is first sent to /api/studforge/idea, which asks Claude for a
-// design brief (subject, style, colours, scale, name, description) that the local engine then
-// builds. Anything that goes wrong (no key, no route, rate limit, timeout) falls back to the
-// plain local forge, silently. Exposes studForge.ai = { enabled, ask(prompt) } for other features.
+// The ✨ chip has three states, persisted in localStorage:
+//   OFF     the local forge only.
+//   BRIEF   a new idea is first sent to /api/studforge/idea, which asks Claude for a design brief (subject, style,
+//           colours, scale, name, description) that the local engine then builds with one of its builders.
+//   DESIGN  the idea is sent with { mode: 'blueprint' } and the engine's vocabulary (modules, parts, colours, the
+//           knowledge base's subject data); Claude answers with a BLUEPRINT (blueprint.js) that the engine
+//           assembles from primitives and modules: Claude designs the model, not just picks a builder. RE-FORGE
+//           asks Claude for a different design (the variant number goes with the request). When the route has no
+//           design (validation failed, rate limit) the idea falls back to BRIEF behaviour.
+// Anything that goes wrong (no key, no route, timeout) falls back to the plain local forge, silently.
+// Exposes studForge.ai = { mode, enabled, ask(prompt), design(prompt, variant), offline } for other features.
 (() => {
     const KEY = 'studforge.ai.v1', ROUTE = '/api/studforge/idea';
-    const readPref = () => { try { return localStorage.getItem(KEY) !== 'off'; } catch { return true; } };
-    const savePref = (on) => { try { localStorage.setItem(KEY, on ? 'on' : 'off'); } catch { /* private mode */ } };
+    const MODES = ['off', 'brief', 'design'];
+    // 'on' is what the older two-state chip saved: it means BRIEF.
+    const readPref = () => { try { const v = localStorage.getItem(KEY); return v === 'off' ? 'off' : v === 'design' ? 'design' : 'brief'; } catch { return 'brief'; } };
+    const savePref = (mode) => { try { localStorage.setItem(KEY, mode === 'brief' ? 'on' : mode); } catch { /* private mode */ } };
 
     const css = `
 /* ── idea-ai ── */
 .sfai-chip.busy { opacity: 0.6; pointer-events: none; }
+.sfai-chip.design { border-color: var(--lego-yellow, #ffd500); }
 .sfai-take { font-size: 12px; margin-top: 4px; color: var(--lego-yellow, #ffd500); text-shadow: 0 1px 4px rgba(0,0,0,0.8); font-weight: 600; max-width: 520px; }
 .sfai-take.local { color: var(--text-muted, #7a8599); font-weight: 600; font-size: 10px; letter-spacing: 1px; }
+.sfai-take.designed strong { letter-spacing: 1px; font-size: 10px; display: block; opacity: 0.9; }
 .sfai-take:empty { display: none; }
 #btn-generate.sfai-asking { opacity: 0.85; }
 #btn-generate.sfai-asking .sfai-spark { display: inline-block; animation: sfai-pulse 0.9s ease-in-out infinite; }
 @keyframes sfai-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.35); opacity: 0.55; } }
-@media (max-width: 600px) { .sfai-take { font-size: 10px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } }
+@media (max-width: 600px) { .sfai-take { font-size: 10px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .sfai-take.designed strong { display: inline; margin-right: 4px; } }
 @media (max-height: 640px) { .sfai-take { display: none; } }
 `;
 
@@ -26,15 +37,17 @@
         if (!sf || !sf.forge) return;
         const style = document.createElement('style'); style.id = 'sfai-style'; style.textContent = css; document.head.appendChild(style);
 
-        let enabled = readPref(), offline = false, busy = false;
-        let cache = { prompt: null, brief: null }; // the last brief we asked for, so RE-FORGE never re-asks
+        let mode = readPref(), offline = false, busy = false;
+        let cache = { prompt: null, brief: null }; // the last brief we asked for, so RE-FORGE in BRIEF mode never re-asks
+        const enabled = () => mode !== 'off';
 
-        /* ── dock chip ── */
+        /* ── dock chip: OFF → BRIEF → DESIGN → OFF ── */
         const chip = document.createElement('button');
         chip.className = 'tool-chip sfai-chip'; chip.type = 'button';
-        chip.title = 'Let Claude turn your idea into a design brief before the forge builds it';
-        const paint = () => { chip.classList.toggle('on', enabled); chip.innerHTML = `<span>✨</span> CLAUDE: ${enabled ? 'ON' : 'OFF'}`; };
-        chip.addEventListener('click', () => { enabled = !enabled; savePref(enabled); paint(); paintTake(sf.model); });
+        const TITLES = { off: 'Claude is off: the local forge builds every idea', brief: 'BRIEF: Claude turns your idea into a design brief the local builders follow. Click for DESIGN.', design: 'DESIGN: Claude designs the whole model from parts and modules. Click to turn Claude off.' };
+        const paint = () => { chip.classList.toggle('on', enabled()); chip.classList.toggle('design', mode === 'design'); chip.dataset.mode = mode; chip.title = TITLES[mode]; chip.innerHTML = `<span>✨</span> CLAUDE: ${mode.toUpperCase()}`; };
+        const setMode = (m) => { mode = MODES.includes(m) ? m : 'brief'; savePref(mode); paint(); paintTake(sf.model); };
+        chip.addEventListener('click', () => setMode(MODES[(MODES.indexOf(mode) + 1) % MODES.length]));
         paint(); sf.dock(chip);
 
         /* ── the engine's vocabulary, so Claude maps onto what exists ── */
@@ -43,33 +56,56 @@
             colors: Object.keys(window.LEGO_COLORS || {}),
             styles: Object.keys((sf.generator && sf.generator.styles) || {}),
         });
+        /** What the knowledge base knows about the prompt's subject (real palette, piece budget, top parts), or null. */
+        const subjectFor = (prompt) => {
+            const K = window.FORGE && window.FORGE.knowledge, s = K && K.subjectFor ? K.subjectFor(prompt) : null;
+            if (!s) return null;
+            return { id: s.id, n: s.n, palette: (s.palette || []).slice(0, 8), pieces: s.pieces || null, parts: (s.parts || []).slice(0, 12).map((p) => [p[0], p[1]]) };
+        };
 
-        /** Ask the route for a brief. Resolves to the brief, or null for "forge locally". */
-        async function ask(prompt) {
-            prompt = String(prompt || '').trim().slice(0, 200);
-            if (!prompt || offline) return null;
+        /** The route's answer, or null for "forge locally"; marks the session offline when the route cannot help at all. */
+        async function call(payload, field) {
             try {
-                const res = await fetch(ROUTE, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ prompt, ...vocab() }) });
+                const res = await fetch(ROUTE, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
                 // 404/405/501...: no such route on this server (static hosting); stop asking for the session.
                 if (!res.ok && res.status !== 429 && res.status < 500 || res.status === 501) { offline = true; console.info('StudForge: idea route not available here, forging locally.'); return null; }
                 const data = await res.json().catch(() => null);
-                if (!data || data.source !== 'claude' || !data.brief) {
+                if (!data || data.source !== 'claude' || !data[field]) {
                     if (data && data.reason === 'no-key') { offline = true; console.info('StudForge: Claude not configured on this server, forging locally.'); }
+                    else if (data && data.reason) console.info(`StudForge: no ${field} from Claude (${data.reason}).`);
                     return null;
                 }
-                return data.brief;
+                return data;
             } catch {
                 if (!offline) console.info('StudForge: idea route unreachable, forging locally.');
                 return null;
             }
         }
+        /** Ask the route for a brief. Resolves to the brief, or null for "forge locally". */
+        async function ask(prompt) {
+            prompt = String(prompt || '').trim().slice(0, 200);
+            if (!prompt || offline) return null;
+            const data = await call({ prompt, ...vocab() }, 'brief');
+            return data ? data.brief : null;
+        }
+        /** Ask the route for a blueprint. Resolves to { blueprint, fixture }, or null (then try a brief, or forge locally). */
+        async function design(prompt, variant = 0) {
+            prompt = String(prompt || '').trim().slice(0, 200);
+            const B = window.FORGE && window.FORGE.blueprint;
+            if (!prompt || offline || !B) return null;
+            const data = await call({ mode: 'blueprint', prompt, variant, ...B.vocab(), subject: subjectFor(prompt) }, 'blueprint');
+            if (!data) return null;
+            const v = B.validate(data.blueprint);
+            if (!v.ok) { console.warn('StudForge: Claude\'s blueprint did not validate:', v.errors.join('; ')); return null; }
+            return { blueprint: v.bp, fixture: !!data.fixture };
+        }
 
-        /* ── intercept the FORGE button and Enter: ask first, then forge with the brief ── */
+        /* ── intercept the FORGE button and Enter: ask first, then forge with the brief or the blueprint ── */
         const btn = document.getElementById('btn-generate'), input = sf.promptInput;
         const restore = () => { btn.disabled = false; btn.classList.remove('sfai-asking'); sf.setPrompt(input.value); };
+        const wait = (label) => { busy = true; btn.disabled = true; btn.classList.add('sfai-asking'); btn.innerHTML = `<span class="sfai-spark">✨</span> ${label}`; };
         async function forgeWithClaude(prompt) {
-            busy = true;
-            btn.disabled = true; btn.classList.add('sfai-asking'); btn.innerHTML = `<span class="sfai-spark">✨</span> ASKING CLAUDE…`;
+            wait('ASKING CLAUDE…');
             let brief = null;
             try { brief = await ask(prompt); } catch { brief = null; }
             cache = { prompt, brief };
@@ -79,17 +115,44 @@
             } catch (e) { console.error('StudForge ai forge', e); }
             finally { busy = false; restore(); }
         }
+        /** DESIGN: a blueprint from Claude (a new one per variant), else the BRIEF path, else the local forge. */
+        async function forgeWithDesign(prompt, variant) {
+            wait(variant ? 'CLAUDE REDESIGNING…' : 'CLAUDE DESIGNING…');
+            let built = false;
+            try {
+                const d = await design(prompt, variant);
+                if (d) {
+                    const model = sf.forge(prompt, variant, { blueprint: d.blueprint });
+                    built = model && model.kind === 'blueprint';
+                    if (built) console.info(`StudForge: Claude designed "${model.name}"${d.fixture ? ' (fixture)' : ''}: ${d.blueprint.ops.length} ops, ${model.bricks.length} pieces, struts: ${(model.anchor && model.anchor.struts) || 0}`);
+                }
+                if (!built && !offline) {
+                    // No design: the brief path (one brief per prompt, reused across variants like BRIEF mode).
+                    if (prompt !== cache.prompt) cache = { prompt, brief: await ask(prompt) };
+                    sf.forge(prompt, variant, cache.brief ? { brief: cache.brief } : {});
+                    built = true;
+                }
+                if (!built) sf.forge(prompt, variant, {});
+            } catch (e) { console.error('StudForge ai design', e); try { sf.forge(prompt, variant, {}); } catch { /* the core's own error path */ } }
+            finally { busy = false; restore(); }
+        }
         function intercept(e) {
             const prompt = input.value.trim();
-            if (!enabled || !prompt || busy) return;
-            if (prompt === sf.state.prompt) return; // RE-FORGE: the core keeps state.opts (with the brief) across variants
+            if (!enabled() || !prompt || busy || offline) return;
+            const same = prompt === sf.state.prompt;
+            if (mode === 'design') {
+                // RE-FORGE asks Claude again for a different design, so every variant is a fresh idea.
+                e.stopImmediatePropagation(); e.preventDefault();
+                forgeWithDesign(prompt, same ? sf.state.variant + 1 : 0);
+                return;
+            }
+            if (same) return; // RE-FORGE: the core keeps state.opts (with the brief) across variants
             if (prompt === cache.prompt) {
                 if (!cache.brief) return; // we asked before and got nothing: let the core forge locally
                 e.stopImmediatePropagation(); e.preventDefault();
                 sf.forge(prompt, 0, { brief: cache.brief }); sf.setPrompt(prompt);
                 return;
             }
-            if (offline) return;
             e.stopImmediatePropagation(); e.preventDefault();
             forgeWithClaude(prompt);
         }
@@ -101,15 +164,24 @@
         const take = document.createElement('p'); take.className = 'sfai-take';
         if (desc && desc.parentNode) desc.parentNode.insertBefore(take, desc.nextSibling);
         function paintTake(model) {
-            const brief = model && model.brief;
-            if (brief) { take.classList.remove('local'); take.textContent = `✨ Claude's take: ${brief.tagline || brief.description || brief.subject}`; }
-            else if (enabled && !offline) { take.classList.add('local'); take.textContent = 'LOCAL FORGE'; }
-            else take.textContent = '';
+            const bp = model && model.blueprint, brief = model && model.brief;
+            take.classList.remove('local', 'designed'); take.textContent = '';
+            if (bp) {
+                take.classList.add('designed');
+                const head = document.createElement('strong'); head.textContent = '✨ CLAUDE DESIGNED THIS';
+                take.appendChild(head); take.appendChild(document.createTextNode(bp.tagline || bp.description || bp.name));
+            }
+            else if (brief) take.textContent = `✨ Claude's take: ${brief.tagline || brief.description || brief.subject}`;
+            else if (enabled() && !offline) { take.classList.add('local'); take.textContent = 'LOCAL FORGE'; }
         }
         sf.on('model', paintTake);
         paintTake(sf.model);
 
-        sf.ai = { get enabled() { return enabled; }, set enabled(v) { enabled = !!v; savePref(enabled); paint(); }, ask, get offline() { return offline; } };
+        sf.ai = {
+            get mode() { return mode; }, set mode(m) { setMode(m); },
+            get enabled() { return enabled(); }, set enabled(v) { setMode(v ? 'brief' : 'off'); },
+            ask, design, get offline() { return offline; },
+        };
     }
 
     if (window.studForge) init();
