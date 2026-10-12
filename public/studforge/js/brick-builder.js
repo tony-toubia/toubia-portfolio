@@ -26,29 +26,63 @@
 //   middle at +Z); `left` is the mirror. Quarter-round tile and round-corner brick keep
 //   their square corner at (-X, -Z). Slopes and arches run along Z, high end at -Z.
 // - The door is rendered 12° ajar, swung toward -X around its -Z (hinge) edge.
+//
+// Materials are MeshPhysicalMaterial, one per colour (and per finish: a tyre is rubber, not ABS),
+// cached in `materialsCache` so other modules can clone, tint and restore them. Colour hexes are
+// sRGB, so they are converted to linear for the renderer's sRGB output. `quality` is 'high' or
+// 'lite' (phones): lite drops the clearcoat and the glass transmission and uses coarser studs.
 class BrickBuilder {
-    constructor() {
+    constructor(options = {}) {
         this.materialsCache = new Map();
         this.geometryCache = new Map();
         this.studRadius = 0.28;
         this.studHeight = 0.18;
-        this.gap = 0.04;   // visible seam between neighbouring parts
+        this.gap = 0.04;       // visible seam between neighbouring parts
+        this.chamfer = 0.03;   // the tiny edge bevel of a moulded part
+        this.quality = options.quality || 'high';
     }
 
-    getMaterial(colorKey) {
-        if (this.materialsCache.has(colorKey)) return this.materialsCache.get(colorKey);
+    /** The cache key of a colour + finish; plain plastic keeps the bare colour key (other modules rely on it). */
+    materialKey(colorKey, finish = 'plastic') { return finish === 'plastic' ? colorKey : `${colorKey}:${finish}`; }
+
+    /**
+     * A material per colour and finish: ABS = low roughness under a clearcoat, trans colours =
+     * tinted glass (transmission keeps the specular while the body goes see-through), rubber for
+     * tyres, a metallic lobe for pearl gold. `material.color`/`emissive` stay plain properties.
+     */
+    getMaterial(colorKey, finish = 'plastic') {
+        const key = this.materialKey(colorKey, finish);
+        if (this.materialsCache.has(key)) return this.materialsCache.get(key);
         const colorDef = window.LEGO_COLORS[colorKey] || window.LEGO_COLORS.RED;
+        const lite = this.quality === 'lite';
         const isTrans = colorDef.category === 'Transparent';
         const isMetallic = colorDef.category === 'Metallic';
-        const mat = new THREE.MeshStandardMaterial({
-            color: new THREE.Color(colorDef.hex),
-            roughness: isMetallic ? 0.35 : 0.3,
-            metalness: isMetallic ? 0.75 : 0.03,
-            transparent: isTrans,
-            opacity: isTrans ? (colorDef.opacity || 0.65) : 1.0,
-            depthWrite: !isTrans || (colorDef.opacity > 0.6)
-        });
-        this.materialsCache.set(colorKey, mat);
+        const color = new THREE.Color(colorDef.hex).convertSRGBToLinear();
+        const hint = colorDef.finish || {};
+        let params;
+        if (finish === 'rubber') {
+            // A tyre: matte, a touch darker than the plastic of the same colour, barely any reflection.
+            params = { color: color.multiplyScalar(0.72), roughness: 0.92, metalness: 0, clearcoat: 0, envMapIntensity: 0.35 };
+        } else if (isTrans) {
+            // Coloured glass: the body is mostly transmitted, the surface keeps a sharp specular.
+            const t = hint.transmission != null ? hint.transmission : (colorKey === 'TRANS_CLEAR' ? 0.92 : 0.68);
+            params = lite
+                ? { color, roughness: 0.1, metalness: 0, transparent: true, opacity: colorDef.opacity || 0.65, depthWrite: false, envMapIntensity: 1.3 }
+                : { color, roughness: 0.08, metalness: 0, transmission: t, ior: 1.5, clearcoat: 0.4, clearcoatRoughness: 0.08, transparent: true, opacity: 1, depthWrite: false, envMapIntensity: 1.3 };
+        } else if (isMetallic) {
+            params = { color, roughness: hint.roughness != null ? hint.roughness : 0.35, metalness: hint.metalness != null ? hint.metalness : 0.6, clearcoat: lite ? 0 : 0.25, clearcoatRoughness: 0.2, envMapIntensity: 1.25 };
+        } else {
+            // Injection-moulded ABS: a smooth body under a glossy clearcoat; dark colours read glossier.
+            const lum = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
+            const rough = hint.roughness != null ? hint.roughness : (lum < 0.05 ? 0.26 : 0.32);
+            params = { color, roughness: rough, metalness: 0, clearcoat: lite ? 0 : 0.55, clearcoatRoughness: 0.2, envMapIntensity: 0.9 };
+        }
+        const mat = new THREE.MeshPhysicalMaterial(params);
+        mat.userData.colorKey = colorKey;
+        mat.userData.finish = finish;
+        mat.userData.transmission = mat.transmission;     // so a night-time glow can dial the glass back
+        mat.userData.envBase = mat.envMapIntensity;       // so lighting moods can scale the environment
+        this.materialsCache.set(key, mat);
         return mat;
     }
 
@@ -56,8 +90,10 @@ class BrickBuilder {
     createBrickMesh(partId, colorKey, options = {}) {
         const part = window.LEGO_PARTS[partId] || window.LEGO_PARTS['3001'];
         const lying = !!(options.rotX || options.rotZ);
-        const mesh = new THREE.Mesh(this.getGeometry(part, lying), this.getMaterial(colorKey));
-        mesh.castShadow = true;
+        const colorDef = window.LEGO_COLORS[colorKey];
+        const isTrans = !!(colorDef && colorDef.category === 'Transparent');
+        const mesh = new THREE.Mesh(this.getGeometry(part, lying), this.getMaterial(colorKey, part.isTire ? 'rubber' : 'plastic'));
+        mesh.castShadow = !isTrans;   // glass throws a faint shadow at most; a solid one looks wrong
         mesh.receiveShadow = true;
         mesh.userData = {
             partId: part.id, partName: part.name, colorKey,
@@ -202,10 +238,52 @@ class BrickBuilder {
         return this.plateBody(part);
     }
 
-    /** The plain box every brick, plate and tile starts from. */
+    /** The plain box every brick, plate and tile starts from, with the moulded edge bevel. */
     plateBody(part, y0 = 0, y1 = part.height) {
         const g = this.gap / 2;
-        return this.box(-part.width / 2 + g, part.width / 2 - g, y0, y1, -part.length / 2 + g, part.length / 2 - g);
+        return this.chamferBox(-part.width / 2 + g, part.width / 2 - g, y0, y1, -part.length / 2 + g, part.length / 2 - g);
+    }
+
+    /**
+     * A box with every edge chamfered by `c` (26 flat faces, 44 triangles): the bevel catches the
+     * key light along each edge, which is what makes a moulded part read as plastic instead of a cube.
+     */
+    chamferBox(x0, x1, y0, y1, z0, z1, c = this.chamfer) {
+        c = Math.min(c, (x1 - x0) / 3, (y1 - y0) / 3, (z1 - z0) / 3);
+        const pos = [], nrm = [];
+        // Each corner (sx, sy, sz) has three vertices, one pulled inward along each axis.
+        const C = {};
+        for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
+            const x = sx > 0 ? x1 : x0, y = sy > 0 ? y1 : y0, z = sz > 0 ? z1 : z0;
+            C[`${sx},${sy},${sz}`] = { x: [x - sx * c, y, z], y: [x, y - sy * c, z], z: [x, y, z - sz * c] };
+        }
+        const k = (sx, sy, sz) => C[`${sx},${sy},${sz}`];
+        const poly = (pts, n) => {   // a convex polygon as a fan, wound so it faces along n
+            const len = Math.hypot(...n), nn = n.map((v) => v / len);
+            const a = pts[0], b = pts[1], d = pts[2];
+            const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], ad = [d[0] - a[0], d[1] - a[1], d[2] - a[2]];
+            const cross = [ab[1] * ad[2] - ab[2] * ad[1], ab[2] * ad[0] - ab[0] * ad[2], ab[0] * ad[1] - ab[1] * ad[0]];
+            if (cross[0] * nn[0] + cross[1] * nn[1] + cross[2] * nn[2] < 0) pts = pts.slice().reverse();
+            for (let i = 1; i < pts.length - 1; i++) { pos.push(...pts[0], ...pts[i], ...pts[i + 1]); nrm.push(...nn, ...nn, ...nn); }
+        };
+        // The six faces.
+        for (const s of [-1, 1]) {
+            poly([k(s, -1, -1).x, k(s, 1, -1).x, k(s, 1, 1).x, k(s, -1, 1).x], [s, 0, 0]);
+            poly([k(-1, s, -1).y, k(1, s, -1).y, k(1, s, 1).y, k(-1, s, 1).y], [0, s, 0]);
+            poly([k(-1, -1, s).z, k(1, -1, s).z, k(1, 1, s).z, k(-1, 1, s).z], [0, 0, s]);
+        }
+        // The twelve edge bevels: four along each axis.
+        for (const a of [-1, 1]) for (const b of [-1, 1]) {
+            poly([k(-1, a, b).y, k(-1, a, b).z, k(1, a, b).z, k(1, a, b).y], [0, a, b]);     // along X
+            poly([k(a, -1, b).x, k(a, -1, b).z, k(a, 1, b).z, k(a, 1, b).x], [a, 0, b]);     // along Y
+            poly([k(a, b, -1).x, k(a, b, -1).y, k(a, b, 1).y, k(a, b, 1).x], [a, b, 0]);     // along Z
+        }
+        // The eight corner facets.
+        for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) { const v = k(sx, sy, sz); poly([v.x, v.y, v.z], [sx, sy, sz]); }
+        const geom = new THREE.BufferGeometry();
+        geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        geom.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+        return geom;
     }
 
     /* ── wheels, axles & Technic ─────────────────────────────── */
@@ -612,10 +690,43 @@ class BrickBuilder {
     studGeometries(part) {
         const topY = part.height;
         return this.studSpots(part).map(([x, z, r = this.studRadius]) => {
-            const g = new THREE.CylinderGeometry(r, r, this.studHeight, 14);
-            g.translate(x, topY + this.studHeight / 2, z);
+            const g = this.studGeometry(r);
+            g.translate(x, topY, z);
             return g;
         });
+    }
+
+    /**
+     * A stud standing on y=0: an open-bottomed cylinder (the base is buried in the body) and a top
+     * with a faint ring at 60% radius, a hair lower with tilted normals, so the top shows the soft
+     * concentric highlight of a moulded stud instead of a flat disc. 12 segments, 60 triangles,
+     * which keeps a 2x4 brick near 520 triangles. Lite quality uses a plain 10-segment stud.
+     */
+    studGeometry(r) {
+        const h = this.studHeight, lite = this.quality === 'lite', seg = lite ? 10 : 12;
+        const pos = [], nrm = [];
+        const V = (p, n) => { pos.push(...p); nrm.push(...n); };
+        const ring = r * 0.6, dip = 0.012, up = [0, 1, 0];
+        for (let i = 0; i < seg; i++) {
+            const a0 = (i / seg) * Math.PI * 2, a1 = ((i + 1) / seg) * Math.PI * 2;
+            const c0 = Math.cos(a0), s0 = Math.sin(a0), c1 = Math.cos(a1), s1 = Math.sin(a1);
+            const n0 = [c0, 0, s0], n1 = [c1, 0, s1];
+            const o0 = [r * c0, h, r * s0], o1 = [r * c1, h, r * s1];
+            // Side wall, smooth radial normals (counter-clockwise seen from outside).
+            V([r * c0, 0, r * s0], n0); V(o1, n1); V([r * c1, 0, r * s1], n1);
+            V([r * c0, 0, r * s0], n0); V(o0, n0); V(o1, n1);
+            if (lite) { V([0, h, 0], up); V(o1, up); V(o0, up); continue; }
+            // Outer annulus down to the ring, then the inner disc back up to the centre.
+            const t0 = [-c0 * 0.45, 1, -s0 * 0.45], t1 = [-c1 * 0.45, 1, -s1 * 0.45];
+            const i0 = [ring * c0, h - dip, ring * s0], i1 = [ring * c1, h - dip, ring * s1];
+            V(o0, up); V(i1, t1); V(o1, up);
+            V(o0, up); V(i0, t0); V(i1, t1);
+            V([0, h, 0], up); V(i1, t1); V(i0, t0);
+        }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+        return g;
     }
 
     /** Concatenate geometries (positions + normals) into one non-indexed BufferGeometry. */

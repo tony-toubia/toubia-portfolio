@@ -328,7 +328,8 @@
             const spec = PLATES[plate.kind];
             if (!spec || !spec.color) return;
             const g = new THREE.Group(); g.name = 'sfs-baseplate';
-            const mat = (color, extra = {}) => { const m = new THREE.MeshStandardMaterial({ color, roughness: spec.rough, metalness: spec.metal || 0.02, transparent: !!spec.trans, opacity: spec.trans ? spec.opacity : 1, ...extra }); plate.mats.push(m); return m; };
+            // Hexes are sRGB; the viewer renders with sRGB output, so they go to linear like the brick colours.
+            const mat = (color, extra = {}) => { const m = new THREE.MeshStandardMaterial({ color: new THREE.Color(color).convertSRGBToLinear(), roughness: spec.rough, metalness: spec.metal || 0.02, transparent: !!spec.trans, opacity: spec.trans ? spec.opacity : 1, envMapIntensity: 0.5, ...extra }); plate.mats.push(m); return m; };
             const base = new THREE.Mesh(new THREE.BoxGeometry(N, 0.32, N), mat(spec.color));
             base.position.y = -0.16; base.receiveShadow = true;
             g.add(base);
@@ -396,15 +397,16 @@
         /* ══════════════════════════════════════════════════════════════
            4. Lighting moods
            ══════════════════════════════════════════════════════════════ */
-        const ambient = scene.children.find((o) => o.isAmbientLight);
+        // The viewer's ambient is a hemisphere light (older builds used an AmbientLight); its ground colour follows the sky.
+        const ambient = scene.children.find((o) => o.isAmbientLight || o.isHemisphereLight);
         const dirs = scene.children.filter((o) => o.isDirectionalLight && o !== viewer.keyLight);
-        const fill = dirs.find((d) => d.position.x < 0), rim = dirs.find((d) => d.position.y < 0);
-        const snap = (l) => (l ? { color: l.color.clone(), intensity: l.intensity } : null);
+        const fill = viewer.fillLight || dirs.find((d) => d.position.x < 0), rim = viewer.rimLight || dirs.find((d) => d.position.y < 0);
+        const snap = (l) => (l ? { color: l.color.clone(), intensity: l.intensity, ground: l.groundColor ? l.groundColor.clone() : null } : null);
         const original = { bg: scene.background, fog: scene.fog ? scene.fog.color.clone() : null, ambient: snap(ambient), key: snap(viewer.keyLight), fill: snap(fill), rim: snap(rim), exposure: viewer.renderer.toneMappingExposure };
         const MOODS = {
             studio: { label: 'STUDIO', keyPos: [1.1, 1.8, 1.4] },
-            sunset: { label: 'SUNSET', bg: ['#2a1540', '#b8405a', '#f7a35c'], fog: '#f7a35c', ambient: ['#ffd9b8', 0.6], key: ['#ffb36b', 1.5], fill: ['#ff6f9c', 0.45], rim: ['#ffd27a', 0.9], keyPos: [1.7, 0.6, 1.1], exposure: 1.2 },
-            night: { label: 'NIGHT', bg: ['#03050c', '#070d1f', '#0d1a3a'], fog: '#0a1226', ambient: ['#2e4a9a', 0.42], key: ['#9fb4ff', 0.55], fill: ['#1b2f66', 0.35], rim: ['#4f6fd8', 0.6], keyPos: [1.1, 1.8, 1.4], exposure: 1.0, glow: true },
+            sunset: { label: 'SUNSET', bg: ['#2a1540', '#b8405a', '#f7a35c'], fog: '#f7a35c', ambient: ['#ffd9b8', 0.6], key: ['#ffb36b', 1.5], fill: ['#ff6f9c', 0.45], rim: ['#ffd27a', 0.9], keyPos: [1.7, 0.6, 1.1], exposure: 1.1, env: 0.7 },
+            night: { label: 'NIGHT', bg: ['#03050c', '#070d1f', '#0d1a3a'], fog: '#0a1226', ambient: ['#2e4a9a', 0.42], key: ['#9fb4ff', 0.55], fill: ['#1b2f66', 0.35], rim: ['#4f6fd8', 0.6], keyPos: [1.1, 1.8, 1.4], exposure: 1.0, env: 0.3, glow: true },
         };
         let mood = 'studio';
         const bgCache = {};
@@ -414,6 +416,7 @@
             grad.addColorStop(0, stops[0]); grad.addColorStop(0.62, stops[1]); grad.addColorStop(1, stops[2]);
             g.fillStyle = grad; g.fillRect(0, 0, 4, 256);
             const t = new THREE.CanvasTexture(c); t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
+            t.encoding = THREE.sRGBEncoding;   // the renderer outputs sRGB, so the gradient's own colours must be declared sRGB to come out unchanged
             return t;
         }
         const underLight = new THREE.PointLight(0xffc27a, 1.3, 30, 2);
@@ -427,17 +430,24 @@
                 if (!isTrans(key)) continue;
                 if (on) { m.emissive.set(colorOf(key).hex); m.emissiveIntensity = 0.85; }
                 else { m.emissive.setHex(0); m.emissiveIntensity = 1; }
+                // Glass is mostly see-through; a lit piece goes more solid so the glow has a body to show on.
+                if (m.userData.transmission != null) m.transmission = on ? m.userData.transmission * 0.35 : m.userData.transmission;
             }
         }
 
         function applyMood(kind, persist = true) {
             const spec = MOODS[kind] || MOODS.studio; mood = MOODS[kind] ? kind : 'studio';
-            const light = (l, o, v) => { if (!l || !o) return; if (v) { l.color.set(v[0]); l.intensity = v[1]; } else { l.color.copy(o.color); l.intensity = o.intensity; } };
+            const light = (l, o, v) => {
+                if (!l || !o) return;
+                if (v) { l.color.set(v[0]); l.intensity = v[1]; if (l.groundColor) l.groundColor.copy(l.color).multiplyScalar(0.35); }
+                else { l.color.copy(o.color); l.intensity = o.intensity; if (l.groundColor && o.ground) l.groundColor.copy(o.ground); }
+            };
             if (spec.bg) { if (!bgCache[mood]) bgCache[mood] = gradientTexture(spec.bg); scene.background = bgCache[mood]; }
             else scene.background = original.bg;
-            if (scene.fog && original.fog) { if (spec.fog) scene.fog.color.set(spec.fog); else scene.fog.color.copy(original.fog); }
+            if (scene.fog && original.fog) { if (spec.fog) scene.fog.color.set(spec.fog).convertSRGBToLinear(); else scene.fog.color.copy(original.fog); }
             light(ambient, original.ambient, spec.ambient); light(viewer.keyLight, original.key, spec.key); light(fill, original.fill, spec.fill); light(rim, original.rim, spec.rim);
             viewer.renderer.toneMappingExposure = spec.exposure || original.exposure;
+            if (viewer.setEnvIntensity) viewer.setEnvIntensity(spec.env != null ? spec.env : 1);
             const r = Math.max(14, (viewer.extent || 10) * 0.9), kp = spec.keyPos || MOODS.studio.keyPos;
             viewer.keyLight.position.set(r * kp[0], r * kp[1], r * kp[2]);
             if (spec.glow) { underLight.distance = (viewer.extent || 10) * 3; if (!underLight.parent) scene.add(underLight); }
