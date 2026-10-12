@@ -37,12 +37,15 @@ for (const pr of prompts) {
     try { m = gen.generateFromPrompt(pr); } catch (e) { console.log(`ERROR "${pr}": ${e.message}\n${e.stack.split('\n').slice(1, 3).join('\n')}`); bad++; continue; }
     const occ = new Map();
     let overlaps = 0;
-    const fps = m.bricks.map(footprint);
+    // Ghost parts (tyres, panes, doors) live inside a host part and are left out of the geometry checks.
+    const solids = m.bricks.filter((b) => !b.ghost);
+    const fps = solids.map(footprint);
     fps.forEach((f, i) => { for (let y = f.y0; y < f.y0 + f.hp; y++) for (let x = f.x0; x < f.x0 + f.w; x++) for (let z = f.z0; z < f.z0 + f.l; z++) { const k = `${x},${y},${z}`; if (occ.has(k)) overlaps++; else occ.set(k, i); } });
     // Connectivity: parts join only top-to-bottom (studs into tubes). Every assembly must reach the ground.
     const minY = Math.min(...fps.map((f) => f.y0));
     const parent = fps.map((_, i) => i); const find = (a) => (parent[a] === a ? a : (parent[a] = find(parent[a]))); const union = (a, b) => { parent[find(a)] = find(b); };
     fps.forEach((f, i) => { for (let x = f.x0; x < f.x0 + f.w; x++) for (let z = f.z0; z < f.z0 + f.l; z++) { const d = occ.get(`${x},${f.y0 - 1},${z}`); if (d !== undefined) union(i, d); const u = occ.get(`${x},${f.y0 + f.hp},${z}`); if (u !== undefined) union(i, u); } });
+    solids.forEach((b, i) => { if (!b.links) return; for (const [x, y, z] of b.links) { const o = occ.get(`${x},${y},${z}`); if (o !== undefined) union(i, o); } });
     const comps = new Map(); fps.forEach((f, i) => { const r = find(i); if (!comps.has(r)) comps.set(r, []); comps.get(r).push(i); });
     const loose = [...comps.values()].filter((ids) => !ids.some((i) => fps[i].y0 === minY));
     const floating = loose.reduce((n, ids) => n + ids.length, 0);
@@ -51,8 +54,8 @@ for (const pr of prompts) {
     if (overlaps || floating) bad++;
     if (process.env.DETAIL && (overlaps || floating || an.struts)) {
         const seen = new Map(); const ovl = [];
-        fps.forEach((f, i) => { let hit = null; for (let y = f.y0; y < f.y0 + f.hp && !hit; y++) for (let x = f.x0; x < f.x0 + f.w && !hit; x++) for (let z = f.z0; z < f.z0 + f.l; z++) { const k = `${x},${y},${z}`; if (seen.has(k)) { hit = seen.get(k); break; } seen.set(k, i); } if (hit !== null) ovl.push(`${m.bricks[hit].partId}@(${fps[hit].x0},${fps[hit].y0},${fps[hit].z0}) x ${m.bricks[i].partId}@(${f.x0},${f.y0},${f.z0})`); });
-        const fl = loose.map((ids) => ids.slice(0, 4).map((i) => `${m.bricks[i].partId}/${m.bricks[i].color}@(${fps[i].x0},${fps[i].y0},${fps[i].z0})`).join('+') + (ids.length > 4 ? `+${ids.length - 4} more` : ''));
+        fps.forEach((f, i) => { let hit = null; for (let y = f.y0; y < f.y0 + f.hp && !hit; y++) for (let x = f.x0; x < f.x0 + f.w && !hit; x++) for (let z = f.z0; z < f.z0 + f.l; z++) { const k = `${x},${y},${z}`; if (seen.has(k)) { hit = seen.get(k); break; } seen.set(k, i); } if (hit !== null) ovl.push(`${solids[hit].partId}@(${fps[hit].x0},${fps[hit].y0},${fps[hit].z0}) x ${solids[i].partId}@(${f.x0},${f.y0},${f.z0})`); });
+        const fl = loose.map((ids) => ids.slice(0, 4).map((i) => `${solids[i].partId}/${solids[i].color}@(${fps[i].x0},${fps[i].y0},${fps[i].z0})`).join('+') + (ids.length > 4 ? `+${ids.length - 4} more` : ''));
         const st = m.bricks.filter((b) => b.strut).map((b) => `${b.color}@(${b.fp.x0},${b.fp.y0},${b.fp.z0})x${b.fp.hp}`);
         console.log(`  "${pr}": overlaps ${ovl.slice(0, 4).join('; ')} | loose ${fl.slice(0, 6).join('; ')} | struts ${st.slice(0, 8).join(' ')}`);
     }

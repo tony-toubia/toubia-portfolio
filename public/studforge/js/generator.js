@@ -241,18 +241,21 @@ class BrickGenerator {
         const key = (x, y, z) => `${x},${y},${z}`;
         const occ = new Map();   // cell -> brick index
         const cellsOf = (f) => { const out = []; for (let y = f.y0; y < f.y0 + f.hp; y++) for (let x = f.x0; x < f.x0 + f.w; x++) for (let z = f.z0; z < f.z0 + f.l; z++) out.push([x, y, z]); return out; };
-        const put = (i) => { for (const [x, y, z] of cellsOf(bricks[i].fp)) occ.set(key(x, y, z), i); };
-        const lift = (i) => { for (const [x, y, z] of cellsOf(bricks[i].fp)) occ.delete(key(x, y, z)); };
+        const solid = (i) => !bricks[i].ghost;
+        const put = (i) => { if (solid(i)) for (const [x, y, z] of cellsOf(bricks[i].fp)) occ.set(key(x, y, z), i); };
+        const lift = (i) => { if (solid(i)) for (const [x, y, z] of cellsOf(bricks[i].fp)) occ.delete(key(x, y, z)); };
         bricks.forEach((_, i) => put(i));
-        const minY = Math.min(...bricks.map((b) => b.fp.y0));
+        const minY = Math.min(...bricks.filter((b) => !b.ghost).map((b) => b.fp.y0));
         for (let round = 0; round < 60; round++) {
             // Components by vertical contact.
             const parent = bricks.map((_, i) => i);
             const find = (a) => (parent[a] === a ? a : (parent[a] = find(parent[a])));
             const union = (a, b) => { parent[find(a)] = find(b); };
-            bricks.forEach((b, i) => { const f = b.fp; for (let x = f.x0; x < f.x0 + f.w; x++) for (let z = f.z0; z < f.z0 + f.l; z++) { const d = occ.get(key(x, f.y0 - 1, z)); if (d !== undefined) union(i, d); const u = occ.get(key(x, f.y0 + f.hp, z)); if (u !== undefined) union(i, u); } });
+            bricks.forEach((b, i) => { if (b.ghost) return; const f = b.fp; for (let x = f.x0; x < f.x0 + f.w; x++) for (let z = f.z0; z < f.z0 + f.l; z++) { const d = occ.get(key(x, f.y0 - 1, z)); if (d !== undefined) union(i, d); const u = occ.get(key(x, f.y0 + f.hp, z)); if (u !== undefined) union(i, u); } });
+            // Explicit fastenings: a wheel on its axle pin, a clip on a bar, a hinge top on its base.
+            bricks.forEach((b, i) => { if (b.ghost || !b.links) return; for (const [x, y, z] of b.links) { const o = occ.get(key(x, y, z)); if (o !== undefined) union(i, o); } });
             const comp = new Map();
-            bricks.forEach((b, i) => { const r = find(i); if (!comp.has(r)) comp.set(r, []); comp.get(r).push(i); });
+            bricks.forEach((b, i) => { if (b.ghost) return; const r = find(i); if (!comp.has(r)) comp.set(r, []); comp.get(r).push(i); });
             const grounded = new Set();
             for (const [r, ids] of comp) if (ids.some((i) => bricks[i].fp.y0 === minY)) grounded.add(r);
             const loose = [...comp.entries()].filter(([r]) => !grounded.has(r)).map(([, ids]) => ids);

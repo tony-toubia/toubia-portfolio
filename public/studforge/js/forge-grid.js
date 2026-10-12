@@ -90,11 +90,16 @@
             const swap = Math.abs(Math.sin(rotY)) > 0.5;
             const w = o.w || (swap ? def.length : def.width), l = o.l || (swap ? def.width : def.length);
             const hp = o.hp || Math.max(1, Math.round((o.lie ? def.width : def.height) / PLATE));
-            for (let y = y0; y < y0 + hp; y++) for (let x = x0; x < x0 + w; x++) for (let z = z0; z < z0 + l; z++) {
+            // A ghost part (a tyre on its wheel, a pane in its frame, a door in its frame) lives inside a host part's
+            // cells, so it reserves nothing and is left out of the overlap and connectivity checks.
+            const ghost = !!(o.ghost || def.ghost);
+            if (!ghost) for (let y = y0; y < y0 + hp; y++) for (let x = x0; x < x0 + w; x++) for (let z = z0; z < z0 + l; z++) {
                 this.del(x, y, z); this.res.add(key(x, y, z));
             }
-            // dx/dz shift the rendered part by a fraction of a stud (a 1x1 on a 2x2 cone's single centre stud); the footprint stays put.
-            this.parts.push({ partId, color, x: x0 + (w - 1) / 2 + (o.dx || 0), y: y0 * PLATE, z: z0 + (l - 1) / 2 + (o.dz || 0), rotY, rotX: o.rotX || 0, rotZ: o.rotZ || 0, layer: y0, dx: o.dx || 0, dz: o.dz || 0, fp: { x0, z0, y0, w, l, hp } });
+            // dx/dz/dy shift the rendered part (dx, dz in studs; dy in plates) without moving its footprint.
+            // `links` lists cells of other parts this one is fastened to by something other than studs (a wheel on an
+            // axle pin, a clip on a bar, a hinge top on its base); the connectivity pass treats them as joined.
+            this.parts.push({ partId, color, x: x0 + (w - 1) / 2 + (o.dx || 0), y: (y0 + (o.dy || 0)) * PLATE, z: z0 + (l - 1) / 2 + (o.dz || 0), rotY, rotX: o.rotX || 0, rotZ: o.rotZ || 0, layer: y0, dx: o.dx || 0, dz: o.dz || 0, dy: o.dy || 0, ghost: ghost || undefined, links: o.links && o.links.length ? o.links.map((c) => [c[0], c[1], c[2]]) : undefined, fp: { x0, z0, y0, w, l, hp } });
         }
 
         /* ── reading ──────────────────────────────────────────── */
