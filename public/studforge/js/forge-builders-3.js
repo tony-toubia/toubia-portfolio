@@ -150,23 +150,24 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
         else H.realWindow(ctx, x, z, y, o);
     };
 
-    /** A small truck or car, four studs wide and `L` long along Z, nose at +Z; the body sits two plates up on lying round-plate wheels. */
+    /** A small truck or car, four studs wide and `L` long along Z, nose at +Z, on a real axle-plate chassis with wheels and tyres. */
     H.miniTruck = (ctx, x0, z0, y, L, color, o = {}) => {
         const { g, P } = ctx;
-        for (const z of [z0 + 1, z0 + L - 3]) { g.part('4032', 'BLACK', x0 - 1, z, y, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true }); g.part('4032', 'BLACK', x0 + 4, z, y, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true }); }
-        g.box(x0, x0 + 3, z0, z0 + L - 1, y + 1, y + 1, 'BLACK', { noBrick: true });
-        g.box(x0, x0 + 3, z0, z0 + L - 1, y + 2, y + 4, color);
-        g.set(x0, y + 2, z0 + L - 1, 'TRANS_CLEAR'); g.set(x0 + 3, y + 2, z0 + L - 1, 'TRANS_CLEAR');
+        const c = H.chassis(ctx, x0, z0, 4, L, y, { axles: [1, L - 3], size: 'small', color: 'BLACK' });
+        const t = c.top;   // the first plate above the chassis
+        g.box(x0, x0 + 3, z0, z0 + L - 1, t, t + 2, color);
+        g.set(x0, t, z0 + L - 1, 'TRANS_CLEAR'); g.set(x0 + 3, t, z0 + L - 1, 'TRANS_CLEAR');
         // Cab at the nose with a glass windscreen, then whatever rides behind it.
-        g.box(x0, x0 + 3, z0 + L - 4, z0 + L - 3, y + 5, y + 7, color);
-        g.part('3039', P.glass, x0, z0 + L - 2, y + 5, { rotY: 0 }); g.part('3039', P.glass, x0 + 2, z0 + L - 2, y + 5, { rotY: 0 });
-        g.box(x0, x0 + 3, z0 + L - 4, z0 + L - 3, y + 8, y + 8, color, { noBrick: true });
+        g.box(x0, x0 + 3, z0 + L - 4, z0 + L - 3, t + 3, t + 5, color);
+        g.part('3039', P.glass, x0, z0 + L - 2, t + 3, { rotY: 0 }); g.part('3039', P.glass, x0 + 2, z0 + L - 2, t + 3, { rotY: 0 });
+        g.box(x0, x0 + 3, z0 + L - 4, z0 + L - 3, t + 6, t + 6, color, { noBrick: true });
         if (o.box) {
-            g.shell(x0, x0 + 3, z0, z0 + L - 5, y + 5, y + 10, o.box);
-            H.ceiling(ctx, x0, x0 + 3, z0, z0 + L - 5, y + 11, 'LIGHT_GREY');
-            if (o.ladder && L - 4 >= 6) g.part('3666', 'LIGHT_GREY', x0 + 1, z0, y + 12, { rotY: 0 });
-            if (o.beacon) g.part('98138', o.beacon, x0 + 1, z0 + L - 4, y + 9);
+            g.shell(x0, x0 + 3, z0, z0 + L - 5, t + 3, t + 8, o.box);
+            H.ceiling(ctx, x0, x0 + 3, z0, z0 + L - 5, t + 9, 'LIGHT_GREY');
+            if (o.ladder && L - 4 >= 6) g.part('3666', 'LIGHT_GREY', x0 + 1, z0, t + 10, { rotY: 0 });
+            if (o.beacon) g.part('98138', o.beacon, x0 + 1, z0 + L - 4, t + 7);
         }
+        return { top: t, chassis: c };
     };
 
     /** A fence of 1x4x2 panels (3185) on plate posts from (x0, z0) to (x1, z1) along one axis, standing on plate y. */
