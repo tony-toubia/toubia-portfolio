@@ -53,7 +53,7 @@
 
         const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
         const colorOf = (key) => window.LEGO_COLORS[key] || { name: key, hex: '#cccccc' };
-        const partOf = (id) => window.LEGO_PARTS[id] || { id, name: `Element ${id}`, category: 'Misc', width: 1, length: 1, height: 1.2 };
+        const partOf = (id) => window.LEGO_PARTS[id] || (window.BrickBuilder && window.BrickBuilder.partInfo(id)) || { id, name: `Element ${id}`, category: 'Misc', width: 1, length: 1, height: 1.2 };
         const isTrans = (key) => { const c = window.LEGO_COLORS[key]; return !!(c && (c.trans || c.category === 'Transparent')) || /^TRANS_/.test(String(key)); };
         const modelId = () => String((sf.model && sf.model.id) || 'model').replace(/[^a-z0-9_-]+/gi, '-');
 
@@ -168,7 +168,9 @@
         };
 
         const CATEGORY_RANK = { Bricks: 0, Plates: 1, Tiles: 2, Slopes: 3, Round: 4, Misc: 5 };
-        const homeOf = (m) => { if (!m.userData.sfsHome) m.userData.sfsHome = { rot: { x: m.rotation.x, y: m.rotation.y, z: m.rotation.z }, centred: !!(m.rotation.x || m.rotation.z) }; return m.userData.sfsHome; };
+        // A real-set (baked) part pivots at its LDraw origin, often its top face: in the tray it rests on its lowest point.
+        const floorOf = (m) => { const g = m.geometry; if (!m.userData.baked || !g) return 0; if (!g.boundingBox) g.computeBoundingBox(); return -g.boundingBox.min.y; };
+        const homeOf = (m) => { if (!m.userData.sfsHome) m.userData.sfsHome = { rot: { x: m.rotation.x, y: m.rotation.y, z: m.rotation.z }, centred: !m.userData.baked && !!(m.rotation.x || m.rotation.z), floor: floorOf(m) }; return m.userData.sfsHome; };
 
         function labelSprite(name, qty, size) {
             const c = document.createElement('canvas'); c.width = 256; c.height = 128;
@@ -233,7 +235,7 @@
                     b.g.meshes.forEach((m, i) => {
                         const home = homeOf(m);
                         const c = i % b.cols, r = Math.floor(i / b.cols);
-                        items.push({ mesh: m, p0: m.position.clone(), p1: new THREE.Vector3(x0 + c * (part.width + gap) + part.width / 2, home.centred ? part.height / 2 : 0, z0 + r * (part.length + gap) + part.length / 2), r0: { x: m.rotation.x, y: m.rotation.y, z: m.rotation.z }, r1: { x: 0, y: 0, z: 0 }, delay: Math.min(450, li * 90 + i * 4) });
+                        items.push({ mesh: m, p0: m.position.clone(), p1: new THREE.Vector3(x0 + c * (part.width + gap) + part.width / 2, home.centred ? part.height / 2 : home.floor, z0 + r * (part.length + gap) + part.length / 2), r0: { x: m.rotation.x, y: m.rotation.y, z: m.rotation.z }, r1: { x: 0, y: 0, z: 0 }, delay: Math.min(450, li * 90 + i * 4) });
                     });
                     const label = labelSprite(shortName(part), b.g.meshes.length, size);
                     label.position.set(x0 + b.w / 2, part.height + 1.1 * size, z0 - 0.3);
@@ -428,7 +430,7 @@
             if (!cache) return;
             for (const [key, m] of cache) {
                 if (!isTrans(key)) continue;
-                if (on) { m.emissive.set(colorOf(key).hex); m.emissiveIntensity = 0.85; }
+                if (on) { m.emissive.set(colorOf(m.userData.colorKey || key).hex); m.emissiveIntensity = 0.85; }
                 else { m.emissive.setHex(0); m.emissiveIntensity = 1; }
                 // Glass is mostly see-through; a lit piece goes more solid so the glow has a body to show on.
                 if (m.userData.transmission != null) m.transmission = on ? m.userData.transmission * 0.35 : m.userData.transmission;

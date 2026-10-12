@@ -194,8 +194,11 @@
 
         /* ── the tool dock: size dial + reset chip ─────────────── */
         const dock = el('div', 'sft-dock');
-        dock.appendChild(el('span', 'sft-dock-label', 'SIZE'));
-        dock.appendChild(makeScaleDial(true));
+        const dockLabel = dock.appendChild(el('span', 'sft-dock-label', 'SIZE'));
+        const dockDial = dock.appendChild(makeScaleDial(true));
+        // A real set (reference.js) is not forged, so it has no size or builder dials: only colours.
+        const isReference = () => !!(sf.model && sf.model.kind === 'reference');
+        const syncDock = () => { dockLabel.style.display = dockDial.style.display = isReference() ? 'none' : ''; };
         const resetChip = el('button', 'tool-chip sft-reset', '↺ RESET COLOURS'); resetChip.type = 'button'; resetChip.hidden = true; resetChip.title = 'Back to the idea\'s own colours';
         resetChip.addEventListener('click', resetColors);
         dock.appendChild(resetChip);
@@ -220,11 +223,14 @@
             panelBody.innerHTML = '';
             const model = sf.model;
             if (!model) return;
+            const reference = isReference();
 
             // Size.
-            const size = section('📐 SIZE');
-            size.appendChild(makeScaleDial(false));
-            panelBody.appendChild(size);
+            if (!reference) {
+                const size = section('📐 SIZE');
+                size.appendChild(makeScaleDial(false));
+                panelBody.appendChild(size);
+            }
 
             // Colour roles the builder actually used, each opening the picker for that role only.
             const used = new Set(model.bricks.map((b) => b.color));
@@ -245,8 +251,9 @@
                 }
                 colours.appendChild(row);
                 colours.appendChild(el('p', 'sft-hint', 'Tap a role to swap it, or tap any row in PARTS to recolour that exact colour everywhere.'));
-            } else colours.appendChild(el('p', 'sft-hint', 'This build picks its own colours — tap a row in PARTS to swap one.'));
+            } else colours.appendChild(el('p', 'sft-hint', reference ? 'A real set keeps its own design: tap a row in PARTS to recolour that colour everywhere.' : 'This build picks its own colours — tap a row in PARTS to swap one.'));
             panelBody.appendChild(colours);
+            if (reference) { syncDials(); return; }
 
             // The dials this builder declared.
             const options = model.options || [];
@@ -296,8 +303,8 @@
             for (const tr of tbody.querySelectorAll('tr[data-color]')) { tr.tabIndex = 0; tr.setAttribute('role', 'button'); tr.title = `${colorOf(tr.dataset.color).name} — tap to swap this colour everywhere`; }
         };
 
-        sf.on('model', () => { closePop(); syncDials(); renderPanel(); decorateRows(); resetChip.hidden = !hasColorChanges(); });
-        if (sf.model) { syncDials(); renderPanel(); decorateRows(); resetChip.hidden = !hasColorChanges(); }
+        sf.on('model', () => { closePop(); syncDials(); syncDock(); renderPanel(); decorateRows(); resetChip.hidden = !hasColorChanges(); });
+        if (sf.model) { syncDials(); syncDock(); renderPanel(); decorateRows(); resetChip.hidden = !hasColorChanges(); }
 
         // A small API for other features and the tests.
         sf.tweaks = { recolor, resetColors, resetFeatures, openPicker, get patches() { return { ...patches }; } };
