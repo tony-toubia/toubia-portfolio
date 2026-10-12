@@ -59,6 +59,14 @@
         });
     }
 
+    // Our builders make interiors from plain bricks and tiles (H.seat, H.bed, tables, dashboards), so no part id
+    // gives them away; the model's description names what was built.
+    const DESCRIBED = [['seat', /\bseats?\b|bench|sofa|chairs?\b|throne/i], ['steering', /steering/i], ['panel', /dashboard|control|gauges?|console|regulator/i], ['table', /\btables?\b/i], ['bed', /\bbeds?\b|bunk/i], ['furniture', /counter|kitchen|shel(f|ves)|cupboard|wardrobe|stove|fireplace/i]];
+    function describedInteriors(model) {
+        const text = String((model && model.description) || '');
+        return DESCRIBED.filter(([, re]) => re.test(text)).map(([t]) => t);
+    }
+
     /* ── measuring one model ─────────────────────────────────── */
 
     const r2 = (v) => (Number.isFinite(v) ? Math.round(v * 100) / 100 : null);
@@ -86,10 +94,12 @@
         // measured apart: proportions, hollowness and walls describe what stands on it.
         let bx0 = Infinity, bx1 = -Infinity, bz0 = Infinity, bz1 = -Infinity, by0 = Infinity;
         for (const b of grid0) { const f = b.fp; bx0 = Math.min(bx0, f.x0); bx1 = Math.max(bx1, f.x0 + f.w - 1); bz0 = Math.min(bz0, f.z0); bz1 = Math.max(bz1, f.z0 + f.l - 1); by0 = Math.min(by0, f.y0); }
-        const baseParts = new Set(grid0.filter((b) => b.fp.y0 === by0 && b.fp.hp === 1 && b.cat === 'plate'));
+        // Real models flag their baseplates (b.base); otherwise one plate layer at the bottom under most of the footprint.
+        const flagged = grid0.filter((b) => b.base);
+        const baseParts = new Set(flagged.length ? flagged : grid0.filter((b) => b.fp.y0 === by0 && b.fp.hp === 1 && b.cat === 'plate'));
         const baseCells = [...baseParts].reduce((a, b) => a + b.fp.w * b.fp.l, 0);
         const baseCov = baseCells / ((bx1 - bx0 + 1) * (bz1 - bz0 + 1));
-        const onBase = baseCov >= 0.6 && grid0.length > baseParts.size + 2;
+        const onBase = (flagged.length > 0 || baseCov >= 0.6) && grid0.length > baseParts.size + 2;
         let all = onBase ? kept.filter((b) => !baseParts.has(b)) : kept;
         // Face-touching groups of grid parts (what stands apart from what).
         const groupsOf = (list) => {
@@ -128,7 +138,19 @@
         const grid = all.filter((b) => b.fp);
         const occ = new Map(), key = (x, y, z) => `${x},${y},${z}`;
         let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-        grid.forEach((b, i) => { const f = b.fp; for (let y = f.y0; y < f.y0 + f.hp; y++) for (let x = f.x0; x < f.x0 + f.w; x++) for (let z = f.z0; z < f.z0 + f.l; z++) occ.set(key(x, y, z), i); x0 = Math.min(x0, f.x0); x1 = Math.max(x1, f.x0 + f.w - 1); z0 = Math.min(z0, f.z0); z1 = Math.max(z1, f.z0 + f.l - 1); y0 = Math.min(y0, f.y0); y1 = Math.max(y1, f.y0 + f.hp - 1); });
+        // Footprints are bounding boxes: a hollow part (wall panel, window frame, hull, windscreen, nose cone) claims
+        // only the outer ring of its box, so the space it encloses still counts as interior.
+        grid.forEach((b, i) => {
+            const f = b.fp, ring = b.hollow && f.w >= 3 && f.l >= 3;
+            for (let y = f.y0; y < f.y0 + f.hp; y++) for (let x = f.x0; x < f.x0 + f.w; x++) for (let z = f.z0; z < f.z0 + f.l; z++) {
+                if (ring && x > f.x0 && x < f.x0 + f.w - 1 && z > f.z0 && z < f.z0 + f.l - 1) continue;
+                occ.set(key(x, y, z), i);
+            }
+            x0 = Math.min(x0, f.x0); x1 = Math.max(x1, f.x0 + f.w - 1); z0 = Math.min(z0, f.z0); z1 = Math.max(z1, f.z0 + f.l - 1); y0 = Math.min(y0, f.y0); y1 = Math.max(y1, f.y0 + f.hp - 1);
+        });
+        // Off-grid parts (hinged, tilted, rotated) fill the cells their real bounding box covers (b.cells, from the
+        // baked geometry), so they are not counted as holes; they do not move the grid bounds.
+        for (const b of all) if (!b.fp && b.cells) for (const [x, y, z] of b.cells) { if (x >= x0 && x <= x1 && z >= z0 && z <= z1 && y >= y0 && y <= y1) { const k = key(x, y, z); if (!occ.has(k)) occ.set(k, -1); } }
         const W = x1 - x0 + 1, D = z1 - z0 + 1, H = y1 - y0 + 1;
         const alongX = W >= D, len = Math.max(W, D), wid = Math.min(W, D);
         // Columns: lowest and highest occupied plate.
@@ -258,7 +280,7 @@
         // Techniques, and how the top surfaces are finished (the part seen from above in each column).
         const c = {}; for (const b of all) c[b.cat] = (c[b.cat] || 0) + 1;
         const tops = { tile: 0, studs: 0, slope: 0, none: 0 };
-        for (const [k, col] of cols) { const [x, z] = k.split(',').map(Number); const b = grid[occ.get(key(x, col.hi, z))]; tops[b.top || 'none']++; }
+        for (const [k, col] of cols) { const [x, z] = k.split(',').map(Number); const b = grid[occ.get(key(x, col.hi, z))]; tops[(b && b.top) || 'none']++; }
         const topN = tops.tile + tops.studs + tops.slope + tops.none || 1;
         const techniques = {
             offGrid: r2(all.filter((b) => !b.fp).length / all.length), sideways: r2(all.filter((b) => b.side).length / all.length),
@@ -309,7 +331,9 @@
      * in place). Returns { from, to, target, tiled, split } or null when there is nothing to do.
      */
     function finishTops(bricks, prof) {
-        const target = prof && prof.techniques && prof.techniques.tileTop;
+        // Sets from 2005 on tile far more than older ones: their share is the target when the subject has two of them.
+        const T = prof && prof.techniques;
+        const target = T ? (T.tileTopModern != null ? T.tileTopModern : T.tileTop) : 0;
         if (!(target > 0) || !bricks.length) return null;
         const P = window.LEGO_PARTS || {};
         const key = (x, y, z) => `${x},${y},${z}`;
@@ -425,13 +449,17 @@
             ['Pieces per step', bo.perStep != null ? `${bo.perStep}` : '–', mine ? `${mine.buildOrder.perStep}` : '–', ''],
         ];
         let html = `<div class="sfr-sec sfc-sec"><h4>🔧 HOW REAL SETS ARE BUILT</h4>`;
-        html += `<p class="sfr-hint">${real ? `From <b>${prof.n}</b> real set${prof.n === 1 ? '' : 's'} rebuilt part by part in LDraw${prof.examples && prof.examples.length ? ` (${esc(prof.examples.slice(0, 3).join(', '))})` : ''}.` : 'Profile from our own forges (real reconstructions not analysed yet).'}</p>`;
+        html += `<p class="sfr-hint">${real ? `From <b>${prof.n}</b> real set${prof.n === 1 ? '' : 's'} rebuilt part by part in LDraw${prof.examples && prof.examples.length ? ` (${esc(prof.examples.slice(0, 3).join(', '))})` : ''}.${prof.lowConfidence ? ' <b>Low confidence:</b> fewer than 3 sets, so treat these numbers as hints.' : ''}` : 'Profile from our own forges (real reconstructions not analysed yet).'}</p>`;
         const sizeOff = mp && (off(p.wid, mp.wid) || off(p.len, mp.len) || off(p.hb, mp.hb));
         html += `<p class="sfc-note">Typical size: <b>${esc(size)}</b> tall${p.base ? `, ${p.base === 'plate' ? 'on a base plate' : p.base === 'wheels' ? 'standing on its wheels' : 'standing on its own'}` : ''}. This model: ${mp ? `${mp.wid} × ${mp.len} studs, ${one(mp.hb)} bricks${sizeOff ? ' <b>(off)</b>' : ''}` : '–'}.</p>`;
         html += `<div class="sfc-grid"><span class="h"></span><span class="h">${real ? 'real' : 'profile'}</span><span class="h">this model</span>`
             + rows.map(([a, b, c, o]) => `<span class="k">${a}</span><span class="v">${esc(b)}</span><span class="v${o}">${esc(c)}</span>`).join('') + `</div>`;
         const ints = Object.entries(prof.interiors || {}).sort((a, b) => b[1].freq - a[1].freq).filter(([, e]) => e.freq >= 0.2).slice(0, 4);
-        if (ints.length) html += `<p class="sfc-note">Inside: ${ints.map(([id, e]) => `<b>${esc(INTERIOR_LABEL[id] || id)}</b> in ${pct(e.freq)} of sets`).join(', ')}${mine && Object.keys(mine.interiors).length ? '' : '; this model has none'}.</p>`;
+        if (ints.length) {
+            const built = describedInteriors(model).filter((t) => !(mine && mine.interiors[t]));
+            const note = mine && Object.keys(mine.interiors).length ? '' : built.length ? `; this model builds its ${built.map((t) => INTERIOR_LABEL[t] || t).join(' and ')} from plain bricks` : '; this model has none';
+            html += `<p class="sfc-note">Inside: ${ints.map(([id, e]) => `<b>${esc(INTERIOR_LABEL[id] || id)}</b> in ${pct(e.freq)} of sets`).join(', ')}${note}.</p>`;
+        }
         if (bo.phases) html += `<p class="sfc-note">Build order: ${esc(phaseText(bo.phases))}.${bo.subFreq ? ` ${pct(bo.subFreq)} of sets build sub-assemblies apart${bo.roles && bo.roles.length ? ` (${esc(bo.roles.slice(0, 3).map((r) => r[0]).join(', '))})` : ''}.` : ''}</p>`;
         if (model.construction && model.construction.tops && model.construction.tops.tiled) html += `<p class="sfr-meta">${model.construction.tops.tiled} top plates swapped for tiles to match real sets</p>`;
         html += `<p class="sfr-meta">${real ? 'Analysed from the LDraw Official Model Repository (CC BY)' : 'Generated-model baseline'}</p></div>`;
@@ -443,7 +471,7 @@
     window.FORGE.construction = {
         get ready() { return !!data(); },
         get data() { return data(); },
-        CATS, catOfDef, topOfDef, normalize, measure, finishTops, section, profile,
+        CATS, catOfDef, topOfDef, normalize, measure, describedInteriors, finishTops, section, profile,
         onReady(fn) { if (data()) fn(data()); else if (typeof document !== 'undefined') document.addEventListener('studforge:construction', () => fn(data()), { once: true }); },
     };
     // The REAL SETS panel (realsets.js) renders sections registered with studForgeRealSets.addSection(fn), fn(model) →

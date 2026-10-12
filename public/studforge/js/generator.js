@@ -199,8 +199,8 @@ class BrickGenerator {
         if (!entry || !C || !C.ready) return null;
         try { return C.profile(entry.id) || null; } catch (e) { return null; }
     }
-    /** Only profiles measured on real reconstructions (two or more sets) steer a forge; a generated baseline never does. */
-    constructionReal(cons) { return !!cons && cons.source === 'omr' && cons.n >= 2; }
+    /** Only profiles measured on three or more real reconstructions steer a forge; a generated baseline never does. */
+    constructionReal(cons) { return !!cons && cons.source === 'omr' && cons.n >= 3 && !cons.lowConfidence; }
 
     /**
      * Length calibration against real reconstructions: when the subject's real sets were measured (construction

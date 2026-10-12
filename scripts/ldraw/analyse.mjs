@@ -90,15 +90,62 @@ function classifyReal(ldId, catId, name) {
     return { cat, interior: null, figure: false, top };
 }
 
-/** A converted real model ("studforge-omr-1") → analysis bricks. */
+// Parts whose bounding box encloses space (see measure: they claim only the ring of their box).
+const HOLLOW_RE = /Panel|Window|Windscreen|Glass|Hull|Boat|Cockpit|Canopy|Nose|Container|Bucket|Cylinder Half|Door ?Frame|Arch|Tub\b|Cab\b|Fairing|Cone/i;
+// Baked part bounding boxes (public/studforge/data/ldraw/parts), for the cells an off-grid part really covers.
+const PARTS_DIR = path.join(ROOT, 'public/studforge/data/ldraw/parts');
+const bboxCache = new Map();
+function bboxOf(id) {
+    if (bboxCache.has(id)) return bboxCache.get(id);
+    let bb = null;
+    const f = path.join(PARTS_DIR, id.replace(/\//g, '_') + '.json');
+    if (fs.existsSync(f)) {
+        try {
+            const j = JSON.parse(fs.readFileSync(f, 'utf8'));
+            if (Array.isArray(j.bbox) && j.bbox.length === 6) bb = j.bbox;
+            else if (Array.isArray(j.v) && j.v.length) { bb = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity]; for (let i = 0; i < j.v.length; i += 3) for (let a = 0; a < 3; a++) { bb[a] = Math.min(bb[a], j.v[i + a]); bb[a + 3] = Math.max(bb[a + 3], j.v[i + a]); } }
+        } catch (e) { bb = null; }
+    }
+    bboxCache.set(id, bb);
+    return bb;
+}
+/** Grid cells (x, z studs; y plates) whose centres lie inside a part's world bounding box, at most 400. */
+function cellsOf(bb, pos, m) {
+    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+    for (const cx of [bb[0], bb[3]]) for (const cy of [bb[1], bb[4]]) for (const cz of [bb[2], bb[5]]) {
+        const w = [pos[0] + m[0] * cx + m[1] * cy + m[2] * cz, pos[1] + m[3] * cx + m[4] * cy + m[5] * cz, pos[2] + m[6] * cx + m[7] * cy + m[8] * cz];
+        for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], w[a]); hi[a] = Math.max(hi[a], w[a]); }
+    }
+    // Cell x covers world [x - 0.5, x + 0.5] (a part's centre is x0 + (w - 1) / 2); cell y covers [0.4y, 0.4(y + 1)].
+    let xs = [Math.ceil(lo[0] - 1e-6), Math.floor(hi[0] + 1e-6)], zs = [Math.ceil(lo[2] - 1e-6), Math.floor(hi[2] + 1e-6)];
+    let ys = [Math.ceil(lo[1] / 0.4 - 0.5 - 1e-6), Math.floor(hi[1] / 0.4 - 0.5 + 1e-6)];
+    if (xs[0] > xs[1]) xs = [Math.round((lo[0] + hi[0]) / 2), Math.round((lo[0] + hi[0]) / 2)];
+    if (zs[0] > zs[1]) zs = [Math.round((lo[2] + hi[2]) / 2), Math.round((lo[2] + hi[2]) / 2)];
+    if (ys[0] > ys[1]) { const c = Math.floor((lo[1] + hi[1]) / 2 / 0.4); ys = [c, c]; }
+    const out = [];
+    for (let y = ys[0]; y <= ys[1]; y++) for (let x = xs[0]; x <= xs[1]; x++) for (let z = zs[0]; z <= zs[1]; z++) { if (out.length >= 400) return out; out.push([x, y, z]); }
+    return out;
+}
+
+/**
+ * A converted real model ("studforge-omr-1") → analysis bricks. `parts[k] = [ldrawId, catalogId|null,
+ * printedId?, flag?]`: flag 'minifig' (figure parts) and 'segment' (hose segments) are left out of the
+ * structure, 'baseplate' marks the base; a printed id's name finds patterned control panels.
+ */
 function normalizeReal(m) {
     return m.bricks.map((r) => {
         const [pi, ci, x, y, z] = r;
-        const [ldId, catId] = m.parts[pi];
+        const [ldId, catId, printed, flag] = m.parts[pi];
         const mat = r.slice(5, 14), step = r[14], sub = r[15];
         const fp = r[16] === null || r[16] === undefined ? null : { x0: r[16], z0: r[17], y0: r[18], w: r[19], l: r[20], hp: r[21] };
-        const k = classifyReal(String(ldId), catId, ldName(String(ldId)));
-        return { cat: k.cat, part: String(ldId), color: m.colors[ci], fp, y: y / 0.4 - 0.5, px: x, pz: z, side: Math.abs(mat[4]) < 0.5, step, sub, interior: k.interior, figure: k.figure, top: k.top };
+        const name = ldName(String(ldId));
+        let k = classifyReal(String(ldId), catId, name);
+        if (printed && !k.interior) { const kp = classifyReal(String(printed), null, ldName(String(printed))); if (kp.interior) k = kp; }
+        // Seats (4079, "Minifig Seat") come flagged 'minifig' but are part of the model's interior.
+        const figure = !k.interior && (k.figure || flag === 'minifig' || flag === 'segment');
+        let cells = null, yy = y / 0.4 - 0.5;
+        if (!fp) { const bb = bboxOf(String(ldId)); if (bb) { cells = cellsOf(bb, [x, y, z], mat); yy = Math.min(...cells.map((c) => c[1])); } }
+        return { cat: flag === 'baseplate' ? 'plate' : k.cat, part: String(ldId), color: m.colors[ci], fp, y: yy, px: x, pz: z, cells, side: Math.abs(mat[4]) < 0.5, step, sub, interior: figure ? null : k.interior, figure, top: k.top, base: flag === 'baseplate', hollow: HOLLOW_RE.test(name || '') };
     });
 }
 
@@ -111,6 +158,9 @@ const trio = (a) => { const b = a.filter((v) => v != null); return b.length ? [M
 const meanShares = (list, top) => { const acc = {}; for (const o of list) for (const [k, v] of Object.entries(o || {})) acc[k] = (acc[k] || 0) + v; return Object.fromEntries(Object.entries(acc).map(([k, v]) => [k, r2(v / list.length)]).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, top || 99)); };
 const meanColors = (list, top) => { const acc = {}; for (const cs of list) for (const [c, v] of cs || []) acc[c] = (acc[c] || 0) + v; return Object.entries(acc).sort((a, b) => b[1] - a[1]).slice(0, top).map(([c, v]) => [c, r2(v / list.length)]); };
 
+// Tiled tops by era: sets from 2005 on finish far more surfaces with tiles than 1980s ones. A subject with two
+// or more such sets gets their median as the generator's target (tileTopModern), else null.
+const modernTile = (ms) => { const v = ms.filter((m) => m.year >= 2005).map((m) => m.metrics.techniques.tileTop); return v.length >= 2 ? med(v) : null; };
 function aggregate(ms, id) {
     // Lengths of the sets of a typical size for the subject (Rebrickable p25–p75 piece counts): a 1,000-piece
     // display car must not set the length of a minifig-scale one. The generator calibrates on these only.
@@ -131,16 +181,19 @@ function aggregate(ms, id) {
     }
     return {
         n: ms.length,
+        // Fewer than 3 real sets: shown with a warning and never used to steer a forge.
+        lowConfidence: ms.length < 3,
         proportions: { wid: trio(P.map((p) => p.wid)), len: trio(P.map((p) => p.len)), hb: trio(P.map((p) => p.hb)), wl: med(P.map((p) => p.wl)), hl: med(P.map((p) => p.hl)), base: Object.entries(bases).sort((a, b) => b[1] - a[1])[0][0], baseShare: Object.fromEntries(Object.entries(bases).map(([k, v]) => [k, r2(v / ms.length)])), pieces: trio(ms.map((m) => m.metrics.pieces)), lenTypical: typical.length >= 2 ? trio(typical.map((m) => m.metrics.proportions.len)) : null, typicalN: typical.length },
         hollow: { share: med(Hh.map((h) => h.share)), interior: med(Hh.map((h) => h.interior)), wall: walls.length ? { median: med(walls.map((w) => w.median)), s1: mean(walls.map((w) => w.s1)), s2: mean(walls.map((w) => w.s2)), s3: mean(walls.map((w) => w.s3)) } : null, solidShare: r2(1 - walls.length / ms.length) },
         layers,
         buildOrder: { steps: med(B.map((b) => b.steps)), perStep: med(B.map((b) => b.perStep)), per100: med(B.map((b) => b.per100)), heightCorr: med(B.map((b) => b.heightCorr)), phases, interiorAt: med(B.map((b) => b.interiorAt)), wallsAt: med(B.map((b) => b.wallsAt)), roofAt: med(B.map((b) => b.roofAt)), subFreq: r2(B.filter((b) => b.subs.length).length / B.length), subsPer: mean(B.map((b) => b.subs.length)), subShare: mean(B.map((b) => b.subShare)), roles: Object.entries(roles).sort((a, b) => b[1] - a[1]).slice(0, 8), subNames },
         interiors,
-        techniques: { offGrid: mean(T.map((t) => t.offGrid)), sideways: mean(T.map((t) => t.sideways)), snot: mean(T.map((t) => t.snot)), hinge: mean(T.map((t) => t.hinge)), window: mean(T.map((t) => t.window)), wheel: mean(T.map((t) => t.wheel)), tileTop: med(T.map((t) => t.tileTop)), topTile: mean(T.map((t) => t.topTile)), topStuds: mean(T.map((t) => t.topStuds)), topSlope: mean(T.map((t) => t.topSlope)), cats: meanShares(T.map((t) => t.cats), 11) },
+        techniques: { offGrid: mean(T.map((t) => t.offGrid)), sideways: mean(T.map((t) => t.sideways)), snot: mean(T.map((t) => t.snot)), hinge: mean(T.map((t) => t.hinge)), window: mean(T.map((t) => t.window)), wheel: mean(T.map((t) => t.wheel)), tileTop: med(T.map((t) => t.tileTop)), tileTopModern: modernTile(ms), topTile: mean(T.map((t) => t.topTile)), topStuds: mean(T.map((t) => t.topStuds)), topSlope: mean(T.map((t) => t.topSlope)), cats: meanShares(T.map((t) => t.cats), 11) },
     };
 }
 // The compact block kept in the JSON for our own forges (the panel measures the live model itself).
-const compactOurs = (a, prompts) => ({ n: a.n, prompts: prompts.slice(0, 4), proportions: { wid: a.proportions.wid, len: a.proportions.len, hb: a.proportions.hb, base: a.proportions.base, pieces: a.proportions.pieces }, hollow: { share: a.hollow.share, wall: a.hollow.wall && a.hollow.wall.median, solidShare: a.hollow.solidShare }, techniques: { tileTop: a.techniques.tileTop, snot: a.techniques.snot, hinge: a.techniques.hinge, sideways: a.techniques.sideways, window: a.techniques.window }, buildOrder: { perStep: a.buildOrder.perStep, heightCorr: a.buildOrder.heightCorr }, interiors: Object.keys(a.interiors) });
+const describedFreq = (ms) => { const c = {}; for (const m of ms) for (const t of m.described || []) c[t] = (c[t] || 0) + 1; return Object.fromEntries(Object.entries(c).map(([k, v]) => [k, r2(v / ms.length)])); };
+const compactOurs = (a, prompts) => ({ n: a.n, prompts: prompts.slice(0, 4), proportions: { wid: a.proportions.wid, len: a.proportions.len, hb: a.proportions.hb, base: a.proportions.base, pieces: a.proportions.pieces }, hollow: { share: a.hollow.share, wall: a.hollow.wall && a.hollow.wall.median, solidShare: a.hollow.solidShare }, techniques: { tileTop: a.techniques.tileTop, snot: a.techniques.snot, hinge: a.techniques.hinge, sideways: a.techniques.sideways, window: a.techniques.window }, buildOrder: { perStep: a.buildOrder.perStep, heightCorr: a.buildOrder.heightCorr }, interiors: Object.keys(a.interiors), builtInteriors: a.builtInteriors || {} });
 
 /* ── our forges of a subject ─────────────────────────────────── */
 const HARNESS = fs.readFileSync(path.join(ROOT, 'scripts/studforge-test.mjs'), 'utf8');
@@ -156,7 +209,7 @@ function forgeSubject(id) {
         let m; try { m = gen.generateFromPrompt(p, v, {}); } catch (err) { continue; }
         if (!m || !m.knowledge || m.knowledge.subject !== id || m.kind === 'scene' || m.kind === 'monogram') continue;
         const metrics = C.measure(C.normalize(m));
-        if (metrics) ms.push({ id: `${p}#${v}`, prompt: p, kind: m.kind, metrics });
+        if (metrics) ms.push({ id: `${p}#${v}`, prompt: p, kind: m.kind, metrics, described: C.describedInteriors(m) });
     }
     // "knight" is a castle-theme word but a figure: keep the builder kind most forges of the subject used.
     const kinds = {}; for (const m of ms) kinds[m.kind] = (kinds[m.kind] || 0) + 1;
@@ -181,16 +234,29 @@ if (!GENERATED_ONLY) {
         const metrics = C.measure(normalizeReal(m), m.submodels || []);
         if (!metrics) continue;
         if (!real.has(ent.subject)) real.set(ent.subject, []);
-        real.get(ent.subject).push({ id: m.id, name: m.name, metrics });
+        real.get(ent.subject).push({ id: m.id, name: m.name, year: m.year || ent.year || 0, metrics });
         process.stderr.write(`  ${m.id.padEnd(10)} ${ent.subject.padEnd(12)} ${metrics.pieces} pcs (${metrics.apart} apart, ${metrics.baseAndDeco} base) ${metrics.proportions.base.kind} ${metrics.proportions.wid}x${metrics.proportions.len}x${metrics.proportions.hb} hollow ${metrics.hollow.share} tiles ${metrics.techniques.tileTop}\n`);
     }
 }
 const subjectIds = (GENERATED_ONLY ? Object.keys(knowledge.subjects).filter((id) => !id.startsWith('theme')) : [...real.keys()]).filter((id) => !ONLY || ONLY.has(id));
 const out = { generated: new Date().toISOString().slice(0, 10), source: GENERATED_ONLY ? 'generated' : 'omr', licence: GENERATED_ONLY ? null : 'Derived from LDraw OMR models (CC BY 2.0/4.0, authors per model in data/omr/index.json) and the LDraw parts library (LDraw.org, CC BY)', bands: 'bottom <15%, middle, top >=80% of the height', subjects: {} };
+// Era and family summary across all real models (the doc's "tiles by era" finding).
+const FAMILY = { vehicles: ['ambulance', 'boat', 'bus', 'car', 'construction', 'fireTruck', 'garbageTruck', 'helicopter', 'monsterTruck', 'motorcycle', 'plane', 'policeCar', 'rocket', 'rover', 'ship', 'spaceship', 'tractor', 'train', 'truck', 'submarine'], buildings: ['house', 'shop', 'station', 'farm', 'castle', 'lighthouse', 'tower', 'bridge'] };
+if (!GENERATED_ONLY) {
+    out.eras = {};
+    for (const [fam, ids] of Object.entries(FAMILY)) {
+        const ms = ids.flatMap((id) => real.get(id) || []);
+        out.eras[fam] = Object.fromEntries([['pre1990', (y) => y < 1990], ['1990to2004', (y) => y >= 1990 && y < 2005], ['from2005', (y) => y >= 2005]].map(([k, ok]) => {
+            const e = ms.filter((m) => ok(m.year));
+            return [k, { n: e.length, tileTop: med(e.map((m) => m.metrics.techniques.tileTop)), hollow: med(e.map((m) => m.metrics.hollow.share)), snot: mean(e.map((m) => m.metrics.techniques.snot)), hinge: mean(e.map((m) => m.metrics.techniques.hinge)), offGrid: mean(e.map((m) => m.metrics.techniques.offGrid)), perStep: med(e.map((m) => m.metrics.buildOrder.perStep)), interiors: r2(e.filter((m) => Object.keys(m.metrics.interiors).length).length / (e.length || 1)) }];
+        }));
+    }
+}
 const report = [];
 for (const id of subjectIds) {
     const ours = forgeSubject(id);
     const oursAgg = ours.ms.length ? aggregate(ours.ms, id) : null;
+    if (oursAgg) oursAgg.builtInteriors = describedFreq(ours.ms);
     const realMs = real.get(id) || [];
     const main = GENERATED_ONLY ? oursAgg : aggregate(realMs, id);
     if (!main) continue;
@@ -209,12 +275,17 @@ const tr = (a) => (a ? `${a[1]} (${a[0]}–${a[2]})` : '–');
 const top3 = (o) => Object.entries(o || {}).slice(0, 3).map(([k, v]) => `${k} ${pc(v)}`).join(', ') || '–';
 const lines = [];
 lines.push(`_Generated ${out.generated} by \`node scripts/ldraw/analyse.mjs${GENERATED_ONLY ? ' --generated' : ''}\`; source: ${out.source === 'omr' ? `${[...real.values()].reduce((a, b) => a + b.length, 0)} converted LDraw OMR models` : 'our own forges only (no real models yet)'}._`, '');
+if (out.eras) {
+    lines.push('### By era (all real models of a family)', '', '| family | era | n | tiled tops | hollow | brackets | hinges/clips | off-grid | pcs/step | with interior items |', '|---|---|---|---|---|---|---|---|---|---|');
+    for (const [fam, eras] of Object.entries(out.eras)) for (const [era, e] of Object.entries(eras)) lines.push(`| ${fam} | ${era} | ${e.n} | ${pc(e.tileTop)} | ${pc(e.hollow)} | ${pc(e.snot)} | ${pc(e.hinge)} | ${pc(e.offGrid)} | ${e.perStep ?? '–'} | ${pc(e.interiors)} |`);
+    lines.push('');
+}
 if (!GENERATED_ONLY) {
     lines.push('### At a glance: real sets vs our forges', '', '| subject | real n | real w × l × h (studs, bricks) | ours w × l × h | real hollow | ours hollow | real wall | ours wall | real tiled tops | ours tiled tops | real pcs/step | ours pcs/step | real interiors | ours interiors |', '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|');
     for (const r of report) {
         const a = r.real, o = r.ours;
         const dims = (x) => (x ? `${x.proportions.wid ? x.proportions.wid[1] : '–'} × ${x.proportions.len ? x.proportions.len[1] : '–'} × ${x.proportions.hb ? x.proportions.hb[1] : '–'}` : '–');
-        const ints = (x) => (x ? Object.entries(x.interiors).map(([k, v]) => `${k} ${pc(v.freq)}`).join(', ') || 'none' : '–');
+        const ints = (x) => (x ? Object.entries(x.interiors).map(([k, v]) => `${k} ${pc(v.freq)}`).concat(Object.entries(x.builtInteriors || {}).map(([k, v]) => `${k} ${pc(v)} (brick-built)`)).join(', ') || 'none' : '–');
         lines.push(`| ${r.id} | ${a.n} | ${dims(a)} | ${dims(o)} | ${pc(a.hollow.share)} | ${o ? pc(o.hollow.share) : '–'} | ${a.hollow.wall ? a.hollow.wall.median : 'solid'} | ${o && o.hollow.wall ? o.hollow.wall.median : 'solid'} | ${pc(a.techniques.tileTop)} | ${o ? pc(o.techniques.tileTop) : '–'} | ${a.buildOrder.perStep} | ${o ? o.buildOrder.perStep : '–'} | ${ints(a)} | ${ints(o)} |`);
     }
     lines.push('');
@@ -238,7 +309,7 @@ for (const r of report) {
     row('build phases (mean height, top parts)', (x) => x.buildOrder.phases.map((p) => `${p.h ?? '–'} ${Object.keys(p.cats)[0] || ''}`).join(' → '));
     row('interior / walls / roof at (progress)', (x) => `${x.buildOrder.interiorAt ?? '–'} / ${x.buildOrder.wallsAt ?? '–'} / ${x.buildOrder.roofAt ?? '–'}`);
     row('sub-assemblies', (x) => `${pc(x.buildOrder.subFreq)} of models, ${x.buildOrder.subsPer} per model, ${pc(x.buildOrder.subShare)} of pieces; roles ${x.buildOrder.roles.map(([k, v]) => `${k}×${v}`).join(', ') || '–'}`);
-    row('interiors (freq, height, inside)', (x) => Object.entries(x.interiors).map(([k, v]) => `${k} ${pc(v.freq)} h${v.h} in${pc(v.inside)}`).join('; ') || 'none');
+    row('interiors (freq, height, inside)', (x) => Object.entries(x.interiors).map(([k, v]) => `${k} ${pc(v.freq)} h${v.h} in${pc(v.inside)}`).concat(Object.entries(x.builtInteriors || {}).map(([k, v]) => `${k} ${pc(v)} brick-built`)).join('; ') || 'none');
     row('tiled tops (tile / tile+studs)', (x) => `${pc(x.techniques.tileTop)} (tops: tile ${pc(x.techniques.topTile)}, studs ${pc(x.techniques.topStuds)}, slope ${pc(x.techniques.topSlope)})`);
     row('off-grid, sideways, brackets, hinges', (x) => `${pc(x.techniques.offGrid)}, ${pc(x.techniques.sideways)}, ${pc(x.techniques.snot)}, ${pc(x.techniques.hinge)}`);
     row('part mix', (x) => top3(x.techniques.cats) + ', ' + Object.entries(x.techniques.cats).slice(3, 7).map(([k, v]) => `${k} ${pc(v)}`).join(', '));
