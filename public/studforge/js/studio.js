@@ -42,8 +42,6 @@
 .sfs-legend .sfs-qty { margin-left: auto; font-family: var(--font-mono); color: var(--lego-yellow); }
 .sfs-explode-off { opacity: 0.45; }
 .sfs-explode-off .tech-slider { cursor: not-allowed; }
-/* On phones the fixed-height grid squashes the folded parts card to nothing, so no sidebar panel (this one included) can open; let the page scroll instead. */
-@media (max-width: 600px) { .studio-grid { flex: 0 0 auto; min-height: auto; } }
 `;
 
     function init() {
