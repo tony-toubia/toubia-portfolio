@@ -119,18 +119,35 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
 
     /* ── shared sub-assemblies ────────────────────────────────── */
 
-    /** A minifig-height door: two studs wide, five bricks tall, with a handle. `face` is 'front' (door runs along X at z) or 'left'/'right' (along Z at x). */
+    /**
+     * A minifig-height door: a 1x4x6 door frame (60596) with its door (60623), four studs wide and 18 plates tall,
+     * set into a wall the caller has painted. `face` 'front' runs it along X from x at row z; 'left'/'right' along Z
+     * from z at column x. The frame takes the trim colour, the door `color`.
+     */
     H.minifigDoor = (ctx, x, z, y, face, color) => {
-        const { g } = ctx;
-        if (face === 'front') { g.box(x, x + 1, z, z, y, y + 14, color); g.part('3023', color, x + 1, z, y + 7, { rotY: 0 }); g.part('98138', 'GOLD', x + 1, z + 1, y + 8); }
-        else { g.box(x, x, z, z + 1, y, y + 14, color); const hx = face === 'right' ? x + 1 : x - 1; g.part('3023', color, Math.min(x, hx), z + 1, y + 7, { rotY: PI / 2, w: 2, l: 1 }); g.part('98138', 'GOLD', hx, z + 1, y + 8); }   // the handle sits on a ledge plate set into the door
+        const { P } = ctx, frame = P.trim === color ? 'WHITE' : P.trim;
+        const o = { face: face === 'back' ? 'back' : face === 'left' || face === 'right' ? face : 'front', frameColor: frame, doorColor: color };
+        if (o.face === 'front') H.realDoor(ctx, x, z, y, o);
+        else if (o.face === 'back') H.realDoor(ctx, x + 3, z, y, o);
+        else if (o.face === 'left') H.realDoor(ctx, x, z, y, o);
+        else H.realDoor(ctx, x, z + 3, y, o);
     };
 
-    /** A window two studs wide and `bricks` (default 2) bricks tall, with a sill tile under it. */
+    /** A real window two studs wide: 1x2x2 (six plates) or, for `bricks` 3, 1x2x3, with its glass pane, set into the wall. */
     H.minifigWindow = (ctx, x, z, y, face, bricks = 2) => {
-        const { g, P } = ctx, h = bricks * 3 - 1;
-        if (face === 'front' || face === 'back') { g.box(x, x + 1, z, z, y, y + h, P.glass); g.part('3069', P.trim, x, z, y - 1, { rotY: PI / 2, w: 2, l: 1 }); }
-        else { g.box(x, x, z, z + 1, y, y + h, P.glass); g.part('3069', P.trim, x, z, y - 1, { rotY: 0 }); }
+        const { P } = ctx;
+        const o = { size: bricks >= 3 ? '1x2x3' : '1x2x2', face, frameColor: P.trim, glassColor: P.glass };
+        // The module's origin is the first cell along its own u axis, which runs -X on the back face and -Z on the right.
+        if (face === 'back') H.realWindow(ctx, x + 1, z, y, o);
+        else if (face === 'right') H.realWindow(ctx, x, z + 1, y, o);
+        else H.realWindow(ctx, x, z, y, o);
+    };
+    /** A 1x4x3 shop window with its pane; `face` as above, the frame's first cell at (x, z). */
+    H.shopWindow = (ctx, x, z, y, face) => {
+        const { P } = ctx, o = { size: '1x4x3', face, frameColor: P.trim, glassColor: P.glass };
+        if (face === 'back') H.realWindow(ctx, x + 3, z, y, o);
+        else if (face === 'right') H.realWindow(ctx, x, z + 3, y, o);
+        else H.realWindow(ctx, x, z, y, o);
     };
 
     /** A small truck or car, four studs wide and `L` long along Z, nose at +Z; the body sits two plates up on lying round-plate wheels. */
@@ -152,16 +169,10 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
         }
     };
 
-    /** A fence of brown posts with plate rails from (x0, z0) to (x1, z1) along one axis, standing on plate y. */
-    H.fenceLine = (ctx, x0, z0, x1, z1, y) => {
-        const { g } = ctx, alongX = z0 === z1, len = alongX ? x1 - x0 + 1 : z1 - z0 + 1;
-        for (let i = 0; i < len; i += 2) g.part('3062', 'BROWN', alongX ? x0 + i : x0, alongX ? z0 : z0 + i, y);
-        const sizes = { 4: '3710', 3: '3623', 2: '3023', 1: '3024' };
-        for (let i = 0; i < len;) {
-            const l = Math.min(4, len - i);
-            g.part(sizes[l], 'BROWN', alongX ? x0 + i : x0, alongX ? z0 : z0 + i, y + 3, { rotY: alongX && l > 1 ? PI / 2 : 0, w: alongX ? l : 1, l: alongX ? 1 : l });
-            i += l;
-        }
+    /** A fence of 1x4x2 panels (3185) on plate posts from (x0, z0) to (x1, z1) along one axis, standing on plate y. */
+    H.fenceLine = (ctx, x0, z0, x1, z1, y, color) => {
+        const alongX = z0 === z1;
+        return H.fence(ctx, x0, z0, alongX ? x1 - x0 + 1 : z1 - z0 + 1, alongX ? 'x' : 'z', y, color || 'WHITE');
     };
 
     /** A blocky farm animal at stud (x, z) facing +Z, standing on plate y. */
@@ -209,65 +220,78 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             const awningOn = !house && !station && ctx.declare({ id: 'awning', label: 'Awning', type: 'bool', default: true });
             const wall = P.explicit ? P.primary : station && type !== 'garage' ? 'RED' : police ? 'WHITE' : house ? 'TAN' : pick(['WHITE', 'TAN', 'DARK_RED', 'BLUE']);
             const floorCol = house ? 'BROWN' : 'LIGHT_GREY';
-            const FH = house ? 18 : 21;   // plates per floor: six bricks, seven for a tall shopfront
+            const FH = house ? 18 : 21;   // plates per floor: six bricks (the door frame's height), seven for a tall shopfront
             // Ground, pavement in front, the interior floor.
             g.box(-3, W + 2, -3, D + 2, 0, 0, P.ground, { noBrick: true });
             g.box(-3, W + 2, D, D + 2, 0, 0, 'LIGHT_GREY', { noBrick: true });
             g.box(1, W - 2, 1, D - 2, 1, 1, floorCol, { noBrick: true });
             g.shell(0, W - 1, 0, D - 1, 1, FH, wall);
             if (!house) g.box(0, W - 1, 0, D - 1, 1, 1, P.dark, { noBrick: true });   // stone footing
-            const doorX = station ? 2 : Math.floor(W / 2) - 1;
+            const doorX = station ? 1 : Math.floor(W / 2) - 2;   // the four-stud door frame starts here
+            const doorColor = police ? 'DARK_BLUE' : P.wood === wall ? P.accent : P.wood;
             if (station) {
-                // A six-stud garage opening with the engine rolling out of it, a side door and a hose tower.
-                const gx = W - 8;
-                g.clear(gx, gx + 5, D - 1, D - 1, 1, 15);
-                g.part('3009', P.dark, gx, D - 1, 16, { rotY: PI / 2, w: 6, l: 1 });
-                H.miniTruck(ctx, gx + 1, D - 7, 1, 10, type === 'garage' ? (P.explicit ? P.secondary : 'BLUE') : 'RED', type === 'garage' ? {} : { box: 'RED', ladder: true, beacon: 'TRANS_BLUE' });
-                H.minifigDoor(ctx, doorX, D - 1, 1, 'front', P.wood);
-                H.minifigWindow(ctx, doorX, D - 1, 19, 'front', 1);
-                feats.push(type === 'garage' ? 'a six-stud roller door with a car rolling out' : 'a six-stud engine bay with a fire engine rolling out');
+                // An engine bay under a 1x8x2 arch with the engine rolling out of it, a side door and a hose tower.
+                const gx = W - 9;
+                H.archDoor(ctx, gx, D - 1, 1, { width: 8, height: 15, color: P.dark, face: 'front' });
+                H.miniTruck(ctx, gx + 2, D - 7, 1, 10, type === 'garage' ? (P.explicit ? P.secondary : 'BLUE') : 'RED', type === 'garage' ? {} : { box: 'RED', ladder: true, beacon: 'TRANS_BLUE' });
+                H.minifigDoor(ctx, doorX, D - 1, 1, 'front', doorColor);
+                feats.push(type === 'garage' ? 'an arched roller-door bay with a car rolling out' : 'an arched engine bay with a fire engine rolling out', 'a side door in its frame');
             } else {
-                H.minifigDoor(ctx, doorX, D - 1, 1, 'front', police ? 'DARK_BLUE' : P.wood);
-                g.part('3069', P.trim, doorX, D, 1, { rotY: PI / 2, w: 2, l: 1 });   // doorstep
-                feats.push('a five-brick-tall front door a minifigure walks through');
+                H.minifigDoor(ctx, doorX, D - 1, 1, 'front', doorColor);
+                g.part('3069', P.trim, doorX + 1, D, 1, { rotY: PI / 2, w: 2, l: 1 });   // doorstep
+                feats.push('a 1x4x6 door in its frame that a minifigure walks through');
             }
             if (house) {
-                // Two-by-two brick windows either side of the door, and along the sides.
-                for (const x of [2, W - 4]) if (x + 1 < doorX || x > doorX + 1) H.minifigWindow(ctx, x, D - 1, 7, 'front');
+                // 1x2x2 windows either side of the door and along the sides, a house number on a bracket by the door.
+                for (const x of [1, W - 3]) if (x + 1 < doorX || x > doorX + 3) H.minifigWindow(ctx, x, D - 1, 7, 'front');
                 for (const z of [2, D - 4]) { H.minifigWindow(ctx, 0, z, 7, 'left'); H.minifigWindow(ctx, W - 1, z, 7, 'right'); }
+                H.bracketMount(ctx, doorX + 4, D - 1, 14, { face: 'front', color: wall, part: '3069', partColor: P.trim });
                 // Inside: a table with two chairs and a bed.
                 g.part('3062', P.wood, 2, 2, 2); g.part('3068', 'TAN', 2, 2, 5, { w: 2, l: 2 });
                 g.part('3005', P.wood, 4, 2, 2); g.part('3024', P.accent, 4, 2, 5); g.part('3005', P.wood, 2, 4, 2); g.part('3024', P.accent, 2, 4, 5);
                 g.box(W - 4, W - 3, 1, 4, 2, 4, P.secondary === wall ? 'BLUE' : P.secondary); g.part('87079', 'WHITE', W - 4, 1, 5, { w: 2, l: 4 }); g.part('3069', P.accent, W - 4, 1, 6, { rotY: PI / 2, w: 2, l: 1 });
-                feats.push('two-by-two brick windows with sills', 'a furnished ground floor');
+                feats.push('real windows with glass panes', 'a furnished ground floor');
             } else if (!station) {
-                // A shopfront: big windows either side of the door, an awning and a sign band.
-                for (const [x0, x1] of [[2, doorX - 2], [doorX + 3, W - 3]]) if (x1 - x0 >= 1) { g.box(x0, x1, D - 1, D - 1, 4, 12, P.glass); for (let x = x0; x + 1 <= x1; x += 2) g.part('3069', P.trim, x, D - 1, 3, { rotY: PI / 2, w: 2, l: 1 }); }
-                for (const z of [2, D - 4]) { H.minifigWindow(ctx, 0, z, 7, 'left'); H.minifigWindow(ctx, W - 1, z, 7, 'right'); }
-                if (awningOn) { for (let x = 0; x + 1 <= W - 1; x += 2) g.part('3022', (x / 2) % 2 ? 'WHITE' : P.accent, x, D - 1, 16, { w: 2, l: 2 }); feats.push('a striped awning'); }
-                g.box(1, W - 2, D - 1, D - 1, 18, 19, P.accent, { noBrick: true });   // the sign band
+                // A shopfront: 1x4x3 windows either side of the door (1x2x3 where the front is narrow), an awning and a
+                // sign on a bracket over the door.
+                for (const [x0, x1] of [[1, doorX - 1], [doorX + 4, W - 2]]) {
+                    const n = x1 - x0 + 1;
+                    if (n >= 4) H.shopWindow(ctx, x0 + Math.floor((n - 4) / 2), D - 1, 4, 'front');
+                    else if (n >= 2) H.minifigWindow(ctx, x0 + Math.floor((n - 2) / 2), D - 1, 4, 'front', 3);
+                }
+                for (const z of [2, D - 4]) { H.minifigWindow(ctx, 0, z, 7, 'left', 3); H.minifigWindow(ctx, W - 1, z, 7, 'right', 3); }
+                if (awningOn) { for (let x = 0; x + 1 <= W - 1; x += 2) g.part('3022', (x / 2) % 2 ? 'WHITE' : P.accent, x, D - 1, 19, { w: 2, l: 2 }); feats.push('a striped awning'); }
+                g.box(1, W - 2, D - 1, D - 1, 20, 21, P.accent, { noBrick: true });   // the sign band
+                H.bracketMount(ctx, doorX + 1, D - 1, 20, { face: 'front', color: P.accent, part: '3069', partColor: P.accent === 'WHITE' ? P.dark : 'WHITE', dir: 'up' });
                 // Inside: a counter with a till, shelves of goods along the back wall, and two tables.
                 g.box(2, W - 3, D - 4, D - 4, 2, 4, 'TAN'); g.box(2, W - 3, D - 4, D - 4, 5, 5, P.dark, { noBrick: true }); g.part('98138', 'LIGHT_GREY', W - 4, D - 4, 6);
                 for (let x = 1; x <= W - 2; x += 2) { g.part('3005', P.wood, x, 1, 2); g.part('98138', pick(['RED', 'YELLOW', 'LIME', 'ORANGE', 'PINK']), x, 1, 5); }
                 if (['cafe', 'coffee shop', 'restaurant', 'diner', 'pizzeria', 'pub'].includes(type)) { g.part('3062', P.wood, 3, 4, 2); g.part('3068', 'WHITE', 3, 4, 5, { w: 2, l: 2 }); g.part('98138', 'WHITE', 3, 4, 6); feats.push('a cafe table set for two'); }
                 if (type === 'pizzeria' || type === 'bakery') { g.box(W - 4, W - 3, 1, 2, 2, 7, P.dark); g.part('3069', 'TRANS_ORANGE', W - 4, 1, 8, { rotY: PI / 2, w: 2, l: 1 }); feats.push('a stone oven'); }
-                if (police) { g.part('3062', P.dark, doorX - 2, D, 1); g.part('3062', P.dark, doorX - 2, D, 4); g.part('98138', 'TRANS_BLUE', doorX - 2, D, 7); feats.push('a blue lamp by the door'); }
-                feats.push('a glazed shopfront and a sign band', 'a counter and shelves of goods');
+                if (police) { H.lamp2(ctx, doorX - 2, D, 1, { color: P.dark, lens: 'TRANS_BLUE', face: 'front' }); feats.push('a blue lamp by the door'); }
+                feats.push('a glazed shopfront with a bracket-mounted sign', 'a counter and shelves of goods');
             } else {
-                for (const z of [2, D - 4]) { H.minifigWindow(ctx, 0, z, 7, 'left'); H.minifigWindow(ctx, W - 1, z, 7, 'right'); }
-                g.box(1, W - 2, D - 1, D - 1, 18, 19, type === 'garage' ? P.accent : 'WHITE', { noBrick: true });
+                for (const z of [2, D - 4]) { H.minifigWindow(ctx, 0, z, 7, 'left', 3); H.minifigWindow(ctx, W - 1, z, 7, 'right', 3); }
+                g.box(1, W - 2, D - 1, D - 1, 20, 21, type === 'garage' ? P.accent : 'WHITE', { noBrick: true });
             }
             // Ceiling, then the upper floor or the roof.
             let top = FH + 1;
             H.ceiling(ctx, 0, W - 1, 0, D - 1, top, floorCol);
             if (upper) {
                 const y0 = top + 1, UH = 18;
+                if (house) {
+                    // A balcony over the door: inverted slopes under a cross-bonded slab the upper wall stands on, with a railing.
+                    H.overhang(ctx, doorX, D, y0 - 3, { width: 4, color: wall, face: 'front' });
+                    H.slab(ctx, doorX, doorX + 3, D - 1, D + 1, y0, P.trim);
+                    H.fence(ctx, doorX, D + 1, 4, 'x', y0 + 2, 'WHITE');
+                    feats.push('a railed balcony on inverted slopes');
+                }
                 g.shell(0, W - 1, 0, D - 1, y0, y0 + UH - 1, wall);
                 for (let x = 2; x + 1 <= W - 3; x += 4) { H.minifigWindow(ctx, x, D - 1, y0 + 6, 'front'); H.minifigWindow(ctx, x, 0, y0 + 6, 'back'); }
                 for (const z of [2, D - 4]) { H.minifigWindow(ctx, 0, z, y0 + 6, 'left'); H.minifigWindow(ctx, W - 1, z, y0 + 6, 'right'); }
                 top = y0 + UH;
                 H.ceiling(ctx, 0, W - 1, 0, D - 1, top, floorCol);
-                feats.push('an upper floor with brick windows');
+                feats.push('an upper floor with real windows');
             }
             if (house) {
                 g.box(-1, W, -1, D, top + 1, top + 1, P.roof, { noBrick: true });
@@ -277,18 +301,20 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
                 feats.push(`a pitched ${window.LEGO_COLORS[P.roof].name.toLowerCase()} roof with a chimney`);
             } else {
                 H.flatRoof(ctx, 0, W - 1, 0, D - 1, top + 1, P.dark);
-                feats.push('a flat roof with a rooftop hatch');
+                H.roundCorners(ctx, 0, W - 1, 0, D - 1, top + 2, P.dark);
+                if (station) H.dish(ctx, W - 4, 1, top + 3, { size: 2, color: P.metal });
+                feats.push(station ? 'a flat roof with a radio dish' : 'a flat roof with rounded corners and a rooftop hatch');
             }
             if (station && type !== 'garage') {
-                // The hose tower at the back corner, with a bell and a flag.
+                // The hose tower at the back corner, with a bell and a flag on a bar pole.
                 const tx = W, TH = 30;
                 g.shell(tx, tx + 3, -3, 0, 1, TH, wall); H.ceiling(ctx, tx, tx + 3, -3, 0, TH + 1, P.dark);
                 g.box(tx, tx + 3, -3, 0, TH + 2, TH + 2, P.dark, { noBrick: true });
-                H.minifigWindow(ctx, tx + 1, 0, 13, 'front', 1); H.minifigWindow(ctx, tx + 1, 0, 25, 'front', 1);
-                g.part('59900', 'GOLD', tx + 1, -2, TH + 3); H.flag(ctx, tx + 2, -1, TH + 3, P.accent);
-                feats.push('a hose tower with a bell');
+                H.minifigWindow(ctx, tx + 1, 0, 13, 'front'); H.minifigWindow(ctx, tx + 1, 0, 22, 'front');
+                g.part('59900', 'GOLD', tx + 1, -2, TH + 3); H.flagPole(ctx, tx + 2, -1, TH + 3, { height: 2, flag: P.accent });
+                feats.push('a hose tower with a bell and a flag');
             }
-            H.lamp(ctx, W + 1, D + 1, 1);
+            H.lamp2(ctx, W + 1, D + 1, 1, { color: P.dark, face: 'front' });
             if (chance(0.6)) H.tree(ctx, -2, -2, 1, 'round');
             const names = { house: 'Minifig House', home: 'Minifig Home', cottage: 'Minifig Cottage', building: 'Minifig Townhouse', shop: 'Minifig Shop', store: 'Corner Store', cafe: 'Minifig Café', 'coffee shop': 'Coffee Shop', bakery: 'Minifig Bakery', 'fire station': 'Fire Station', firehouse: 'Fire Station', 'police station': 'Police Station', garage: 'Minifig Garage', pizzeria: 'Pizzeria', diner: 'Minifig Diner', pub: 'Minifig Pub', school: 'Minifig School', hotel: 'Minifig Hotel', restaurant: 'Minifig Restaurant' };
             return { title: names[type] || 'Minifig Building', features: feats };
@@ -432,7 +458,7 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             }
             if (kind === 'lemonade') { g.part('3941', 'TRANS_CLEAR', W - 2, 1, 5); g.part('4032', 'YELLOW', W - 2, 1, 8); }
             // Crates on the counter's back half and a price board.
-            g.box(0, 1, D - 1, D - 1, 5, 6, 'TAN'); g.part('3022', goods[0], 0, D - 1, 7, { w: 2, l: 1 });
+            g.box(0, 1, D - 1, D - 1, 5, 6, 'TAN'); g.part('3023', goods[0], 0, D - 1, 7, { rotY: PI / 2, w: 2, l: 1 });
             // Four round-brick posts, a wooden frame and a striped awning laid across it.
             const AW = 16;
             for (const [x, z] of [[-1, 0], [W, 0], [-1, D], [W, D]]) for (let y = 1; y < AW; y += 3) g.part('3062', P.wood, x, z, y);
@@ -443,15 +469,19 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             for (let x = -1; x <= W; x++) g.part('3666', (x + 1) % 2 ? 'WHITE' : stripe, x, -1, AW + 1, { rotY: 0, w: 1, l: 6 });
             H.strip(ctx, -1, 0, W + 2, 'x', AW + 2, P.wood);
             for (let x = -1; x <= W; x += 2) g.part('54200', (x + 1) % 2 ? 'WHITE' : stripe, x, D, AW + 2);   // scalloped front edge
-            // Beside the stall: a barrel, a sack and a stack of crates; a chalkboard sign out front.
+            // A pennant on a bar pole at the awning's front corner.
+            H.flagPole(ctx, W, D, g.top(W, D) + 1, { height: 1, color: P.wood, flag: stripe });
+            // Beside the stall: a barrel, a sack and a stack of crates; a chalkboard on a bracket post out front.
             g.part('3941', 'BROWN', W + 1, D - 1, 1); g.part('4032', 'DARK_GREY', W + 1, D - 1, 4);
             g.part('553', 'TAN', -3, D - 1, 1);
             g.box(-3, -2, 0, 1, 1, 2, 'TAN'); g.part('3022', goods[1], -3, 0, 3); g.box(-3, -2, 0, 1, 4, 5, 'TAN'); g.part('3022', goods[2], -3, 0, 6);
-            g.part('3005', 'BLACK', Math.floor(W / 2), D + 2, 1); g.part('3024', 'WHITE', Math.floor(W / 2), D + 2, 4);
-            if (chance(0.5)) H.lamp(ctx, W + 3, -3, 1);
+            const bx = Math.floor(W / 2) - 1;
+            g.part('3004', 'BLACK', bx, D + 2, 1, { rotY: PI / 2, w: 2, l: 1 });
+            H.bracketMount(ctx, bx, D + 2, 4, { face: 'front', color: 'BLACK', part: '3069', partColor: 'WHITE' });
+            if (chance(0.5)) H.lamp2(ctx, W + 3, -3, 1, { color: P.dark, face: 'front' });
             for (let i = 0; i < 6; i++) { const x = -3 + Math.floor(ctx.rnd() * (W + 6)), z = D + 1 + Math.floor(ctx.rnd() * 3); if (g.top(x, z) === 0) g.part('3070', 'DARK_GREY', x, z, 1); }
             const names = { 'lemonade stand': 'Lemonade Stand', 'flower stall': 'Flower Stall', 'flower stand': 'Flower Stall', 'hot dog stand': 'Hot Dog Stand', kiosk: 'Kiosk', newsstand: 'Newsstand', bazaar: 'Bazaar Stall', souk: 'Souk Stall', 'vegetable stall': 'Veg Stall', 'farmers market': 'Farmers\' Market Stall' };
-            return { title: names[match] || 'Market Stall', features: [`a ${window.LEGO_COLORS[stripe].name.toLowerCase().replace('bright ', '')} and white striped awning`, `a wooden counter heaped with ${kind}`, 'crates, a barrel and a sack', 'a chalkboard sign', 'a cobbled square'] };
+            return { title: names[match] || 'Market Stall', features: [`a ${window.LEGO_COLORS[stripe].name.toLowerCase().replace('bright ', '')} and white striped awning with a pennant`, `a wooden counter heaped with ${kind}`, 'crates, a barrel and a sack', 'a chalkboard on a bracket', 'a cobbled square'] };
         }
     });
 
@@ -466,29 +496,31 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             const field = ctx.declare({ id: 'field', label: 'Crop field', type: 'bool', default: true });
             const herd = ctx.declare({ id: 'animals', label: 'Animals', type: 'choice', default: 'mixed', choices: ['mixed', 'cows', 'sheep', 'horses', 'pigs'] });
             g.box(-2, W + 1, -2, D + 1, 0, 0, P.ground, { noBrick: true });
-            // The barn at the back left: red walls, a white door, a loft window, a grey gable roof.
-            const BW = 8, BD = 8;
-            g.shell(0, BW - 1, 0, BD - 1, 1, 9, P.explicit ? P.primary : 'DARK_RED');
-            g.box(3, 4, BD - 1, BD - 1, 1, 6, 'WHITE'); g.box(3, 4, BD - 1, BD - 1, 1, 6, 'WHITE');
-            g.set(2, 4, BD - 1, 'WHITE'); g.set(5, 4, BD - 1, 'WHITE');
-            H.window(ctx, 1, 0, 4, 'back'); H.window(ctx, 5, 0, 4, 'back');
-            H.ceiling(ctx, 0, BW - 1, 0, BD - 1, 10, 'WHITE');
-            const roof = H.gableRoof(ctx, 0, BW - 1, 0, BD - 1, 11, P.roof === 'DARK_RED' ? 'DARK_GREY' : P.roof, 'x');
+            // The barn at the back left: six bricks of red wall, a white 1x4x6 door in its frame, real windows, a grey gable roof.
+            const BW = 8, BD = 8, BH = 18, red = P.explicit ? P.primary : 'DARK_RED';
+            g.shell(0, BW - 1, 0, BD - 1, 1, BH, red);
+            H.realDoor(ctx, 2, BD - 1, 1, { face: 'front', frameColor: 'WHITE', doorColor: 'WHITE' });
+            for (const x of [2, 6]) H.realWindow(ctx, x, 0, 7, { size: '1x2x2', face: 'back', frameColor: 'WHITE', glassColor: P.glass });
+            H.realWindow(ctx, 0, 3, 7, { size: '1x2x2', face: 'left', frameColor: 'WHITE', glassColor: P.glass });
+            H.realWindow(ctx, BW - 1, 4, 7, { size: '1x2x2', face: 'right', frameColor: 'WHITE', glassColor: P.glass });
+            H.ceiling(ctx, 0, BW - 1, 0, BD - 1, BH + 1, 'WHITE');
+            const roof = H.gableRoof(ctx, 0, BW - 1, 0, BD - 1, BH + 2, P.roof === 'DARK_RED' ? 'DARK_GREY' : P.roof, 'x');
             g.part('59900', 'GOLD', 1, Math.floor((roof.a + roof.b) / 2), roof.y + 1);
             // The silo beside it.
-            for (let i = 0; i < 5; i++) g.part('3941', 'LIGHT_GREY', BW + 1, 1, 1 + i * 3);
-            g.part('553', 'LIGHT_GREY', BW + 1, 1, 16);
-            // A fenced paddock in front of the barn with the animals.
-            const px0 = 0, px1 = BW + 5, pz0 = BD + 2, pz1 = D - 1;
-            H.fenceLine(ctx, px0, pz1, px1, pz1, 1); H.fenceLine(ctx, px1, pz0, px1, pz1 - 1, 1); H.fenceLine(ctx, px0, pz0, px0, pz1 - 1, 1);
+            for (let i = 0; i < 7; i++) g.part('3941', 'LIGHT_GREY', BW + 1, 1, 1 + i * 3);
+            g.part('553', 'LIGHT_GREY', BW + 1, 1, 22);
+            // A fenced paddock in front of the barn with the animals: three panels along the front, one up each side,
+            // leaving a gate by the barn.
+            const px0 = 0, px1 = 11, pz0 = BD + 2, pz1 = D - 1;
+            H.fence(ctx, px0, pz1, 12, 'x', 1, 'WHITE'); H.fence(ctx, px1, pz1 - 4, 4, 'z', 1, 'WHITE'); H.fence(ctx, px0, pz1 - 4, 4, 'z', 1, 'WHITE');
             const kinds = herd === 'mixed' ? [pick(['cow', 'horse']), 'sheep', 'pig'] : [herd.slice(0, -1), herd.slice(0, -1), herd.slice(0, -1)];
-            H.farmAnimal(ctx, kinds[0], 2, pz0 + 1, 1); H.farmAnimal(ctx, kinds[1], 6, pz0 + 1, 1); H.farmAnimal(ctx, kinds[2], 10, pz0 + 1, 1);   // all a stud clear of the back fence
+            H.farmAnimal(ctx, kinds[0], 2, pz0, 1); H.farmAnimal(ctx, kinds[1], 5, pz0, 1); H.farmAnimal(ctx, kinds[2], 8, pz0, 1);   // all inside the rails
             H.farmAnimal(ctx, 'chicken', BW + 1, BD, 1); H.farmAnimal(ctx, 'chicken', BW + 3, BD + 1, 1);
             // A water trough and a haystack.
             g.box(BW + 5, BW + 6, BD + 1, BD + 1, 1, 1, 'DARK_GREY', { noBrick: true }); g.part('3069', 'TRANS_BLUE', BW + 5, BD + 1, 2, { rotY: PI / 2, w: 2, l: 1 });
             g.part('553', 'TAN', BW + 3, 3, 1);
             // Rows of crops on the right, and a tree.
-            const feats = ['a red barn with a white door and loft window', 'a tall silo', `a fenced paddock with ${herd === 'mixed' ? 'a ' + kinds[0] + ', a sheep and a pig' : herd}`, 'two chickens, a trough and a haystack'];
+            const feats = ['a red barn with a white door in its frame and real windows', 'a tall silo', `a picket-fenced paddock with ${herd === 'mixed' ? 'a ' + kinds[0] + ', a sheep and a pig' : herd}`, 'two chickens, a trough and a haystack'];
             if (field) {
                 const fx0 = BW + 6, fz0 = 0, fx1 = W - 1, fz1 = Math.max(fz0 + 3, D - 6);
                 g.box(fx0, fx1, fz0, fz1, 0, 0, 'BROWN', { noBrick: true });
@@ -511,40 +543,46 @@ window.FORGE = window.FORGE || { builders: [], helpers: {} };
             const catapult = ctx.declare({ id: 'catapult', label: 'Catapult', type: 'bool', default: true });
             const stone = P.explicit ? P.primary : 'LIGHT_GREY', dark = 'DARK_GREY';
             g.box(-2, W + 1, -3, D + 1, 0, 0, P.ground, { noBrick: true });
-            // The curtain wall along the back between two square towers.
+            // The curtain wall along the back between two square towers with arched windows and flags on bar poles.
             const zW = 2, TW = 4, TH = 15;
             for (const tx of [0, W - TW]) {
                 g.shell(tx, tx + TW - 1, zW - 1, zW + 2, 1, TH, stone); H.ceiling(ctx, tx, tx + TW - 1, zW - 1, zW + 2, TH + 1, dark);
                 H.crenellate(ctx, tx, tx + TW - 1, zW - 1, zW + 2, TH + 2, stone);
-                H.window(ctx, tx + 1, zW + 2, 7, 'front', 'TRANS_ORANGE'); H.flag(ctx, tx + 1, zW, TH + 2, P.accent);
+                H.archWindow(ctx, tx, zW + 2, 6, { width: 4, height: 3, color: dark, glass: 'TRANS_ORANGE', face: 'front' });
+                H.flagPole(ctx, tx + 1, zW, TH + 2, { height: 2, flag: P.accent });
             }
             g.box(TW, W - TW - 1, zW, zW + 1, 1, 9, stone);
             for (let x = TW; x <= W - TW - 1; x += 2) g.box(x, x, zW, zW, 10, 12, stone);
             for (let x = TW + 1; x <= W - TW - 1; x += 2) g.part('3070', dark, x, zW + 1, 10);
-            // The gate: an opening with a lintel and a wooden door set back, torches either side.
+            // The gate: a 1x4 arch over the opening in the wall's outer face, a wooden door set back in the inner row,
+            // torches either side.
             const gx = Math.floor(W / 2) - 1;
-            g.clear(gx, gx + 1, zW, zW + 1, 1, 6); g.box(gx, gx + 1, zW, zW, 1, 6, P.wood);
-            g.part('3010', dark, gx - 1, zW + 1, 7, { rotY: PI / 2, w: 4, l: 1 });
+            H.archDoor(ctx, gx - 1, zW + 1, 1, { width: 4, height: 6, color: dark, face: 'front' });
+            g.clear(gx, gx + 1, zW, zW, 1, 6); g.box(gx, gx + 1, zW, zW, 1, 6, P.wood);
             for (const x of [gx - 2, gx + 3]) { g.part('3062', dark, x, zW + 2, 1); g.part('3062', dark, x, zW + 2, 4); g.part('98138', 'TRANS_ORANGE', x, zW + 2, 7); }
-            // The siege tower outside: a wooden box on wheels with a platform and a drawbridge toward the wall.
+            // The siege tower outside: a wooden box on axle plates with wooden wheels, a platform and a hinged drawbridge
+            // toward the wall.
             const sx = 5, sz = zW + 6;
-            for (const z of [sz, sz + 2]) { g.part('4032', 'BLACK', sx - 1, z, 1, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true }); g.part('4032', 'BLACK', sx + 4, z, 1, { rotZ: PI / 2, w: 1, l: 2, hp: 5, lie: true }); }
             g.box(sx, sx + 3, sz, sz + 3, 3, 3, P.wood, { noBrick: true });
+            for (const z of [sz, sz + 2]) H.axle(ctx, sx, z, 3, { width: 4, size: 'small', color: P.wood, tyre: false, wheelColor: 'BROWN' });
             g.shell(sx, sx + 3, sz, sz + 3, 4, 15, P.wood);
             for (let y = 6; y <= 12; y += 3) g.box(sx, sx + 3, sz + 3, sz + 3, y, y, 'TAN', { noBrick: true });   // timber banding
             H.ceiling(ctx, sx, sx + 3, sz, sz + 3, 16, P.wood);
             H.crenellate(ctx, sx, sx + 3, sz, sz + 3, 17, P.wood);
-            g.part('3020', 'TAN', sx + 1, sz - 2, 17, { rotY: 0, w: 2, l: 4 });   // the drawbridge, reaching for the wall
-            // Camp: a catapult with a boulder, a pile of boulders, a tent and a campfire.
-            const feats = ['a crenellated curtain wall with a gate and torches', 'two square towers flying banners', 'a wooden siege tower on wheels with a drawbridge'];
+            // Locking hinge plates on the platform's edge carry the bridge deck, which can swing down onto the wall.
+            for (const x of [sx + 1, sx + 2]) { g.part('44302', 'TAN', x, sz, 17, { w: 1, l: 2 }); g.part('44301', 'TAN', x, sz - 2, 17, { w: 1, l: 2, links: [[x, 17, sz]] }); }
+            g.part('3022', 'TAN', sx + 1, sz - 2, 18);
+            // Camp: a catapult on a turntable with a boulder, a pile of boulders, a tent and a campfire.
+            const feats = ['a crenellated curtain wall with an arched gate and torches', 'two square towers with arched windows flying flags', 'a wooden siege tower on wheels with a hinged drawbridge'];
             const cx = W - 9, cz = zW + 7;
             if (catapult) {
-                g.part('3795', P.wood, cx, cz, 1, { rotY: 0, w: 2, l: 6 });
-                for (const x of [cx, cx + 1]) { g.part('3062', P.wood, x, cz + 2, 2); g.part('3062', P.wood, x, cz + 2, 5); }
-                g.part('3666', P.wood, cx, cz, 8, { rotY: 0, w: 1, l: 6 });
-                g.part('3005', dark, cx, cz, 9); g.part('4032', dark, cx, cz + 4, 9); g.part('553', 'LIGHT_GREY', cx, cz + 4, 10);
+                g.part('3680', dark, cx, cz + 2, 1); g.part('3679', dark, cx, cz + 2, 2, { links: [[cx, 1, cz + 2]] });
+                g.part('3795', P.wood, cx, cz, 3, { rotY: 0, w: 2, l: 6 });
+                for (const x of [cx, cx + 1]) { g.part('3062', P.wood, x, cz + 2, 4); g.part('3062', P.wood, x, cz + 2, 7); }
+                g.part('3666', P.wood, cx, cz, 10, { rotY: 0, w: 1, l: 6 });
+                g.part('3005', dark, cx, cz, 11); g.part('4032', dark, cx, cz + 4, 11); g.part('553', 'LIGHT_GREY', cx, cz + 4, 12);
                 for (const [bx, bz] of [[cx + 3, cz + 4], [cx + 4, cz + 5], [cx + 3, cz + 6]]) g.part('3062', 'LIGHT_GREY', bx, bz, 1);
-                feats.push('a catapult loaded with a boulder');
+                feats.push('a catapult on a turntable, loaded with a boulder');
             }
             const tx = W - 5, tz = zW + 5;
             g.part('3039', P.accent, tx, tz, 1, { rotY: PI }); g.part('3039', P.accent, tx, tz + 2, 1, { rotY: 0 });
