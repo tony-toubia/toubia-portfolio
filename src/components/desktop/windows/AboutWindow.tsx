@@ -11,7 +11,7 @@ export default function AboutWindow() {
           }}
         >
           <Image
-            src="/images/headshot.png"
+            src="/images/headshot.jpg"
             alt="Tony Toubia"
             width={88}
             height={88}

@@ -1,13 +1,25 @@
 const speakingEngagements = [
   {
+    title: 'Agentic AI: Redefining the Retail Customer Experience',
+    event: 'Salesforce Connections 2026 · Chicago',
+    type: 'Conference Session',
+    with: 'Chris Seger, VP, Solutions Engineering, Salesforce',
+    description:
+      'How Merkle and Salesforce help leading retailers deploy AI Retail Advisor, an agentic solution built inside Agentforce that autonomously engages shoppers, recovers abandoned carts, personalizes recommendations, and delivers 1:1 experiences at scale.',
+    topics: ['Agentic AI', 'Retail CX', 'Agentforce'],
+    link: 'https://www.merkle.com/en/merkle-now/events/salesforce-connections/session-agentic-ai-redefining-the-retail-customer-experience.html',
+    slides: 'https://go.merkle.com/rs/442-SZV-721/images/Salesforce-Connections-Agentic-AI-Luxury.pdf?version=0',
+    featured: true,
+  },
+  {
     title: 'Forget FOMU: The Business Case for Enterprise Agentforce',
-    event: 'Salesforce Connections',
+    event: 'Salesforce Connections 2025',
     type: 'Conference Session',
     description:
       'Addressing the "Fear of Messing Up" that stalls AI adoption. Practical frameworks for transitioning from analysis paralysis to actionable execution with real-world examples and measurable KPIs.',
     topics: ['Agentic AI', 'Business Case Development', 'Enterprise Adoption'],
     link: 'https://www.merkle.com/en/merkle-now/events/salesforce-connections/forget-fomu-business-case-for-enterprise-agentforce-session.html',
-    featured: true,
+    featured: false,
   },
   {
     title: 'Building the Future of Advertising with Data 360',
@@ -70,6 +82,10 @@ export default function Speaking() {
                   {engagement.title}
                 </h3>
 
+                {engagement.with && (
+                  <p className="text-sm text-foreground-muted -mt-1 mb-3">With {engagement.with}</p>
+                )}
+
                 <p className="text-foreground-secondary mb-6">{engagement.description}</p>
 
                 {/* Topics */}
@@ -84,19 +100,34 @@ export default function Speaking() {
                   ))}
                 </div>
 
-                {engagement.link && (
-                  <a
-                    href={engagement.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-accent-primary hover:underline font-medium text-sm"
-                  >
-                    Watch Recording
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                  </a>
-                )}
+                <div className="flex flex-wrap gap-6">
+                  {engagement.link && (
+                    <a
+                      href={engagement.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-accent-primary hover:underline font-medium text-sm"
+                    >
+                      Watch Recording
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+                  )}
+                  {engagement.slides && (
+                    <a
+                      href={engagement.slides}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-accent-primary hover:underline font-medium text-sm"
+                    >
+                      Download Slides
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+                  )}
+                </div>
               </div>
             </div>
           ))}

@@ -116,19 +116,19 @@ export default function InfoBubble() {
               </div>
 
               <p className="text-center text-slate-300 text-sm leading-relaxed">
-                <span className="text-blue-400 font-medium">Circa 2000</span> — a pivotal era in personal computing.
+                <span className="text-blue-400 font-medium">Circa 2000</span> – a pivotal era in personal computing.
               </p>
 
               <p className="leading-relaxed text-[15px]">
                 This retro desktop design is a tribute to the era when I first fell in love with technology.
-                Growing up in the late 90s and early 2000s, I witnessed the explosion of personal computer use firsthand —
+                Growing up in the late 90s and early 2000s, I witnessed the explosion of personal computer use firsthand –
                 from the <span className="text-green-400 font-medium">Y2K</span> scare to burning CDs with <span className="text-orange-400 font-medium">Napster</span>, from the distinctive sound of dial-up internet
                 to staying up late chatting on <span className="text-yellow-400 font-medium">AOL Instant Messenger</span>.
               </p>
 
               <p className="leading-relaxed text-[15px]">
                 Those formative years sparked my passion for technology and shaped who I am today.
-                This site is a nostalgic nod to that transformative time — the era of Windows 98/2000 interfaces,
+                This site is a nostalgic nod to that transformative time – the era of Windows 98/2000 interfaces,
                 chunky CRT monitors, and the genuine excitement of discovering what computers could do.
               </p>
 

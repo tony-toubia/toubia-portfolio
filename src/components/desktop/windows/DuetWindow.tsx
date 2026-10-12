@@ -12,18 +12,12 @@ export default function DuetWindow() {
       {/* Header */}
       <div className="p-3 border-b border-[var(--button-shadow)]">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded flex items-center justify-center text-white text-xl bg-[#E31837]">
-            <svg viewBox="0 0 48 48" className="w-8 h-8">
-              <circle cx="18" cy="24" r="8" fill="#fff" opacity="0.9" />
-              <circle cx="30" cy="24" r="8" fill="#fff" opacity="0.9" />
-              <path d="M18 20v8M30 20v8" stroke="#E31837" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </div>
+          <img src="/images/duet-logo.png" alt="Duet" className="w-12 h-12 object-contain" />
           <div className="flex-1">
             <h1 className="text-lg font-bold m-0">Duet</h1>
-            <p className="text-sm m-0 italic text-[#E31837]">Stay connected without the interruption</p>
+            <p className="text-sm m-0 italic text-[var(--duet-text)]">Stay connected without the interruption</p>
           </div>
-          <span className="text-xs px-2 py-1 text-white bg-[#E31837]">
+          <span className="text-xs px-2 py-1 text-white bg-[var(--duet-strong)]">
             MVP
           </span>
         </div>
@@ -179,11 +173,11 @@ function StoryTab() {
       <div className="group-box">
         <span className="group-box-label">Perfect For</span>
         <div className="text-xs flex flex-wrap gap-2">
-          <span className="px-2 py-1 bg-[#E3183720] border border-[#E31837]">🏙️ City Exploration</span>
-          <span className="px-2 py-1 bg-[#E3183720] border border-[#E31837]">🎢 Theme Parks</span>
-          <span className="px-2 py-1 bg-[#E3183720] border border-[#E31837]">🎵 Concerts</span>
-          <span className="px-2 py-1 bg-[#E3183720] border border-[#E31837]">🏃 Running Together</span>
-          <span className="px-2 py-1 bg-[#E3183720] border border-[#E31837]">🛒 Shopping</span>
+          <span className="px-2 py-1 bg-[var(--duet-tint)] border border-[var(--duet)]">🏙️ City Exploration</span>
+          <span className="px-2 py-1 bg-[var(--duet-tint)] border border-[var(--duet)]">🎢 Theme Parks</span>
+          <span className="px-2 py-1 bg-[var(--duet-tint)] border border-[var(--duet)]">🎵 Concerts</span>
+          <span className="px-2 py-1 bg-[var(--duet-tint)] border border-[var(--duet)]">🏃 Running Together</span>
+          <span className="px-2 py-1 bg-[var(--duet-tint)] border border-[var(--duet)]">🛒 Shopping</span>
         </div>
       </div>
     </div>
@@ -312,11 +306,11 @@ function ArchitectureTab() {
         <span className="group-box-label">Dual Audio Path Design</span>
         <div className="text-xs space-y-2">
           <div className="flex items-start gap-2">
-            <span className="px-2 py-1 bg-[#E3183720] border border-[#E31837] font-bold whitespace-nowrap">WebRTC Tracks</span>
+            <span className="px-2 py-1 bg-[var(--duet-tint)] border border-[var(--duet)] font-bold whitespace-nowrap">WebRTC Tracks</span>
             <span>Used for connection negotiation only (muted)</span>
           </div>
           <div className="flex items-start gap-2">
-            <span className="px-2 py-1 bg-[#00A3AD20] border border-[#00A3AD] font-bold whitespace-nowrap">Data Channel</span>
+            <span className="px-2 py-1 bg-[var(--duet-alt-tint)] border border-[var(--duet-alt)] font-bold whitespace-nowrap">Data Channel</span>
             <span>Actual audio transmission (base64 PCM @ 48kHz mono)</span>
           </div>
           <div className="flex items-start gap-2">

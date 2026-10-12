@@ -31,6 +31,19 @@
   /* Icon colors */
   --icon-text: #ffffff;
   --icon-shadow: rgba(0, 0, 0, 0.8);
+
+  /* Project accents, taken from each product's logo. The -text shades are
+     darkened or lightened per theme so taglines stay readable. */
+  --duet: #e8734a;            /* Duet coral */
+  --duet-strong: #c4562f;     /* badge fill, white text on it */
+  --duet-text: #7a3318;
+  --duet-tint: rgba(232, 115, 74, 0.16);
+  --duet-alt: #0f3460;        /* Duet navy */
+  --duet-alt-tint: rgba(15, 52, 96, 0.12);
+  --aura: #6b8566;            /* Aura sage */
+  --aura-strong: #5b7a56;
+  --aura-text: #36502f;
+  --aura-tint: rgba(107, 133, 102, 0.18);
 }
 
 .dark {
@@ -49,6 +62,10 @@
   --selection-bg: var(--kc-teal);
   --taskbar-bg: #2d2d44;
   --icon-text: #ffffff;
+  --duet-text: #f0956e;
+  --duet-alt: #8fb0e0;
+  --duet-alt-tint: rgba(143, 176, 224, 0.14);
+  --aura-text: #a8c090;
 }
 
 @theme inline {

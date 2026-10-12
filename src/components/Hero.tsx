@@ -68,7 +68,7 @@ export default function Hero() {
               <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-accent-primary via-accent-tertiary to-accent-secondary blur-sm opacity-75" />
               <div className="relative w-64 h-64 md:w-80 md:h-80 rounded-full overflow-hidden border-4 border-background">
                 <Image
-                  src="/images/headshot.png"
+                  src="/images/headshot.jpg"
                   alt="Tony Toubia"
                   fill
                   className="object-cover"

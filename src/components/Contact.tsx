@@ -13,7 +13,7 @@ export default function Contact() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // In production, this would send to an API
-    const mailtoLink = `mailto:contact@tonytoubia.com?subject=${encodeURIComponent(
+    const mailtoLink = `mailto:tony@tonytoubia.com?subject=${encodeURIComponent(
       `[${formState.type.toUpperCase()}] Message from ${formState.name}`
     )}&body=${encodeURIComponent(formState.message)}`;
     window.location.href = mailtoLink;
@@ -137,7 +137,7 @@ export default function Contact() {
                 </a>
 
                 <a
-                  href="mailto:contact@tonytoubia.com"
+                  href="mailto:tony@tonytoubia.com"
                   className="flex items-center gap-3 p-3 rounded-lg hover:bg-border/50 transition-colors group"
                 >
                   <div className="w-10 h-10 rounded-lg bg-accent-primary/10 text-accent-primary flex items-center justify-center">
@@ -147,7 +147,7 @@ export default function Contact() {
                   </div>
                   <div>
                     <p className="font-medium group-hover:text-accent-primary transition-colors">Email</p>
-                    <p className="text-sm text-foreground-muted">contact@tonytoubia.com</p>
+                    <p className="text-sm text-foreground-muted">tony@tonytoubia.com</p>
                   </div>
                 </a>
               </div>

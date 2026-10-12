@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { GATE_COOKIE, GATE_TOKEN, GATE_MAX_AGE, passwordMatches } from '@/lib/wrtt/gate';
+import { GATE_COOKIE, GATE_MAX_AGE, gateToken, passwordMatches } from '@/lib/wrtt/gate';
 
 /**
  * Two jobs, in order.
@@ -25,7 +25,7 @@ const SLT_HOST = /(^|\.)slt\.ventures$/i;
  *  does not reliably pass through next.config rewrites afterwards. */
 const SLT_STATIC = new Set(['/growth-advisors', '/platforms', '/capital']);
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const host = (req.headers.get('host') ?? '').split(':')[0];
   const onSlt = SLT_HOST.test(host);
   const { pathname } = req.nextUrl;
@@ -65,15 +65,16 @@ export function middleware(req: NextRequest) {
     // redirect, so it does not sit in the address bar or travel onward in a
     // Referer header. It still passes through server and proxy logs on the
     // way in, which is the cost of a password in a query string.
+    const token = await gateToken();
     const given = req.nextUrl.searchParams.get('password') ?? req.nextUrl.searchParams.get('p');
-    if (given && passwordMatches(given)) {
+    if (given && token && passwordMatches(given)) {
       const clean = req.nextUrl.clone();
       clean.searchParams.delete('password');
       clean.searchParams.delete('p');
       if (clean.pathname === pass.enter) clean.pathname = pass.home;
 
       const res = NextResponse.redirect(clean);
-      res.cookies.set(GATE_COOKIE, GATE_TOKEN, {
+      res.cookies.set(GATE_COOKIE, token, {
         httpOnly: true,
         sameSite: 'lax',
         secure: process.env.NODE_ENV === 'production',
@@ -86,9 +87,12 @@ export function middleware(req: NextRequest) {
       return res;
     }
 
+    // token is null when WRTT_GATE_PASSWORD is unset, and then no cookie can
+    // match - the console is closed rather than open, which is the way round
+    // it should fail.
     const open =
       pathname === pass.enter || // the gate itself has to stay reachable
-      req.cookies.get(GATE_COOKIE)?.value === GATE_TOKEN;
+      (token !== null && req.cookies.get(GATE_COOKIE)?.value === token);
     if (!open) {
       const url = req.nextUrl.clone();
       url.pathname = pass.enter;

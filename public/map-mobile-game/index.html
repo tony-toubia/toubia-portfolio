@@ -1,370 +1,345 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="mobile-web-app-capable" content="yes">
-    <title>Primal Hunt - Hunters vs Monsters</title>
-    <link rel="stylesheet" href="/map-mobile-game/css/style.css">
-    <style>
-        .back-to-home {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            z-index: 9999;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            border: 2px solid #fff;
-            padding: 8px 16px;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-            border-radius: 4px;
-            text-decoration: none;
-            display: none;
-            transition: background 0.2s;
-        }
-        .back-to-home:hover {
-            background: rgba(0, 0, 0, 0.9);
-        }
-        /* Only show when not in iframe */
-        body:not(.in-iframe) .back-to-home {
-            display: block;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#14182a">
+  <title>Primal Hunt</title>
+  <meta name="description" content="Survive the swarm. Hunt the monster. A one-thumb arena game by Tony Toubia.">
+  <link rel="stylesheet" href="/map-mobile-game/css/game.css?v=32">
 </head>
 <body>
-    <!-- Back to Home (only shown when not in iframe) -->
-    <a href="/" class="back-to-home">← Back to Home</a>
-    <!-- Main Menu Screen -->
-    <div id="main-menu" class="screen active">
-        <div class="menu-container">
-            <h1 class="game-title">PRIMAL HUNT</h1>
-            <p class="subtitle">Hunters vs Monsters</p>
+  <!--
+    Layering, bottom to top. This order is the fix for the previous game, where
+    the 3D canvas was stacked above the joystick and every tap missed:
+      1  #scene    the 3D view
+      2  #touch    the whole-screen input surface - it owns every gameplay touch
+      3  #hud      readouts; pointer-events off except the pause button
+      4  .screen   menus and modals, which cover #touch while open
+  -->
+  <canvas id="scene"></canvas>
+  <div id="touch"></div>
+  <div id="joy" aria-hidden="true"><div id="joy-knob"></div></div>
 
-            <div class="menu-buttons">
-                <button class="menu-btn primary" id="btn-play">PLAY GAME</button>
-                <button class="menu-btn" id="btn-how-to-play">HOW TO PLAY</button>
-                <button class="menu-btn" id="btn-settings">SETTINGS</button>
-            </div>
-        </div>
+  <div id="hud" hidden>
+    <div id="night-veil" hidden></div>
+    <div id="xpbar"><div id="xpfill"></div><span id="lvl">LV 1</span></div>
+    <div id="topline">
+      <span id="daily-chip" hidden>📅 DAILY</span>
+      <span id="apex-chip" hidden>⚔️ WAVE 1</span>
+      <span id="timer">0:00</span>
+      <span id="kills">0</span>
     </div>
-
-    <!-- Role Selection Screen -->
-    <div id="role-select" class="screen">
-        <div class="screen-header">
-            <button class="back-btn" id="btn-back-role">←</button>
-            <h2>CHOOSE YOUR SIDE</h2>
-        </div>
-
-        <div class="role-container">
-            <div class="role-card" id="select-hunter">
-                <div class="role-icon hunter-icon">🎯</div>
-                <h3>HUNTER</h3>
-                <p>Work together to track and capture the monster before it evolves</p>
-                <ul class="role-features">
-                    <li>Team-based gameplay</li>
-                    <li>Specialized classes</li>
-                    <li>Tactical coordination</li>
-                </ul>
-            </div>
-
-            <div class="role-card" id="select-monster">
-                <div class="role-icon monster-icon">👹</div>
-                <h3>MONSTER</h3>
-                <p>Evolve, grow stronger, and eliminate the hunters</p>
-                <ul class="role-features">
-                    <li>Evolution stages</li>
-                    <li>Powerful abilities</li>
-                    <li>Stealth & ambush</li>
-                </ul>
-            </div>
-        </div>
+    <div id="loadout"></div>
+    <div id="bossbar" hidden>
+      <div id="bossname"></div>
+      <div id="bosstrack"><div id="bossfill"></div></div>
     </div>
-
-    <!-- Hunter Selection Screen -->
-    <div id="hunter-select" class="screen">
-        <div class="screen-header">
-            <button class="back-btn" id="btn-back-hunter">←</button>
-            <h2>SELECT HUNTER CLASS</h2>
-        </div>
-
-        <div class="character-grid" id="hunter-grid">
-            <!-- Populated by JavaScript -->
-        </div>
-
-        <div class="character-info" id="hunter-info">
-            <h3 id="hunter-name">Select a Hunter</h3>
-            <p id="hunter-desc">Choose your hunter class to begin</p>
-            <div class="stats-container" id="hunter-stats"></div>
-            <div class="abilities-preview" id="hunter-abilities"></div>
-        </div>
-
-        <button class="confirm-btn" id="btn-confirm-hunter" disabled>CONFIRM SELECTION</button>
+    <button id="btn-pause" aria-label="Pause">❚❚</button>
+    <div id="actions">
+      <button id="btn-roar" aria-label="Roar" hidden><span class="ai">📣</span><span class="key">R</span></button>
+      <button id="btn-dodge" aria-label="Dodge roll"><span class="ai">💨</span><span class="key">SHIFT</span></button>
+      <button id="btn-ability" aria-label="Special ability"><span class="sweep"></span><span class="ai" id="ability-icon">⚡</span><span class="key">SPACE</span></button>
     </div>
-
-    <!-- Monster Selection Screen -->
-    <div id="monster-select" class="screen">
-        <div class="screen-header">
-            <button class="back-btn" id="btn-back-monster">←</button>
-            <h2>SELECT MONSTER TYPE</h2>
-        </div>
-
-        <div class="character-grid" id="monster-grid">
-            <!-- Populated by JavaScript -->
-        </div>
-
-        <div class="character-info" id="monster-info">
-            <h3 id="monster-name">Select a Monster</h3>
-            <p id="monster-desc">Choose your monster type to begin</p>
-            <div class="stats-container" id="monster-stats"></div>
-            <div class="abilities-preview" id="monster-abilities"></div>
-        </div>
-
-        <button class="confirm-btn" id="btn-confirm-monster" disabled>CONFIRM SELECTION</button>
+    <div id="hpbar"><div id="hpfill"></div></div>
+    <!-- Monster mode HUD -->
+    <div id="mbars">
+      <div id="mstage"></div>
+      <div id="marmor"><div id="marmorfill"></div></div>
+      <div id="mhp"><div id="mhpfill"></div></div>
+      <div id="mfood"><div id="mfoodfill"></div><span id="mfoodlabel">EVOLUTION</span></div>
     </div>
+    <div id="mstatus" class="unseen">UNSEEN</div>
+    <div id="squad"></div>
+    <canvas id="radar" width="180" height="180"></canvas>
+    <div id="hbars"></div>
+    <button id="btn-evolve" hidden>🧬 EVOLVE</button>
+    <div id="toast"></div>
+    <div id="coach" hidden><div class="ct" id="coach-text"></div><button id="btn-coach-skip">Skip tutorial</button></div>
+    <div id="boss-card" aria-live="polite"><div class="bc-name"></div><div class="bc-sub"></div></div>
+    <div id="banner"></div>
+    <div id="numbers"></div>
+    <div id="hurt"></div>
+  </div>
 
-    <!-- Game Screen -->
-    <div id="game-screen" class="screen">
-        <canvas id="game-canvas"></canvas>
-
-        <!-- HUD -->
-        <div id="game-hud">
-            <div class="hud-top">
-                <div class="health-bar-container">
-                    <div class="health-bar" id="player-health"></div>
-                    <span class="health-text" id="health-text">100/100</span>
-                </div>
-                <div class="game-timer" id="game-timer">10:00</div>
-                <div class="evolution-indicator" id="evolution-indicator">
-                    <span class="evo-stage">Stage 1</span>
-                    <div class="evo-progress-bar">
-                        <div class="evo-progress" id="evo-progress"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Team Health Panel -->
-            <div id="team-health-panel">
-                <!-- Monster Health (shown when playing as hunter) -->
-                <div class="team-health-section" id="monster-health-section">
-                    <div class="section-label">MONSTER</div>
-                    <div class="entity-health-row monster" id="monster-health-row">
-                        <div class="entity-portrait">
-                            <span class="entity-icon" id="monster-icon">👹</span>
-                            <span class="evolution-badge" id="monster-evo-badge">1</span>
-                        </div>
-                        <div class="entity-health-info">
-                            <div class="entity-name" id="hud-monster-name">Monster</div>
-                            <div class="entity-health-bar-wrapper">
-                                <div class="entity-health-bar" id="monster-health-bar"></div>
-                            </div>
-                            <div class="entity-health-text" id="monster-health-text">500/500</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Hunter Team Health (shown when playing as monster) -->
-                <div class="team-health-section" id="hunters-health-section">
-                    <div class="section-label">HUNTERS</div>
-                    <div class="hunters-grid" id="hunters-health-grid">
-                        <!-- Hunter slots populated by JavaScript -->
-                    </div>
-                </div>
-            </div>
-
-            <div class="hud-bottom">
-                <div class="ability-bar" id="ability-bar">
-                    <!-- Populated by JavaScript -->
-                </div>
-
-                <div class="minimap-container">
-                    <canvas id="minimap" width="120" height="120"></canvas>
-                </div>
-            </div>
-
-            <!-- Mobile Controls -->
-            <div class="mobile-controls">
-                <div class="joystick-container" id="joystick-container">
-                    <div class="joystick-base">
-                        <div class="joystick-knob" id="joystick-knob"></div>
-                    </div>
-                </div>
-
-                <!-- Aim Joystick (for attack direction) -->
-                <div class="joystick-container aim-joystick" id="aim-joystick-container">
-                    <div class="joystick-base">
-                        <div class="joystick-knob" id="aim-joystick-knob"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Pause Menu -->
-        <div id="pause-menu" class="overlay hidden">
-            <div class="overlay-content">
-                <h2>PAUSED</h2>
-                <button class="menu-btn" id="btn-resume">RESUME</button>
-                <button class="menu-btn" id="btn-upgrades">UPGRADES</button>
-                <button class="menu-btn danger" id="btn-quit">QUIT GAME</button>
-            </div>
-        </div>
-
-        <button class="pause-btn" id="btn-pause">⏸</button>
+  <section id="menu" class="screen active">
+    <div class="panel menu-panel">
+      <h1 class="title">PRIMAL<br>HUNT</h1>
+      <p class="tagline">Survive the swarm. Hunt the monster.</p>
+      <button class="btn primary" id="btn-play">PLAY</button>
+      <button class="btn daily-btn" id="btn-daily">📅 DAILY HUNT <span id="daily-tag"></span></button>
+      <button class="rank-strip" id="btn-lodge" aria-label="Hunter's Lodge">
+        <span class="rk-badge" id="rank-badge">1</span>
+        <span class="rk-body"><span class="rk-title" id="rank-title">ROOKIE</span><span class="rk-bar"><i id="rank-fill"></i></span></span>
+        <span class="rk-go"><span class="rk-new" id="rank-new" hidden>NEW</span>LODGE ›</span>
+      </button>
+      <p class="best" id="best-line"></p>
+      <p class="hint">Drag anywhere to move. Attacks fire on their own.<br>Tap the big button for your special, the small one to dodge<span class="kb-only"> (Space / Shift)</span>.</p>
+      <div class="menu-foot">
+        <button class="link" id="btn-mute">🔊 Sound on</button>
+        <button class="link" id="btn-music">🎵 Music on</button>
+        <button class="link" id="btn-haptics" hidden>📳 Vibration on</button>
+        <button class="link" id="btn-settings">⚙️ Settings</button>
+        <a class="link" id="back-home" href="/">← tonytoubia.com</a>
+      </div>
     </div>
+  </section>
 
-    <!-- Upgrade Screen -->
-    <div id="upgrade-screen" class="screen">
-        <div class="screen-header">
-            <button class="back-btn" id="btn-back-upgrade">←</button>
-            <h2>UPGRADES</h2>
-            <div class="points-display">
-                <span id="upgrade-points">0</span> Points
-            </div>
-        </div>
-
-        <div class="skill-tree" id="skill-tree">
-            <!-- Populated by JavaScript -->
-        </div>
-
-        <button class="confirm-btn" id="btn-apply-upgrades">APPLY & RETURN</button>
+  <section id="modes" class="screen">
+    <div class="panel modes-panel">
+      <div class="panel-head">
+        <button class="icon-btn" id="btn-modes-back" aria-label="Back">←</button>
+        <h2>CHOOSE YOUR SIDE</h2>
+      </div>
+      <button class="mode-card" id="mode-survival" style="--accent: var(--orange)">
+        <div class="mi">🔫</div>
+        <div class="mb"><div class="mn">SURVIVAL</div><div class="md">You are a hunter. Outlast the swarm, upgrade your weapons, slay three evolving monsters.</div></div>
+      </button>
+      <button class="mode-card" id="mode-hunt" style="--accent: var(--teal)">
+        <div class="mi">🎯</div>
+        <div class="mb"><div class="mn">HUNTER SQUAD <span class="kt new">NEW</span></div><div class="md">You and three AI hunters track a monster through the grass. Trap it and kill it before it evolves - or it hunts you.</div></div>
+      </button>
+      <button class="mode-card" id="mode-weekly" style="--accent: #7dff9a">
+        <div class="mi" id="weekly-icon">🧪</div>
+        <div class="mb"><div class="mn">WEEKLY MUTATOR <span class="kt new">NEW</span></div><div class="md" id="weekly-blurb">Survival with a twist that changes every Monday, and its own leaderboard.</div></div>
+      </button>
+      <button class="mode-card" id="mode-coop" style="--accent: #4ecdc4">
+        <div class="mi">🤝</div>
+        <div class="mb"><div class="mn">ONLINE CO-OP <span class="kt new">NEW</span></div><div class="md">Hunter Squad with friends: up to four of you, each a hunter, against the monster. Share a code to play together.</div></div>
+      </button>
+      <button class="mode-card" id="mode-monster" style="--accent: var(--purple)">
+        <div class="mi">👹</div>
+        <div class="mb"><div class="mn">MONSTER</div><div class="md">You are the monster. Eat, hide in the grass and evolve - then hunt the four hunters, or outlast their clock.</div></div>
+      </button>
     </div>
+  </section>
 
-    <!-- Game Over Screen -->
-    <div id="game-over" class="screen">
-        <div class="game-over-container">
-            <h1 id="game-result">VICTORY</h1>
-            <p id="game-summary">You survived the hunt!</p>
-
-            <div class="stats-summary" id="end-stats">
-                <!-- Populated by JavaScript -->
-            </div>
-
-            <div class="menu-buttons">
-                <button class="menu-btn primary" id="btn-play-again">PLAY AGAIN</button>
-                <button class="menu-btn" id="btn-main-menu">MAIN MENU</button>
-            </div>
-        </div>
+  <section id="monsters" class="screen">
+    <div class="panel classes-panel">
+      <div class="panel-head">
+        <button class="icon-btn" id="btn-monsters-back" aria-label="Back">←</button>
+        <h2>CHOOSE YOUR MONSTER</h2>
+      </div>
+      <div id="monster-grid" class="pick-grid"></div>
+      <p class="hint">Eat wildlife to fill your evolution meter, then evolve where it is safe. Tall grass hides you and leaves no tracks. Kill all four hunters - or survive until their dropship leaves.</p>
+      <button class="btn primary" id="btn-monster-go" disabled>HUNT</button>
     </div>
+  </section>
 
-    <!-- How To Play Screen -->
-    <div id="how-to-play" class="screen">
-        <div class="screen-header">
-            <button class="back-btn" id="btn-back-help">←</button>
-            <h2>HOW TO PLAY</h2>
-        </div>
-
-        <div class="help-content">
-            <div class="help-section">
-                <h3>🎯 HUNTERS</h3>
-                <p>As a Hunter, your goal is to track down and capture the Monster before it fully evolves. Work with AI teammates, use your abilities wisely, and coordinate your attacks.</p>
-                <ul>
-                    <li><strong>Assault:</strong> High damage dealer</li>
-                    <li><strong>Trapper:</strong> Controls the battlefield</li>
-                    <li><strong>Medic:</strong> Heals and supports</li>
-                    <li><strong>Support:</strong> Buffs and shields</li>
-                </ul>
-            </div>
-
-            <div class="help-section">
-                <h3>👹 MONSTERS</h3>
-                <p>As the Monster, feed on wildlife to evolve and grow stronger. Avoid hunters in early stages, then strike when you've reached full power!</p>
-                <ul>
-                    <li><strong>Stage 1:</strong> Weak but stealthy</li>
-                    <li><strong>Stage 2:</strong> Balanced power</li>
-                    <li><strong>Stage 3:</strong> Ultimate form</li>
-                </ul>
-            </div>
-
-            <div class="help-section">
-                <h3>🎮 CONTROLS</h3>
-                <p>Use the virtual joystick to move. Tap ability buttons to use skills. Double-tap to dash/dodge.</p>
-            </div>
-        </div>
+  <section id="classes" class="screen">
+    <div class="panel classes-panel">
+      <div class="panel-head">
+        <button class="icon-btn" id="btn-classes-back" aria-label="Back">←</button>
+        <h2>CHOOSE YOUR HUNTER</h2>
+      </div>
+      <div id="class-grid" class="pick-grid"></div>
+      <p class="hint" id="hunt-hint" hidden>Your weapon fires on its own when the squad can see the monster. Follow its footprints, watch for birds, and use your special. Stand over a downed teammate to revive them.</p>
+      <button class="btn primary" id="btn-hunt" disabled>HUNT</button>
     </div>
+  </section>
 
-    <!-- Settings Screen -->
-    <div id="settings" class="screen">
-        <div class="screen-header">
-            <button class="back-btn" id="btn-back-settings">←</button>
-            <h2>SETTINGS</h2>
-        </div>
-
-        <div class="settings-content">
-            <div class="setting-item">
-                <label>Sound Effects</label>
-                <input type="range" id="sfx-volume" min="0" max="100" value="80">
-            </div>
-            <div class="setting-item">
-                <label>Music</label>
-                <input type="range" id="music-volume" min="0" max="100" value="60">
-            </div>
-            <div class="setting-item">
-                <label>Vibration</label>
-                <label class="toggle">
-                    <input type="checkbox" id="vibration-toggle" checked>
-                    <span class="toggle-slider"></span>
-                </label>
-            </div>
-            <div class="setting-item">
-                <label>Show FPS</label>
-                <label class="toggle">
-                    <input type="checkbox" id="fps-toggle">
-                    <span class="toggle-slider"></span>
-                </label>
-            </div>
-            <div class="setting-item">
-                <label>Difficulty</label>
-                <select id="difficulty-select">
-                    <option value="easy">Easy</option>
-                    <option value="normal" selected>Normal</option>
-                    <option value="hard">Hard</option>
-                </select>
-            </div>
-        </div>
+  <section id="daily" class="screen">
+    <div class="panel daily-panel">
+      <div class="panel-head">
+        <button class="icon-btn" id="btn-daily-back" aria-label="Back">←</button>
+        <h2 id="daily-title">DAILY HUNT</h2>
+      </div>
+      <div class="board-tabs" role="tablist">
+        <button class="lt active" id="tab-daily" role="tab">📅 TODAY</button>
+        <button class="lt" id="tab-weekly" role="tab">🧪 WEEKLY</button>
+        <button class="lt" id="tab-apex" role="tab">⚔️ APEX</button>
+      </div>
+      <div id="daily-today">
+        <div class="daily-hunter" id="daily-hunter"></div>
+        <p class="hint">Today's run is the same for everyone - the same swarm, the same monsters, the same upgrades on offer. Play as often as you like; your best score goes on the board. A new hunt every day at midnight UTC.</p>
+        <h3 class="board-title">TODAY'S TOP HUNTERS</h3>
+        <div class="board" id="daily-board"></div>
+        <p class="daily-me" id="daily-me"></p>
+        <button class="btn primary" id="btn-daily-go">START TODAY'S HUNT</button>
+      </div>
+      <div id="daily-weekly" hidden>
+        <div class="daily-hunter weekly-card" id="weekly-card"></div>
+        <p class="hint">This week's twist is the same for everyone - the same swarm, the same monsters, the same rule. Pick any hunter (starting weapons are standard). Your best score goes on the board; a new mutator every Monday, midnight UTC.</p>
+        <h3 class="board-title">THIS WEEK'S TOP HUNTERS</h3>
+        <div class="board" id="weekly-board"></div>
+        <p class="daily-me" id="weekly-me"></p>
+        <button class="btn primary" id="btn-weekly-go">CHOOSE YOUR HUNTER</button>
+      </div>
+      <div id="daily-apex" hidden>
+        <p class="hint">Win a Survival run, then choose <b>Apex Hunt</b> to keep going: endless waves of mutated monsters, two and then three at a time, harder every wave. Your best run goes on this board.</p>
+        <h3 class="board-title">APEX HUNTERS · ALL TIME</h3>
+        <div class="board" id="apex-board"></div>
+        <p class="daily-me" id="apex-me"></p>
+      </div>
     </div>
+  </section>
 
-    <!-- Loading Screen -->
-    <div id="loading-screen" class="screen">
-        <div class="loading-content">
-            <h2>LOADING...</h2>
-            <div class="loading-bar">
-                <div class="loading-progress" id="loading-progress"></div>
-            </div>
-            <p id="loading-text">Preparing the hunt...</p>
-        </div>
+  <section id="lodge" class="screen">
+    <div class="panel lodge-panel">
+      <div class="panel-head">
+        <button class="icon-btn" id="btn-lodge-back" aria-label="Back">←</button>
+        <h2>HUNTER'S LODGE</h2>
+      </div>
+      <div class="lodge-rank" id="lodge-rank"></div>
+      <div class="lodge-records" id="lodge-records"></div>
+      <div class="lodge-tabs" role="tablist">
+        <button class="lt active" data-tab="skin" role="tab">🎽 HUNTERS</button>
+        <button class="lt" data-tab="color" role="tab">🎨 MONSTERS</button>
+        <button class="lt" data-tab="starter" role="tab">🔫 WEAPONS</button>
+        <button class="lt" data-tab="ach" role="tab">🏆 AWARDS</button>
+      </div>
+      <p class="lodge-note" id="lodge-note"></p>
+      <div id="lodge-list"></div>
     </div>
+  </section>
 
-    <!-- Detect if in iframe and hide back button if so -->
-    <script>
-        if (window.self !== window.top) {
-            document.body.classList.add('in-iframe');
-        }
-    </script>
+  <section id="settings" class="screen modal">
+    <div class="panel small-panel settings-panel">
+      <div class="panel-head">
+        <button class="icon-btn" id="btn-settings-back" aria-label="Back">←</button>
+        <h2>SETTINGS</h2>
+      </div>
+      <div class="set-row">
+        <div class="sl">🎮 Graphics</div>
+        <div class="seg" id="set-quality" role="radiogroup">
+          <button data-v="auto" role="radio">AUTO</button><button data-v="high" role="radio">HIGH</button><button data-v="low" role="radio">LOW</button>
+        </div>
+      </div>
+      <p class="set-note">Auto lowers detail if your device struggles, raises it again when it can, and remembers what works.</p>
+      <button class="set-toggle" data-k="reduceMotion" role="switch"><span class="st-t">🌀 Reduce motion<small>Gentler screen shake, no camera push-ins</small></span><i></i></button>
+      <button class="set-toggle" data-k="cbSafe" role="switch"><span class="st-t">🎨 Colour-blind-safe warnings<small>Yellow for danger, blue for what is yours</small></span><i></i></button>
+      <button class="set-toggle" data-k="bigHud" role="switch"><span class="st-t">🔠 Larger HUD<small>Bigger text and bars while you play</small></span><i></i></button>
+      <button class="btn ghost" id="btn-replay-tutorial">🎓 PLAY THE TUTORIAL AGAIN</button>
+    </div>
+  </section>
 
-    <!-- Three.js Library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <section id="coop" class="screen">
+    <div class="panel coop-panel">
+      <div class="panel-head">
+        <button class="icon-btn" id="btn-coop-back" aria-label="Back">←</button>
+        <h2>ONLINE CO-OP</h2>
+      </div>
+      <div id="coop-start">
+        <p class="hint">Hunt the monster together: up to four friends, each a hunter, with AI hunters filling any empty places. One of you hosts; everyone else joins with the code.</p>
+        <label class="coop-label" for="coop-name">Your name</label>
+        <input id="coop-name" class="coop-input" maxlength="12" autocomplete="off" spellcheck="false" placeholder="Hunter">
+        <button class="btn primary" id="btn-coop-host">HOST A HUNT</button>
+        <div class="coop-or">or join one</div>
+        <div class="daily-entry">
+          <input id="coop-code" class="coop-input code" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="CODE" aria-label="Room code">
+          <button class="btn" id="btn-coop-join">JOIN</button>
+        </div>
+        <p class="daily-status" id="coop-start-status"></p>
+      </div>
+      <div id="coop-lobby" hidden>
+        <div class="coop-room">
+          <div><span class="cr-l">ROOM</span><b id="coop-room-code">----</b></div>
+          <button class="btn coop-invite" id="btn-coop-invite">📤 INVITE</button>
+        </div>
+        <div id="coop-players"></div>
+        <h3 class="board-title" id="coop-pick-title">YOUR HUNTER</h3>
+        <div id="coop-classes" class="coop-classes"></div>
+        <div id="coop-monster" class="coop-monster"></div>
+        <p class="hint" id="coop-status"></p>
+        <button class="btn primary" id="btn-coop-go">START THE HUNT</button>
+      </div>
+    </div>
+  </section>
 
-    <!-- Scripts -->
-    <script src="/map-mobile-game/js/utils.js"></script>
-    <script src="/map-mobile-game/js/audio.js"></script>
-    <script src="/map-mobile-game/js/abilities.js"></script>
-    <script src="/map-mobile-game/js/characters.js"></script>
-    <script src="/map-mobile-game/js/map.js"></script>
-    <script src="/map-mobile-game/js/ai.js"></script>
-    <script src="/map-mobile-game/js/ui.js"></script>
+  <section id="choice" class="screen modal">
+    <div class="panel choice-panel">
+      <h2 id="choice-title">LEVEL UP</h2>
+      <p id="choice-sub">Choose one</p>
+      <div id="choice-cards"></div>
+    </div>
+  </section>
 
-    <!-- 3D Engine -->
-    <script src="/map-mobile-game/js/engine3d/Renderer3D.js"></script>
-    <script src="/map-mobile-game/js/engine3d/Shaders3D.js"></script>
-    <script src="/map-mobile-game/js/engine3d/Terrain3D.js"></script>
-    <script src="/map-mobile-game/js/engine3d/Characters3D.js"></script>
-    <script src="/map-mobile-game/js/engine3d/Effects3D.js"></script>
-    <script src="/map-mobile-game/js/engine3d/PostProcessing.js"></script>
+  <section id="pause" class="screen modal">
+    <div class="panel small-panel">
+      <h2>PAUSED</h2>
+      <div id="pause-loadout"></div>
+      <button class="btn primary" id="btn-resume">RESUME</button>
+      <button class="btn" id="btn-pause-mute">🔊 Sound on</button>
+      <button class="btn" id="btn-pause-music">🎵 Music on</button>
+      <button class="btn" id="btn-pause-haptics" hidden>📳 Vibration on</button>
+      <button class="btn" id="btn-pause-settings">⚙️ SETTINGS</button>
+      <button class="btn ghost" id="btn-quit">QUIT RUN</button>
+    </div>
+  </section>
 
-    <script src="/map-mobile-game/js/game.js"></script>
-    <script src="/map-mobile-game/js/game3d.js"></script>
-    <script src="/map-mobile-game/js/main.js"></script>
+  <section id="over" class="screen modal">
+    <div class="panel small-panel">
+      <h2 id="over-title">YOU FELL</h2>
+      <p id="over-sub"></p>
+      <div id="over-stats"></div>
+      <p id="over-score"></p>
+      <div id="over-xp" hidden>
+        <div class="xp-line"><span class="xp-gain" id="xp-gain"></span><span class="xp-rank" id="xp-rank"></span></div>
+        <div class="xp-bar"><i id="xp-fill"></i></div>
+        <div class="xp-unlocks" id="xp-unlocks"></div>
+      </div>
+      <div id="over-daily" hidden>
+        <form id="daily-form" autocomplete="off">
+          <label for="daily-initials">Your initials for the board</label>
+          <div class="daily-entry">
+            <input id="daily-initials" maxlength="3" autocapitalize="characters" spellcheck="false" placeholder="AAA" aria-label="Initials">
+            <button class="btn" id="btn-daily-submit" type="submit">SUBMIT</button>
+          </div>
+        </form>
+        <p class="daily-status" id="daily-status"></p>
+        <div class="board compact" id="over-board"></div>
+      </div>
+      <div id="over-apex" hidden>
+        <form id="apex-form" autocomplete="off">
+          <label for="apex-initials">Your initials for the Apex board</label>
+          <div class="daily-entry">
+            <input id="apex-initials" maxlength="3" autocapitalize="characters" spellcheck="false" placeholder="AAA" aria-label="Initials">
+            <button class="btn" id="btn-apex-submit" type="submit">SUBMIT</button>
+          </div>
+        </form>
+        <p class="daily-status" id="apex-status"></p>
+        <div class="board compact" id="over-apex-board"></div>
+      </div>
+      <button class="btn apex-btn" id="btn-apex" hidden>⚔️ APEX HUNT · KEEP GOING</button>
+      <button class="btn primary" id="btn-again">HUNT AGAIN</button>
+      <button class="btn share-btn" id="btn-share">📤 SHARE RESULT</button>
+      <button class="btn ghost" id="btn-menu">MENU</button>
+    </div>
+  </section>
+
+  <section id="nogl" class="screen">
+    <div class="panel small-panel">
+      <h2>PRIMAL HUNT</h2>
+      <p>This game needs WebGL, which this browser or device has turned off.</p>
+      <a class="btn" href="/">Back to tonytoubia.com</a>
+    </div>
+  </section>
+
+  <script src="/map-mobile-game/vendor/three.min.js?v=r128"></script>
+  <script src="/map-mobile-game/js/config.js?v=32"></script>
+  <script src="/map-mobile-game/js/world.js?v=32"></script>
+  <script src="/map-mobile-game/js/settings.js?v=32"></script>
+  <script src="/map-mobile-game/js/progress.js?v=32"></script>
+  <script src="/map-mobile-game/js/audio.js?v=32"></script>
+  <script src="/map-mobile-game/js/music.js?v=32"></script>
+  <script src="/map-mobile-game/js/engine3d/Characters3D.js?v=32"></script>
+  <script src="/map-mobile-game/js/engine3d/Effects3D.js?v=32"></script>
+  <script src="/map-mobile-game/vendor/GLTFLoader.js?v=r128"></script>
+  <script src="/map-mobile-game/vendor/SkeletonUtils.js?v=r128"></script>
+  <script src="/map-mobile-game/js/look.js?v=32"></script>
+  <script src="/map-mobile-game/js/models.js?v=32"></script>
+  <script src="/map-mobile-game/js/creatures.js?v=32"></script>
+  <script src="/map-mobile-game/js/swarm.js?v=32"></script>
+  <script src="/map-mobile-game/js/render.js?v=32"></script>
+  <script src="/map-mobile-game/js/game.js?v=32"></script>
+  <script src="/map-mobile-game/js/monster.js?v=32"></script>
+  <script src="/map-mobile-game/js/hunt.js?v=32"></script>
+  <script src="/map-mobile-game/js/daily.js?v=32"></script>
+  <script src="/map-mobile-game/js/net.js?v=32"></script>
+  <script src="/map-mobile-game/js/coop.js?v=32"></script>
+  <script src="/map-mobile-game/js/ui.js?v=32"></script>
+  <script src="/map-mobile-game/js/main.js?v=32"></script>
 </body>
 </html>

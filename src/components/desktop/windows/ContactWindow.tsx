@@ -16,7 +16,7 @@ export default function ContactWindow({ initialSubject = 'General Inquiry' }: Co
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const mailtoLink = `mailto:contact@tonytoubia.com?subject=${encodeURIComponent(
+    const mailtoLink = `mailto:tony@tonytoubia.com?subject=${encodeURIComponent(
       `[${formData.subject}] From ${formData.name}`
     )}&body=${encodeURIComponent(formData.message)}`;
     window.location.href = mailtoLink;
@@ -105,7 +105,7 @@ export default function ContactWindow({ initialSubject = 'General Inquiry' }: Co
             <img src="/images/linkedin-icon.png" alt="" className="w-4 h-4 object-contain" /> LinkedIn
           </a>
           <a
-            href="mailto:contact@tonytoubia.com"
+            href="mailto:tony@tonytoubia.com"
             className="retro-link flex items-center gap-1"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
