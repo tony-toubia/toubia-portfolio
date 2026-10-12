@@ -83,9 +83,9 @@ def('2926', 'Plate 1 x 4 with Wheel Holders', 'Wheels', 1, 4, 0.4, { isPlate: tr
 def('4624', 'Wheel 8mm D. x 6mm', 'Wheels', 1, 1, 1.0, { isWheel: true, diameter: 1.0, hasStuds: false });
 def('3641', 'Tire 15mm D. x 6mm', 'Wheels', 1, 2, 2.0, { isTire: true, diameter: 1.9, hasStuds: false, ghost: true });
 def('6014', 'Wheel 11mm D. x 12mm', 'Wheels', 1, 2, 1.4, { isWheel: true, diameter: 1.4, hasStuds: false });
-def('6015', 'Tire 17mm D. x 6mm', 'Wheels', 1, 2, 2.1, { isTire: true, diameter: 2.1, hasStuds: false, ghost: true });
+def('6015', 'Tire 21mm D. x 12mm', 'Wheels', 1, 3, 2.6, { isTire: true, diameter: 2.6, hasStuds: false, ghost: true });
 def('56904', 'Wheel 30.4mm D. x 20mm', 'Wheels', 2, 4, 3.8, { isWheel: true, diameter: 3.8, hasStuds: false });
-def('56891', 'Tire 43.2mm D. x 22mm', 'Wheels', 2, 5, 5.4, { isTire: true, diameter: 5.4, hasStuds: false, ghost: true });
+def('56898', 'Tire 43.2mm D. x 14mm', 'Wheels', 2, 5, 5.4, { isTire: true, diameter: 5.4, hasStuds: false, ghost: true });
 def('55423', 'Train Wheel with Axle Hole', 'Wheels', 1, 2, 2.2, { isWheel: true, diameter: 2.2, hasStuds: false });
 def('3705', 'Technic Axle 4', 'Technic', 1, 4, 0.4, { isBar: true, hasStuds: false });
 def('2780', 'Technic Pin with Friction', 'Technic', 1, 1, 0.4, { isPin: true, hasStuds: false });
@@ -126,7 +126,7 @@ def('87580', 'Plate 2 x 2 with Centre Stud (Jumper)', 'Plates', 2, 2, 0.4, { isP
 // --- ARCHES, WINDOWS & DOORS ---
 def('3659', 'Arch 1 x 4', 'Arches', 1, 4, 1.2, { isArch: true });
 def('3455', 'Arch 1 x 6', 'Arches', 1, 6, 1.2, { isArch: true });
-def('92950', 'Arch 1 x 8 x 2', 'Arches', 1, 8, 2.4, { isArch: true });
+def('3308', 'Arch 1 x 8 x 2', 'Arches', 1, 8, 2.4, { isArch: true });
 def('6005', 'Arch 1 x 3 x 2 Curved Top', 'Arches', 1, 3, 2.4, { isArch: true, round: true });
 def('60592', 'Window 1 x 2 x 2', 'Windows', 1, 2, 2.4, { isWindow: true });
 def('60601', 'Glass for Window 1 x 2 x 2', 'Windows', 1, 2, 2.4, { isGlass: true, hasStuds: false, ghost: true });
