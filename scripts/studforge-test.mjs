@@ -9,7 +9,7 @@ const dir = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../pu
 const ctx = { console, Math, Object, Array, Set, Map, Number, JSON, String, Error };
 ctx.window = ctx;
 vm.createContext(ctx);
-for (const f of ['colors.js', 'parts-catalog.js', 'forge-grid.js', 'forge-builders.js', 'forge-builders-2.js', ...fs.readdirSync(dir).filter((f) => /^forge-builders-\d+\.js$/.test(f) && !['forge-builders-2.js'].includes(f)).sort(), 'generator.js']) vm.runInContext(fs.readFileSync(dir + f, 'utf8'), ctx, { filename: f });
+for (const f of ['colors.js', 'parts-catalog.js', 'forge-grid.js', 'forge-modules.js', 'forge-builders.js', 'forge-builders-2.js', ...fs.readdirSync(dir).filter((f) => /^forge-builders-\d+\.js$/.test(f) && !['forge-builders-2.js'].includes(f)).sort(), 'generator.js']) vm.runInContext(fs.readFileSync(dir + f, 'utf8'), ctx, { filename: f });
 const gen = new ctx.BrickGenerator();
 
 const footprint = (b) => b.fp;
