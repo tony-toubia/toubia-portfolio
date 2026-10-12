@@ -1,9 +1,9 @@
 // StudForge feature: "Claude in the loop".
-// The ✨ chip has three states, persisted in localStorage:
-//   OFF     the local forge only.
-//   BRIEF   a new idea is first sent to /api/studforge/idea, which asks Claude for a design brief (subject, style,
+// The engine picker in the create bar has three choices (the mode is persisted in localStorage):
+//   OFF     "Quick": the local forge only.
+//   BRIEF   "Claude plans it": a new idea is first sent to /api/studforge/idea, which asks Claude for a design brief (subject, style,
 //           colours, scale, name, description) that the local engine then builds with one of its builders.
-//   DESIGN  the idea is sent with { mode: 'blueprint' } and the engine's vocabulary (modules, parts, colours, the
+//   DESIGN  "Claude designs it": the idea is sent with { mode: 'blueprint' } and the engine's vocabulary (modules, parts, colours, the
 //           knowledge base's subject data); Claude answers with a BLUEPRINT (blueprint.js) that the engine
 //           assembles from primitives and modules: Claude designs the model, not just picks a builder. RE-FORGE
 //           asks Claude for a different design (the variant number goes with the request). The subject's id goes
@@ -17,7 +17,7 @@
     const KEY = 'studforge.ai.v1', ROUTE = '/api/studforge/idea';
     const MODES = ['off', 'brief', 'design'];
     // 'on' is what the older two-state chip saved: it means BRIEF.
-    const readPref = () => { try { const v = localStorage.getItem(KEY); return v === 'off' ? 'off' : v === 'design' ? 'design' : 'brief'; } catch { return 'brief'; } };
+    const readPref = () => { try { const v = localStorage.getItem(KEY); return v === 'on' || v === 'brief' ? 'brief' : v === 'design' ? 'design' : 'off'; } catch { return 'off'; } };
     const savePref = (mode) => { try { localStorage.setItem(KEY, mode === 'brief' ? 'on' : mode); } catch { /* private mode */ } };
 
     const css = `
@@ -44,14 +44,27 @@
         let cache = { prompt: null, brief: null }; // the last brief we asked for, so RE-FORGE in BRIEF mode never re-asks
         const enabled = () => mode !== 'off';
 
-        /* ── dock chip: OFF → BRIEF → DESIGN → OFF ── */
-        const chip = document.createElement('button');
-        chip.className = 'tool-chip sfai-chip'; chip.type = 'button';
-        const TITLES = { off: 'Claude is off: the local forge builds every idea', brief: 'BRIEF: Claude turns your idea into a design brief the local builders follow. Click for DESIGN.', design: 'DESIGN: Claude designs the whole model from parts and modules. Click to turn Claude off.' };
-        const paint = () => { chip.classList.toggle('on', enabled()); chip.classList.toggle('design', mode === 'design'); chip.dataset.mode = mode; chip.title = TITLES[mode]; chip.innerHTML = `<span>✨</span> CLAUDE: ${mode.toUpperCase()}`; };
-        const setMode = (m) => { mode = MODES.includes(m) ? m : 'brief'; savePref(mode); paint(); paintTake(sf.model); };
-        chip.addEventListener('click', () => setMode(MODES[(MODES.indexOf(mode) + 1) % MODES.length]));
-        paint(); sf.dock(chip);
+        /* ── the engine picker: Quick (the core's) · Claude plans it · Claude designs it ── */
+        // Engine ids map onto the modes: quick → off, plan → brief, design → design. Picking a Claude engine on a
+        // browser that has not unlocked asks for the password straight away; cancelling goes back to Quick.
+        const ENGINE_MODE = { quick: 'off', plan: 'brief', design: 'design' }, MODE_ENGINE = { off: 'quick', brief: 'plan', design: 'design' };
+        const plan = sf.registerEngine({ id: 'plan', icon: '✨', label: 'Claude plans it', short: 'Claude: plan', hint: 'Claude writes the brief, the engine builds it · about 5 s', order: 10 });
+        const designE = sf.registerEngine({ id: 'design', icon: '✨', label: 'Claude designs it', short: 'Claude: design', hint: 'Claude lays out every section from real-set examples · slower', order: 20 });
+        let unlocked = false;
+        const paintLock = () => { plan.setLocked(!unlocked && !offline); designE.setLocked(!unlocked && !offline); };
+        const gate = window.studForgeGate;
+        if (gate) gate.isUnlocked().then((u) => { unlocked = u; paintLock(); });
+        paintLock();
+        const setMode = (m) => { mode = MODES.includes(m) ? m : 'brief'; savePref(mode); if (sf.engine !== MODE_ENGINE[mode]) sf.setEngine(MODE_ENGINE[mode]); paintTake(sf.model); };
+        // The saved mode wins on load (older chips saved it); keep the picker in step. No password prompt on load.
+        if (sf.engine !== MODE_ENGINE[mode]) sf.setEngine(MODE_ENGINE[mode]);
+        sf.on('engine', async (id) => {
+            mode = ENGINE_MODE[id] || 'off'; savePref(mode); paintTake(sf.model);
+            if (mode === 'off' || unlocked || offline || !gate) return;
+            const ok = await gate.unlock();
+            if (ok) { unlocked = true; paintLock(); sf.toast('Claude unlocked on this browser'); }
+            else if (sf.engine === id) sf.setEngine('quick');
+        });
 
         /* ── the engine's vocabulary, so Claude maps onto what exists ── */
         const vocab = () => ({

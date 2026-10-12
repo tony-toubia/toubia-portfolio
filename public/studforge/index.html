@@ -4,17 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>StudForge | 3D LEGO® Blueprint & Idea Maker</title>
-    <link rel="stylesheet" href="css/style.css?v=3">
+    <link rel="stylesheet" href="css/style.css?v=4">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
-    <!-- Back to Portfolio Link (visible when standalone) -->
-    <a href="/" class="back-to-home" id="btn-back-home">← Back to Portfolio</a>
-
-    <!-- Top App Navigation Bar -->
+    <!-- Header: the brand, the current model's summary, Save/Share, and the ⋯ menu -->
     <header class="top-nav">
         <div class="nav-brand">
             <div class="brick-logo">
@@ -25,163 +22,183 @@
             </div>
             <div class="brand-text">
                 <h1 class="brand-title">STUDFORGE</h1>
-                <span class="brand-sub">3D LEGO® BLUEPRINT & IDEA MAKER</span>
+                <span class="brand-sub">3D LEGO® IDEA MAKER</span>
             </div>
         </div>
-
-        <!-- Quick actions -->
-        <div class="nav-actions">
-            <button id="btn-audio" class="nav-icon-btn" title="Toggle Sound">🔊</button>
+        <button class="model-summary" id="model-summary" type="button" title="About this model">
+            <span id="model-title" class="summary-name">Apollo Micro Rocket</span>
+            <span class="summary-meta"><span id="model-piece-count">0 pcs</span><span class="dot">·</span><span id="model-step-count">0 steps</span><span id="summary-slot"></span></span>
+        </button>
+        <div class="nav-spacer"></div>
+        <div class="nav-actions" id="head-actions"></div>
+        <div class="sf-menu" id="share-menu">
+            <button class="nav-btn primary" id="btn-share-menu" type="button" aria-haspopup="true" aria-expanded="false" title="Share this build"><span class="nb-ico">↗</span><span class="nb-label">SHARE</span><span class="car">▾</span></button>
+            <div class="sf-menu-list right" id="share-list" role="menu"></div>
         </div>
+        <div class="sf-menu" id="more-menu">
+            <button class="nav-icon-btn" id="btn-more" type="button" aria-haspopup="true" aria-expanded="false" title="More">⋯</button>
+            <div class="sf-menu-list right" id="more-list" role="menu">
+                <button class="sf-menu-item" id="btn-audio" type="button" role="menuitem"><span class="mi-ico">🔊</span><span class="mi-text">Sound on<small>Click to mute</small></span></button>
+                <a class="sf-menu-item" id="btn-back-home" href="/" role="menuitem"><span class="mi-ico">←</span><span class="mi-text">Back to portfolio<small>tonytoubia.com</small></span></a>
+                <button class="sf-menu-item" id="btn-keys" type="button" role="menuitem"><span class="mi-ico">⌨️</span><span class="mi-text">Keyboard shortcuts<small>/ prompt · ← → steps · E explode · R reset</small></span></button>
+                <div id="more-extra"></div>
+            </div>
+        </div>
+        <a href="/" class="back-to-home" id="btn-back-home-wide">← PORTFOLIO</a>
     </header>
 
-    <!-- Main App Container -->
-    <main class="app-layout">
-
-        <!-- Top Input & Inspiration Tray -->
-        <section class="prompt-section">
+    <!-- Make: one bar with every way to start a model. On phones it becomes the full-height Make sheet. -->
+    <section class="create-bar" id="create-bar" aria-label="Make a model">
+        <div class="make-head"><span class="make-title">MAKE SOMETHING</span><button class="nav-icon-btn" id="btn-make-close" type="button" title="Close">✕</button></div>
+        <div class="create-row">
+            <div class="sf-menu" id="source-menu">
+                <button class="create-sel" id="btn-source" type="button" aria-haspopup="true" aria-expanded="false" title="Ways to start"><span>✏️</span><span class="cs-label">Describe</span><span class="car">▾</span></button>
+                <div class="sf-menu-list" id="source-list" role="menu"></div>
+            </div>
             <div class="input-bar-wrap">
-                <div class="input-icon">💡</div>
-                <input 
-                    type="text" 
-                    id="input-prompt" 
-                    placeholder="Describe any LEGO idea: 'cozy bakery with a garden', 'giant red dragon', 'cyberpunk hover speeder'..."
+                <input
+                    type="text"
+                    id="input-prompt"
+                    placeholder="Describe any LEGO idea: a cozy bakery, a giant red dragon, a hover speeder…"
                     autocomplete="off"
                     spellcheck="false"
+                    enterkeyhint="go"
+                    aria-label="Describe a LEGO idea"
                 />
-                <button id="btn-generate" class="forge-btn">
-                    <span>⚡</span> FORGE IDEA
-                </button>
-                <button id="btn-surprise" class="forge-btn surprise" title="A random idea">🎲</button>
             </div>
-
-            <!-- Inspire Me Pills -->
-            <div class="inspo-scroll-wrap">
-                <span class="inspo-label">INSPIRE ME:</span>
-                <div id="inspo-pills" class="inspo-pills">
-                    <!-- Populated dynamically via JS -->
-                </div>
+            <div class="sf-menu engine-menu" id="engine-menu">
+                <button class="create-sel" id="btn-engine" type="button" aria-haspopup="true" aria-expanded="false" title="Who builds it"><span class="en-ico">⚡</span><span class="cs-label">Quick</span><span class="car">▾</span></button>
+                <div class="sf-menu-list engine-list" id="engine-list" role="menu"></div>
             </div>
-        </section>
+            <button id="btn-generate" class="forge-btn" type="button"><span>⚡</span> FORGE</button>
+            <button id="btn-surprise" class="forge-btn surprise" type="button" title="Surprise me: a random idea">🎲</button>
+        </div>
+        <!-- Suggestions and "start from" tiles; or the chosen source's own panel -->
+        <div class="create-pop" id="create-pop">
+            <div class="cp-home" id="cp-home">
+                <div class="cp-h">TRY ONE</div>
+                <div id="inspo-pills" class="inspo-pills"></div>
+                <div class="cp-h">OR START FROM</div>
+                <div class="start-tiles" id="start-tiles"></div>
+            </div>
+            <div class="cp-source" id="cp-source" hidden>
+                <div class="cp-source-head"><button class="cp-back" id="btn-source-back" type="button">← Back</button><span class="cp-source-title" id="cp-source-title"></span></div>
+                <div class="cp-source-body" id="cp-source-body"></div>
+            </div>
+        </div>
+    </section>
 
-        <!-- A row features can add controls to (tweak chips, scale, mosaic upload...) -->
-        <div id="tool-dock" class="tool-dock"></div>
-
-        <!-- Studio Workspace (3D Viewport + BOM Side Panel) -->
+    <main class="app-layout">
         <div class="studio-grid">
 
-            <!-- 3D Studio Canvas Viewport -->
-            <div class="viewport-card">
+            <!-- 3D canvas: only controls for looking at the model -->
+            <div class="viewport-card" id="viewport-card">
                 <div id="viewport-3d" class="canvas-3d-box"></div>
 
-                <!-- Floating Model Header Info -->
-                <div class="viewport-overlay-header">
-                    <div class="model-badge-row">
-                        <span id="model-badge" class="badge-pill">🚀 SPACE</span>
-                        <span id="model-piece-count" class="badge-pill highlight">14 BRICKS</span>
-                        <span id="model-est-time" class="badge-pill">⏱️ 20 MINS</span>
-                        <span id="model-dims" class="badge-pill dims"></span>
-                    </div>
-                    <h2 id="model-title" class="active-model-title">Apollo Micro Rocket</h2>
-                    <p id="model-desc" class="active-model-desc">Multi-stage Saturn V exploration rocket with umbilical gantry tower.</p>
-                </div>
-
-                <!-- Camera Preset View Toolbar -->
-                <div class="viewport-cam-controls">
-                    <button id="btn-cam-iso" class="cam-btn" title="Isometric View">ISO</button>
-                    <button id="btn-cam-front" class="cam-btn" title="Front Elevation">FRONT</button>
-                    <button id="btn-cam-top" class="cam-btn" title="Top-Down Plan">TOP</button>
-                    <button id="btn-cam-side" class="cam-btn" title="Side Profile">SIDE</button>
-                    <button id="btn-cam-reset" class="cam-btn" title="Reset View">RESET</button>
-                </div>
-
-                <!-- Bottom Floating Studio Toolbars (Exploded View & Step Assembly) -->
-                <div class="viewport-bottom-bar">
-                    <!-- Exploded View Slider -->
-                    <div class="studio-tool-group">
-                        <div class="tool-label-row">
-                            <span class="tool-name">💥 EXPLODED LAYER VIEW</span>
-                            <span id="val-explode" class="tool-val">0%</span>
-                        </div>
-                        <input type="range" id="slider-explode" min="0" max="1" step="0.02" value="0" class="tech-slider" />
-                    </div>
-
-                    <!-- Step-by-Step Assembly Stepper -->
-                    <div class="studio-tool-group">
-                        <div class="tool-label-row">
-                            <span class="tool-name">🛠️ STEP-BY-STEP BUILD <span id="val-step-hint" class="tool-hint"></span></span>
-                            <span id="val-step" class="tool-val">STEP 1 / 1</span>
-                        </div>
-                        <div class="step-controls-row">
-                            <button id="btn-prev-step" class="step-btn">◀ PREV</button>
-                            <input type="range" id="slider-step" min="0" max="1" step="1" value="1" class="tech-slider" />
-                            <button id="btn-next-step" class="step-btn">NEXT ▶</button>
+                <div class="view-cluster" id="view-cluster">
+                    <div class="sf-menu" id="view-menu">
+                        <button class="cam-btn" id="btn-view" type="button" aria-haspopup="true" aria-expanded="false" title="Camera views"><span class="vc-ico">👁</span><span class="vc-label">VIEW</span><span class="car">▾</span></button>
+                        <div class="sf-menu-list right compact" id="view-list" role="menu">
+                            <button id="btn-cam-iso" class="sf-menu-item" type="button">ISO<small>three-quarter</small></button>
+                            <button id="btn-cam-front" class="sf-menu-item" type="button">FRONT</button>
+                            <button id="btn-cam-top" class="sf-menu-item" type="button">TOP<small>plan view</small></button>
+                            <button id="btn-cam-side" class="sf-menu-item" type="button">SIDE</button>
                         </div>
                     </div>
+                    <div class="sf-menu" id="explode-menu">
+                        <button class="cam-btn" id="btn-explode" type="button" aria-haspopup="true" aria-expanded="false" title="Explode the layers (E)"><span class="vc-ico">💥</span><span class="vc-label">EXPLODE</span></button>
+                        <div class="sf-menu-list right explode-pop" id="explode-pop">
+                            <div class="tool-label-row"><span class="tool-name">EXPLODED LAYER VIEW</span><span id="val-explode" class="tool-val">0%</span></div>
+                            <input type="range" id="slider-explode" min="0" max="1" step="0.02" value="0" class="tech-slider" aria-label="Explode layers" />
+                        </div>
+                    </div>
+                    <!-- Features add view tools here (spin, by-type tray...) -->
+                    <div id="viewport-widgets" class="viewport-widgets"></div>
+                    <button id="btn-cam-reset" class="cam-btn" type="button" title="Reset the camera (R)"><span class="vc-ico">⌖</span><span class="vc-label">RESET</span></button>
                 </div>
 
-                <!-- Features add floating viewport widgets here (inspector, studio settings...) -->
-                <div id="viewport-widgets" class="viewport-widgets"></div>
-
-                <!-- Viewport Interaction Helper Hint -->
-                <div class="viewport-hint">
-                    🖱️ Drag to rotate 360° | Scroll / Pinch to zoom | Two fingers / right-drag to pan | Inspect layers with Exploded slider
+                <!-- One step scrubber, synced with the Build tab -->
+                <div class="step-scrub" id="step-scrub">
+                    <button id="btn-prev-step" class="step-btn" type="button" title="Previous step (←)" aria-label="Previous step">◀</button>
+                    <button id="btn-play-step" class="step-btn play" type="button" title="Play the build" aria-label="Play the build">▶︎</button>
+                    <span id="val-step" class="tool-val">STEP 1 / 1</span>
+                    <input type="range" id="slider-step" min="0" max="1" step="1" value="1" class="tech-slider" aria-label="Build step" />
+                    <span id="val-step-hint" class="tool-hint"></span>
+                    <button id="btn-next-step" class="step-btn" type="button" title="Next step (→)" aria-label="Next step">▶</button>
                 </div>
+
+                <div class="viewport-hint">Drag to rotate · scroll or pinch to zoom · two fingers or right-drag to pan</div>
             </div>
 
-            <!-- On phones the parts list folds away under this button -->
-            <button id="btn-bom-toggle" class="bom-toggle">🧱 PARTS</button>
-
-            <!-- Side panel: the parts list, plus any panels features register (instructions, tweaks, gallery...) -->
-            <aside class="bom-card" id="bom-card">
-                <nav class="side-tabs" id="side-tabs"><button class="side-tab on" data-panel="parts">🧱 PARTS</button></nav>
+            <!-- Workbench: four tabs about the model in front of you. On phones, a bottom sheet. -->
+            <aside class="bom-card workbench" id="bom-card" aria-label="Workbench">
+                <div class="sheet-handle" id="sheet-handle" aria-hidden="true"><span></span></div>
+                <div class="sheet-peek" id="sheet-peek"></div>
+                <nav class="side-tabs" id="side-tabs" role="tablist">
+                    <button class="side-tab on" data-tab="build" role="tab" type="button"><i>🔨</i><span>BUILD</span></button>
+                    <button class="side-tab" data-tab="parts" role="tab" type="button"><i>🧱</i><span>PARTS</span></button>
+                    <button class="side-tab" data-tab="style" role="tab" type="button"><i>🎨</i><span>STYLE</span></button>
+                    <button class="side-tab" data-tab="learn" role="tab" type="button"><i>📚</i><span>LEARN</span></button>
+                    <button class="bench-close" id="btn-bench-close" type="button" title="Close">✕</button>
+                </nav>
                 <div class="side-panels" id="side-panels">
-                <section class="side-panel on" id="panel-parts">
-                <div class="bom-header">
-                    <div>
-                        <h3 class="bom-title">PARTS MANIFEST</h3>
-                        <span class="bom-sub">OFFICIAL LEGO® BILL OF MATERIALS</span>
-                    </div>
-                    <div class="bom-counts">
-                        <span id="total-unique-parts" class="sub-count">0 unique</span>
-                        <span id="total-pieces-count" class="main-count">0 pieces</span>
-                    </div>
-                </div>
-
-                <!-- Parts Table Scroll Box -->
-                <div class="bom-table-wrap">
-                    <table class="bom-table">
-                        <thead>
-                            <tr>
-                                <th>ELEMENT & DESIGN ID</th>
-                                <th class="text-right">QTY</th>
-                            </tr>
-                        </thead>
-                        <tbody id="bom-table-body">
-                            <!-- Populated dynamically via JS -->
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Export & Action Toolbar -->
-                <div class="bom-actions">
-                    <button id="btn-copy-bom" class="action-btn secondary" title="Copy formatted checklist to clipboard">
-                        📋 COPY LIST
-                    </button>
-                    <button id="btn-export-xml" class="action-btn primary" title="Download BrickLink Wanted List XML to buy real bricks">
-                        🛒 BRICKLINK XML
-                    </button>
-                    <button id="btn-print-card" class="action-btn tertiary" title="Print full blueprint sheet">
-                        🖨️ PRINT
-                    </button>
-                </div>
-                </section>
+                    <section class="side-panel on" id="tab-build" data-tab="build">
+                        <div class="tab-scroll">
+                            <div class="model-head" id="model-head">
+                                <div class="model-badge-row">
+                                    <span id="model-badge" class="badge-pill">🚀 SPACE</span>
+                                    <span id="model-dims" class="badge-pill dims"></span>
+                                    <span id="model-est-time" class="badge-pill">⏱️ 20 MINS</span>
+                                </div>
+                                <p id="model-desc" class="active-model-desc"></p>
+                            </div>
+                        </div>
+                    </section>
+                    <section class="side-panel" id="tab-parts" data-tab="parts">
+                        <div class="tab-scroll">
+                            <section class="bench-sec" id="panel-parts" data-order="50">
+                                <div class="bom-header">
+                                    <div>
+                                        <h3 class="bom-title">PARTS LIST</h3>
+                                        <span class="bom-sub">TAP A PART TO RECOLOUR IT EVERYWHERE</span>
+                                    </div>
+                                    <div class="bom-counts">
+                                        <span id="total-unique-parts" class="sub-count">0 unique</span>
+                                        <span id="total-pieces-count" class="main-count">0 pieces</span>
+                                    </div>
+                                </div>
+                                <div class="bom-table-wrap">
+                                    <table class="bom-table">
+                                        <thead><tr><th>ELEMENT & DESIGN ID</th><th class="text-right">QTY</th></tr></thead>
+                                        <tbody id="bom-table-body"></tbody>
+                                    </table>
+                                </div>
+                                <div class="bom-actions">
+                                    <button id="btn-copy-bom" class="action-btn secondary" type="button" title="Copy a checklist to the clipboard">📋 COPY LIST</button>
+                                    <button id="btn-export-xml" class="action-btn primary" type="button" title="Download a BrickLink Wanted List to buy the bricks">🛒 BRICKLINK XML</button>
+                                    <button id="btn-print-card" class="action-btn tertiary" type="button" title="Print the parts list">🖨️ PRINT LIST</button>
+                                </div>
+                            </section>
+                        </div>
+                    </section>
+                    <section class="side-panel" id="tab-style" data-tab="style"><div class="tab-scroll"></div></section>
+                    <section class="side-panel" id="tab-learn" data-tab="learn"><div class="tab-scroll"></div></section>
                 </div>
             </aside>
 
         </div>
-
     </main>
+
+    <!-- Phones: Make plus the four workbench tabs -->
+    <nav class="tabbar" id="tabbar" aria-label="StudForge">
+        <button class="tb make" data-tab="make" type="button"><i>＋</i><span>MAKE</span></button>
+        <button class="tb on" data-tab="build" type="button"><i>🔨</i><span>BUILD</span></button>
+        <button class="tb" data-tab="parts" type="button"><i>🧱</i><span>PARTS</span></button>
+        <button class="tb" data-tab="style" type="button"><i>🎨</i><span>STYLE</span></button>
+        <button class="tb" data-tab="learn" type="button"><i>📚</i><span>LEARN</span></button>
+    </nav>
+
+    <div class="sf-toast" id="sf-toast" role="status" aria-live="polite"></div>
 
     <!-- Three.js r128, served with the site -->
     <script src="vendor/three.min.js"></script>
@@ -202,14 +219,14 @@
     <script src="js/generator.js?v=7"></script>
     <script src="js/audio.js?v=2"></script>
     <script src="js/viewer.js?v=4"></script>
-    <script src="js/main.js?v=5"></script>
+    <script src="js/main.js?v=6"></script>
     <!-- Feature modules register themselves with window.studForge; load them after main.js -->
     <div id="feature-scripts">
     <script src="js/ai-gate.js?v=2"></script>
     <script src="js/studio.js?v=3"></script>
     <script src="js/buy.js?v=3"></script>
     <script src="js/gallery.js?v=2"></script>
-    <script src="js/idea-ai.js?v=3"></script>
+    <script src="js/idea-ai.js?v=4"></script>
     <script src="js/instructions.js?v=2"></script>
     <script src="js/mosaic.js?v=1"></script>
     <script src="js/omr.js?v=2"></script>
