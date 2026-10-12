@@ -81,11 +81,11 @@ def('3957', 'Antenna 1 x 4', 'Misc', 1, 1, 2.4, { isAntenna: true, hasStuds: fal
 def('4600', 'Plate 2 x 2 with Wheel Holders', 'Wheels', 2, 2, 0.4, { isPlate: true, isAxlePlate: true });
 def('2926', 'Plate 1 x 4 with Wheel Holders', 'Wheels', 1, 4, 0.4, { isPlate: true, isAxlePlate: true });
 def('4624', 'Wheel 8mm D. x 6mm', 'Wheels', 1, 1, 1.0, { isWheel: true, diameter: 1.0, hasStuds: false });
-def('3641', 'Tire 15mm D. x 6mm', 'Wheels', 1, 2, 2.0, { isTire: true, diameter: 1.9, hasStuds: false, ghost: true });
+def('3641', 'Tire 15mm D. x 6mm', 'Wheels', 1, 2, 2.0, { isTire: true, diameter: 1.9, rim: 1.0, thick: 1.2, hasStuds: false, ghost: true });   // render hints: `rim` = the matching wheel's diameter, `thick` = tyre width along X
 def('6014', 'Wheel 11mm D. x 12mm', 'Wheels', 1, 2, 1.4, { isWheel: true, diameter: 1.4, hasStuds: false });
-def('6015', 'Tire 17mm D. x 6mm', 'Wheels', 1, 2, 2.1, { isTire: true, diameter: 2.1, hasStuds: false, ghost: true });
+def('6015', 'Tire 21mm D. x 12mm', 'Wheels', 1, 3, 2.6, { isTire: true, diameter: 2.6, rim: 1.4, thick: 1.5, hasStuds: false, ghost: true });
 def('56904', 'Wheel 30.4mm D. x 20mm', 'Wheels', 2, 4, 3.8, { isWheel: true, diameter: 3.8, hasStuds: false });
-def('56891', 'Tire 43.2mm D. x 22mm', 'Wheels', 2, 5, 5.4, { isTire: true, diameter: 5.4, hasStuds: false, ghost: true });
+def('56891', 'Tire 43.2mm D. x 22mm', 'Wheels', 2, 5, 5.4, { isTire: true, diameter: 5.4, rim: 3.8, thick: 2.2, hasStuds: false, ghost: true });
 def('55423', 'Train Wheel with Axle Hole', 'Wheels', 1, 2, 2.2, { isWheel: true, diameter: 2.2, hasStuds: false });
 def('3705', 'Technic Axle 4', 'Technic', 1, 4, 0.4, { isBar: true, hasStuds: false });
 def('2780', 'Technic Pin with Friction', 'Technic', 1, 1, 0.4, { isPin: true, hasStuds: false });
@@ -111,11 +111,11 @@ def('60478', 'Plate 1 x 2 with Bar Handle on End', 'Clips', 1, 3, 0.4, { isBarHa
 def('48729', 'Bar 1L with Clip Mechanical Claw', 'Clips', 1, 1, 0.4, { isClip: 'claw', hasStuds: false });
 def('30374', 'Bar 4L', 'Clips', 1, 1, 1.6, { isBar: true, hasStuds: false });
 def('2335', 'Flag 2 x 2 Square', 'Clips', 1, 2, 1.6, { isFlag: true, hasStuds: false });
-def('4617', 'Propeller 2 Blade 4 Diameter', 'Clips', 1, 4, 0.4, { isPropeller: true, hasStuds: false });
+def('4617', 'Propeller 3 Blade 5.5 Diameter', 'Clips', 1, 4, 0.4, { isPropeller: true, blades: 3, hasStuds: false });
 
 // --- BRACKETS & SIDEWAYS STUDS (SNOT) ---
-def('99780', 'Bracket 1 x 2 - 1 x 2', 'Brackets', 1, 2, 0.4, { isBracket: 'down', isPlate: true });
-def('99781', 'Bracket 1 x 2 - 1 x 2 Inverted', 'Brackets', 1, 2, 0.4, { isBracket: 'up', isPlate: true });
+def('99780', 'Bracket 1 x 2 - 1 x 2 Inverted', 'Brackets', 1, 2, 0.4, { isBracket: 'up', isPlate: true });
+def('99781', 'Bracket 1 x 2 - 1 x 2', 'Brackets', 1, 2, 0.4, { isBracket: 'down', isPlate: true });
 def('44728', 'Bracket 1 x 2 - 2 x 2', 'Brackets', 2, 2, 0.4, { isBracket: 'down2', isPlate: true });
 def('87087', 'Brick 1 x 1 with Stud on Side', 'Brackets', 1, 1, 1.2, { sideStuds: 1 });
 def('4070', 'Brick 1 x 1 Headlight', 'Brackets', 1, 1, 1.2, { isHeadlight: true });
