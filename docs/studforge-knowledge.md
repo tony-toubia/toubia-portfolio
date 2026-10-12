@@ -59,8 +59,37 @@ unmapped ones count only in the denominator, so palette shares sum to less than 
 `FORGE.knowledge`: `subjectFor(prompt)` (best key match, same word rules as the generator: longer and multi-word
 keys win, the head noun wins, whole themes lose ties; `'red fire truck'` → `fireTruck`, `'cherry blossom tree'` →
 `tree`), `palette(subject)`, `parts(subject)`, `wanted(subject)`, `pieces(subject)`, `pairings()`, `wheelTyre()`,
-`onReady(fn)`. Without the file every call returns null and nothing logs. It is **not wired into the generator
-yet**.
+`onReady(fn)`. Without the file every call returns null and nothing logs.
+
+## How the generator uses it
+
+`generator.js` reads the subject once per prompt (`parse()` → `parsed.knowledge`, `knowledgeFor`) and:
+
+- **Palette from real sets** (`knowledgePalette`). When the prompt names no colour, the subject's palette sets
+  the roles: the body (`primary`) is the top real colour, except that a light neutral (white, light grey, tan)
+  takes it when no real colour reaches 55 % of its share, and black/dark grey only when they pass 40 % (they
+  are tyres, chassis and baseplates, not the look); `secondary` is the next real or light colour; `accent` the
+  brightest remaining colour (yellow, orange, red, lime, pink, gold first; brown is the `wood` role, never an
+  accent); `dark`, `trim` and `metal` come from the greys by share; `glass` is a clear or blue trans colour if
+  the sets use one, `light` trans-orange when present; a green body puts the model on tan ground. Layering,
+  each winning over the last: generic defaults → real-set palette → a style word ("haunted", "medieval") →
+  colours named in the prompt. Builders that fix their own colours (fire trucks red, police cars white) still
+  do. Deterministic, no RNG. Police car → white / black `dark` / blue accent; castle → light grey / tan /
+  blue banners / black / dark grey trim; tree → green / brown / red accent on tan ground.
+- **Size calibration** (`calibrate`, wrapped around `generateFromPrompt`). When the prompt gives no size (no
+  size word, no `opts.scale`, no brief scale, not minifig scale, no blueprint), the model is forged once and
+  its piece count compared with the subject's percentiles: under half the median (and scale < 1.5) it is
+  forged again at scale ×1.25, over twice the upper quartile (and scale > 0.8) at ×0.8; one retry at most,
+  same seed, and the retry only stands when it actually moved the count (fixed-footprint builders may not
+  grow). Scenes and monograms keep their size. `model.knowledge.calibration` records
+  `{ from, to, scale: [before, after], kept }`.
+- **For builders**: `ctx.knowledge = { subject, key, n, pieces, palette, parts }` (null when unknown).
+- **For the UI**: `model.knowledge = { subject, key, n, pieces, palette, wanted (top 5), calibration }` or null;
+  `realsets.js` shows it in the 🏷️ REAL SETS panel (and dock chip): the set count, palette strip, the
+  typical size band with this model marked on it, the twelve parts real sets use most (✓ in this model,
+  ○ stocked but unused here, ✗ not in our catalog) and the wanted parts we are missing. The first idea on the
+  page is forged before the file arrives and is forged once more when it does.
+- The harness (`scripts/studforge-test.mjs`) loads the file like the browser; `KNOWLEDGE=0` forges without it.
 
 ## Ten findings
 
