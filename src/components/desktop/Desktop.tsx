@@ -122,14 +122,6 @@ const icons = {
   linkedin: (
     <img src="/images/linkedin-icon.png" alt="LinkedIn" className="w-12 h-12 object-contain" />
   ),
-  voidWarden: (
-    <svg viewBox="0 0 48 48" className="w-12 h-12">
-      <rect x="4" y="4" width="40" height="40" rx="8" fill="#080c18" stroke="#00f3ff" strokeWidth="2" />
-      <circle cx="24" cy="24" r="14" fill="#000" />
-      <circle cx="24" cy="24" r="8" fill="#9d4edd" opacity="0.8" />
-      <text x="24" y="28" textAnchor="middle" fontSize="14">🌀</text>
-    </svg>
-  ),
   studForge: (
     <svg viewBox="0 0 48 48" className="w-12 h-12">
       <rect x="4" y="4" width="40" height="40" rx="8" fill="#C91A09" stroke="#F2CD37" strokeWidth="2" />
