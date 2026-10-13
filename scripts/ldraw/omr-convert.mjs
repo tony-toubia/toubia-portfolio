@@ -17,6 +17,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {movedFrame,multiply3,transform3} from './moved-frame.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
@@ -438,8 +439,10 @@ function convertModel(sel) {
     const ckey = typeof p.color === 'object' ? p.color.hex : p.color; colourUse.set(ckey, (colourUse.get(ckey) || 0) + 1);
     if (!colorIdx.has(ck)) { colorIdx.set(ck, colors.length); colors.push(ck); }
     const lb = fileBBox(p.file, embedded);
-    const R = rotOurs(p.M);
-    const pos = C(p.t);
+    const redirect = !p.embedded && p.id!==rid ? movedFrame(p.id,rid,id=>{const file=libPath(id+'.dat');return file?fs.readFileSync(file.path,'latin1'):null;}) : null;
+    const R = rotOurs(redirect ? multiply3(p.M,redirect.matrix) : p.M);
+    const offset=redirect?transform3(p.M,redirect.position):[0,0,0];
+    const pos = C(p.t.map((v,i)=>v+offset[i]));
     // World bbox in our units: transform the 8 local corners (exact for lattice rotations, conservative otherwise).
     const wb = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
     if (isFinite(lb[0])) for (const x of [lb[0], lb[3]]) for (const y of [lb[1], lb[4]]) for (const z of [lb[2], lb[5]]) {
@@ -607,7 +610,7 @@ function convertModel(sel) {
     source: { url: sel.setPage, download: sel.url, file: sel.file, authors: sel.authors, licence: sel.licenceNorm, licenceLine: sel.licence },
     format: 'studforge-omr-1', steps: gstep, pieces: items.filter(i => !isSeg(i)).length, dims, submodels: subNames, parts, colors, bricks,
     minifigParts: [...minifigParts].sort((a, b) => a - b),
-    stats: { catalogShare: r3(catalogShare), offGridShare: r3(offGridShare), minifigPieces: items.filter(i => i.minifig && !isSeg(i)).length, hoseSegments: items.filter(isSeg).length, stickersDropped: stickers, lsynthSegmentsDropped: lsynth, embeddedOfficial,
+    stats: { movedFramesRepaired: true, catalogShare: r3(catalogShare), offGridShare: r3(offGridShare), minifigPieces: items.filter(i => i.minifig && !isSeg(i)).length, hoseSegments: items.filter(isSeg).length, stickersDropped: stickers, lsynthSegmentsDropped: lsynth, embeddedOfficial,
       droppedRefs: Object.values(dropped).reduce((a, b) => a + b, 0), overlapPairs: pairs.size, overlapParts: overlapParts.size, fileSteps, grounded },
   };
   const diag = { expectedSteps, rawStepLines, squared, untilted, dropped, phase: [phX, phY, phZ], overlapSamples: [...pairs].slice(0, 8).map(p => p.split('-').map(i => parts[items[+i].pi][0] + '@' + (items[+i].fp || []).join(','))) };

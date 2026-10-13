@@ -1700,5 +1700,78 @@
     "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
     "pieceCount": 85,
     "sourceStepCount": 29
+  },
+  {
+    "id": "set-31084-1",
+    "setNumber": "31084-1",
+    "name": "Pirate Roller Coaster",
+    "category": "Creator",
+    "theme": "Creator > Creator 3-in-1",
+    "subject": "character",
+    "year": 2018,
+    "format": "ldraw",
+    "modelUrl": "models/31084-1.mpd",
+    "thumbnail": "thumbnails/31084-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/877",
+    "originalUrl": "https://library.ldraw.org/library/omr/31084-1.mpd",
+    "author": "Philippe Hurbain [Philo]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/31084",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 942,
+    "sourceStepCount": 122
+  },
+  {
+    "id": "set-42108-1",
+    "setNumber": "42108-1",
+    "name": "Mobile Crane",
+    "category": "Technic",
+    "theme": "Technic",
+    "subject": "character",
+    "year": 2020,
+    "format": "ldraw",
+    "modelUrl": "models/42108-1.mpd",
+    "thumbnail": "thumbnails/42108-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1113",
+    "originalUrl": "https://library.ldraw.org/library/omr/42108-1.mpd",
+    "author": "MMR1988 [MMR1988]",
+    "missing": [
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/42108",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 1318,
+    "sourceStepCount": 521
+  },
+  {
+    "id": "set-42042-1",
+    "setNumber": "42042-1",
+    "name": "Crawler Crane",
+    "category": "Technic",
+    "theme": "Technic",
+    "subject": "character",
+    "year": 2015,
+    "format": "ldraw",
+    "modelUrl": "models/42042-1.mpd",
+    "thumbnail": "thumbnails/42042-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/52",
+    "originalUrl": "https://library.ldraw.org/library/omr/42042-1.mpd",
+    "author": "Philippe Hurbain [Philo]",
+    "missing": [
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/42042",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 1413,
+    "sourceStepCount": 179
   }
 ]

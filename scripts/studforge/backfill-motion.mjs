@@ -5,7 +5,7 @@ import {publishFile} from './publish-file.mjs';
 const root='public/studforge',index=JSON.parse(await fs.readFile(root+'/data/omr/index.json','utf8'));
 const manifest=JSON.parse(await fs.readFile(root+'/data/ldraw/manifest.json','utf8')).parts;
 const readGeometry=geometryReader([root+'/data/ldraw/parts'],manifest);
-const report={detector:'connectors-v1',kits:[],supported:0,joints:0};
+const report={detector:'connectors-v2',kits:[],supported:0,joints:0};
 for(const row of index.models){
     const file=root+'/data/omr/'+row.file,original=await fs.readFile(file,'utf8'),model=JSON.parse(original);
     let assembliesRestored=false;

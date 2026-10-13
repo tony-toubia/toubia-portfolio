@@ -1,0 +1,269 @@
+{
+  "kits": [
+    {
+      "id": "8135-1",
+      "name": "Bridge Chase",
+      "parts": [
+        {
+          "index": 45,
+          "original": "30028",
+          "replacement": "30028b"
+        },
+        {
+          "index": 46,
+          "original": "30028",
+          "replacement": "30028b"
+        },
+        {
+          "index": 47,
+          "original": "30028",
+          "replacement": "30028b"
+        },
+        {
+          "index": 48,
+          "original": "30028",
+          "replacement": "30028b"
+        },
+        {
+          "index": 169,
+          "original": "30028",
+          "replacement": "30028b"
+        },
+        {
+          "index": 170,
+          "original": "30028",
+          "replacement": "30028b"
+        },
+        {
+          "index": 171,
+          "original": "30028",
+          "replacement": "30028b"
+        },
+        {
+          "index": 172,
+          "original": "30028",
+          "replacement": "30028b"
+        }
+      ]
+    },
+    {
+      "id": "6351-1",
+      "name": "Surf N' Sail Camper",
+      "parts": [
+        {
+          "index": 136,
+          "original": "3139",
+          "replacement": "3139b"
+        },
+        {
+          "index": 138,
+          "original": "3139",
+          "replacement": "3139b"
+        },
+        {
+          "index": 140,
+          "original": "3139",
+          "replacement": "3139b"
+        },
+        {
+          "index": 142,
+          "original": "3139",
+          "replacement": "3139b"
+        }
+      ]
+    },
+    {
+      "id": "4896-1",
+      "name": "Roaring Roadsters",
+      "parts": [
+        {
+          "index": 95,
+          "original": "32532",
+          "replacement": "32532a"
+        }
+      ]
+    },
+    {
+      "id": "345-1",
+      "name": "House with Mini Wheel Car",
+      "parts": [
+        {
+          "index": 118,
+          "original": "3139",
+          "replacement": "3139b"
+        },
+        {
+          "index": 119,
+          "original": "3139",
+          "replacement": "3139b"
+        },
+        {
+          "index": 120,
+          "original": "3139",
+          "replacement": "3139b"
+        },
+        {
+          "index": 121,
+          "original": "3139",
+          "replacement": "3139b"
+        }
+      ]
+    },
+    {
+      "id": "6373-1",
+      "name": "Motorcycle Shop",
+      "parts": [
+        {
+          "index": 2,
+          "original": "3464",
+          "replacement": "3464b"
+        },
+        {
+          "index": 4,
+          "original": "3464",
+          "replacement": "3464b"
+        },
+        {
+          "index": 10,
+          "original": "3464",
+          "replacement": "3464b"
+        },
+        {
+          "index": 21,
+          "original": "3464",
+          "replacement": "3464b"
+        },
+        {
+          "index": 23,
+          "original": "3464",
+          "replacement": "3464b"
+        },
+        {
+          "index": 29,
+          "original": "3464",
+          "replacement": "3464b"
+        },
+        {
+          "index": 31,
+          "original": "3464",
+          "replacement": "3464b"
+        }
+      ]
+    },
+    {
+      "id": "6368-1",
+      "name": "Jet Airliner",
+      "parts": [
+        {
+          "index": 87,
+          "original": "3139",
+          "replacement": "3139b"
+        },
+        {
+          "index": 90,
+          "original": "3139",
+          "replacement": "3139b"
+        },
+        {
+          "index": 92,
+          "original": "3139",
+          "replacement": "3139b"
+        },
+        {
+          "index": 95,
+          "original": "3139",
+          "replacement": "3139b"
+        },
+        {
+          "index": 97,
+          "original": "3139",
+          "replacement": "3139b"
+        },
+        {
+          "index": 100,
+          "original": "3139",
+          "replacement": "3139b"
+        }
+      ]
+    },
+    {
+      "id": "6356-1",
+      "name": "Med-Star Rescue Plane",
+      "parts": [
+        {
+          "index": 95,
+          "original": "3139",
+          "replacement": "3139b"
+        },
+        {
+          "index": 97,
+          "original": "3139",
+          "replacement": "3139b"
+        },
+        {
+          "index": 100,
+          "original": "3139",
+          "replacement": "3139b"
+        },
+        {
+          "index": 102,
+          "original": "3139",
+          "replacement": "3139b"
+        },
+        {
+          "index": 105,
+          "original": "3139",
+          "replacement": "3139b"
+        },
+        {
+          "index": 107,
+          "original": "3139",
+          "replacement": "3139b"
+        }
+      ]
+    },
+    {
+      "id": "6684-1",
+      "name": "Police Patrol Squad",
+      "parts": [
+        {
+          "index": 7,
+          "original": "3464",
+          "replacement": "3464b"
+        },
+        {
+          "index": 9,
+          "original": "3464",
+          "replacement": "3464b"
+        }
+      ]
+    },
+    {
+      "id": "6346-1",
+      "name": "Shuttle Launching Crew",
+      "parts": [
+        {
+          "index": 187,
+          "original": "3464",
+          "replacement": "3464b"
+        },
+        {
+          "index": 189,
+          "original": "3464",
+          "replacement": "3464b"
+        },
+        {
+          "index": 428,
+          "original": "3464",
+          "replacement": "3464b"
+        },
+        {
+          "index": 430,
+          "original": "3464",
+          "replacement": "3464b"
+        }
+      ]
+    }
+  ],
+  "repaired": 42
+}

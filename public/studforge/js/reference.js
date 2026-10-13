@@ -289,6 +289,14 @@
         /* ── cards, shared by the browser and BUILD A REAL ONE ─── */
         const iconOf = (subject) => { const rs = realsets(); return rs && rs.subjectIcon ? rs.subjectIcon(subject) : '🏷️'; };
         const themeText = (t) => String(t || '').split(' > ').join(' · ');
+        function previewFallback(button, icon) {
+            const image = button.querySelector('img');
+            image?.addEventListener('error', () => {
+                const fallback = el('span', `${PRE}-idea-icon`, esc(icon || '🧱'));
+                fallback.setAttribute('role', 'img'); fallback.setAttribute('aria-label', 'Preview unavailable');
+                image.replaceWith(fallback);
+            }, { once: true });
+        }
         const shownId = () => (isRef() ? sf.model.reference.setId : null);
         const setCard = (e) => {
             const library = window.StudForgeLibraryState ||= window.StudForgeLibrary.readState(storage);
@@ -301,6 +309,7 @@
                 + (e.missing && e.missing.length ? `<span class="${PRE}-meta">Source omits ${esc(e.missing.join(', ').toLowerCase())}</span>` : '')
                 + `<span class="${PRE}-meta">${esc(e.pieces || '?')} PCS${e.steps ? ` · ${esc(e.steps)} ${e.stepKind === 'layers' ? 'LAYERS' : 'STEPS'}` : ''} · OPEN KIT →</span>`;
             b.addEventListener('click', () => loadSet(e.id));
+            previewFallback(b, iconOf(e.subject));
             const favorite = el('button', `${PRE}-favorite`); favorite.type = 'button';
             const paintFavorite = () => {
                 const on = library.favorites.includes(e.id) || library.favorites.includes(`set-${e.id}`);
@@ -353,7 +362,7 @@
             entries = core.combineEntries(index || [], window.INSPIRATION_MODELS || [], sf.gallery?.list() || [], sf.gallery?.recent() || [], state.favorites);
             for (const entry of entries) {
                 if (entry.ref && (entry.motionCount || window.StudForgeArticulation?.hasProfile(entry.ref))) entry.tags.push('Movable');
-                if (!entry.ref && !entry.thumb && ['rocket', 'castle', 'sportscar', 'lighthouse', 'mech', 'pagoda', 'espresso', 'arcade'].includes(entry.id)) entry.thumb = `thumbnails/${entry.id}.png`;
+                if (!entry.ref && !entry.thumb && (window.INSPIRATION_MODELS || []).some(idea => idea.id === entry.id)) entry.thumb = `thumbnails/${entry.id}.png`;
                 const theme = entry.category || String(entry.theme || '').split(' > ')[0];
                 const kind = KINDS.find(([, subjects]) => subjects.includes(entry.subject))?.[0];
                 for (const tag of [theme, kind].filter(Boolean)) if (!entry.tags.includes(tag)) entry.tags.push(tag);
@@ -374,7 +383,7 @@
                 button.title = `Open ${e.name || e.prompt}`;
                 button.innerHTML = (e.thumb ? `<img class="${PRE}-thumb" alt="" src="${esc(e.thumb)}" loading="lazy">` : `<span class="${PRE}-idea-icon" aria-hidden="true">${esc(e.icon || '🧱')}</span>`)
                     + `<span class="${PRE}-name">${esc(e.name || e.prompt)}</span><span class="${PRE}-meta">${e.pieces ? `${esc(e.pieces)} PCS · ` : ''}OPEN BUILD →</span>`;
-                button.addEventListener('click', () => sf.gallery.open(e.savedEntry || e)); tile.appendChild(button);
+                button.addEventListener('click', () => sf.gallery.open(e.savedEntry || e)); previewFallback(button, e.icon); tile.appendChild(button);
                 const favorite = el('button', `${PRE}-favorite`); favorite.type = 'button';
                 const state = window.StudForgeLibraryState;
                 const on = state.favorites.includes(e.key);

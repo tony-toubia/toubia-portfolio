@@ -33,7 +33,7 @@ test('a fresh community import discovers both Hulk arm hinges without a kit-spec
   const entry=JSON.parse(await fs.readFile('public/studforge/models/catalog.json','utf8')).find(e=>e.setNumber==='41592-1');
   const result=await convertModel({entry,text:await fs.readFile('public/studforge/models/41592-1.mpd','utf8'),config:await fs.readFile('public/studforge/models/LDConfig.ldr','utf8'),metadata:JSON.parse(await fs.readFile('public/studforge/models/parts.json','utf8')),outputRoot:output});
   assert.equal(result.pieceCount,93);assert.equal(result.row.motionCount,2);
-  assert.equal(result.model.motion.detector,'connectors-v1');
+  assert.equal(result.model.motion.detector,'connectors-v2');
   assert.deepEqual(result.model.motion.controls.map(c=>c.joints[0].members.length),[5,5]);
  }finally{
   assert.ok(path.resolve(output).startsWith(cache+path.sep));

@@ -10,6 +10,18 @@ const index = json('data/omr/index.json');
 const manifest = json('data/ldraw/manifest.json');
 const context = { window: {} }; vm.createContext(context);
 for (const file of ['colors.js', 'ldraw-palette.js', 'omr.js']) vm.runInContext(fs.readFileSync(new URL(`js/${file}`, root), 'utf8'), context);
+test('every library kit and starter tile points to a nonempty rendered preview',()=>{
+    for(const row of index.models){
+        assert.ok(row.thumbnail,`Missing library thumbnail link: ${row.id}`);
+        const bytes=fs.readFileSync(new URL(row.thumbnail,root));
+        assert.ok(bytes.length>1000,row.id);assert.equal(bytes.subarray(1,4).toString(),'PNG',row.id);
+    }
+    vm.runInContext(fs.readFileSync(new URL('js/models-db.js',root),'utf8'),context);
+    for(const idea of context.window.INSPIRATION_MODELS){
+        const bytes=fs.readFileSync(new URL(`thumbnails/${idea.id}.png`,root));
+        assert.ok(bytes.length>1000,idea.id);assert.equal(bytes.subarray(1,4).toString(),'PNG',idea.id);
+    }
+});
 test('all bundled sets expand with complete geometry, thumbnails and valid source inventory', () => {
     assert.ok(index.models.length >= 116);
     const baseline = JSON.parse(fs.readFileSync(new URL('./baseline-sets.json', import.meta.url), 'utf8'));
