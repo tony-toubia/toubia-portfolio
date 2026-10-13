@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { WindowManagerProvider } from "@/components/desktop/WindowManager";
+import { AxoTag } from "@/components/AxoTag";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -52,6 +53,7 @@ export default function RootLayout({
           <WindowManagerProvider>{children}</WindowManagerProvider>
         </ThemeProvider>
         <Analytics />
+        <AxoTag />
       </body>
     </html>
   );
