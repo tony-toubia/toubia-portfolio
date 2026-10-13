@@ -8,11 +8,13 @@ npm run studforge:backfill -- --limit 100
 npm run studforge:test
 ```
 
-The first batch stopped after 15 candidates at the user's request: eight imported and seven skipped, plus The Ghost imported in the initial trial. The library has 125 sets. The next 85 candidates remain in [the saved queue](../../docs/studforge-import-queue.json); its reserve list contains additional candidates beyond the original 100. Nothing is scheduled to run automatically. To process the next small batch:
+The first batch stopped after 15 candidates at the user's request: eight imported and seven skipped, plus The Ghost imported in the initial trial. The second batch imported six personally selected sets in 72 seconds. The library now has 131 sets. The next 79 candidates remain in [the saved queue](../../docs/studforge-import-queue.json); its reserve list contains additional candidates beyond the original 100. Nothing is scheduled to run automatically. To process the next small batch:
 
 ```powershell
 npm run studforge:backfill -- --queue docs/studforge-import-queue.json --limit 15
 ```
+
+To choose specific pending entries rather than the next ones in order, combine `--queue` with `--only 75969-1,76161-1` (replace these example IDs with pending set numbers).
 
 The queue advances after each attempted set. Failed imports retain their reasons in the report and completed queue entries; they are not repeatedly retried by queue runs. No two import commands should run concurrently.
 

@@ -31,6 +31,12 @@ Modifications: embedded file names were normalized to lowercase with forward sla
 | 75277-1 | [Boba Fett](https://library.ldraw.org/omr/sets/1211) · [original MPD](https://library.ldraw.org/library/omr/75277-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
 | 75966-1 | [Hogwarts Room of Requirement](https://library.ldraw.org/omr/sets/1219) · [original MPD](https://library.ldraw.org/library/omr/75966-1.mpd) | Stefan Frenz [smf] | Redistributable under CCAL version 2.0 |
 | 75968-1 | [4 Privet Drive](https://library.ldraw.org/omr/sets/1221) · [original MPD](https://library.ldraw.org/library/omr/75968-1.mpd) | Stefan Frenz [smf] | Redistributable under CCAL version 2.0 |
+| 21319-1 | [Central Perk](https://library.ldraw.org/omr/sets/1287) · [original MPD](https://library.ldraw.org/library/omr/21319-1.mpd) | Vincent Messenet [Cheenzo] | Redistributable under CCAL version 2.0 |
+| 40433-1 | [1989 Batmobile - Limited Edition](https://library.ldraw.org/omr/sets/1050) · [original MPD](https://library.ldraw.org/library/omr/40433-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
+| 75948-1 | [Hogwarts Clock Tower](https://library.ldraw.org/omr/sets/1217) · [original MPD](https://library.ldraw.org/library/omr/75948-1.mpd) | Stefan Frenz [smf] | Redistributable under CCAL version 2.0 |
+| 21309-1 | [NASA Apollo Saturn V](https://library.ldraw.org/omr/sets/875) · [original MPD](https://library.ldraw.org/library/omr/21309-1.mpd) | Jaco van der Molen [Jaco] | Redistributable under CCAL version 2.0 |
+| 30277-1 | [First Order Star Destroyer](https://library.ldraw.org/omr/sets/997) · [original MPD](https://library.ldraw.org/library/omr/30277-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
+| 75895-1 | [1974 Porsche 911 Turbo 3.0](https://library.ldraw.org/omr/sets/1118) · [original MPD](https://library.ldraw.org/library/omr/75895-1.mpd) | Magnus Forsberg [MagFors] | Redistributable under CCAL version 2.0 |
 
 Individual model and part files retain their !LICENSE and author headers. Official part definitions may use CC BY 2.0 or CC BY 4.0; the applicable license is identified in each embedded file. Full notices: [LDraw CAreadme](CAreadme.txt), [CC BY 2.0](CAlicense.txt), [CC BY 4.0](CAlicense4.txt). Attribution metadata for parts is also available in parts.json.
 
