@@ -12,6 +12,8 @@ The same assembly checks now run on the small structural sketches before selecti
 
 Construction guidance explicitly distinguishes vertical stud connections from side adjacency: a wall behind a front-facing detail does not attach it. Mascot/logo options include a horizontal brick mosaic supported directly by the base, while upright options need overlapping horizontal slabs under changing body spans. Rejected layouts expose safe per-option assembly counts and send measured vertical gaps into the single repair request. Structural diagrams show the final painted cells after overwrites so eyes and shirt markings stay visible.
 
+Flat mosaics also lock the final top-facing color at every approved column. Raised details can use the same color; a later white panel cannot obscure the red shirt/white H even within the general detail-volume allowance. Mosaic refinements use painted box/slab geometry because arbitrary part footprints could cover the artwork.
+
 ## Actual mascot grounding
 
 The user's Fairway-area example resolves to **Highlands Hawks, Highlands Elementary, Shawnee Mission School District, Kansas**. The [official principal's welcome](https://highlands.smsd.org/about/principalmission) identifies the Hawks; the [official school homepage](https://highlands.smsd.org/) links its actual vector logo and lists the school at 6200 Roe Avenue, Mission, Kansas.

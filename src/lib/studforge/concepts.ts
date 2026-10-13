@@ -113,6 +113,27 @@ export function followsSelection(bp: Concept['sketch'], concept: Concept): boole
   };
   const structure = new Map<string, unknown>();
   for (const op of concept.sketch.ops) for (const cell of cells(op)) structure.set(cell, op.color);
+  // A flat artwork's identity lives in its top colors. Raised details must not cover
+  // approved letters/eyes even when their volume fits the general detail allowance.
+  const mosaic = concept.sketch.ops.length > 0 && concept.sketch.ops.every(op => op.op === 'box' && op.y0 === 1 && op.y1 === 1);
+  if (mosaic) {
+    const top = new Map<string, { y: number; color: unknown }>();
+    for (let x = 0; x < bp.base.w; x++) for (let z = 0; z < bp.base.d; z++) top.set(`${x},${z}`, { y: 0, color: bp.base.color });
+    const paintTop = (op: Record<string, unknown>) => {
+      const y = Number(op.op === 'slab' ? Number(op.y) + 1 : op.y1);
+      for (let x = Number(op.x0); x <= Number(op.x1); x++) for (let z = Number(op.z0); z <= Number(op.z1); z++) {
+        const key = `${x},${z}`, old = top.get(key);
+        if (!old || y >= old.y) top.set(key, { y, color: op.color });
+      }
+    };
+    concept.sketch.ops.forEach(paintTop);
+    const approved = new Map([...top].map(([key, value]) => [key, value.color]));
+    for (const op of bp.ops.slice(concept.sketch.ops.length)) {
+      if (op.op !== 'box' && op.op !== 'slab') return false; // unknown part footprints could obscure the artwork
+      paintTop(op);
+    }
+    if ([...approved].some(([key, color]) => top.get(key)?.color !== color)) return false;
+  }
   const changed = new Set<string>();
   let added = 0;
   for (const op of bp.ops.slice(concept.sketch.ops.length)) {
