@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-10-13T16:13:14.204Z",
+  "checkedAt": "2026-10-13T16:27:35.130Z",
   "rankingSource": "https://brickranker.com/hall-of-fame/sets/top",
   "method": "Exact set-number matches first; other licensed/theme community models are supplemental picks, never substitutes for exact ranked versions.",
   "targets": [
@@ -2416,36 +2416,6 @@
       "durationSeconds": 2
     },
     {
-      "setNumber": "75253-1",
-      "name": "Droid Commander",
-      "theme": "Star Wars",
-      "sourceUrl": "https://library.ldraw.org/omr/sets/1116",
-      "history": [
-        {
-          "setNumber": "75253-1",
-          "name": "Droid Commander",
-          "theme": "Star Wars",
-          "sourceUrl": "https://library.ldraw.org/omr/sets/1116",
-          "sourceTriangles": 370892,
-          "triangles": 370892,
-          "primitiveReplacements": 0,
-          "status": "skipped",
-          "reason": "Invalid placement of 3460.dat",
-          "durationSeconds": 3
-        }
-      ],
-      "status": "imported",
-      "pieces": 553,
-      "triangles": 370780,
-      "sourceTriangles": 370892,
-      "primitiveReplacements": 0,
-      "visualComponents": 380,
-      "missing": [],
-      "durationSeconds": 10,
-      "degenerateVisualSegments": 1,
-      "legacyColors": 3
-    },
-    {
       "setNumber": "75075-1",
       "name": "AT-AT",
       "theme": "Star Wars",
@@ -2476,6 +2446,52 @@
       "durationSeconds": 2,
       "degenerateVisualSegments": 0,
       "legacyColors": 1
+    },
+    {
+      "setNumber": "75253-1",
+      "name": "Droid Commander",
+      "theme": "Star Wars",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1116",
+      "history": [
+        {
+          "setNumber": "75253-1",
+          "name": "Droid Commander",
+          "theme": "Star Wars",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1116",
+          "sourceTriangles": 370892,
+          "triangles": 370892,
+          "primitiveReplacements": 0,
+          "status": "skipped",
+          "reason": "Invalid placement of 3460.dat",
+          "durationSeconds": 3
+        },
+        {
+          "setNumber": "75253-1",
+          "name": "Droid Commander",
+          "theme": "Star Wars",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1116",
+          "status": "imported",
+          "pieces": 553,
+          "triangles": 370780,
+          "sourceTriangles": 370892,
+          "primitiveReplacements": 0,
+          "visualComponents": 380,
+          "missing": [],
+          "durationSeconds": 10,
+          "degenerateVisualSegments": 1,
+          "legacyColors": 3
+        }
+      ],
+      "status": "imported",
+      "pieces": 553,
+      "triangles": 370780,
+      "sourceTriangles": 370892,
+      "primitiveReplacements": 0,
+      "visualComponents": 380,
+      "degenerateVisualSegments": 1,
+      "legacyColors": 0,
+      "missing": [],
+      "durationSeconds": 9
     }
   ],
   "geometryRepair": {
@@ -2700,7 +2716,7 @@
     "remainingInInitialBatch": 50
   },
   "latestBatch": {
-    "completedAt": "2026-10-13T16:13:27.065Z",
+    "completedAt": "2026-10-13T16:27:44.743Z",
     "selected": [
       "75969-1",
       "40335-1",
@@ -2720,9 +2736,10 @@
     ],
     "imported": 15,
     "skipped": 0,
-    "durationSeconds": 100,
-    "processingAttempts": 17,
+    "durationSeconds": 109,
+    "processingAttempts": 18,
     "initialPassImported": 13,
-    "initialPassSkipped": 2
+    "initialPassSkipped": 2,
+    "validationRebuilds": 1
   }
 }

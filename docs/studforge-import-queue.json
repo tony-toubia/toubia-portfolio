@@ -1543,6 +1543,22 @@
           "status": "skipped",
           "reason": "Invalid placement of 3460.dat",
           "durationSeconds": 3
+        },
+        {
+          "setNumber": "75253-1",
+          "name": "Droid Commander",
+          "theme": "Star Wars",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1116",
+          "status": "imported",
+          "pieces": 553,
+          "triangles": 370780,
+          "sourceTriangles": 370892,
+          "primitiveReplacements": 0,
+          "visualComponents": 380,
+          "missing": [],
+          "durationSeconds": 10,
+          "degenerateVisualSegments": 1,
+          "legacyColors": 3
         }
       ],
       "status": "imported",
@@ -1551,10 +1567,10 @@
       "sourceTriangles": 370892,
       "primitiveReplacements": 0,
       "visualComponents": 380,
-      "missing": [],
-      "durationSeconds": 10,
       "degenerateVisualSegments": 1,
-      "legacyColors": 3
+      "legacyColors": 0,
+      "missing": [],
+      "durationSeconds": 9
     },
     {
       "setNumber": "75893-1",
@@ -1758,5 +1774,5 @@
       "durationSeconds": 2
     }
   ],
-  "updatedAt": "2026-10-13T16:13:27.065Z"
+  "updatedAt": "2026-10-13T16:27:44.743Z"
 }

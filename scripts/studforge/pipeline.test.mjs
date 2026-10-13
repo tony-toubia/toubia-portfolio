@@ -19,11 +19,11 @@ test('only zero-area generated segments are omitted from interactive geometry',(
 });
 
 test('legacy blended colors use documented original RGB values and preserve defined colors',()=>{
-    const config='0 !COLOUR Dark_Blue CODE 272 VALUE #0A3463 EDGE #333333';
+    const config='0 !COLOUR Dark_Blue                     CODE   272   VALUE #0A3463 EDGE #333333';
     const result=completeLegacyColors(config,[placement('part.dat').replace('1 4','1 361'),placement('part.dat').replace('1 4','1 272')].join('\n'));
     assert.equal(result.legacyColors,1);
     assert.ok(result.config.includes('CODE 361 VALUE #335A80'));
-    assert.equal([...result.config.matchAll(/CODE 272/g)].length,1);
+    assert.equal([...result.config.matchAll(/CODE\s+272/g)].length,1);
     assert.equal(completeLegacyColors(config,placement('part.dat').replace('1 4','1 999')).legacyColors,0);
 });
 

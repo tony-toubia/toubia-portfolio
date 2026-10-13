@@ -66,7 +66,7 @@ export function prepareVisualReferences(text, metadata) {
 // Obsolete blended colors use the original ldraw.exe palette, as specified by LDraw.
 // Official/current definitions always take precedence over the legacy number range.
 export function completeLegacyColors(config, text) {
-    const defined=new Set([...`${config}\n${text}`.matchAll(/^0 !COLOUR .*?\bCODE (\d+)\b/gm)].map(match=>Number(match[1])));
+    const defined=new Set([...`${config}\n${text}`.matchAll(/^0\s+!COLOUR\s+.*?\bCODE\s+(\d+)\b/gm)].map(match=>Number(match[1])));
     const original=[[51,51,51],[0,51,178],[0,127,51],[0,181,166],[204,0,0],[255,51,153],[102,51,0],[153,153,153],[102,102,88],[0,128,255],[51,255,102],[171,253,249],[255,0,0],[255,176,204],[255,229,0],[255,255,255]];
     const used=new Set([...text.matchAll(/^[134]\s+(\d+)\s/gm)].map(match=>Number(match[1])));
     const additions=[];
