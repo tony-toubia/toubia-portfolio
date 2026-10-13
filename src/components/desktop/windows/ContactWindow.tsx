@@ -38,7 +38,8 @@ export default function ContactWindow({ initialSubject = 'General Inquiry' }: Co
 
       <div className="retro-divider" />
 
-      <form onSubmit={handleSubmit} className="space-y-3">
+      {/* data-axo-form-id names this form for AXO's form-submit goal. */}
+      <form onSubmit={handleSubmit} className="space-y-3" data-axo-form-id="contact_submit">
         <div className="flex gap-4">
           <div className="flex-1">
             <label className="text-xs block mb-1">Name:</label>
