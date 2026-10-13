@@ -5,41 +5,55 @@
 // per stud, and each stud takes the nearest opaque colour in the catalog.
 // The grid goes through the generator's own assemble() so the parts list,
 // exports and every other feature see an ordinary model.
+//
+// It is a "start from" source in Make (🎨 A mosaic): pick an emoji or a photo, a size and a
+// baseplate, then FORGE MOSAIC loads the model and closes Make. showPanel('mosaic') opens it.
 (() => {
     const SIZES = [32, 48], SAMPLE = 240;
     const BASES = [['LIGHT_GREY', 'Grey'], ['WHITE', 'White'], ['BLACK', 'Black'], ['TAN', 'Tan'], ['DARK_BLUE', 'Navy'], ['GREEN', 'Green']];
     const QUICK = ['🦊', '🐸', '🐼', '🍕', '🚀', '❤️', '🌈', '👾', '🍄', '🌻', '🦖', '⚡'];
 
     const css = `
-.sfm-wrap { display: flex; flex-direction: column; gap: 10px; }
-.sfm-intro { font-size: 12px; color: var(--text-secondary); line-height: 1.4; }
-.sfm-seg { display: inline-flex; border: 1px solid var(--border-main); border-radius: 8px; overflow: hidden; }
-.sfm-seg button { background: transparent; border: none; color: var(--text-secondary); font-family: var(--font-heading); font-size: 10px; font-weight: 700; letter-spacing: 0.6px; padding: 7px 12px; cursor: pointer; }
+.sfm-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 232px; gap: 14px 22px; align-items: start; }
+.sfm-controls { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.sfm-intro { margin: 0; font-size: 14px; color: var(--text-secondary); line-height: 1.4; }
+.sfm-field { display: flex; flex-direction: column; gap: 6px; }
+.sfm-label { font-family: var(--font-heading); font-size: 9px; font-weight: 700; letter-spacing: 1.2px; color: var(--text-muted); }
+.sfm-inline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sfm-seg { display: inline-flex; border: 1px solid var(--border-main); border-radius: 9px; overflow: hidden; background: var(--bg-main); align-self: flex-start; }
+.sfm-seg button { background: transparent; border: none; color: var(--text-secondary); font-family: var(--font-body); font-size: 14px; font-weight: 700; padding: 0 14px; min-height: 34px; cursor: pointer; white-space: nowrap; }
 .sfm-seg button + button { border-left: 1px solid var(--border-main); }
-.sfm-seg button.on { background: rgba(242, 205, 55, 0.14); color: var(--lego-yellow); }
-.sfm-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.sfm-label { font-family: var(--font-heading); font-size: 9px; letter-spacing: 1px; color: var(--text-muted); min-width: 36px; }
-.sfm-emoji-row { display: flex; align-items: center; gap: 10px; }
-.sfm-emoji-input { flex: 1; min-width: 0; background: var(--bg-main); border: 1px solid var(--border-main); border-radius: 8px; color: #fff; font-size: 22px; padding: 6px 10px; text-align: center; outline: none; user-select: text; -webkit-user-select: text; }
+.sfm-seg button:hover { color: #fff; }
+.sfm-seg button.on { background: rgba(242, 205, 55, 0.12); color: var(--lego-yellow); box-shadow: inset 0 0 0 1px var(--lego-yellow); }
+.sfm-src-emoji { display: flex; flex-direction: column; gap: 8px; }
+.sfm-src-emoji[hidden], .sfm-src-photo[hidden] { display: none; }
+.sfm-emoji-input { width: 100%; box-sizing: border-box; background: var(--bg-main); border: 1px solid var(--border-main); border-radius: 9px; color: #fff; font-size: 24px; height: 46px; padding: 0 12px; text-align: center; outline: none; user-select: text; -webkit-user-select: text; }
 .sfm-emoji-input:focus { border-color: var(--border-active); }
-.sfm-quick { display: flex; flex-wrap: wrap; gap: 4px; }
-.sfm-quick button { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 8px; font-size: 18px; padding: 3px 6px; cursor: pointer; line-height: 1; }
-.sfm-quick button:hover { border-color: var(--lego-yellow); }
-.sfm-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 72px; border: 1px dashed rgba(255, 255, 255, 0.25); border-radius: 10px; padding: 10px; cursor: pointer; text-align: center; font-family: var(--font-heading); font-size: 10px; letter-spacing: 0.6px; color: var(--text-secondary); }
-.sfm-drop.over, .sfm-drop:hover { border-color: var(--lego-yellow); color: #fff; }
-.sfm-drop small { font-family: var(--font-body); font-size: 11px; letter-spacing: 0; color: var(--text-muted); }
+.sfm-quick { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 6px; }
+.sfm-quick button { background: var(--bg-main); border: 1px solid var(--border-main); border-radius: 8px; font-size: 20px; height: 38px; padding: 0; cursor: pointer; line-height: 1; }
+.sfm-quick button:hover, .sfm-quick button.on { border-color: var(--lego-yellow); }
+.sfm-quick button.on { background: rgba(242, 205, 55, 0.1); }
+.sfm-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 96px; border: 1px dashed rgba(255, 255, 255, 0.25); border-radius: 10px; background: var(--bg-main); padding: 12px; cursor: pointer; text-align: center; font-family: var(--font-body); font-size: 15px; font-weight: 700; color: #fff; }
+.sfm-drop.over, .sfm-drop:hover { border-color: var(--lego-yellow); }
+.sfm-drop small { font-size: 12px; font-weight: 500; color: var(--text-muted); line-height: 1.35; }
 .sfm-drop input { display: none; }
-.sfm-preview-wrap { display: flex; align-items: center; gap: 12px; }
-.sfm-preview { width: 128px; height: 128px; image-rendering: pixelated; border-radius: 6px; border: 1px solid var(--border-main); background: var(--bg-main); flex-shrink: 0; }
+.sfm-select { background: var(--bg-main); border: 1px solid var(--border-main); border-radius: 9px; color: #fff; font-family: var(--font-body); font-size: 14px; font-weight: 600; height: 34px; padding: 0 8px; }
+.sfm-check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--text-secondary); cursor: pointer; min-height: 34px; }
+.sfm-check input { accent-color: var(--lego-yellow); width: 16px; height: 16px; }
+.sfm-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.sfm-preview-wrap { display: flex; flex-direction: column; gap: 8px; }
+.sfm-preview { width: 100%; aspect-ratio: 1; height: auto; image-rendering: pixelated; border-radius: 8px; border: 1px solid var(--border-main); background: var(--bg-main); display: block; }
 .sfm-stats { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); line-height: 1.6; }
 .sfm-stats b { color: var(--lego-yellow); font-weight: 600; }
-.sfm-select { background: var(--bg-main); border: 1px solid var(--border-main); border-radius: 8px; color: #fff; font-family: var(--font-body); font-size: 13px; padding: 5px 8px; }
+.sfm-forge { padding: 12px 6px; font-size: 11px; }
 .sfm-forge:disabled { opacity: 0.5; cursor: default; }
-.sfm-check { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-heading); font-size: 9px; letter-spacing: 0.8px; color: var(--text-secondary); cursor: pointer; }
-.sfm-check input { accent-color: var(--lego-yellow); }
-.sfm-tip { font-size: 11px; color: var(--text-muted); }
-@media (max-width: 600px) {
-  .sfm-preview { width: 96px; height: 96px; }
+.sfm-tip { font-size: 12px; color: var(--text-muted); line-height: 1.35; }
+@media (max-width: 640px) {
+  .sfm-wrap { grid-template-columns: 1fr; }
+  .sfm-preview-wrap { flex-direction: row; align-items: center; gap: 12px; }
+  .sfm-preview { width: 112px; flex-shrink: 0; }
+  .sfm-quick { grid-template-columns: repeat(6, 1fr); }
+  .sfm-forge { min-height: 46px; font-size: 12px; }
 }
 `;
 
@@ -51,7 +65,7 @@
 
     const init = () => {
         const sf = window.studForge;
-        if (!sf || !sf.registerPanel || !window.ForgeGrid) return;
+        if (!sf || !sf.addSource || !window.ForgeGrid) return;
         const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
         const colours = palette();
         const state = { source: 'emoji', emoji: '🦊', size: 32, base: 'LIGHT_GREY', fill: true, photo: null, cells: null };
@@ -116,31 +130,38 @@
             return model;
         };
 
-        /* ── the panel ────────────────────────────────────────── */
+        /* ── the source panel (Make → "A mosaic") ───────────── */
 
-        const panel = sf.registerPanel({ id: 'mosaic', title: '🎨 MOSAIC' });
-        const body = panel.body;
+        let open = false;   // the mosaic source is showing in Make
+        const src = sf.addSource({ id: 'mosaic', icon: '🎨', label: 'A mosaic', hint: 'An emoji or a photo', order: 30 });
+        const body = src.body;
         body.innerHTML = `
 <div class="sfm-wrap">
-  <div class="sfm-intro">Turn an emoji or a photo into a flat mosaic of 1×1 plates on a baseplate.</div>
-  <div class="sfm-row"><span class="sfm-label">FROM</span><div class="sfm-seg sfm-src-seg"><button data-src="emoji" class="on">EMOJI</button><button data-src="photo">PHOTO</button></div></div>
-  <div class="sfm-src-emoji">
-    <div class="sfm-emoji-row"><input class="sfm-emoji-input" maxlength="12" value="🦊" aria-label="Emoji or short text" spellcheck="false"></div>
-    <div class="sfm-quick"></div>
+  <div class="sfm-controls">
+    <p class="sfm-intro">Turn an emoji or a photo into a flat picture of 1×1 plates on a baseplate, in real LEGO colours.</p>
+    <div class="sfm-field"><span class="sfm-label">MAKE IT FROM</span><div class="sfm-seg sfm-src-seg" role="group" aria-label="Make it from"><button type="button" data-src="emoji" class="on">😀 An emoji</button><button type="button" data-src="photo">📷 A photo</button></div></div>
+    <div class="sfm-src-emoji">
+      <input class="sfm-emoji-input" maxlength="12" value="🦊" aria-label="Type or paste an emoji" spellcheck="false" enterkeyhint="go">
+      <div class="sfm-quick" role="group" aria-label="Pick an emoji"></div>
+    </div>
+    <div class="sfm-src-photo" hidden>
+      <label class="sfm-drop"><span class="sfm-drop-label">📷 Pick a photo</span><small>or drop or paste one here. It is cropped square and never leaves your browser.</small><input type="file" accept="image/*"></label>
+    </div>
+    <div class="sfm-field"><span class="sfm-label">SIZE</span><div class="sfm-seg sfm-size-seg" role="group" aria-label="Size">${SIZES.map((s, i) => `<button type="button" data-size="${s}" class="${i === 0 ? 'on' : ''}">${s}×${s} studs</button>`).join('')}</div></div>
+    <div class="sfm-field"><span class="sfm-label">BASEPLATE</span><div class="sfm-inline"><select class="sfm-select sfm-base" aria-label="Baseplate colour">${BASES.map(([id, n]) => `<option value="${id}">${n}</option>`).join('')}</select>
+      <label class="sfm-check"><input type="checkbox" class="sfm-fill" checked> Fill the background</label></div></div>
   </div>
-  <div class="sfm-src-photo" hidden>
-    <label class="sfm-drop">📷 PICK A PHOTO<small>or drop one here · it is cropped square and never leaves your browser</small><input type="file" accept="image/*"></label>
+  <div class="sfm-side">
+    <div class="sfm-preview-wrap"><canvas class="sfm-preview" width="32" height="32" aria-label="Mosaic preview"></canvas><div class="sfm-stats">…</div></div>
+    <button type="button" class="action-btn primary sfm-forge">🎨 FORGE MOSAIC</button>
+    <div class="sfm-tip">The step slider builds the picture row by row. Bold, simple emoji read best.</div>
   </div>
-  <div class="sfm-row"><span class="sfm-label">SIZE</span><div class="sfm-seg sfm-size-seg">${SIZES.map((s, i) => `<button data-size="${s}" class="${i === 0 ? 'on' : ''}">${s}×${s}</button>`).join('')}</div></div>
-  <div class="sfm-row"><span class="sfm-label">BASE</span><select class="sfm-select sfm-base">${BASES.map(([id, n]) => `<option value="${id}">${n}</option>`).join('')}</select>
-    <label class="sfm-check"><input type="checkbox" class="sfm-fill" checked> FILL BACKGROUND</label></div>
-  <div class="sfm-preview-wrap"><canvas class="sfm-preview" width="32" height="32"></canvas><div class="sfm-stats">…</div></div>
-  <button class="action-btn primary sfm-forge">🎨 FORGE MOSAIC</button>
-  <div class="sfm-tip">Tip: the step slider builds the picture row by row. Bold, simple emoji read best.</div>
 </div>`;
         const $ = (s) => body.querySelector(s);
-        const preview = $('.sfm-preview'), stats = $('.sfm-stats'), forgeBtn = $('.sfm-forge'), emojiInput = $('.sfm-emoji-input'), drop = $('.sfm-drop'), file = drop.querySelector('input');
-        for (const e of QUICK) { const b = document.createElement('button'); b.type = 'button'; b.textContent = e; b.title = e; b.addEventListener('click', () => { state.emoji = e; emojiInput.value = e; refresh(); }); $('.sfm-quick').appendChild(b); }
+        const preview = $('.sfm-preview'), stats = $('.sfm-stats'), forgeBtn = $('.sfm-forge'), emojiInput = $('.sfm-emoji-input'), drop = $('.sfm-drop'), dropLabel = $('.sfm-drop-label'), file = drop.querySelector('input');
+        const paintQuick = () => { for (const b of body.querySelectorAll('.sfm-quick button')) b.classList.toggle('on', b.textContent === state.emoji); };
+        for (const e of QUICK) { const b = document.createElement('button'); b.type = 'button'; b.textContent = e; b.title = e; b.addEventListener('click', () => { state.emoji = e; emojiInput.value = e; paintQuick(); refresh(); }); $('.sfm-quick').appendChild(b); }
+        paintQuick();
 
         let timer = null;
         const refresh = () => {
@@ -155,35 +176,40 @@
                 px.fillStyle = window.LEGO_COLORS[state.base].hex; px.fillRect(0, 0, N, N);
                 if (cells) for (let i = 0; i < cells.length; i++) if (cells[i]) { px.fillStyle = window.LEGO_COLORS[cells[i]].hex; px.fillRect(i % N, Math.floor(i / N), 1, 1); }
                 const count = cells ? cells.filter(Boolean).length : 0, used = cells ? new Set(cells.filter(Boolean)).size : 0;
-                stats.innerHTML = cells ? `<b>${count.toLocaleString()}</b> plates<br>${used} colours<br>${N}×${N} studs · 9 steps` : state.source === 'photo' ? 'Pick a photo to preview it.' : 'Type an emoji.';
+                stats.innerHTML = cells ? `<b>${count.toLocaleString()}</b> plates · ${used} colours<br>${N}×${N} studs · 9 steps` : state.source === 'photo' ? 'Pick a photo to preview it.' : 'Type an emoji.';
                 forgeBtn.disabled = !cells || !count;
             }, 60);
         };
-        const setSource = (src) => {
-            state.source = src;
-            for (const b of body.querySelectorAll('.sfm-src-seg button')) b.classList.toggle('on', b.dataset.src === src);
-            $('.sfm-src-emoji').hidden = src !== 'emoji'; $('.sfm-src-photo').hidden = src !== 'photo';
+        const setSource = (from) => {
+            state.source = from;
+            for (const b of body.querySelectorAll('.sfm-src-seg button')) b.classList.toggle('on', b.dataset.src === from);
+            $('.sfm-src-emoji').hidden = from !== 'emoji'; $('.sfm-src-photo').hidden = from !== 'photo';
             refresh();
         };
         body.querySelector('.sfm-src-seg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setSource(b.dataset.src); });
         body.querySelector('.sfm-size-seg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; state.size = Math.min(48, parseInt(b.dataset.size, 10) || 32); for (const x of body.querySelectorAll('.sfm-size-seg button')) x.classList.toggle('on', x === b); refresh(); });
         $('.sfm-base').addEventListener('change', (e) => { state.base = e.target.value; refresh(); });
         $('.sfm-fill').addEventListener('change', (e) => { state.fill = e.target.checked; refresh(); });
-        emojiInput.addEventListener('input', () => { state.emoji = emojiInput.value.trim() || '🦊'; refresh(); });
+        emojiInput.addEventListener('input', () => { state.emoji = emojiInput.value.trim() || '🦊'; paintQuick(); refresh(); });
         emojiInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') forgeBtn.click(); });
         const loadPhoto = (f) => {
             if (!f || !f.type.startsWith('image/')) return;
             const url = URL.createObjectURL(f), img = new Image();
-            img.onload = () => { state.photo = img; drop.firstChild.textContent = `📷 ${f.name.length > 22 ? f.name.slice(0, 20) + '…' : f.name}`; URL.revokeObjectURL(url); setSource('photo'); };
-            img.onerror = () => { URL.revokeObjectURL(url); };
+            img.onload = () => { state.photo = img; dropLabel.textContent = `📷 ${f.name.length > 22 ? f.name.slice(0, 20) + '…' : f.name}`; URL.revokeObjectURL(url); setSource('photo'); };
+            img.onerror = () => { URL.revokeObjectURL(url); sf.toast && sf.toast('That image could not be read'); };
             img.src = url;
         };
         file.addEventListener('change', () => loadPhoto(file.files && file.files[0]));
         for (const evt of ['dragenter', 'dragover']) drop.addEventListener(evt, (e) => { e.preventDefault(); drop.classList.add('over'); });
         for (const evt of ['dragleave', 'drop']) drop.addEventListener(evt, (e) => { e.preventDefault(); drop.classList.remove('over'); });
         drop.addEventListener('drop', (e) => loadPhoto(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]));
-        // Pasting an image anywhere while the panel is open also works.
-        document.addEventListener('paste', (e) => { if (!body.closest('.side-panel.on')) return; const it = [...(e.clipboardData && e.clipboardData.items || [])].find((i) => i.type.startsWith('image/')); if (it) loadPhoto(it.getAsFile()); });
+        // Pasting an image anywhere while the mosaic source is open also works.
+        sf.on('source', (id) => { open = id === 'mosaic'; });
+        document.addEventListener('paste', (e) => {
+            if (!open) return;
+            const it = [...(e.clipboardData && e.clipboardData.items || [])].find((i) => i.type.startsWith('image/'));
+            if (it) { e.preventDefault(); loadPhoto(it.getAsFile()); }
+        });
 
         forgeBtn.addEventListener('click', () => {
             if (!state.cells) return;
@@ -194,24 +220,11 @@
                     const model = build(state.cells, state.size);
                     document.querySelectorAll('.inspo-pill').forEach((p) => p.classList.remove('active'));
                     sf.emit('forging', { prompt: model.prompt, variant: 0, opts: {}, mosaic: true });
-                    (sf.load || ((m) => sf.viewer.loadModel(m)))(model);
+                    sf.load(model);   // closes Make
                 } catch (e) { console.error('mosaic forge', e); }
                 finally { forgeBtn.innerHTML = orig; forgeBtn.disabled = false; }
             }, 30);
         });
-
-        // The dock chip opens the panel (and unfolds the sidebar on phones).
-        const chip = document.createElement('button');
-        chip.className = 'tool-chip sfm-chip'; chip.type = 'button'; chip.innerHTML = '🎨 MOSAIC'; chip.title = 'Mosaic mode: an emoji or photo as 1x1 plates';
-        chip.addEventListener('click', () => {
-            const card = document.getElementById('bom-card'), toggle = document.getElementById('btn-bom-toggle');
-            if (card && getComputedStyle(card).display === 'none') { card.classList.add('open'); if (toggle) toggle.classList.add('on'); }
-            panel.show();
-            const layout = document.querySelector('.app-layout');
-            if (window.innerWidth <= 600 && card && layout) layout.scrollTo({ top: layout.scrollTop + card.getBoundingClientRect().top - layout.getBoundingClientRect().top - 8, behavior: 'smooth' });
-        });
-        sf.dock(chip);
-        sf.on('panel', (id) => chip.classList.toggle('on', id === 'mosaic'));
         refresh();
     };
 
