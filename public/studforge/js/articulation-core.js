@@ -11,7 +11,7 @@
             ] }],
         },
         '75102-1': {
-            fingerprint: 'dfd69abc', lift: 5,
+            fingerprint: 'dfd69abc', lift: 5, groundedRanges: [[682, 733]],
             controls: [{ id: 'wings', label: 'Wing opening', min: 0, max: 20, joints: [
                 // Four reviewed S-foil assemblies, plus their engines, cannons and tips.
                 // Pivot through the root Technic axle holes; signs open them together.

@@ -81,6 +81,12 @@
                 rest = viewer.brickMeshes.map(mesh => ({ position: mesh.position.toArray(), quaternion: mesh.quaternion.clone() }));
                 baseY = viewer.modelGroup.position.y;
                 viewer.modelGroup.position.y += rig.lift; viewer.target.y += rig.lift; viewer.updateCameraPosition();
+                // Only the ship takes the flight lift. Its figures and ground
+                // accessories keep their original world positions on the floor.
+                for (const [first, last] of rig.groundedRanges || []) for (let i = first; i <= last; i++) {
+                    viewer.brickMeshes[i].position.y -= rig.lift;
+                    viewer.brickMeshes[i].updateMatrix();
+                }
                 active = true; viewer.poseActive = true;
                 apply();
             } else {

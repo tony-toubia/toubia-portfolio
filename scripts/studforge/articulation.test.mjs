@@ -39,7 +39,7 @@ test('WALL-E neck profile moves head and neck together and leaves body and arms 
  assert.equal(JSON.stringify(model.bricks),original,'source placement and inventory stay original');
 });
 test('linked X-Wing foils include their engines and cannons; paired wings open in opposite directions',async()=>{
- const model=await load('75102-1'),control=core.resolve(model).controls[0];
+ const model=await load('75102-1'),rig=core.resolve(model),control=rig.controls[0];
  const expected=[[368,622,662,680],[427,655,666,681],[495,635,674,679],[554,645,670,678]];
  control.joints.forEach((joint,i)=>{
   for(const index of expected[i])assert.ok(joint.members.includes(index));
@@ -49,4 +49,10 @@ test('linked X-Wing foils include their engines and cannons; paired wings open i
   assert.ok(point[1]+5>0,'flight lift keeps the cannon above the floor');
  });
  assert.equal(core.clamp(70,control),20);assert.equal(core.clamp(-10,control),0);assert.equal(core.clamp(NaN,control),0);
+ const moving=new Set(control.joints.flatMap(j=>j.members));
+ for(const [first,last] of rig.groundedRanges)for(let i=first;i<=last;i++){
+  assert.ok(i<model.bricks.length && !moving.has(i));
+  const worldY=model.bricks[i].y-rig.lift+rig.lift;
+  near(worldY,model.bricks[i].y,'ground props do not share the ship flight lift');
+ }
 });
