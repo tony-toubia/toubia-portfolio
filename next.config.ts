@@ -8,6 +8,15 @@ const nextConfig: NextConfig = {
     // DESIGN mode reads the compressed real-set examples from disk at runtime (src/lib/studforge/omr-examples.ts).
     '/api/studforge/idea': ['./public/studforge/data/omr-blueprints/*.json'],
   },
+  // Void Warden was replaced by Hole Haul.
+  async redirects() {
+    return [
+      { source: '/void-warden', destination: '/hole-haul', permanent: true },
+      { source: '/void-warden-game', destination: '/hole-haul', permanent: true },
+      { source: '/void-warden/:path*', destination: '/hole-haul', permanent: true },
+      { source: '/void-warden-game/:path*', destination: '/hole-haul', permanent: true },
+    ];
+  },
   async rewrites() {
     return [
       {

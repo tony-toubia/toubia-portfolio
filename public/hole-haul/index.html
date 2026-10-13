@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#7cc6ff">
+    <title>Hole Haul</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css?v=1">
+</head>
+<body>
+    <div id="stage"></div>
+
+    <!-- In a level -->
+    <div id="hud" class="hidden">
+        <div class="hud-top">
+            <div class="targets" id="targets"></div>
+            <div class="timer-wrap">
+                <div class="timer" id="timer">1:30</div>
+                <div class="hole-level"><span id="hole-lvl">LV 1</span><div class="xp"><div class="xp-fill" id="xp-fill"></div></div></div>
+            </div>
+            <div class="hud-right">
+                <div class="coin-pill"><span class="coin-ico"></span><span id="hud-coins">0</span></div>
+                <button class="round-btn" id="btn-pause" type="button" aria-label="Pause">❚❚</button>
+            </div>
+        </div>
+        <div class="boosters" id="boosters"></div>
+        <div class="joy" id="joy"><div class="joy-knob" id="joy-knob"></div></div>
+        <div class="hint" id="hint">Drag anywhere to move the hole</div>
+        <div class="banner" id="banner"></div>
+    </div>
+
+    <!-- Level map -->
+    <div id="map" class="screen hidden">
+        <header class="map-head">
+            <a class="map-back" id="btn-home" href="/" target="_top">←</a>
+            <div class="map-title">HOLE HAUL</div>
+            <div class="coin-pill big"><span class="coin-ico"></span><span id="map-coins">0</span></div>
+        </header>
+        <div class="map-scroll" id="map-scroll"><div class="map-path" id="map-path"></div></div>
+        <footer class="map-foot">
+            <button class="pill-btn ghost" id="btn-shop" type="button">🛒 Boosters</button>
+            <button class="pill-btn ghost" id="btn-sound" type="button">🔊 Sound</button>
+            <button class="pill-btn play" id="btn-play" type="button">PLAY</button>
+        </footer>
+    </div>
+
+    <!-- Modal (level intro, pause, win, fail, shop) -->
+    <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="card" id="card"></div>
+    </div>
+
+    <div id="loading" class="loading">
+        <div class="loading-hole"></div>
+        <div class="loading-text">Digging…</div>
+    </div>
+
+    <script src="vendor/three.min.js"></script>
+    <script src="js/models.js?v=1"></script>
+    <script src="js/audio.js?v=1"></script>
+    <script src="js/levels.js?v=1"></script>
+    <script src="js/game.js?v=1"></script>
+    <script src="js/ui.js?v=1"></script>
+    <script src="js/main.js?v=1"></script>
+</body>
+</html>

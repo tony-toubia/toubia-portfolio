@@ -6,6 +6,7 @@ import DuetWindow from './DuetWindow';
 import AMZToolsWindow from './AMZToolsWindow';
 import PrimalHuntWindow from './PrimalHuntWindow';
 import StudForgeWindow from './StudForgeWindow';
+import HoleHaulWindow from './HoleHaulWindow';
 
 interface Project {
   id: string;
@@ -78,6 +79,21 @@ const projects: Project[] = [
     windowContent: <StudForgeWindow />,
     windowSize: { width: 880, height: 640 },
   },
+  {
+    id: 'hole-haul',
+    name: 'Hole Haul',
+    icon: (
+      <svg viewBox="0 0 48 48" className="w-10 h-10">
+        <rect x="4" y="4" width="40" height="40" rx="8" fill="#7CC957" />
+        <ellipse cx="24" cy="28" rx="15" ry="9" fill="#1B1530" />
+        <circle cx="17" cy="15" r="4" fill="#FF5C8A" />
+        <rect x="26" y="10" width="8" height="8" rx="1.5" fill="#FFCF33" />
+        <circle cx="30" cy="26" r="3" fill="#6FD3FF" />
+      </svg>
+    ),
+    windowContent: <HoleHaulWindow />,
+    windowSize: { width: 420, height: 720 },
+  },
 ];
 
 export default function ProjectsWindow() {
@@ -146,6 +162,17 @@ export default function ProjectsWindow() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   /studforge ↗
+                </a>
+              )}
+              {project.id === 'hole-haul' && (
+                <a
+                  href="/hole-haul"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[9px] text-green-500 hover:underline mt-0.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  /hole-haul ↗
                 </a>
               )}
               {project.id === 'primal-hunt' && (
