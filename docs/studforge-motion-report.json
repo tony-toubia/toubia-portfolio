@@ -1,0 +1,1073 @@
+{
+  "detector": "connectors-v1",
+  "kits": [
+    {
+      "id": "6698-1",
+      "name": "RV with Speedboat",
+      "joints": 0,
+      "candidates": 2,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 29,
+          "top": 30,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 90,
+          "top": 91,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "6679-1",
+      "name": "Dark Shark",
+      "joints": 0,
+      "candidates": 2,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 35,
+          "top": 37,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 36,
+          "top": 38,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "4896-1",
+      "name": "Roaring Roadsters",
+      "joints": 2,
+      "candidates": 6,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 335,
+          "top": 336,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 339,
+          "top": 340,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 417,
+          "top": 421,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 422,
+          "top": 426,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "10242-1",
+      "name": "MINI Cooper",
+      "joints": 1,
+      "candidates": 2,
+      "assembliesRestored": false,
+      "skipped": []
+    },
+    {
+      "id": "10176-1",
+      "name": "Royal King's Castle",
+      "joints": 1,
+      "candidates": 5,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 499,
+          "top": 500,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 618,
+          "top": 621,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 619,
+          "top": 622,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "20011-1",
+      "name": "Garbage Truck",
+      "joints": 0,
+      "candidates": 1,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 1,
+          "top": 44,
+          "reason": "Attached receiver uses an unsupported connector"
+        }
+      ]
+    },
+    {
+      "id": "30181-1",
+      "name": "Helicopter",
+      "joints": 1,
+      "candidates": 1,
+      "assembliesRestored": false,
+      "skipped": []
+    },
+    {
+      "id": "6675-1",
+      "name": "Road & Trail 4x4",
+      "joints": 1,
+      "candidates": 1,
+      "assembliesRestored": false,
+      "skipped": []
+    },
+    {
+      "id": "6368-1",
+      "name": "Jet Airliner",
+      "joints": 0,
+      "candidates": 1,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 83,
+          "top": 84,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "6889-1",
+      "name": "Recon Robot",
+      "joints": 1,
+      "candidates": 1,
+      "assembliesRestored": false,
+      "skipped": []
+    },
+    {
+      "id": "897-1",
+      "name": "Mobile Rocket Launcher",
+      "joints": 1,
+      "candidates": 2,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 18,
+          "top": 19,
+          "reason": "Attached receiver uses an unsupported connector"
+        }
+      ]
+    },
+    {
+      "id": "31066-1",
+      "name": "Space Shuttle Explorer",
+      "joints": 0,
+      "candidates": 3,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 72,
+          "top": 73,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 156,
+          "top": 158,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 157,
+          "top": 159,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "6770-1",
+      "name": "Lunar Transporter Patroller",
+      "joints": 0,
+      "candidates": 2,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 106,
+          "top": 87,
+          "reason": "Multiple axes constrain the same assembly"
+        },
+        {
+          "base": 107,
+          "top": 108,
+          "reason": "Multiple axes constrain the same assembly"
+        }
+      ]
+    },
+    {
+      "id": "1621-1",
+      "name": "Lunar MPV Vehicle",
+      "joints": 1,
+      "candidates": 4,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 47,
+          "top": 79,
+          "reason": "Multiple axes constrain the same assembly"
+        },
+        {
+          "base": 74,
+          "top": 80,
+          "reason": "Multiple axes constrain the same assembly"
+        },
+        {
+          "base": 93,
+          "top": 94,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "6414-1",
+      "name": "Dolphin Point",
+      "joints": 0,
+      "candidates": 1,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 18,
+          "top": 19,
+          "reason": "Attached receiver uses an unsupported connector"
+        }
+      ]
+    },
+    {
+      "id": "316-1",
+      "name": "Fire Fighter Ship",
+      "joints": 0,
+      "candidates": 9,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 10,
+          "top": 14,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 11,
+          "top": 15,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 12,
+          "top": 13,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 80,
+          "top": 81,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 82,
+          "top": 83,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 84,
+          "top": 85,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 126,
+          "top": 127,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 128,
+          "top": 129,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 132,
+          "top": 133,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "4015-1",
+      "name": "Freighter",
+      "joints": 0,
+      "candidates": 1,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 46,
+          "top": 47,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "894-1",
+      "name": "Mobile Ground Tracking Station",
+      "joints": 2,
+      "candidates": 2,
+      "assembliesRestored": false,
+      "skipped": []
+    },
+    {
+      "id": "918-1",
+      "name": "Space Transport",
+      "joints": 1,
+      "candidates": 2,
+      "assembliesRestored": false,
+      "skipped": []
+    },
+    {
+      "id": "6878-1",
+      "name": "Sub Orbital Guardian",
+      "joints": 0,
+      "candidates": 7,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 40,
+          "top": 2,
+          "reason": "Multiple axes constrain the same assembly"
+        },
+        {
+          "base": 51,
+          "top": 42,
+          "reason": "Multiple axes constrain the same assembly"
+        },
+        {
+          "base": 52,
+          "top": 66,
+          "reason": "Multiple axes constrain the same assembly"
+        },
+        {
+          "base": 61,
+          "top": 41,
+          "reason": "Multiple axes constrain the same assembly"
+        },
+        {
+          "base": 62,
+          "top": 65,
+          "reason": "Multiple axes constrain the same assembly"
+        },
+        {
+          "base": 64,
+          "top": 1,
+          "reason": "Multiple axes constrain the same assembly"
+        },
+        {
+          "base": 18,
+          "top": 19,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "6363-1",
+      "name": "Auto Service Station",
+      "joints": 0,
+      "candidates": 1,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 115,
+          "top": 116,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "10159-1",
+      "name": "City Airport",
+      "joints": 1,
+      "candidates": 4,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 227,
+          "top": 228,
+          "reason": "Multiple axes constrain the same assembly"
+        },
+        {
+          "base": 373,
+          "top": 372,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 229,
+          "top": 230,
+          "reason": "Attached receiver uses an unsupported connector"
+        }
+      ]
+    },
+    {
+      "id": "6692-1",
+      "name": "Tractor Trailer",
+      "joints": 0,
+      "candidates": 1,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 47,
+          "top": 54,
+          "reason": "Attached receiver uses an unsupported connector"
+        }
+      ]
+    },
+    {
+      "id": "10001-1",
+      "name": "Metroliner",
+      "joints": 2,
+      "candidates": 3,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 800,
+          "top": 801,
+          "reason": "Attached receiver uses an unsupported connector"
+        }
+      ]
+    },
+    {
+      "id": "7747-1",
+      "name": "Wind Turbine Transport",
+      "joints": 0,
+      "candidates": 1,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 158,
+          "top": 159,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "41592-1",
+      "name": "The Hulk",
+      "joints": 2,
+      "candidates": 2,
+      "assembliesRestored": false,
+      "skipped": []
+    },
+    {
+      "id": "41605-1",
+      "name": "Thanos",
+      "joints": 2,
+      "candidates": 2,
+      "assembliesRestored": false,
+      "skipped": []
+    },
+    {
+      "id": "41498-1",
+      "name": "Boba Fett & Han Solo in Carbonite",
+      "joints": 0,
+      "candidates": 2,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 42,
+          "top": 74,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 43,
+          "top": 77,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "10278-1",
+      "name": "Police Station",
+      "joints": 0,
+      "candidates": 2,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 407,
+          "top": 409,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 408,
+          "top": 410,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "21321-1",
+      "name": "International Space Station",
+      "joints": 1,
+      "candidates": 1,
+      "assembliesRestored": false,
+      "skipped": []
+    },
+    {
+      "id": "75276-1",
+      "name": "Stormtrooper",
+      "joints": 2,
+      "candidates": 3,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 181,
+          "top": 182,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "75277-1",
+      "name": "Boba Fett",
+      "joints": 0,
+      "candidates": 1,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 192,
+          "top": 193,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "40433-1",
+      "name": "1989 Batmobile - Limited Edition",
+      "joints": 1,
+      "candidates": 3,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 187,
+          "top": 189,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 188,
+          "top": 190,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "21309-1",
+      "name": "NASA Apollo Saturn V",
+      "joints": 4,
+      "candidates": 4,
+      "assembliesRestored": false,
+      "skipped": []
+    },
+    {
+      "id": "75980-1",
+      "name": "Attack on The Burrow",
+      "joints": 0,
+      "candidates": 5,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 653,
+          "top": 658,
+          "reason": "Multiple axes constrain the same assembly"
+        },
+        {
+          "base": 654,
+          "top": 659,
+          "reason": "Multiple axes constrain the same assembly"
+        },
+        {
+          "base": 655,
+          "top": 662,
+          "reason": "Multiple axes constrain the same assembly"
+        },
+        {
+          "base": 656,
+          "top": 660,
+          "reason": "Multiple axes constrain the same assembly"
+        },
+        {
+          "base": 657,
+          "top": 661,
+          "reason": "Multiple axes constrain the same assembly"
+        }
+      ]
+    },
+    {
+      "id": "77904-1",
+      "name": "Nebulon-B Frigate",
+      "joints": 2,
+      "candidates": 4,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 396,
+          "top": 398,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 397,
+          "top": 399,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "9470-1",
+      "name": "Shelob Attacks",
+      "joints": 0,
+      "candidates": 2,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 62,
+          "top": 161,
+          "reason": "Attached receiver uses an unsupported connector"
+        },
+        {
+          "base": 63,
+          "top": 165,
+          "reason": "Attached receiver uses an unsupported connector"
+        }
+      ]
+    },
+    {
+      "id": "21307-1",
+      "name": "Caterham Seven 620R",
+      "joints": 0,
+      "candidates": 4,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 199,
+          "top": 205,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 264,
+          "top": 270,
+          "reason": "Attached receiver uses an unsupported connector"
+        },
+        {
+          "base": 265,
+          "top": 271,
+          "reason": "Attached receiver uses an unsupported connector"
+        },
+        {
+          "base": 505,
+          "top": 506,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "75954-1",
+      "name": "Hogwarts Great Hall",
+      "joints": 3,
+      "candidates": 6,
+      "assembliesRestored": false,
+      "skipped": []
+    },
+    {
+      "id": "21318-1",
+      "name": "Tree House",
+      "joints": 0,
+      "candidates": 2,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 663,
+          "top": 664,
+          "reason": "Attached receiver uses an unsupported connector"
+        },
+        {
+          "base": 888,
+          "top": 890,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "76161-1",
+      "name": "1989 Batwing",
+      "joints": 8,
+      "candidates": 18,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 2118,
+          "top": 2119,
+          "reason": "Attached receiver uses an unsupported connector"
+        },
+        {
+          "base": 2120,
+          "top": 2121,
+          "reason": "Attached receiver uses an unsupported connector"
+        },
+        {
+          "base": 2192,
+          "top": 2264,
+          "reason": "Attached receiver uses an unsupported connector"
+        },
+        {
+          "base": 2193,
+          "top": 2262,
+          "reason": "Attached receiver uses an unsupported connector"
+        },
+        {
+          "base": 2196,
+          "top": 2231,
+          "reason": "Attached receiver uses an unsupported connector"
+        },
+        {
+          "base": 2197,
+          "top": 2229,
+          "reason": "Attached receiver uses an unsupported connector"
+        }
+      ]
+    },
+    {
+      "id": "76042-1",
+      "name": "The SHIELD Helicarrier",
+      "joints": 0,
+      "candidates": 8,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 923,
+          "top": 924,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 925,
+          "top": 926,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 1188,
+          "top": 1189,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 1190,
+          "top": 1191,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 1456,
+          "top": 1457,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 1458,
+          "top": 1459,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 1723,
+          "top": 1724,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 1725,
+          "top": 1726,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "75060-1",
+      "name": "Slave I",
+      "joints": 1,
+      "candidates": 2,
+      "assembliesRestored": false,
+      "skipped": []
+    },
+    {
+      "id": "76139-1",
+      "name": "1989 Batmobile",
+      "joints": 2,
+      "candidates": 6,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 1997,
+          "top": 1999,
+          "reason": "Attached receiver uses an unsupported connector"
+        },
+        {
+          "base": 1998,
+          "top": 2000,
+          "reason": "Attached receiver uses an unsupported connector"
+        }
+      ]
+    },
+    {
+      "id": "10297-1",
+      "name": "Boutique Hotel",
+      "joints": 0,
+      "candidates": 2,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 1277,
+          "top": 1278,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 3046,
+          "top": 3047,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "10212-1",
+      "name": "Imperial Shuttle",
+      "joints": 1,
+      "candidates": 4,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 1627,
+          "top": 1629,
+          "reason": "Attached receiver uses an unsupported connector"
+        },
+        {
+          "base": 1628,
+          "top": 1630,
+          "reason": "Attached receiver uses an unsupported connector"
+        }
+      ]
+    },
+    {
+      "id": "21325-1",
+      "name": "Medieval Blacksmith",
+      "joints": 0,
+      "candidates": 9,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 1371,
+          "top": 1376,
+          "reason": "Attached receiver uses an unsupported connector"
+        },
+        {
+          "base": 1437,
+          "top": 1484,
+          "reason": "Attached receiver uses an unsupported connector"
+        },
+        {
+          "base": 1438,
+          "top": 1483,
+          "reason": "Attached receiver uses an unsupported connector"
+        },
+        {
+          "base": 1566,
+          "top": 1635,
+          "reason": "Attached receiver uses an unsupported connector"
+        },
+        {
+          "base": 1567,
+          "top": 1630,
+          "reason": "Attached receiver uses an unsupported connector"
+        },
+        {
+          "base": 1864,
+          "top": 1872,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 1865,
+          "top": 1873,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 2095,
+          "top": 2097,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 2096,
+          "top": 2098,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "75969-1",
+      "name": "Hogwarts Astronomy Tower",
+      "joints": 2,
+      "candidates": 4,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 769,
+          "top": 770,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 856,
+          "top": 857,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "75181-1",
+      "name": "Y-Wing Starfighter",
+      "joints": 1,
+      "candidates": 5,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 513,
+          "top": 514,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 1166,
+          "top": 1167,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 1170,
+          "top": 1171,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "75144-1",
+      "name": "Snowspeeder",
+      "joints": 4,
+      "candidates": 20,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 964,
+          "top": 965,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 1306,
+          "top": 1307,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 558,
+          "top": 559,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 562,
+          "top": 563,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 723,
+          "top": 730,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 724,
+          "top": 731,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 1131,
+          "top": 1135,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 1132,
+          "top": 1134,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 1169,
+          "top": 1170,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 1173,
+          "top": 1174,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 1472,
+          "top": 1478,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 1473,
+          "top": 1477,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 1509,
+          "top": 1510,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 1513,
+          "top": 1514,
+          "reason": "No attached assembly found"
+        }
+      ]
+    },
+    {
+      "id": "21302-1",
+      "name": "The Big Bang Theory",
+      "joints": 0,
+      "candidates": 1,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 432,
+          "top": 431,
+          "reason": "Attached receiver uses an unsupported connector"
+        }
+      ]
+    },
+    {
+      "id": "75253-1",
+      "name": "Droid Commander",
+      "joints": 0,
+      "candidates": 3,
+      "assembliesRestored": false,
+      "skipped": [
+        {
+          "base": 703,
+          "top": 710,
+          "reason": "Attached receiver uses an unsupported connector"
+        },
+        {
+          "base": 704,
+          "top": 714,
+          "reason": "No attached assembly found"
+        },
+        {
+          "base": 705,
+          "top": 706,
+          "reason": "Attached receiver uses an unsupported connector"
+        }
+      ]
+    }
+  ],
+  "supported": 27,
+  "joints": 51
+}

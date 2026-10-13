@@ -4,6 +4,7 @@ import * as THREE from '../../public/studforge/vendor/three.module.js';
 import {loadPackedModel} from '../../public/studforge/js/ldraw-model.js';
 import {renderThumbnail} from './thumbnail.mjs';
 import {countBundleTriangles,isVisualSegment} from './pipeline-core.mjs';
+import {detectMotion,geometryReader} from './detect-motion.mjs';
 globalThis.ProgressEvent ||= class { constructor(type,values){this.type=type;Object.assign(this,values);} };
 export function readPalette(config) {
 const palette={};
@@ -79,7 +80,17 @@ async function bake(piece,filename,color,own) {
  // Normals are rebuilt from the baked indexed mesh by the viewer; loader smoothing is discarded.
  const {source}=await loadPackedModel(text.replace(/^[25]\s.*(?:\r?\n|$)/gm,''),config,{smoothNormals:false});
  source.rotation.set(Math.PI,entry.frontAngle||0,0);source.scale.setScalar(.05);source.updateMatrixWorld(true);
- const pieces=physical(source),colors=[],parts=[],bricks=[];
+ const pieces=physical(source),colors=[],parts=[],bricks=[],submodels=['main'],assemblyIds=new Map();
+ function assemblyOf(piece) {
+  const ancestors=[];let current=piece.userData.type==='Model'?piece:piece.parent;
+  while(current&&current!==source){if(current.userData.type==='Model')ancestors.unshift(current);current=current.parent;}
+  let parent='main';
+  for(const ancestor of ancestors){
+   if(!assemblyIds.has(ancestor)){const name=`${parent} - ${ancestor.userData.fileName||'assembly'} #${assemblyIds.size+1}`;assemblyIds.set(ancestor,submodels.length);submodels.push(name);}
+   parent=submodels[assemblyIds.get(ancestor)];
+  }
+  return ancestors.length?assemblyIds.get(ancestors.at(-1)):0;
+ }
  const box=new THREE.Box3().setFromObject(source),shift=new THREE.Vector3(-box.min.x,-box.min.y,-box.min.z);
  const layers=[...new Set(pieces.map(({object:piece})=>source.userData.numBuildingSteps>1?piece.userData.buildingStep:Math.round(piece.matrixWorld.elements[13]/.4)))].sort((a,b)=>a-b);
  const partsMap=new Map();
@@ -98,13 +109,16 @@ async function bake(piece,filename,color,own) {
   const position=new THREE.Vector3().setFromMatrixPosition(piece.matrixWorld).add(shift);
   if (![...position.toArray(), ...m].every(Number.isFinite)) throw new Error(`Invalid placement of ${filename}`);
   const step=source.userData.numBuildingSteps>1?piece.userData.buildingStep:Math.round(piece.matrixWorld.elements[13]/.4);
-  bricks.push([partsMap.get(partKey),colors.indexOf(colorKey),...position.toArray().map(rounded),...[m[0],m[4],m[8],m[1],m[5],m[9],m[2],m[6],m[10]].map(rounded),layers.indexOf(step),0,null]);
+  bricks.push([partsMap.get(partKey),colors.indexOf(colorKey),...position.toArray().map(rounded),...[m[0],m[4],m[8],m[1],m[5],m[9],m[2],m[6],m[10]].map(rounded),layers.indexOf(step),assemblyOf(piece),null]);
  }
  const size=box.getSize(new THREE.Vector3()), id=entry.setNumber;
  const pieceCount=pieces.filter(piece=>!piece.segment).length;
- const model={format:'studforge-omr-1',id,name:entry.name,year:entry.year,theme:entry.theme || `${entry.category} > BrickHeadz`,subject:entry.subject || 'character',category:entry.category,pieces:pieceCount,steps:layers.length,stepKind:source.userData.numBuildingSteps>1?'steps':'layers',dims:{w:Math.ceil(size.x),d:Math.ceil(size.z),h:Math.ceil(size.y/1.2)},submodels:['main'],parts,colors,bricks,source:{url:entry.sourceUrl,download:entry.originalUrl,file:entry.modelUrl,authors:[entry.author],licence:entry.license.includes('4.0')?'CC BY 4.0':'CC BY 2.0',instructionsUrl:entry.instructionsUrl,missing:entry.missing},stats:{droppedRefs:0,fileSteps:source.userData.numBuildingSteps,patternPreserved:true,triangles,visualComponents:pieces.length-pieceCount},collections:entry.collections || []};
+ const model={format:'studforge-omr-1',id,name:entry.name,year:entry.year,theme:entry.theme || `${entry.category} > BrickHeadz`,subject:entry.subject || 'character',category:entry.category,pieces:pieceCount,steps:layers.length,stepKind:source.userData.numBuildingSteps>1?'steps':'layers',dims:{w:Math.ceil(size.x),d:Math.ceil(size.z),h:Math.ceil(size.y/1.2)},submodels,parts,colors,bricks,source:{url:entry.sourceUrl,download:entry.originalUrl,file:entry.modelUrl,authors:[entry.author],licence:entry.license.includes('4.0')?'CC BY 4.0':'CC BY 2.0',instructionsUrl:entry.instructionsUrl,missing:entry.missing},stats:{droppedRefs:0,fileSteps:source.userData.numBuildingSteps,patternPreserved:true,triangles,visualComponents:pieces.length-pieceCount},collections:entry.collections || []};
+ const detected=await detectMotion(model,geometryReader([root+'/parts'],manifest.parts,text));
+ if(detected.motion)model.motion=detected.motion;
  await fs.writeFile(`${root}/model.json`,JSON.stringify(model));
  const row={id,name:model.name,theme:model.theme,subject:model.subject,pieces:model.pieces,steps:model.steps,stepKind:model.stepKind,file:`${id}.json`,authors:model.source.authors,licence:model.source.licence,url:entry.sourceUrl,dims:model.dims,thumbnail:entry.thumbnail,category:entry.category,collections:entry.collections || [],rank:entry.rank,missing:entry.missing,triangles};
+ if(model.motion)row.motionCount=model.motion.controls.length;
 
  await renderThumbnail(source,id,0,root);
  return {model,row,manifest:manifest.parts,palette,pieceCount,sourceStepCount:source.userData.numBuildingSteps};

@@ -40,7 +40,7 @@ test('WALL-E neck profile moves head and neck together and leaves body and arms 
 });
 test('linked X-Wing foils include their engines and cannons; paired wings open in opposite directions',async()=>{
  const model=await load('75102-1'),rig=core.resolve(model),control=rig.controls[0];
- const expected=[[368,622,662,680],[427,655,666,681],[495,635,674,679],[554,645,670,678]];
+ const expected=[[368,622,662,680],[427,652,666,681],[495,632,674,679],[554,642,670,678]];
  control.joints.forEach((joint,i)=>{
   for(const index of expected[i])assert.ok(joint.members.includes(index));
   const tip=model.bricks[expected[i][2]],rest=[tip.x,tip.y,tip.z];
@@ -54,5 +54,22 @@ test('linked X-Wing foils include their engines and cannons; paired wings open i
   assert.ok(i<model.bricks.length && !moving.has(i));
   const worldY=model.bricks[i].y-rig.lift+rig.lift;
   near(worldY,model.bricks[i].y,'ground props do not share the ship flight lift');
+ }
+});
+test('X-Wing wing bearings stay coaxial with the stationary support axles at every opening angle',async()=>{
+ const model=await load('75102-1'),rig=core.resolve(model);
+ const transform=(b,p)=>[b.x,b.y,b.z].map((v,i)=>v+b.matrix[i*3]*p[0]+b.matrix[i*3+1]*p[1]+b.matrix[i*3+2]*p[2]);
+ for(const [j,axleIndex,first,last] of [[0,317,622,631],[1,316,652,661],[2,304,632,641],[3,303,642,651]]){
+  const joint=rig.controls[0].joints[j],axle=model.bricks[axleIndex];
+  near(joint.pivot[0],axle.x);near(joint.pivot[1],axle.y);
+  assert.ok(!joint.members.includes(axleIndex),'support shaft stays with the body');
+  const holes=joint.members.filter(i=>model.bricks[i].partId==='11458'&&Math.abs(transform(model.bricks[i],[.5,.3,0])[0]-axle.x)<.01);
+  assert.equal(holes.length,2,'two wing bearings support each shaft');
+  for(const i of holes)for(const angle of [0,5,10,15,20]){
+   const centre=transform(model.bricks[i],[.5,.3,0]);
+   const posed=core.rotatePoint(centre,joint.pivot,joint.axis,angle*joint.factor);
+   near(posed[0],axle.x);near(posed[1],axle.y);
+  }
+  for(let i=622;i<=661;i++)assert.equal(joint.members.includes(i),i>=first&&i<=last,'each complete engine belongs to exactly its own wing');
  }
 });

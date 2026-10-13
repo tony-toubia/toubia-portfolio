@@ -39,6 +39,8 @@ Published assets live under `public/studforge` and load without a community API 
 
 ## Inventory, steps and attribution
 
+The converter preserves source subassembly instance identity and automatically detects supported hinges and turntables after baking. Shared connector rules identify pivots and stud-connected moving groups; no per-kit code is required for supported mechanisms. Ambiguous or unsupported connections stay unposed. `npm run studforge:motion` applies the same detector to installed kits, recovering assembly metadata from packed source only when physical traversal matches exactly. This adds 51 joints across 27 kits; with the two reviewed complex rigs, 29 library kits carry the Movable label. See [the motion report](../../docs/studforge-motion-report.json) for supported kits and skip reasons. Detection does not imply every moving feature of a kit is supported.
+
 Inventories describe the community recreation, not the official boxed-set inventory. They retain LDraw identifiers and export CSV; these have not been mapped to verified BrickLink inventory IDs. Generated builds retain their existing BrickLink XML export. Printed geometry receives distinct content-hashed render IDs, while inventory rows retain their source part identifiers. Counts exclude spares and may differ from boxed sets.
 
 Source STEP records drive assembly mode. Models without them provide inspection layers and a link to LEGO's original instructions. The library surfaces missing parts, patterns and stickers reported by each contributor. Favorites and step/checklist progress are stored locally and are not account synced.

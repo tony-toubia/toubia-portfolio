@@ -111,7 +111,7 @@
             rig = core.resolve(model); rest = []; values = Object.fromEntries((rig?.controls || []).map(c => [c.id, 0]));
             button.hidden = !rig; panel.section.hidden = !rig;
             if (!rig) { panel.body.innerHTML = ''; return; }
-            panel.body.innerHTML = '<p class="sfpose-tip">Grab the highlighted neck or wings to move the whole assembly on its joint. You can also use the angle control below.</p>'
+            panel.body.innerHTML = '<p class="sfpose-tip">Grab a highlighted assembly to move it on its joint. You can also use the angle controls below.</p>'
                 + '<button type="button" class="action-btn secondary" data-toggle aria-pressed="false">↻ TRY MOVING PIECES</button><div class="sfpose-controls">'
                 + rig.controls.map(c => `<label><span>${c.label}<output data-value="${c.id}">0°</output></span><input type="range" min="${c.min}" max="${c.max}" step="1" value="0" data-angle="${c.id}" aria-label="${c.label}"></label>`).join('')
                 + '</div><button type="button" class="action-btn tertiary" data-reset>RESET POSE</button><p class="sfpose-tip">Demonstration poses. Building steps and parts lists use the original assembly.</p>';

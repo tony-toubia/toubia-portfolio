@@ -71,7 +71,7 @@
             reference: { setId: data.id, year: data.year, theme: data.theme, authors, url: data.source && data.source.url,
                 file: data.source && data.source.file, licence: data.source && data.source.licence, stats: data.stats,
                 instructionsUrl: data.source && data.source.instructionsUrl, missing: data.source && data.source.missing },
-            bricks,
+            bricks, motion: data.motion,
         };
     }
 
