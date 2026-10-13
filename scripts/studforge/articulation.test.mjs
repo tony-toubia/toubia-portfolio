@@ -2,6 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import vm from 'node:vm';
+import * as THREE from '../../public/studforge/vendor/three.module.js';
 const context=vm.createContext({console});
 vm.runInContext(await fs.readFile('public/studforge/js/articulation-core.js','utf8'),context);
 context.window=context;
@@ -9,6 +10,16 @@ vm.runInContext(await fs.readFile('public/studforge/js/omr.js','utf8'),context);
 const core=context.StudForgeArticulation;
 const load=async id=>context.FORGE.omr.expand(JSON.parse(await fs.readFile(`public/studforge/data/omr/${id}.json`,'utf8')));
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
+
+test('ray picking a fixed-color or printed face resolves its enclosing moving brick',()=>{
+ const root=new THREE.Mesh(new THREE.BufferGeometry(),new THREE.MeshBasicMaterial());
+ const face=new THREE.Mesh(new THREE.BoxGeometry(2,2,2),new THREE.MeshBasicMaterial());root.add(face);root.updateMatrixWorld(true);
+ const camera=new THREE.PerspectiveCamera(50,1,.1,100);camera.position.set(0,0,8);camera.lookAt(0,0,0);camera.updateMatrixWorld(true);
+ const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2(),camera);
+ assert.equal(ray.intersectObjects([root],false).length,0,'the old non-recursive picking missed visible child surfaces');
+ const hit=ray.intersectObjects([root],true)[0];assert.ok(hit);
+ assert.equal(core.memberIndex(hit.object,[root]),0);assert.equal(core.memberIndex(new THREE.Group(),[root]),-1);
+});
 test('reviewed profiles match actual source placements and cannot silently bind to changed geometry',async()=>{
  for(const id of core.ids){
   const model=await load(id),original=JSON.stringify(model),rig=core.resolve(model);
