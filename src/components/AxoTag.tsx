@@ -30,17 +30,51 @@ export function AxoTag() {
   const pathname = usePathname() ?? "/";
   const hostname = useSyncExternalStore(subscribe, getHostname, getServerHostname);
   const excluded = EXCLUDED_PATH.test(pathname);
+  const active = Boolean(AXO_SITE_ID) && ALLOWED_HOST.test(hostname) && !excluded;
 
-  // A script tag cannot be unloaded. If the tag is already in this document
-  // and a client-side navigation lands on /slt, reload the page so the /slt
-  // view starts in a fresh document that never had the tag.
+  // A script tag cannot be unloaded, so /slt must never render in a document
+  // that has the tag. While the tag is active, turn every route into /slt into
+  // a full page load before the Next.js router can render it:
+  //  - link clicks: a document capture listener runs before React's handlers
+  //    on the root, so a next/link to /slt becomes a plain navigation;
+  //  - back/forward: a window capture listener on popstate runs before the
+  //    router's own listener and reloads instead.
+  useEffect(() => {
+    if (!active) return;
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const anchor = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!anchor || (anchor.target && anchor.target !== "_self") || anchor.hasAttribute("download")) return;
+      const url = new URL(anchor.href, window.location.href);
+      if (url.origin === window.location.origin && EXCLUDED_PATH.test(url.pathname)) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        window.location.assign(url.href);
+      }
+    };
+    const onPopState = (e: PopStateEvent) => {
+      if (EXCLUDED_PATH.test(window.location.pathname)) {
+        e.stopImmediatePropagation();
+        window.location.reload();
+      }
+    };
+    document.addEventListener("click", onClick, true);
+    window.addEventListener("popstate", onPopState, true);
+    return () => {
+      document.removeEventListener("click", onClick, true);
+      window.removeEventListener("popstate", onPopState, true);
+    };
+  }, [active]);
+
+  // Backstop for any other route in (a programmatic router.push, for
+  // example): if /slt has rendered with the tag present, reload at once.
   useEffect(() => {
     if (excluded && document.querySelector('script[src*="axoapp.ai/tag.js"]')) {
       window.location.reload();
     }
   }, [excluded]);
 
-  if (!AXO_SITE_ID || !ALLOWED_HOST.test(hostname) || excluded) {
+  if (!active) {
     return null;
   }
 
