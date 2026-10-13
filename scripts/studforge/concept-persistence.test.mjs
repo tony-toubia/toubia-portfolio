@@ -35,6 +35,9 @@ function gallery(storage = new Map(), search = '') {
 
 test('approved blueprint saves and reopens with identical pieces and safe concept metadata', () => {
     const app = gallery(), original = app.sf.forge('Highlands Hawks mascot', 2, { blueprint, concept });
+    assert.equal(original.anchor.struts, 0, 'the actual structural sketch is supported without rescue columns');
+    assert.equal(original.anchor.dropped, 0, 'the actual structural sketch preserves its designed pose');
+    assert.equal(original.anchor.stuck, 0);
     app.sf.gallery.save();
     const entry = app.sf.gallery.list()[0];
     assert.ok(entry.opts.blueprint);
