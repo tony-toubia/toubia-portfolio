@@ -153,8 +153,9 @@
 
         // A tap is a short press that barely moves; anything else is an orbit drag.
         let press = null;
-        canvas.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse' && e.button !== 0) return; press = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+        canvas.addEventListener('pointerdown', (e) => { if (viewer.poseActive || (e.pointerType === 'mouse' && e.button !== 0)) return; press = { x: e.clientX, y: e.clientY, t: performance.now() }; });
         canvas.addEventListener('pointerup', (e) => {
+            if (viewer.poseActive) { press = null; return; }
             if (!press) return;
             const p = press; press = null;
             if (Math.hypot(e.clientX - p.x, e.clientY - p.y) > 6 || performance.now() - p.t > 300) return;
@@ -284,6 +285,7 @@
 
         function setTray(on) {
             if (on === trayOn) return;
+            sf.emit('studio:tray', on);
             trayOn = on;
             closeCard();
             if (on) {
@@ -596,7 +598,7 @@
         const saved = load();
         setPlate(saved.baseplate || 'none', false);
         applyMood(saved.lighting || 'studio', false);
-        sf.studio = { setTray, setPlate, setMood: applyMood, setSpin, turntable: startTurntable, snapshot: () => snapshotPNG(), get trayOn() { return trayOn; }, get spinning() { return spinning; }, get recording() { return !!recording; }, get mood() { return mood; }, get baseplate() { return plate.kind; } };
+        sf.studio = { setTray, setPlate, closeInspector: closeCard, setMood: applyMood, setSpin, turntable: startTurntable, snapshot: () => snapshotPNG(), get trayOn() { return trayOn; }, get transitioning() { return !!activeTween; }, get spinning() { return spinning; }, get recording() { return !!recording; }, get mood() { return mood; }, get baseplate() { return plate.kind; } };
     }
 
     if (window.studForge) init(); else document.addEventListener('studforge:ready', init, { once: true });

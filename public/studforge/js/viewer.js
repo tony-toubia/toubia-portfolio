@@ -396,6 +396,7 @@ class StudForgeViewer {
         const dom = this.renderer.domElement;
         // Left drag orbits; right, middle or shift+left drag pans.
         dom.addEventListener('mousedown', (e) => {
+            if (this.motionDragging) return;
             if (e.button === 0 || e.button === 1 || e.button === 2) {
                 this.isDragging = true;
                 this.isPanning = e.button !== 0 || e.shiftKey;
@@ -418,10 +419,12 @@ class StudForgeViewer {
         let pinch = null;   // { dist, radius, mid }
         const two = (t) => ({ dist: Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY), mid: { x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 } });
         dom.addEventListener('touchstart', (e) => {
+            if (this.motionDragging) return;
             if (e.touches.length === 1) { this.isDragging = true; this.isPanning = false; this.previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }
             else if (e.touches.length === 2) { this.isDragging = true; this.isPanning = true; const t = two(e.touches); pinch = { dist: t.dist, radius: this.spherical.radius, mid: t.mid }; }
         }, { passive: true });
         dom.addEventListener('touchmove', (e) => {
+            if (this.motionDragging) { if (e.cancelable) e.preventDefault(); return; }
             if (e.touches.length === 1 && this.isDragging && !this.isPanning) {
                 if (e.cancelable) e.preventDefault();
                 this.spherical.theta -= (e.touches[0].clientX - this.previousMousePosition.x) * 0.008;
@@ -450,7 +453,7 @@ class StudForgeViewer {
 
     animate() {
         requestAnimationFrame(this.animate);
-        if (!this.isDragging && this.explodeProgress === 0 && !this.isStepMode) { this.spherical.theta += 0.0018; this.updateCameraPosition(); }
+        if (!this.poseActive && !this.isDragging && this.explodeProgress === 0 && !this.isStepMode) { this.spherical.theta += 0.0018; this.updateCameraPosition(); }
         this.renderer.render(this.scene, this.camera);
     }
 }
