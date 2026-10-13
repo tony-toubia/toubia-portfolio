@@ -3,6 +3,7 @@
 import Script from "next/script";
 import { usePathname } from "next/navigation";
 import { useEffect, useSyncExternalStore } from "react";
+import { trackAxoEvent } from "@/lib/axo-events";
 
 /**
  * Loads the AXO personalization tag on tonytoubia.com.
@@ -73,6 +74,26 @@ export function AxoTag() {
       window.location.reload();
     }
   }, [excluded]);
+
+  // Contact intent from plain links, reported as named events so AXO goals can
+  // match them: the LinkedIn profile and the email address. The tag already
+  // logs a generic outbound click for LinkedIn links, but a goal cannot tell
+  // LinkedIn from any other site, and mailto links are not outbound at all.
+  useEffect(() => {
+    if (!active) return;
+    const onClick = (e: MouseEvent) => {
+      const anchor = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!anchor) return;
+      const href = anchor.getAttribute("href") || "";
+      if (/^mailto:/i.test(href)) {
+        trackAxoEvent("email_click", { source: "link" });
+      } else if (/linkedin\.com\//i.test(href)) {
+        trackAxoEvent("linkedin_click", { source: "link" });
+      }
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, [active]);
 
   if (!active) {
     return null;

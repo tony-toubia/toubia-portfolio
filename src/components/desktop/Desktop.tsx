@@ -2,6 +2,7 @@
 
 import { useState, useEffect, ReactNode, useMemo } from 'react';
 import { useWindowManager } from './WindowManager';
+import { trackAxoEvent } from '@/lib/axo-events';
 import DesktopIcon from './DesktopIcon';
 import Window from './Window';
 import Taskbar from './Taskbar';
@@ -287,7 +288,7 @@ export default function Desktop() {
             size: { width: mobileWindowWidth, height: mobileWindowHeight },
             content: win.content,
             icon: icons[iconKeyMap[win.id]],
-          });
+          }, { auto: true });
         });
       } else {
         // Desktop: distribute windows diagonally across screen
@@ -326,7 +327,7 @@ export default function Desktop() {
             size: win.size,
             content: win.content,
             icon: icons[iconKeyMap[win.id]],
-          });
+          }, { auto: true });
         });
       }
 
@@ -417,6 +418,11 @@ export default function Desktop() {
   const handleIconDoubleClick = (item: DesktopItem) => {
     // Handle external URLs
     if (item.externalUrl) {
+      // window.open is not a link, so AXO's own outbound-click capture never
+      // sees it. Links elsewhere are reported by AxoTag's click listener.
+      if (/linkedin\.com\//i.test(item.externalUrl)) {
+        trackAxoEvent('linkedin_click', { source: 'desktop_icon' });
+      }
       window.open(item.externalUrl, '_blank');
       return;
     }

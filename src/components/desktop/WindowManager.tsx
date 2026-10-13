@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { trackAxoEvent } from '@/lib/axo-events';
 
 export interface WindowState {
   id: string;
@@ -18,7 +19,8 @@ export interface WindowState {
 interface WindowManagerContextType {
   windows: WindowState[];
   activeWindowId: string | null;
-  openWindow: (window: Omit<WindowState, 'zIndex' | 'isOpen'>) => void;
+  /** `auto: true` marks a window the page opened by itself on load. */
+  openWindow: (window: Omit<WindowState, 'zIndex' | 'isOpen'>, options?: { auto?: boolean }) => void;
   closeWindow: (id: string) => void;
   minimizeWindow: (id: string) => void;
   maximizeWindow: (id: string) => void;
@@ -36,11 +38,31 @@ let nextZIndex = 100;
 // that on top of the new one; focus requests right after an open are ignored.
 let lastOpened: { id: string; at: number } | null = null;
 
+// AXO reporting. A window the visitor opens is a `window_open`. The windows
+// the desktop opens by itself on load say nothing about interest, so each one
+// reports `window_engaged` once, the first time the visitor focuses it (a
+// click inside, a drag of its title bar, or picking it from the taskbar).
+// Closing or minimizing never focuses a window, so neither counts.
+const autoOpened = new Map<string, string>();
+const engaged = new Set<string>();
+
+function markEngaged(id: string) {
+  const title = autoOpened.get(id);
+  if (title === undefined || engaged.has(id)) return;
+  engaged.add(id);
+  trackAxoEvent('window_engaged', { window: id, title });
+}
+
 export function WindowManagerProvider({ children }: { children: ReactNode }) {
   const [windows, setWindows] = useState<WindowState[]>([]);
   const [activeWindowId, setActiveWindowId] = useState<string | null>(null);
 
-  const openWindow = useCallback((window: Omit<WindowState, 'zIndex' | 'isOpen'>) => {
+  const openWindow = useCallback((window: Omit<WindowState, 'zIndex' | 'isOpen'>, options?: { auto?: boolean }) => {
+    if (options?.auto) {
+      autoOpened.set(window.id, window.title);
+    } else {
+      trackAxoEvent('window_open', { window: window.id, title: window.title });
+    }
     setWindows(prev => {
       const existing = prev.find(w => w.id === window.id);
       if (existing) {
@@ -78,6 +100,7 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const restoreWindow = useCallback((id: string) => {
+    markEngaged(id);
     setWindows(prev => prev.map(w =>
       w.id === id ? { ...w, isMinimized: false, isMaximized: false, zIndex: nextZIndex++ } : w
     ));
@@ -86,6 +109,7 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
 
   const focusWindow = useCallback((id: string) => {
     if (lastOpened && lastOpened.id !== id && Date.now() - lastOpened.at < 400) return;
+    markEngaged(id);
     setWindows(prev => prev.map(w =>
       w.id === id ? { ...w, zIndex: nextZIndex++ } : w
     ));
