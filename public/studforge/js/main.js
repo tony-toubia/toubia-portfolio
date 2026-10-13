@@ -36,7 +36,9 @@
 //   studForge.isPhone()                      the phone layout is showing
 //   studForge.viewer / .generator / .bom     the 3D viewer, the generator, the current parts list
 document.addEventListener('DOMContentLoaded', () => {
-    if (window.self !== window.top) document.body.classList.add('in-iframe');
+    // Inside the portfolio's desktop window the window chrome carries the way back; the /studforge page embeds the app
+    // full screen with ?standalone=1, so the app keeps its own back link (which leaves the frame: target _top).
+    if (window.self !== window.top && !/[?&]standalone=1\b/.test(location.search)) document.body.classList.add('in-iframe');
 
     const viewer = new window.StudForgeViewer('viewport-3d');
     const generator = new window.BrickGenerator();

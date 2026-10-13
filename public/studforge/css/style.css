@@ -453,6 +453,7 @@ body.sfi-booklet-open .create-bar, body.sfi-booklet-open .tabbar { display: none
     .nav-btn, .nav-actions > button { height: 32px; padding: 0 9px; }
     .nav-btn .nb-label, .nav-btn .car, .nav-actions .nb-label { display: none; }
     .back-to-home, body:not(.in-iframe) .back-to-home { display: none; }
+    #btn-keys { display: none; }
 
     /* Make: hidden until the Make tab opens it full height. */
     .create-bar {
