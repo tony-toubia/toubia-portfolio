@@ -2,7 +2,7 @@
 // Bake LDraw parts into StudForge's compact geometry format.
 //
 //   node scripts/ldraw/bake.mjs --lib <ldraw dir> [--out public/studforge/data/ldraw/parts]
-//        [--ids 3001,3039 | --ids-file list.txt | --catalog] [--cap 3000] [--skip-over-cap] [--manifest <path>] [--quiet]
+//        [--ids 3001,3039 | --ids-file list.txt | --catalog] [--cap 3000] [--skip-over-cap] [--strip-logos] [--manifest <path>] [--quiet]
 //
 // --ids        comma/space separated LDraw names ("3001", "3001.dat", "973c01", "s\3001s01.dat" all work)
 // --ids-file   a text file of names, separated by whitespace or commas; "#" starts a comment
@@ -23,7 +23,9 @@
 // Triangle budget (stud-free geometry): above --cap (3000) a part is retried with every primitive low-res; still above
 // it is written with `heavy: true` (the viewer may draw a box on low-end devices) up to --max (12000), and above
 // --max it is skipped and reported (with --skip-over-cap; otherwise written anyway). Never decimated. Parts whose
-// description or sub-files mention a logo are never baked (no brand artwork in the repo).
+// description or sub-files mention a logo are never baked (no brand artwork in the repo). With --strip-logos, a part
+// whose only logo is an embossed logo sub-file (logo*.dat, e.g. on a motorbike frame) is baked with that sub-file left
+// out; a part whose description mentions a logo (a print or sticker) is still skipped.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -34,7 +36,7 @@ import { loadPart, setLibrary, exists, bakedId } from './lib.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 function parseArgs(argv) {
-    const a = { ids: [], cap: 3000, max: 12000, quiet: false, catalog: false };
+    const a = { ids: [], cap: 3000, max: 12000, quiet: false, catalog: false, stripLogos: false };
     for (let k = 0; k < argv.length; k++) {
         const s = argv[k];
         const val = () => { if (k + 1 >= argv.length) throw new Error(s + ' needs a value'); return argv[++k]; };
@@ -43,6 +45,7 @@ function parseArgs(argv) {
         else if (s === '--ids') a.ids.push(...val().split(/[\s,]+/));
         else if (s === '--ids-file') a.idsFile = val();
         else if (s === '--catalog') a.catalog = true;
+        else if (s === '--strip-logos') a.stripLogos = true;
         else if (s === '--cap') a.cap = Number(val());
         else if (s === '--max') a.max = Number(val());
         else if (s === '--manifest') a.manifest = val();
@@ -94,14 +97,15 @@ const licenceOf = (p) => {
 };
 
 /** Bake one part. Returns { id, json, tris, bytes, lowRes, overCap, src, name, missing } or null when not found. */
-export function bakeOne(name, { cap = 3000, max = 12000, id = bakedId(name) } = {}) {
+export function bakeOne(name, { cap = 3000, max = 12000, id = bakedId(name), stripLogos = false } = {}) {
     let lowRes = 'studs';
-    let p = loadPart(name, { lowRes, skipStuds: true });
+    let p = loadPart(name, { lowRes, skipStuds: true, stripLogos });
     if (!p) return null;
-    // Never ship brand artwork: parts printed with (or built from) a logo are skipped and reported.
-    if (/\blogo\b/i.test(p.title) || p.logos.length) return { id, skipped: 'logo: ' + (p.logos[0] || p.title) };
+    // Never ship brand artwork: parts printed with (or built from) a logo are skipped and reported, unless the logo is
+    // an embossed sub-file and --strip-logos leaves it out of the geometry.
+    if (/\blogo\b/i.test(p.title) || (p.logos.length && !stripLogos)) return { id, skipped: 'logo: ' + (p.logos[0] || p.title) };
     if (p.tris > cap) {
-        const q = loadPart(name, { lowRes: true, skipStuds: true });
+        const q = loadPart(name, { lowRes: true, skipStuds: true, stripLogos });
         if (q.tris < p.tris) { p = q; lowRes = true; }
     }
     const g = compact(p);
@@ -156,7 +160,7 @@ async function main() {
     const notFound = [], overCap = [], skipped = [], missingRefs = new Map();
     let bytes = 0, tris = 0, n = 0;
     for (const [id, name] of jobs) {
-        const r = exists(name) ? bakeOne(name, { cap: a.cap, max: a.max, id }) : null;
+        const r = exists(name) ? bakeOne(name, { cap: a.cap, max: a.max, id, stripLogos: a.stripLogos }) : null;
         if (!r) { notFound.push(name); continue; }
         if (r.skipped) { skipped.push(`${id} (${r.skipped})`); continue; }
         if (r.overCap && a.skipOverCap) { overCap.push(id + ' (' + r.tris + ', not written)'); continue; }

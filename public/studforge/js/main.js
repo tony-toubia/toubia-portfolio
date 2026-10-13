@@ -414,7 +414,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     stepSlider.addEventListener('input', (e) => { stopPlay(); goStep(parseInt(e.target.value, 10)); });
     $('btn-prev-step').addEventListener('click', () => { stopPlay(); goStep(viewer.currentStep - 1); });
-    $('btn-next-step').addEventListener('click', () => { stopPlay(); goStep(viewer.currentStep + 1); });
+    // A model opens complete (the last step); NEXT from there starts the build at step 1.
+    const nextStep = () => goStep(viewer.currentStep >= viewer.maxLayer ? 0 : viewer.currentStep + 1);
+    $('btn-next-step').addEventListener('click', () => { stopPlay(); nextStep(); });
     // Play: step through the build from the start (or from where you are), one step at a time.
     let playTimer = 0;
     function stopPlay() { if (playTimer) { clearInterval(playTimer); playTimer = 0; } const b = $('btn-play-step'); if (b) { b.textContent = '▶︎'; b.classList.remove('on'); b.title = 'Play the build'; } }
@@ -438,7 +440,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typing || e.metaKey || e.ctrlKey || e.altKey || !currentModel) return;
         if (e.key === '/') { e.preventDefault(); promptInput.focus(); promptInput.select(); }
         else if (e.key === 'ArrowLeft') { e.preventDefault(); stopPlay(); goStep(viewer.currentStep - 1); }
-        else if (e.key === 'ArrowRight') { e.preventDefault(); stopPlay(); goStep(viewer.currentStep + 1); }
+        else if (e.key === 'ArrowRight') { e.preventDefault(); stopPlay(); nextStep(); }
         else if (e.key === 'e' || e.key === 'E') setExplode(parseFloat(explodeSlider.value) > 0 ? 0 : 0.6, { user: true });
         else if (e.key === 'r' || e.key === 'R') viewer.resetView();
     });

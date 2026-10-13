@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-12T22:53:58.278Z",
+ "generated": "2026-10-13T00:37:51.525Z",
  "licence": "Part geometry derived from the LDraw.org Parts Library (www.ldraw.org), licensed CC BY 2.0 / CC BY 4.0. LEGO is a trademark of the LEGO Group, which does not sponsor or endorse this project.",
  "parts": {
   "8": {"name":"Plate  2 x  2 with 2 Wheel Clips Perpendicular","tris":284,"studs":4,"bytes":5997,"licence":"CC BY 4.0 LDraw.org Parts Library"},
@@ -1128,6 +1128,7 @@
   "4449-f1": {"name":"Minifig Suitcase (Closed)","tris":898,"studs":0,"bytes":17762,"licence":"CC BY 4.0 LDraw.org Parts Library"},
   "4460a": {"name":"Slope Brick 75  2 x  1 x  3 with Open Stud","tris":179,"studs":1,"bytes":3335,"licence":"CC BY 4.0 LDraw.org Parts Library"},
   "4460b": {"name":"Slope Brick 75  2 x  1 x  3 with Hollow Stud","tris":72,"studs":1,"bytes":1312,"licence":"CC BY 4.0 LDraw.org Parts Library"},
+  "4480c01": {"name":"Bike  2 Wheel Motorcycle Frame  3 x  6 x  3 (Complete)","tris":2997,"studs":6,"bytes":65404,"licence":"CC BY 4.0 LDraw.org Parts Library","lowRes":true},
   "4489a": {"name":"Wheel  2.8 x 34 with  8 Spokes with Round Hole for Wheel Holding Pin","tris":1376,"studs":0,"bytes":29958,"licence":"CC BY 4.0 LDraw.org Parts Library"},
   "4489b": {"name":"Wheel  2.8 x 34 with  8 Spokes with Notched Hole for Wheel Holding Pin","tris":1496,"studs":0,"bytes":32376,"licence":"CC BY 4.0 LDraw.org Parts Library"},
   "4491a": {"name":"Animal Horse Saddle with One Clip","tris":704,"studs":2,"bytes":13643,"licence":"CC BY 4.0 LDraw.org Parts Library"},
