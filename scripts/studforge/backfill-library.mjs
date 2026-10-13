@@ -2,7 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {spawn,spawnSync} from 'node:child_process';
-import {parseRanking,parseSetPage,plain} from './pipeline-core.mjs';
+import {parseRanking,parseSetPage,plain,selectQueuedSets} from './pipeline-core.mjs';
 const args=process.argv.slice(2),arg=(name,fallback)=>{const i=args.indexOf(`--${name}`);return i<0?fallback:args[i+1];};
 const cache=path.resolve('scripts/studforge/.cache'), root=path.resolve('public/studforge');
 const limit=Number(arg('limit',100)), only=arg('only','').split(',').filter(Boolean), refresh=args.includes('--refresh');
@@ -12,10 +12,8 @@ const readJSON=async file=>JSON.parse(await fs.readFile(file,'utf8'));
 const queueFile=arg('queue','');
 const queue=queueFile ? await readJSON(queueFile) : null;
 if(queue){
-    if(!Array.isArray(queue.pending))throw new Error('Queue must contain a pending array');
-    only.splice(0,only.length,...queue.pending.map(row=>typeof row==='string'?row:row.setNumber));
+    only.splice(0,only.length,...selectQueuedSets(queue.pending,only));
     if(!only.length){console.log('Import queue is empty.');process.exit(0);}
-    if(only.some(number=>!/^\d+-\d+$/.test(number)))throw new Error('Invalid queued set number');
 }
 await fs.mkdir(`${cache}/batch`,{recursive:true});
 let lastFetch=0;
@@ -61,6 +59,7 @@ const categoryOf=s=>/^Star Wars/.test(s.theme)?'Star Wars':/^Harry Potter/.test(
 const subjectOf=s=>/X-wing|TIE|Falcon|Shuttle|Ghost|fighter|starship|Slave|Destroyer|wing|space/i.test(s.name)?'spaceship':/AT-|walker|droid|robot/i.test(s.name)?'robot':/Batmobile|Tumbler|McLaren|Porsche|Ferrari|car/i.test(s.name)?'car':/Hogwarts|Tower|Fortress|castle/i.test(s.name)?'castle':/Hotel|Station|House|Hall|Shop/i.test(s.name)?'house':'character';
 async function checkpoint(){await fs.writeFile(`${root}/data/omr/index.json`,JSON.stringify(index));await fs.writeFile(`${root}/data/ldraw/manifest.json`,JSON.stringify(manifest));await fs.writeFile(`${root}/models/catalog.json`,JSON.stringify(catalog,null,2)+'\n');await fs.writeFile(`${root}/models/parts.json`,JSON.stringify(metadata));await fs.writeFile(`${root}/js/ldraw-palette.js`,`Object.assign(window.LEGO_COLORS,${JSON.stringify(palette)});\n`);await fs.mkdir('docs',{recursive:true});await fs.writeFile('docs/studforge-backfill-report.json',JSON.stringify(report,null,2)+'\n');}
 for(const [position,set] of candidates.entries()) {
+    const startedAt=Date.now();
     const attempt={setNumber:set.number,name:set.name,theme:set.theme,rank:ranks.get(set.number)?.rank,sourceUrl:`https://library.ldraw.org/omr/sets/${set.omrId}`};report.attempts.push(attempt);
     console.log(`[${position+1}/${candidates.length}] ${set.number} ${set.name}`);
     try {
@@ -88,11 +87,15 @@ for(const [position,set] of candidates.entries()) {
         Object.assign(attempt,{status:'imported',pieces:converted.pieceCount,triangles:converted.model.stats.triangles,missing:entry.missing});
         console.log(`  imported ${attempt.pieces} pieces; ${converted.model.steps} ${converted.model.stepKind}`);
     }catch(error){Object.assign(attempt,{status:'skipped',reason:error.message});console.log(`  skipped: ${error.message}`);}
+    attempt.durationSeconds=Math.round((Date.now()-startedAt)/1000);
+    console.log(`  finished in ${attempt.durationSeconds}s`);
     const target=report.targets.find(r=>r.setNumber===set.number);if(target)Object.assign(target,{status:attempt.status,reason:attempt.reason});
     await checkpoint();
     if(queue){queue.pending=queue.pending.filter(row=>(typeof row==='string'?row:row.setNumber)!==set.number&&!existing.has(typeof row==='string'?row:row.setNumber));queue.completed=[...(queue.completed||[]),attempt];queue.updatedAt=new Date().toISOString();await fs.writeFile(queueFile,JSON.stringify(queue,null,2)+'\n');}
 }
-report.summary={rankedTargets:100,exactCommunityMatches:exact.length,imported:report.attempts.filter(a=>a.status==='imported').length,skipped:report.attempts.filter(a=>a.status==='skipped').length,totalLibrary:index.models.length};
+const selectedAttempts=report.attempts.filter(a=>candidates.some(s=>s.number===a.setNumber));
+report.summary={status:'selected batch complete',rankedTargets:100,exactCommunityMatches:exact.length,attempted:report.attempts.length,imported:report.attempts.filter(a=>a.status==='imported').length,skipped:report.attempts.filter(a=>a.status==='skipped').length,initialTrialImports:previousReport?.summary?.initialTrialImports||0,totalNewSets:index.models.length-116,totalLibrary:index.models.length,remainingInInitialBatch:queue?.pending.length};
+report.latestBatch={completedAt:new Date().toISOString(),selected:candidates.map(s=>s.number),imported:selectedAttempts.filter(a=>a.status==='imported').length,skipped:selectedAttempts.filter(a=>a.status==='skipped').length,durationSeconds:selectedAttempts.reduce((total,a)=>total+a.durationSeconds,0)};
 await checkpoint();
 const credits=spawnSync(process.execPath,['scripts/studforge/prepare-models.mjs','--credits-only'],{stdio:'inherit',windowsHide:true});
 if(credits.error)throw credits.error;

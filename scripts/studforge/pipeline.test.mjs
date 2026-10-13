@@ -1,8 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {packModel,validateBundle,countBundleTriangles,parseSetPage,parseRanking} from './pipeline-core.mjs';
+import {packModel,validateBundle,countBundleTriangles,parseSetPage,parseRanking,selectQueuedSets} from './pipeline-core.mjs';
 const placement = ref => `1 4 0 0 0 1 0 0 0 1 0 0 0 1 ${ref}`;
 const licensed = body => `0 Test\n0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt\n${body}`;
+
+test('personal queue selections preserve requested order and never import unselected entries',()=>{
+    const pending=[{setNumber:'75969-1'},{setNumber:'21319-1'},{setNumber:'40433-1'}];
+    assert.deepEqual(selectQueuedSets(pending,['40433-1','21319-1']),['40433-1','21319-1']);
+    assert.deepEqual(selectQueuedSets(pending),['75969-1','21319-1','40433-1']);
+    assert.throws(()=>selectQueuedSets(pending,['99999-1']),/not pending/);
+    assert.throws(()=>selectQueuedSets([{setNumber:'invalid'}]),/Invalid/);
+});
 test('bundling resolves nested references, preserves licenses, and deduplicates files', async () => {
     const reads=[];
     const result=await packModel(licensed(`${placement('3001.dat')}\n${placement('3001.dat')}`),'test.ldr',async ref=>{

@@ -3,6 +3,14 @@ export const normalize = value => value.trim().replaceAll('\\', '/').toLowerCase
 export const references = text => [...text.matchAll(/^1\s+\S+(?:\s+[-+\d.eE]+){12}\s+(.+)$/gm)].map(m => normalize(m[1]));
 export const decode = value => value.replace(/&(?:amp|quot|lt|gt);|&#0?39;/g, entity => ({'&amp;':'&','&quot;':'"','&lt;':'<','&gt;':'>','&#39;':"'",'&#039;':"'"}[entity]));
 export const plain = html => decode(html.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+export function selectQueuedSets(pending, requested=[]) {
+    if(!Array.isArray(pending))throw new Error('Queue must contain a pending array');
+    const numbers=pending.map(row=>typeof row==='string'?row:row?.setNumber);
+    if(numbers.some(number=>!/^\d+-\d+$/.test(number)))throw new Error('Invalid queued set number');
+    const unknown=requested.filter(number=>!numbers.includes(number));
+    if(unknown.length)throw new Error(`Selected sets are not pending in the queue: ${unknown.join(', ')}`);
+    return [...new Set(requested.length ? requested : numbers)];
+}
 export function parseSetPage(html) {
     const result = []; let last = 0;
     for (const match of html.matchAll(/href="(https:\/\/library\.ldraw\.org\/library\/omr\/[^"?#]+\.(?:mpd|ldr))"/gi)) {

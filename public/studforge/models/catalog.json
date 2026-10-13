@@ -545,5 +545,152 @@
     "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
     "pieceCount": 766,
     "sourceStepCount": 219
+  },
+  {
+    "id": "set-21319-1",
+    "setNumber": "21319-1",
+    "name": "Central Perk",
+    "category": "LEGO Ideas and CUUSOO",
+    "theme": "LEGO Ideas and CUUSOO",
+    "subject": "character",
+    "year": 2019,
+    "format": "ldraw",
+    "modelUrl": "models/21319-1.mpd",
+    "thumbnail": "thumbnails/21319-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1287",
+    "originalUrl": "https://library.ldraw.org/library/omr/21319-1.mpd",
+    "author": "Vincent Messenet [Cheenzo]",
+    "missing": [
+      "Parts"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/21319",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 1052,
+    "sourceStepCount": 304
+  },
+  {
+    "id": "set-40433-1",
+    "setNumber": "40433-1",
+    "name": "1989 Batmobile - Limited Edition",
+    "category": "DC",
+    "theme": "Super Heroes DC > Batman",
+    "subject": "car",
+    "year": 2019,
+    "format": "ldraw",
+    "modelUrl": "models/40433-1.mpd",
+    "thumbnail": "thumbnails/40433-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1050",
+    "originalUrl": "https://library.ldraw.org/library/omr/40433-1.mpd",
+    "author": "Orion Pobursky [OrionP]",
+    "missing": [
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/40433",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 363,
+    "sourceStepCount": 99
+  },
+  {
+    "id": "set-75948-1",
+    "setNumber": "75948-1",
+    "name": "Hogwarts Clock Tower",
+    "category": "Harry Potter",
+    "theme": "Harry Potter",
+    "subject": "castle",
+    "year": 2019,
+    "format": "ldraw",
+    "modelUrl": "models/75948-1.mpd",
+    "thumbnail": "thumbnails/75948-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1217",
+    "originalUrl": "https://library.ldraw.org/library/omr/75948-1.mpd",
+    "author": "Stefan Frenz [smf]",
+    "missing": [
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75948",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 884,
+    "sourceStepCount": 260
+  },
+  {
+    "id": "set-21309-1",
+    "setNumber": "21309-1",
+    "name": "NASA Apollo Saturn V",
+    "category": "LEGO Ideas and CUUSOO",
+    "theme": "LEGO Ideas and CUUSOO",
+    "subject": "character",
+    "year": 2017,
+    "format": "ldraw",
+    "modelUrl": "models/21309-1.mpd",
+    "thumbnail": "thumbnails/21309-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/875",
+    "originalUrl": "https://library.ldraw.org/library/omr/21309-1.mpd",
+    "author": "Jaco van der Molen [Jaco]",
+    "missing": [
+      "Parts",
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/21309",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 1845,
+    "sourceStepCount": 775
+  },
+  {
+    "id": "set-30277-1",
+    "setNumber": "30277-1",
+    "name": "First Order Star Destroyer",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "spaceship",
+    "year": 2016,
+    "format": "ldraw",
+    "modelUrl": "models/30277-1.mpd",
+    "thumbnail": "thumbnails/30277-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/997",
+    "originalUrl": "https://library.ldraw.org/library/omr/30277-1.mpd",
+    "author": "Orion Pobursky [OrionP]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/30277",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 56,
+    "sourceStepCount": 17
+  },
+  {
+    "id": "set-75895-1",
+    "setNumber": "75895-1",
+    "name": "1974 Porsche 911 Turbo 3.0",
+    "category": "Speed Champions",
+    "theme": "Speed Champions",
+    "subject": "car",
+    "year": 2019,
+    "format": "ldraw",
+    "modelUrl": "models/75895-1.mpd",
+    "thumbnail": "thumbnails/75895-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1118",
+    "originalUrl": "https://library.ldraw.org/library/omr/75895-1.mpd",
+    "author": "Magnus Forsberg [MagFors]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75895",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 177,
+    "sourceStepCount": 65
   }
 ]
