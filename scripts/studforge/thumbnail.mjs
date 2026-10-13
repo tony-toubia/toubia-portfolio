@@ -2,7 +2,7 @@ import sharp from 'sharp';
 import * as THREE from '../../public/studforge/vendor/three.module.js';
 
 // A fixed-resolution depth buffer bounds memory even for detailed models.
-export async function renderThumbnail(object, id, frontAngle = 0, outputRoot = 'public/studforge') {
+export async function renderThumbnail(object, id, frontAngle = 0, outputRoot = 'public/studforge', {linearColors=false} = {}) {
     const width=640, height=500;
     const pixels=new Uint8Array(width*height*4), depths=new Float32Array(width*height).fill(-Infinity);
     object.updateMatrixWorld(true);
@@ -36,7 +36,9 @@ export async function renderThumbnail(object, id, frontAngle = 0, outputRoot = '
                 const cx=c.dot(right)*scale+ox,cy=-c.dot(up)*scale+oy,cz=c.dot(direction);
                 const denominator=(by-cy)*(ax-cx)+(cx-bx)*(ay-cy);
                 if(Math.abs(denominator)<1e-8)continue;
-                const hex=shadeColor.copy(material.color).multiplyScalar(.48+.52*Math.max(0,normal.dot(light))).getHex();
+                shadeColor.copy(material.color).multiplyScalar(.48+.52*Math.max(0,normal.dot(light)));
+                if(linearColors)shadeColor.convertLinearToSRGB();
+                const hex=shadeColor.getHex();
                 const x0=Math.max(0,Math.floor(Math.min(ax,bx,cx))),x1=Math.min(width-1,Math.ceil(Math.max(ax,bx,cx)));
                 const y0=Math.max(0,Math.floor(Math.min(ay,by,cy))),y1=Math.min(height-1,Math.ceil(Math.max(ay,by,cy)));
                 for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
