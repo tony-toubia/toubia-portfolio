@@ -238,8 +238,11 @@ class StudForgeViewer {
         this.pedestal.scale.set(s, 1, s); this.grid.scale.set(s, 1, s);
         if (this.contactShadow) this.contactShadow.scale.set((maxX - minX) + 3, (maxZ - minZ) + 3, 1);
 
-        this.home.radius = Math.max(14, this.extent * 1.55);
+        this.hasBakedModel = !bakedBox.isEmpty();
+        this.home.radius = this.framingRadius();
         this.spherical.radius = this.home.radius;
+        this.camera.far = Math.max(500, this.home.radius * 4);
+        this.camera.updateProjectionMatrix();
         // The studio fog starts at 60; a big real set (a 77-stud ship) is viewed from further than that, so its fog
         // moves out with the camera. Generator models keep the original fog.
         const fogNear = bakedBox.isEmpty() ? 60 : Math.max(60, this.home.radius * 1.3);
@@ -262,6 +265,7 @@ class StudForgeViewer {
         const m = Array.isArray(b.matrix) && b.matrix.length === 9 ? b.matrix : null;
         const mesh = this.brickBuilder.createBrickMesh(b.partId, b.color, { layer, position: pos, matrix: m, fp: b.fp, baked: true, geometryId: b.geometryId, baseplate: BrickBuilder.isBaseplate(b) });
         mesh.userData.geometryId = b.geometryId;
+        mesh.userData.segment = !!b.segment;
         if (m) {
             const m4 = new THREE.Matrix4().set(m[0], m[1], m[2], 0, m[3], m[4], m[5], 0, m[6], m[7], m[8], 0, 0, 0, 0, 1);
             m4.decompose(new THREE.Vector3(), mesh.quaternion, mesh.scale);
@@ -319,7 +323,7 @@ class StudForgeViewer {
     }
 
     /** How many bricks the current step adds, for the HUD. */
-    stepCount(step) { let n = 0; for (const m of this.brickMeshes) if ((m.userData.layer || 0) === step) n++; return n; }
+    stepCount(step) { let n = 0; for (const m of this.brickMeshes) if (!m.userData.segment && (m.userData.layer || 0) === step) n++; return n; }
 
     resetView() {
         this.spherical.theta = this.home.theta; this.spherical.phi = this.home.phi; this.spherical.radius = this.home.radius;
@@ -368,8 +372,24 @@ class StudForgeViewer {
         const w = this.container.clientWidth || window.innerWidth, h = this.container.clientHeight || window.innerHeight;
         if (!w || !h) return;
         this.camera.aspect = w / h;
+        if (this.activeModel) {
+            const radius = this.framingRadius();
+            this.spherical.radius *= radius / this.home.radius;
+            this.home.radius = radius;
+            if (this.hasBakedModel) {
+                this.scene.fog.near = Math.max(60, radius * 1.3);
+                this.scene.fog.far = this.scene.fog.near + 80;
+            }
+            this.updateCameraPosition();
+        }
+        this.camera.far = Math.max(500, this.home.radius * 4);
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(w, h);
+    }
+
+    framingRadius() {
+        // Narrow screens have a smaller horizontal field of view. Preserve the user's zoom ratio on resize.
+        return Math.max(14, this.extent * 1.55) * Math.max(1, 1 / this.camera.aspect);
     }
 
     initInputListeners() {

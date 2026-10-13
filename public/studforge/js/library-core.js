@@ -23,6 +23,7 @@
     function inventory(bricks) {
         const parts = new Map();
         bricks.forEach(brick => {
+            if (brick.segment) return;
             const key = `${brick.partId}|${brick.color}`;
             if (!parts.has(key)) parts.set(key, { ...brick, quantity: 0 });
             parts.get(key).quantity++;

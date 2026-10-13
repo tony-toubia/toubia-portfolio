@@ -709,8 +709,23 @@
       "theme": "Icons",
       "rank": 60,
       "sourceUrl": "https://library.ldraw.org/omr/sets/1444",
+      "sourceTriangles": 4700775,
+      "triangles": 2745665,
+      "primitiveReplacements": 97,
       "status": "skipped",
-      "reason": "Model exceeds interactive budget of 2000000 triangles"
+      "reason": "Optimized geometry has 2,745,665 triangles (source 4,700,775); interactive limit is 2,000,000",
+      "durationSeconds": 5,
+      "history": [
+        {
+          "setNumber": "10294-1",
+          "name": "Titanic",
+          "theme": "Icons",
+          "rank": 60,
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1444",
+          "status": "skipped",
+          "reason": "Model exceeds interactive budget of 2000000 triangles"
+        }
+      ]
     },
     {
       "setNumber": "10278-1",
@@ -721,7 +736,20 @@
       "status": "imported",
       "pieces": 2959,
       "triangles": 1369083,
-      "missing": []
+      "missing": [],
+      "history": [
+        {
+          "setNumber": "10278-1",
+          "name": "Police Station",
+          "theme": "Modular Buildings",
+          "rank": 75,
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1446",
+          "status": "imported",
+          "pieces": 2959,
+          "triangles": 1369083,
+          "missing": []
+        }
+      ]
     },
     {
       "setNumber": "75060-1",
@@ -729,8 +757,25 @@
       "theme": "Star Wars > Ultimate Collector Series",
       "rank": 81,
       "sourceUrl": "https://library.ldraw.org/omr/sets/1000",
-      "status": "skipped",
-      "reason": "Conversion exceeded the 120-second model budget"
+      "status": "imported",
+      "pieces": 2018,
+      "triangles": 1013331,
+      "missing": [
+        "Parts",
+        "Stickers"
+      ],
+      "durationSeconds": 32,
+      "history": [
+        {
+          "setNumber": "75060-1",
+          "name": "Slave I",
+          "theme": "Star Wars > Ultimate Collector Series",
+          "rank": 81,
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1000",
+          "status": "skipped",
+          "reason": "Conversion exceeded the 120-second model budget"
+        }
+      ]
     },
     {
       "setNumber": "76139-1",
@@ -738,8 +783,26 @@
       "theme": "Super Heroes DC > Batman > UCS",
       "rank": 87,
       "sourceUrl": "https://library.ldraw.org/omr/sets/1094",
-      "status": "skipped",
-      "reason": "Conversion exceeded the 120-second model budget"
+      "status": "imported",
+      "pieces": 3292,
+      "triangles": 1404031,
+      "missing": [
+        "Parts",
+        "Patterns",
+        "Stickers"
+      ],
+      "durationSeconds": 40,
+      "history": [
+        {
+          "setNumber": "76139-1",
+          "name": "1989 Batmobile",
+          "theme": "Super Heroes DC > Batman > UCS",
+          "rank": 87,
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1094",
+          "status": "skipped",
+          "reason": "Conversion exceeded the 120-second model budget"
+        }
+      ]
     },
     {
       "setNumber": "10297-1",
@@ -747,8 +810,22 @@
       "theme": "Modular Buildings",
       "rank": 90,
       "sourceUrl": "https://library.ldraw.org/omr/sets/1447",
-      "status": "skipped",
-      "reason": "Conversion exceeded the 120-second model budget"
+      "status": "imported",
+      "pieces": 3114,
+      "triangles": 884145,
+      "missing": [],
+      "durationSeconds": 57,
+      "history": [
+        {
+          "setNumber": "10297-1",
+          "name": "Boutique Hotel",
+          "theme": "Modular Buildings",
+          "rank": 90,
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1447",
+          "status": "skipped",
+          "reason": "Conversion exceeded the 120-second model budget"
+        }
+      ]
     },
     {
       "setNumber": "10212-1",
@@ -756,16 +833,49 @@
       "theme": "Star Wars > Ultimate Collector Series",
       "rank": 100,
       "sourceUrl": "https://library.ldraw.org/omr/sets/323",
-      "status": "skipped",
-      "reason": "Conversion exceeded the 120-second model budget"
+      "status": "imported",
+      "pieces": 2526,
+      "triangles": 1495708,
+      "missing": [
+        "Patterns",
+        "Stickers"
+      ],
+      "durationSeconds": 36,
+      "history": [
+        {
+          "setNumber": "10212-1",
+          "name": "Imperial Shuttle",
+          "theme": "Star Wars > Ultimate Collector Series",
+          "rank": 100,
+          "sourceUrl": "https://library.ldraw.org/omr/sets/323",
+          "status": "skipped",
+          "reason": "Conversion exceeded the 120-second model budget"
+        }
+      ]
     },
     {
       "setNumber": "21325-1",
       "name": "Medieval Blacksmith",
       "theme": "LEGO Ideas and CUUSOO",
       "sourceUrl": "https://library.ldraw.org/omr/sets/1289",
-      "status": "skipped",
-      "reason": "Conversion exceeded the 120-second model budget"
+      "status": "imported",
+      "pieces": 2134,
+      "triangles": 667104,
+      "missing": [
+        "Parts",
+        "Patterns"
+      ],
+      "durationSeconds": 18,
+      "history": [
+        {
+          "setNumber": "21325-1",
+          "name": "Medieval Blacksmith",
+          "theme": "LEGO Ideas and CUUSOO",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1289",
+          "status": "skipped",
+          "reason": "Conversion exceeded the 120-second model budget"
+        }
+      ]
     },
     {
       "setNumber": "40448-1",
@@ -778,6 +888,21 @@
       "missing": [
         "Patterns",
         "Stickers"
+      ],
+      "history": [
+        {
+          "setNumber": "40448-1",
+          "name": "Vintage Car",
+          "theme": "LEGO Ideas and CUUSOO",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1290",
+          "status": "imported",
+          "pieces": 201,
+          "triangles": 105293,
+          "missing": [
+            "Patterns",
+            "Stickers"
+          ]
+        }
       ]
     },
     {
@@ -788,15 +913,42 @@
       "status": "imported",
       "pieces": 863,
       "triangles": 570889,
-      "missing": []
+      "missing": [],
+      "history": [
+        {
+          "setNumber": "21321-1",
+          "name": "International Space Station",
+          "theme": "LEGO Ideas and CUUSOO",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1146",
+          "status": "imported",
+          "pieces": 863,
+          "triangles": 570889,
+          "missing": []
+        }
+      ]
     },
     {
       "setNumber": "21323-1",
       "name": "Grand Piano",
       "theme": "LEGO Ideas and CUUSOO",
       "sourceUrl": "https://library.ldraw.org/omr/sets/1288",
-      "status": "skipped",
-      "reason": "Conversion exceeded the 120-second model budget"
+      "status": "imported",
+      "pieces": 3674,
+      "triangles": 1375639,
+      "missing": [
+        "Patterns"
+      ],
+      "durationSeconds": 16,
+      "history": [
+        {
+          "setNumber": "21323-1",
+          "name": "Grand Piano",
+          "theme": "LEGO Ideas and CUUSOO",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1288",
+          "status": "skipped",
+          "reason": "Conversion exceeded the 120-second model budget"
+        }
+      ]
     },
     {
       "setNumber": "75272-1",
@@ -809,6 +961,21 @@
       "missing": [
         "Parts",
         "Patterns"
+      ],
+      "history": [
+        {
+          "setNumber": "75272-1",
+          "name": "Sith TIE Fighter",
+          "theme": "Star Wars",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1213",
+          "status": "imported",
+          "pieces": 456,
+          "triangles": 394204,
+          "missing": [
+            "Parts",
+            "Patterns"
+          ]
+        }
       ]
     },
     {
@@ -821,6 +988,20 @@
       "triangles": 325837,
       "missing": [
         "Stickers"
+      ],
+      "history": [
+        {
+          "setNumber": "75276-1",
+          "name": "Stormtrooper",
+          "theme": "Star Wars",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1212",
+          "status": "imported",
+          "pieces": 645,
+          "triangles": 325837,
+          "missing": [
+            "Stickers"
+          ]
+        }
       ]
     },
     {
@@ -831,7 +1012,19 @@
       "status": "imported",
       "pieces": 624,
       "triangles": 288263,
-      "missing": []
+      "missing": [],
+      "history": [
+        {
+          "setNumber": "75277-1",
+          "name": "Boba Fett",
+          "theme": "Star Wars",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1211",
+          "status": "imported",
+          "pieces": 624,
+          "triangles": 288263,
+          "missing": []
+        }
+      ]
     },
     {
       "setNumber": "75966-1",
@@ -844,6 +1037,21 @@
       "missing": [
         "Parts",
         "Stickers"
+      ],
+      "history": [
+        {
+          "setNumber": "75966-1",
+          "name": "Hogwarts Room of Requirement",
+          "theme": "Harry Potter",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1219",
+          "status": "imported",
+          "pieces": 169,
+          "triangles": 70482,
+          "missing": [
+            "Parts",
+            "Stickers"
+          ]
+        }
       ]
     },
     {
@@ -857,6 +1065,21 @@
       "missing": [
         "Parts",
         "Stickers"
+      ],
+      "history": [
+        {
+          "setNumber": "75968-1",
+          "name": "4 Privet Drive",
+          "theme": "Harry Potter",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1221",
+          "status": "imported",
+          "pieces": 766,
+          "triangles": 311511,
+          "missing": [
+            "Parts",
+            "Stickers"
+          ]
+        }
       ]
     },
     {
@@ -870,7 +1093,22 @@
       "missing": [
         "Parts"
       ],
-      "durationSeconds": 12
+      "durationSeconds": 12,
+      "history": [
+        {
+          "setNumber": "21319-1",
+          "name": "Central Perk",
+          "theme": "LEGO Ideas and CUUSOO",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1287",
+          "status": "imported",
+          "pieces": 1052,
+          "triangles": 468454,
+          "missing": [
+            "Parts"
+          ],
+          "durationSeconds": 12
+        }
+      ]
     },
     {
       "setNumber": "40433-1",
@@ -883,7 +1121,22 @@
       "missing": [
         "Stickers"
       ],
-      "durationSeconds": 16
+      "durationSeconds": 16,
+      "history": [
+        {
+          "setNumber": "40433-1",
+          "name": "1989 Batmobile - Limited Edition",
+          "theme": "Super Heroes DC > Batman",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1050",
+          "status": "imported",
+          "pieces": 363,
+          "triangles": 205039,
+          "missing": [
+            "Stickers"
+          ],
+          "durationSeconds": 16
+        }
+      ]
     },
     {
       "setNumber": "75948-1",
@@ -896,7 +1149,22 @@
       "missing": [
         "Stickers"
       ],
-      "durationSeconds": 22
+      "durationSeconds": 22,
+      "history": [
+        {
+          "setNumber": "75948-1",
+          "name": "Hogwarts Clock Tower",
+          "theme": "Harry Potter",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1217",
+          "status": "imported",
+          "pieces": 884,
+          "triangles": 455495,
+          "missing": [
+            "Stickers"
+          ],
+          "durationSeconds": 22
+        }
+      ]
     },
     {
       "setNumber": "21309-1",
@@ -910,7 +1178,23 @@
         "Parts",
         "Stickers"
       ],
-      "durationSeconds": 15
+      "durationSeconds": 15,
+      "history": [
+        {
+          "setNumber": "21309-1",
+          "name": "NASA Apollo Saturn V",
+          "theme": "LEGO Ideas and CUUSOO",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/875",
+          "status": "imported",
+          "pieces": 1845,
+          "triangles": 1009429,
+          "missing": [
+            "Parts",
+            "Stickers"
+          ],
+          "durationSeconds": 15
+        }
+      ]
     },
     {
       "setNumber": "30277-1",
@@ -921,7 +1205,20 @@
       "pieces": 56,
       "triangles": 22964,
       "missing": [],
-      "durationSeconds": 2
+      "durationSeconds": 2,
+      "history": [
+        {
+          "setNumber": "30277-1",
+          "name": "First Order Star Destroyer",
+          "theme": "Star Wars",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/997",
+          "status": "imported",
+          "pieces": 56,
+          "triangles": 22964,
+          "missing": [],
+          "durationSeconds": 2
+        }
+      ]
     },
     {
       "setNumber": "75895-1",
@@ -932,7 +1229,20 @@
       "pieces": 177,
       "triangles": 98376,
       "missing": [],
-      "durationSeconds": 5
+      "durationSeconds": 5,
+      "history": [
+        {
+          "setNumber": "75895-1",
+          "name": "1974 Porsche 911 Turbo 3.0",
+          "theme": "Speed Champions",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1118",
+          "status": "imported",
+          "pieces": 177,
+          "triangles": 98376,
+          "missing": [],
+          "durationSeconds": 5
+        }
+      ]
     },
     {
       "setNumber": "21311-1",
@@ -945,7 +1255,22 @@
       "missing": [
         "Stickers"
       ],
-      "durationSeconds": 33
+      "durationSeconds": 33,
+      "history": [
+        {
+          "setNumber": "21311-1",
+          "name": "Voltron",
+          "theme": "LEGO Ideas and CUUSOO",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1188",
+          "status": "imported",
+          "pieces": 2317,
+          "triangles": 1193396,
+          "missing": [
+            "Stickers"
+          ],
+          "durationSeconds": 33
+        }
+      ]
     },
     {
       "setNumber": "21303-1",
@@ -956,16 +1281,44 @@
       "pieces": 778,
       "triangles": 460058,
       "missing": [],
-      "durationSeconds": 21
+      "durationSeconds": 21,
+      "history": [
+        {
+          "setNumber": "21303-1",
+          "name": "WALL•E [Original Version]",
+          "theme": "LEGO Ideas and CUUSOO",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/940",
+          "status": "imported",
+          "pieces": 778,
+          "triangles": 460058,
+          "missing": [],
+          "durationSeconds": 21
+        }
+      ]
     },
     {
       "setNumber": "21318-1",
       "name": "Tree House",
       "theme": "LEGO Ideas and CUUSOO",
       "sourceUrl": "https://library.ldraw.org/omr/sets/1286",
-      "status": "skipped",
-      "reason": "Source geometry is not assigned to a physical part",
-      "durationSeconds": 43
+      "status": "imported",
+      "pieces": 2996,
+      "triangles": 1116513,
+      "missing": [
+        "Parts"
+      ],
+      "durationSeconds": 39,
+      "history": [
+        {
+          "setNumber": "21318-1",
+          "name": "Tree House",
+          "theme": "LEGO Ideas and CUUSOO",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1286",
+          "status": "skipped",
+          "reason": "Source geometry is not assigned to a physical part",
+          "durationSeconds": 43
+        }
+      ]
     },
     {
       "setNumber": "75980-1",
@@ -979,7 +1332,23 @@
         "Parts",
         "Stickers"
       ],
-      "durationSeconds": 19
+      "durationSeconds": 19,
+      "history": [
+        {
+          "setNumber": "75980-1",
+          "name": "Attack on The Burrow",
+          "theme": "Harry Potter",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1220",
+          "status": "imported",
+          "pieces": 1008,
+          "triangles": 480493,
+          "missing": [
+            "Parts",
+            "Stickers"
+          ],
+          "durationSeconds": 19
+        }
+      ]
     },
     {
       "setNumber": "77904-1",
@@ -992,25 +1361,74 @@
       "missing": [
         "Stickers"
       ],
-      "durationSeconds": 6
+      "durationSeconds": 6,
+      "history": [
+        {
+          "setNumber": "77904-1",
+          "name": "Nebulon-B Frigate",
+          "theme": "Star Wars",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1214",
+          "status": "imported",
+          "pieces": 458,
+          "triangles": 192257,
+          "missing": [
+            "Stickers"
+          ],
+          "durationSeconds": 6
+        }
+      ]
     },
     {
       "setNumber": "76161-1",
       "name": "1989 Batwing",
       "theme": "Super Heroes DC > Batman > UCS",
       "sourceUrl": "https://library.ldraw.org/omr/sets/1226",
-      "status": "skipped",
-      "reason": "Model exceeds interactive budget of 2000000 triangles",
-      "durationSeconds": 3
+      "status": "imported",
+      "pieces": 2402,
+      "triangles": 1228241,
+      "missing": [
+        "Parts",
+        "Patterns",
+        "Stickers"
+      ],
+      "durationSeconds": 32,
+      "history": [
+        {
+          "setNumber": "76161-1",
+          "name": "1989 Batwing",
+          "theme": "Super Heroes DC > Batman > UCS",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1226",
+          "status": "skipped",
+          "reason": "Model exceeds interactive budget of 2000000 triangles",
+          "durationSeconds": 3
+        }
+      ]
     },
     {
       "setNumber": "76042-1",
       "name": "The SHIELD Helicarrier",
       "theme": "Super Heroes Marvel > Avengers",
       "sourceUrl": "https://library.ldraw.org/omr/sets/1202",
-      "status": "skipped",
-      "reason": "Model exceeds interactive budget of 2000000 triangles",
-      "durationSeconds": 4
+      "status": "imported",
+      "pieces": 3084,
+      "triangles": 1767884,
+      "missing": [
+        "Parts",
+        "Patterns",
+        "Stickers"
+      ],
+      "durationSeconds": 18,
+      "history": [
+        {
+          "setNumber": "76042-1",
+          "name": "The SHIELD Helicarrier",
+          "theme": "Super Heroes Marvel > Avengers",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1202",
+          "status": "skipped",
+          "reason": "Model exceeds interactive budget of 2000000 triangles",
+          "durationSeconds": 4
+        }
+      ]
     },
     {
       "setNumber": "9470-1",
@@ -1021,7 +1439,20 @@
       "pieces": 242,
       "triangles": 156742,
       "missing": [],
-      "durationSeconds": 7
+      "durationSeconds": 7,
+      "history": [
+        {
+          "setNumber": "9470-1",
+          "name": "Shelob Attacks",
+          "theme": "The Hobbit and Lord of the Rings > The Lord of the Rings",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/28",
+          "status": "imported",
+          "pieces": 242,
+          "triangles": 156742,
+          "missing": [],
+          "durationSeconds": 7
+        }
+      ]
     },
     {
       "setNumber": "21113-1",
@@ -1035,7 +1466,23 @@
         "Parts",
         "Patterns"
       ],
-      "durationSeconds": 7
+      "durationSeconds": 7,
+      "history": [
+        {
+          "setNumber": "21113-1",
+          "name": "The Cave",
+          "theme": "Minecraft",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/298",
+          "status": "imported",
+          "pieces": 262,
+          "triangles": 127016,
+          "missing": [
+            "Parts",
+            "Patterns"
+          ],
+          "durationSeconds": 7
+        }
+      ]
     },
     {
       "setNumber": "75892-1",
@@ -1048,7 +1495,22 @@
       "missing": [
         "Stickers"
       ],
-      "durationSeconds": 6
+      "durationSeconds": 6,
+      "history": [
+        {
+          "setNumber": "75892-1",
+          "name": "McLaren Senna",
+          "theme": "Speed Champions",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1117",
+          "status": "imported",
+          "pieces": 228,
+          "triangles": 101565,
+          "missing": [
+            "Stickers"
+          ],
+          "durationSeconds": 6
+        }
+      ]
     },
     {
       "setNumber": "21307-1",
@@ -1059,16 +1521,42 @@
       "pieces": 814,
       "triangles": 444016,
       "missing": [],
-      "durationSeconds": 14
+      "durationSeconds": 14,
+      "history": [
+        {
+          "setNumber": "21307-1",
+          "name": "Caterham Seven 620R",
+          "theme": "LEGO Ideas and CUUSOO",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/933",
+          "status": "imported",
+          "pieces": 814,
+          "triangles": 444016,
+          "missing": [],
+          "durationSeconds": 14
+        }
+      ]
     },
     {
       "setNumber": "9476-1",
       "name": "The Orc Forge",
       "theme": "The Hobbit and Lord of the Rings > The Lord of the Rings",
       "sourceUrl": "https://library.ldraw.org/omr/sets/30",
-      "status": "skipped",
-      "reason": "Source geometry is not assigned to a physical part",
-      "durationSeconds": 11
+      "status": "imported",
+      "pieces": 391,
+      "triangles": 266438,
+      "missing": [],
+      "durationSeconds": 10,
+      "history": [
+        {
+          "setNumber": "9476-1",
+          "name": "The Orc Forge",
+          "theme": "The Hobbit and Lord of the Rings > The Lord of the Rings",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/30",
+          "status": "skipped",
+          "reason": "Source geometry is not assigned to a physical part",
+          "durationSeconds": 11
+        }
+      ]
     },
     {
       "setNumber": "75155-1",
@@ -1081,7 +1569,22 @@
       "missing": [
         "Parts"
       ],
-      "durationSeconds": 16
+      "durationSeconds": 16,
+      "history": [
+        {
+          "setNumber": "75155-1",
+          "name": "Rebel U-Wing Fighter",
+          "theme": "Star Wars",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/899",
+          "status": "imported",
+          "pieces": 649,
+          "triangles": 562962,
+          "missing": [
+            "Parts"
+          ],
+          "durationSeconds": 16
+        }
+      ]
     },
     {
       "setNumber": "75954-1",
@@ -1095,8 +1598,24 @@
         "Parts",
         "Stickers"
       ],
-      "durationSeconds": 31
+      "durationSeconds": 31,
+      "history": [
+        {
+          "setNumber": "75954-1",
+          "name": "Hogwarts Great Hall",
+          "theme": "Harry Potter",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1216",
+          "status": "imported",
+          "pieces": 821,
+          "triangles": 505595,
+          "missing": [
+            "Parts",
+            "Stickers"
+          ],
+          "durationSeconds": 31
+        }
+      ]
     }
   ],
-  "updatedAt": "2026-10-13T04:03:15.107Z"
+  "updatedAt": "2026-10-13T04:41:12.540Z"
 }

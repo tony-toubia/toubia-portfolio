@@ -13,7 +13,7 @@ test('search combines theme, set number, words and favorites',()=>{
  assert.equal(core.filterModels(models,'iron','Star Wars',false,[]).length,0);
 });
 test('inventory keeps colors and printed parts distinct and counts quantities',()=>{
- const parts=core.inventory([{partId:'tile',color:'0'},{partId:'tile',color:'0'},{partId:'tile',color:'4'},{partId:'printed-tile',color:'0'}]);
+ const parts=core.inventory([{partId:'tile',color:'0'},{partId:'tile',color:'0'},{partId:'tile',color:'4'},{partId:'printed-tile',color:'0'},{partId:'rope.ldr',color:'0',segment:true}]);
  assert.equal(parts.length,3);assert.equal(parts[0].quantity,2);
  assert.equal(parts.reduce((sum,part)=>sum+part.quantity,0),4);
 });

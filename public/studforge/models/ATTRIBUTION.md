@@ -2,7 +2,7 @@
 
 These are community LDraw recreations of existing sets, sourced from the [LDraw Official Model Repository](https://library.ldraw.org/omr). They are not official LEGO digital models. Character names and trademarks belong to their respective owners.
 
-Modifications: embedded file names were normalized to lowercase with forward slashes, and required LDraw parts were bundled into each MPD. Geometry, colors, placements, patterns, author notices, and source STEP records are preserved. Thumbnails are rendered from these models. Piece counts describe model geometry and exclude spares. Model steps follow the contributor's file; models without STEP records offer layer inspection instead.
+Modifications: embedded file names were normalized to lowercase with forward slashes, and required LDraw parts were bundled into each MPD. Bundled MPDs preserve source geometry, colors, placements, patterns, author notices, and STEP records. Detailed interactive models use official lower-resolution LDraw primitive equivalents; curved surfaces and studs may have fewer facets. Thumbnails are rendered from the interactive geometry. Piece counts exclude spares and render-only strings, generated hose segments, and custom scenery; identified physical LEGO parts remain in inventory. Model steps follow the contributor's file; models without STEP records offer layer inspection instead.
 
 | Set | Community model | Author | Model license |
 |---|---|---|---|
@@ -47,6 +47,22 @@ Modifications: embedded file names were normalized to lowercase with forward sla
 | 21307-1 | [Caterham Seven 620R](https://library.ldraw.org/omr/sets/933) · [original MPD](https://library.ldraw.org/library/omr/21307-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
 | 75155-1 | [Rebel U-Wing Fighter](https://library.ldraw.org/omr/sets/899) · [original MPD](https://library.ldraw.org/library/omr/75155-1.mpd) | Evert Jan Boer [ejboer] | Redistributable under CCAL version 2.0 |
 | 75954-1 | [Hogwarts Great Hall](https://library.ldraw.org/omr/sets/1216) · [original MPD](https://library.ldraw.org/library/omr/75954-1.mpd) | Stefan Frenz [smf] | Redistributable under CCAL version 2.0 |
+| 6285-1 | [Black Seas Barracuda](https://library.ldraw.org/omr/sets/1209) · [original MPD](https://library.ldraw.org/library/omr/6285-1.mpd) | Philippe Hurbain [Philo] | Redistributable under CCAL version 2.0 |
+| 21318-1 | [Tree House](https://library.ldraw.org/omr/sets/1286) · [original MPD](https://library.ldraw.org/library/omr/21318-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
+| 9476-1 | [The Orc Forge](https://library.ldraw.org/omr/sets/30) · [original MPD](https://library.ldraw.org/library/omr/9476-1.mpd) | Philippe Hurbain [Philo] | Redistributable under CCAL version 2.0 |
+| 76161-1 | [1989 Batwing](https://library.ldraw.org/omr/sets/1226) · [original MPD](https://library.ldraw.org/library/omr/76161-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
+| 76042-1 | [The SHIELD Helicarrier](https://library.ldraw.org/omr/sets/1202) · [original MPD](https://library.ldraw.org/library/omr/76042-1.mpd) | Marc Giraudet [Mad_Marc] | Redistributable under CCAL version 2.0 |
+| 75060-1 | [Slave I](https://library.ldraw.org/omr/sets/1000) · [original MPD](https://library.ldraw.org/library/omr/75060-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
+| 76139-1 | [1989 Batmobile](https://library.ldraw.org/omr/sets/1094) · [original MPD](https://library.ldraw.org/library/omr/76139-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
+| 10297-1 | [Boutique Hotel](https://library.ldraw.org/omr/sets/1447) · [original MPD](https://library.ldraw.org/library/omr/10297-1.mpd) | Philippe Hurbain [Philo] | Redistributable under CCAL version 2.0 |
+| 10212-1 | [Imperial Shuttle](https://library.ldraw.org/omr/sets/323) · [original MPD](https://library.ldraw.org/library/omr/10212-1.mpd) | Roland Dahl [RolandD] | Redistributable under CCAL version 2.0 |
+| 21325-1 | [Medieval Blacksmith](https://library.ldraw.org/omr/sets/1289) · [original MPD](https://library.ldraw.org/library/omr/21325-1.mpd) | Vincent Messenet [Cheenzo] | Redistributable under CCAL version 2.0 |
+| 21323-1 | [Grand Piano](https://library.ldraw.org/omr/sets/1288) · [original MPD](https://library.ldraw.org/library/omr/21323-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
+| 6286-1 | [Skull's Eye Schooner](https://library.ldraw.org/omr/sets/1210) · [original MPD](https://library.ldraw.org/library/omr/6286-1.mpd) | Philippe Hurbain [Philo] | Redistributable under CCAL version 2.0 |
+| 10124-1 | [Wright Flyer](https://library.ldraw.org/omr/sets/1145) · [original MPD](https://library.ldraw.org/library/omr/10124-1.mpd) | Marc Giraudet [Mad_Marc] | Redistributable under CCAL version 2.0 |
+| 6073-1 | [Knight's Castle](https://library.ldraw.org/omr/sets/1303) · [original MPD](https://library.ldraw.org/library/omr/6073-1.mpd) | Stefan Frenz [smf] | Redistributable under CCAL version 2.0 |
+| 6685-1 | [Fire Copter 1](https://library.ldraw.org/omr/sets/688) · [original MPD](https://library.ldraw.org/library/omr/6685-1.mpd) | Robert Paciorek [bercik] | Redistributable under CCAL version 2.0 |
+| 6061-1 | [Siege Tower](https://library.ldraw.org/omr/sets/1032) · [original MPD](https://library.ldraw.org/library/omr/6061-1.mpd) | Stefan Frenz [smf] | Redistributable under CCAL version 2.0 |
 
 Individual model and part files retain their !LICENSE and author headers. Official part definitions may use CC BY 2.0 or CC BY 4.0; the applicable license is identified in each embedded file. Full notices: [LDraw CAreadme](CAreadme.txt), [CC BY 2.0](CAlicense.txt), [CC BY 4.0](CAlicense4.txt). Attribution metadata for parts is also available in parts.json.
 

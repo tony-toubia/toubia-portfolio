@@ -183,7 +183,7 @@
                 if (!omr || !omr.load) throw new Error('real-set loader unavailable');
                 const entry = entryOf(id) || {};
                 // The converted file itself: omr.expand() turns it into a model, and its parts table carries the
-                // flags the expansion drops (parts[k][3]: 'baseplate' drawn procedurally, 'segment' = a flexible hose
+                // flags (parts[k][3]: 'baseplate' drawn procedurally, 'segment' = supplemental geometry or a flexible hose
                 // segment that is no piece of its own). Without the file (or expand), the loader's own fetch.
                 let raw = null;
                 if (entry.file) { try { const r = await fetch(`data/omr/${entry.file}`); raw = r.ok ? await r.json() : null; } catch (e) { raw = null; } }

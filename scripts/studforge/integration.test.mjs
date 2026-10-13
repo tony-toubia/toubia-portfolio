@@ -21,7 +21,7 @@ test('all bundled sets expand with complete geometry, thumbnails and valid sourc
         validateBundle(fs.readFileSync(new URL(entry.modelUrl, root), 'utf8'));
         assert.ok(fs.statSync(new URL(entry.thumbnail, root)).size > 1000);
         const data = json(`data/omr/${row.file}`), model = context.window.FORGE.omr.expand(data);
-        assert.equal(model.bricks.length, entry.pieceCount);
+        assert.equal(model.bricks.filter(brick=>!brick.segment).length, entry.pieceCount);
         assert.deepEqual(data.source.missing, entry.missing);
         assert.equal(data.stats.droppedRefs, 0);
         assert.ok(['steps', 'layers'].includes(model.stepKind));

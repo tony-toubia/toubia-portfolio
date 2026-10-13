@@ -43,6 +43,29 @@ export function countBundleTriangles(text) {
     }
     return count(files.keys().next().value);
 }
+// Use official lower-resolution equivalents only for primitives, never replace a part.
+// The archived packed model remains the full source; this bundle is for interactive baking.
+export async function optimizeBundle(bundle, readPart) {
+    let replacements=0;
+    const sections=[];
+    for(const match of bundle.packed.matchAll(/^0 FILE (.+)\r?\n([\s\S]*?)(?=^0 FILE |$(?![\s\S]))/gm)) {
+        const name=normalize(match[1]);let body=match[2];
+        if(/!LDRAW_ORG (?:48_)?Primitive\b/.test(body)) {
+            const base=name.replace(/^48\//,'');
+            for(const candidate of [...new Set([`8/${base}`,base])]) {
+                if(candidate===name)continue;
+                try {
+                    const data=await readPart(candidate);
+                    if(!/!LDRAW_ORG (?:8_)?Primitive\b/.test(data))continue;
+                    body=`0 // Interactive geometry uses official ${candidate}\n${data}`;replacements++;break;
+                } catch(error) { if(error.code!=='ENOENT')throw error; }
+            }
+        }
+        sections.push(`0 FILE ${name}\n${body.trim()}`);
+    }
+    const optimized=await packModel(sections.join('\n')+'\n','interactive.ldr',readPart);
+    return {...optimized,replacements};
+}
 export async function packModel(original, mainName, readPart) {
     const license = original.match(/^0 !LICENSE (.+)$/m)?.[1]?.trim();
     if (!license || !/CCAL version (?:2\.0|4\.0)|CC BY (?:2\.0|4\.0)/i.test(license)) throw new Error('Unsupported or missing redistribution license');

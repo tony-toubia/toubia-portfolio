@@ -42,7 +42,7 @@
         const fp = (b) => (b[16] === null || b[16] === undefined ? null : { x0: b[16], z0: b[17], y0: b[18], w: b[19], l: b[20], hp: b[21] });
         const minifig = new Set(data.minifigParts || []);
         const bricks = data.bricks.map((b) => {
-            const [ldrawId, catalogId, partName, , geometryId] = data.parts[b[0]];
+            const [ldrawId, catalogId, partName, flag, geometryId] = data.parts[b[0]];
             const brick = {
                 partId: ldrawId, catalogId: catalogId || null, color: data.colors[b[1]] || 'LIGHT_GREY',
                 x: b[2], y: b[3], z: b[4], matrix: b.slice(5, 14), rotX: 0, rotY: 0, rotZ: 0,
@@ -50,6 +50,8 @@
                 partName, geometryId,
             };
             if (minifig.has(b[0])) brick.minifig = true;
+            if (flag === 'segment') brick.segment = true;
+            if (flag === 'baseplate') brick.baseplate = true;
             return brick;
         });
         const pieces = data.pieces || bricks.length;
