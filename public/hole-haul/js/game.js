@@ -165,8 +165,8 @@
             this.clearWorld();
             const theme = window.HH_LEVELS.themes[def.theme];
             const group = new T.Group();
-            this.scene.background = new T.Color(theme.sky);
-            this.scene.fog = new T.Fog(theme.fog, 30, 90);
+            this.scene.background = new T.Color(theme.sky).convertSRGBToLinear();
+            this.scene.fog = new T.Fog(new T.Color(theme.fog).convertSRGBToLinear(), 30, 90);
 
             // The floor, with the hole cut out by its shader.
             const ft = floorTexture(theme);
@@ -177,10 +177,10 @@
             floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; floor.userData.own = true;
             group.add(floor);
             // The ground around the board and a low rim.
-            const groundMat = this.cutHole(new T.MeshStandardMaterial({ color: new T.Color(theme.fog).multiplyScalar(0.9), roughness: 1 }));
+            const groundMat = this.cutHole(new T.MeshStandardMaterial({ color: new T.Color(theme.fog).convertSRGBToLinear().multiplyScalar(0.9), roughness: 1 }));
             const ground = new T.Mesh(new T.PlaneGeometry(400, 400), groundMat);
             ground.rotation.x = -Math.PI / 2; ground.position.y = -0.45; ground.receiveShadow = true; ground.userData.own = true; group.add(ground);
-            const rimMat = new T.MeshStandardMaterial({ color: theme.rim, roughness: 0.7 });
+            const rimMat = new T.MeshStandardMaterial({ color: new T.Color(theme.rim).convertSRGBToLinear(), roughness: 0.7 });
             const t = 0.5, hgt = 0.9;
             for (const [w, d, x, z] of [[def.w + t * 2, t, 0, -def.d / 2 - t / 2], [def.w + t * 2, t, 0, def.d / 2 + t / 2], [t, def.d, -def.w / 2 - t / 2, 0], [t, def.d, def.w / 2 + t / 2, 0]]) {
                 const m = new T.Mesh(new T.BoxGeometry(w, hgt, d), rimMat); m.position.set(x, hgt / 2 - 0.45, z); m.castShadow = m.receiveShadow = true; m.userData.own = true; group.add(m);
@@ -297,7 +297,7 @@
         }
 
         moveHole(dt) {
-            const sp = (3.4 + this.holeR * 1.1) * this.speedMul;
+            const sp = (2.3 + this.holeR * 0.75) * this.speedMul;
             const tx = this.input.x * sp, tz = -this.input.y * sp, k = Math.min(1, dt * 10);
             const h = this.hole;
             h.vx += (tx - h.vx) * k; h.vz += (tz - h.vz) * k;

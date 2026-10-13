@@ -80,7 +80,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--ink); outline-o
 .map-head { display: flex; align-items: center; gap: 12px; padding: calc(var(--safe-t) + 10px) 14px 8px; }
 .map-back { width: 40px; height: 40px; border-radius: 50%; background: var(--paper); color: var(--ink); text-decoration: none; font-size: 20px; font-weight: 800; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 0 rgba(43, 33, 64, 0.2); }
 body.in-iframe .map-back { visibility: hidden; }
-.map-title { flex: 1; font-size: 30px; font-weight: 800; color: #fff; -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill; text-shadow: 0 4px 0 var(--ink); letter-spacing: 1px; }
+.map-title { flex: 1; min-width: 0; white-space: nowrap; font-size: clamp(22px, 7vw, 30px); font-weight: 800; color: #fff; -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill; text-shadow: 0 4px 0 var(--ink); letter-spacing: 1px; }
 .map-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; padding: 6px 14px 20px; }
 .map-path { display: flex; flex-direction: column; gap: 14px; max-width: 520px; margin: 0 auto; }
 .pack { background: rgba(255, 255, 255, 0.86); border-radius: 22px; padding: 10px 12px 14px; box-shadow: 0 4px 0 rgba(43, 33, 64, 0.16); border-top: 8px solid var(--pack); }

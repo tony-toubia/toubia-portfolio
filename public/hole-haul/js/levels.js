@@ -22,6 +22,10 @@
     const PER_PACK = 5, PACK_ROUNDS = 2;
     const COUNT = ORDER.length * PER_PACK * PACK_ROUNDS;   // 60 levels
 
+    // Bot clear times per level (seconds), written by scripts/hole-haul-calibrate.mjs; regenerate after changing the
+    // generator, the hole speed or growth.
+    const BOT_SECONDS = [7.5, 3.2, 10.1, 6.4, 10.5, 13.1, 9, 8.6, 12.4, 14.6, 12.8, 13.7, 14.8, 13.2, 16.5, 19.3, 12.8, 28.1, 22, 18.1, 21.5, 17.7, 20.1, 20.3, 18.7, 18.2, 24.8, 29.5, 22.2, 19.4, 21.6, 27.3, 22.8, 22.8, 29.4, 26.1, 25.3, 26.1, 35, 20.7, 25.7, 22.1, 19.4, 22.2, 18.7, 23.5, 26.7, 20.9, 32, 25.5, 25.2, 28.7, 22.9, 31.5, 25.9, 21.8, 21.6, 26.2, 26.1, 31.2];
+
     const rngFor = (seed) => { let a = seed >>> 0; return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
     const pick = (rng, arr) => arr[Math.floor(rng() * arr.length)];
     const shuffle = (rng, arr) => { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -43,7 +47,7 @@
         const large = all.filter((k) => k.r > 0.9 && k.r <= 1.6), huge = all.filter((k) => k.r > 1.6);
 
         // Board: grows a little through the game; portrait-ish so it suits a phone.
-        const w = Math.round(12 + Math.min(n, 30) * 0.3), d = Math.round(w * 1.3);
+        const w = Math.round(14 + Math.min(n, 30) * 0.33), d = Math.round(w * 1.35);
 
         // Targets: one kind on the first levels, then two, then up to three; later ones may need some growth first.
         const nKinds = n < 2 ? 1 : n < 9 ? 2 : (rng() < 0.55 ? 3 : 2);
@@ -69,14 +73,26 @@
         };
         const put = (kind, r, x, z) => { placed.push([x, z, r]); items.push({ kind, x: +x.toFixed(3), z: +z.toFixed(3), rot: +(rng() * Math.PI * 2).toFixed(3) }); };
         const scatter = (kind, r, tries = 40) => { for (let t = 0; t < tries; t++) { const x = (rng() - 0.5) * w, z = (rng() - 0.5) * d; if (free(x, z, r)) { put(kind, r, x, z); return true; } } return false; };
-        const cluster = (kind, r, count) => {
-            // A pile: items around a centre, spiralling out until they fit.
-            let cx = (rng() - 0.5) * (w - 3), cz = (rng() - 0.5) * (d - 3), done = 0;
+        const pileCentres = [];
+        const cluster = (kind, r, count, spread = false) => {
+            // A pile: items around a centre, spiralling out until they fit. Target piles are spread over the board
+            // (the best of a few random centres, furthest from the piles already placed), so finding them takes a trip.
+            const centre = () => {
+                let best = null, bd = -1;
+                for (let c = 0; c < (spread ? 8 : 1); c++) {
+                    const x = (rng() - 0.5) * (w - 3), z = (rng() - 0.5) * (d - 3);
+                    const md = pileCentres.length ? Math.min(...pileCentres.map(([px, pz]) => Math.hypot(px - x, pz - z))) : 99;
+                    if (md > bd) { bd = md; best = [x, z]; }
+                }
+                if (spread) pileCentres.push(best);
+                return best;
+            };
+            let [cx, cz] = centre(), done = 0;
             for (let t = 0; t < count * 30 && done < count; t++) {
                 const a = rng() * Math.PI * 2, rad = r * (0.5 + Math.sqrt(t) * 0.75);
                 const x = cx + Math.cos(a) * rad, z = cz + Math.sin(a) * rad;
                 if (free(x, z, r)) { put(kind, r, x, z); done++; }
-                if (t % 60 === 59) { cx = (rng() - 0.5) * (w - 3); cz = (rng() - 0.5) * (d - 3); }
+                if (t % 60 === 59) [cx, cz] = centre();
             }
             return done;
         };
@@ -89,26 +105,27 @@
         for (const t of targets) {
             const want = Math.ceil(t.count * 1.3) + 1;   // spares: some will be hard to reach
             let got = 0;
-            const piles = Math.max(1, Math.round(want / (t.r <= 0.36 ? 6 : 3)));
-            for (let p = 0; p < piles; p++) got += cluster(t.kind, t.r, Math.ceil((want - got) / (piles - p)));
+            const piles = Math.max(2, Math.round(want / (t.r <= 0.36 ? 4 : 2)));
+            for (let p = 0; p < piles; p++) got += cluster(t.kind, t.r, Math.ceil((want - got) / (piles - p)), true);
             while (got < t.count + 1 && scatter(t.kind, t.r, 80)) got++;
             t.count = Math.min(t.count, got);
         }
         const fillers = [...small, ...small, ...medium, ...medium, ...medium].filter((k) => !targets.some((t) => t.kind === k.id));
         const area = w * d, budget = area * (0.16 + Math.min(n, 30) * 0.003);
         let used = 0;
-        for (let guard = 0; used < budget && guard < 600 && fillers.length; guard++) {
+        for (let guard = 0; used < budget && guard < 600 && fillers.length && items.length < 400; guard++) {   // ~420 items at most: phones stay smooth
             const k = pick(rng, fillers);
             const ok = rng() < 0.6 ? cluster(k.id, k.r, 2 + Math.floor(rng() * 4)) : (scatter(k.id, k.r) ? 1 : 0);
             used += ok * Math.PI * k.r * k.r;
         }
         for (let i = 0; i < 8; i++) scatter('coin', 0.14, 30);
 
-        // Time: what must be eaten, how spread out the board is, then the difficulty.
-        const need = targets.reduce((s, t) => s + t.count * (t.r <= 0.36 ? 2.6 : t.r <= 0.9 ? 4 : 6), 0);
-        let time = 30 + need + area * 0.05 + (targets.some((t) => t.r > 0.36) ? 15 : 0);
-        time *= difficulty === 'Super hard' ? 0.72 : difficulty === 'Hard' ? 0.85 : 1;
-        time = Math.max(45, Math.min(180, Math.round(time / 5) * 5));
+        // Time: from the calibration table (a bot's clear time on this exact level, see scripts/hole-haul-calibrate.mjs),
+        // times a margin for people (looser on normal levels, tighter on hard ones); a rough estimate if the table lacks it.
+        const need = targets.reduce((s, t) => s + t.count * (t.r <= 0.36 ? 1.2 : t.r <= 0.9 ? 2 : 3), 0);
+        const bot = BOT_SECONDS[n] || (8 + need + area * 0.02);
+        const margin = difficulty === 'Super hard' ? 1.9 : difficulty === 'Hard' ? 2.2 : 2.8;
+        const time = Math.max(40, Math.min(240, Math.round((bot * margin + 20) / 5) * 5));
 
         return { n, theme, round, w, d, time, difficulty, targets: targets.map(({ kind, count }) => ({ kind, count })), items };
     }
