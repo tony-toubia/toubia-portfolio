@@ -3,7 +3,7 @@ import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'StudForge: 3D LEGO® Blueprint & Idea Maker | Tony Toubia',
-  description: 'Describe any idea or explore curated models to generate 3D LEGO blueprints with authentic bricks, 360° exploded layer views, and official BrickLink parts lists.',
+  description: 'Explore community 3D brick models from Star Wars, Marvel, and more, follow assembly steps, save progress, and inspect detailed parts lists.',
 };
 
 export default function StudForgePage() {
@@ -21,7 +21,7 @@ export default function StudForgePage() {
         </span>
         <div className="flex items-center gap-2">
           <span className="text-[#f2cd37] text-[10px] sm:text-[11px] font-bold bg-[#f2cd37]/10 px-2 py-0.5 rounded border border-[#f2cd37]/30">
-            BRICKLINK
+            BUILD LIBRARY
           </span>
         </div>
       </div>

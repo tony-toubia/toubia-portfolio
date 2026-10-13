@@ -84,3 +84,5 @@ data/*
 .turbo/
 turbo.json
 apps/
+
+scripts/studforge/.cache/

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>StudForge | 3D LEGO® Blueprint & Idea Maker</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -31,6 +31,7 @@
 
         <!-- Quick actions -->
         <div class="nav-actions">
+            <button id="btn-library" class="library-toggle" aria-expanded="true" aria-controls="library-panel">▦ LIBRARY</button>
             <button id="btn-audio" class="nav-icon-btn" title="Toggle Sound">🔊</button>
         </div>
     </header>
@@ -54,21 +55,25 @@
                 </button>
             </div>
 
-            <!-- Inspire Me Pills -->
-            <div class="inspo-scroll-wrap">
-                <span class="inspo-label">INSPIRE ME:</span>
-                <div id="inspo-pills" class="inspo-pills">
-                    <!-- Populated dynamically via JS -->
-                </div>
-            </div>
+            <p class="prompt-note">Explore real sets in the library, or remix a small procedural build with the idea maker.</p>
         </section>
 
         <!-- Studio Workspace (3D Viewport + BOM Side Panel) -->
         <div class="studio-grid">
+            <aside id="library-panel" class="library-panel" aria-label="Model library">
+                <div class="library-heading"><div><span class="eyebrow">YOUR NEXT BUILD</span><h2>Explore the library</h2></div><span id="library-count" class="library-count">Loading…</span></div>
+                <label class="sr-only" for="library-search">Search models or set numbers</label>
+                <input id="library-search" class="library-search" type="search" placeholder="Search a character or set #…" autocomplete="off">
+                <div id="theme-filters" class="theme-filters" role="group" aria-label="Filter by theme"></div>
+                <button id="favorites-filter" class="favorites-filter" aria-pressed="false">♡ My favorites</button>
+                <div id="library-grid" class="library-grid"></div>
+                <p id="library-empty" class="library-empty" hidden>No matching builds. Try another theme or clear your search.</p>
+            </aside>
 
             <!-- 3D Studio Canvas Viewport -->
             <div class="viewport-card">
                 <div id="viewport-3d" class="canvas-3d-box"></div>
+                <div id="model-loading" class="model-loading" hidden>Loading model…</div>
 
                 <!-- Floating Model Header Info -->
                 <div class="viewport-overlay-header">
@@ -104,7 +109,7 @@
                     <!-- Step-by-Step Assembly Stepper -->
                     <div class="studio-tool-group">
                         <div class="tool-label-row">
-                            <span class="tool-name">🛠️ STEP-BY-STEP BUILD</span>
+                            <span id="step-mode-label" class="tool-name">🛠️ INSPECT LAYERS</span>
                             <span id="val-step" class="tool-val">STEP 1 / 1</span>
                         </div>
                         <div class="step-controls-row">
@@ -125,13 +130,19 @@
             <aside class="bom-card">
                 <div class="bom-header">
                     <div>
-                        <h3 class="bom-title">PARTS MANIFEST</h3>
-                        <span class="bom-sub">OFFICIAL LEGO® BILL OF MATERIALS</span>
+                        <h3 class="bom-title">PARTS LIST</h3>
+                        <span id="parts-subtitle" class="bom-sub">MICRO-BUILD INVENTORY</span>
                     </div>
                     <div class="bom-counts">
                         <span id="total-unique-parts" class="sub-count">0 unique</span>
                         <span id="total-pieces-count" class="main-count">0 pieces</span>
                     </div>
+                </div>
+                <div class="assembly-panel">
+                    <div class="assembly-actions"><button id="btn-start-build" class="step-btn">START INSPECTING</button><button id="btn-full-model" class="step-btn">FULL MODEL</button></div>
+                    <p id="step-summary">Choose a layer to highlight its pieces.</p>
+                    <p id="progress-note" class="progress-note"></p>
+                    <div id="step-checklist" class="step-checklist" aria-label="Current layer checklist"></div>
                 </div>
 
                 <!-- Parts Table Scroll Box -->
@@ -139,7 +150,7 @@
                     <table class="bom-table">
                         <thead>
                             <tr>
-                                <th>ELEMENT & DESIGN ID</th>
+                                <th>ELEMENT & PART ID</th>
                                 <th class="text-right">QTY</th>
                             </tr>
                         </thead>
@@ -160,21 +171,27 @@
                     <button id="btn-print-card" class="action-btn tertiary" title="Print full blueprint sheet">
                         🖨️ PRINT
                     </button>
+                    <a id="btn-instructions" class="action-btn secondary" target="_blank" rel="noopener noreferrer" hidden>↗ ORIGINAL INSTRUCTIONS</a>
+                    <a id="btn-model-file" class="action-btn tertiary" download hidden>↓ LDRAW MODEL</a>
                 </div>
+                <div id="model-attribution" class="model-attribution"></div>
             </aside>
 
         </div>
 
+        <p id="app-status" class="app-status" role="status" aria-live="polite"></p>
+        <footer class="independent-note">Independent fan project. LEGO® is a trademark of the LEGO Group, which does not sponsor, authorize or endorse this site. Character names belong to their respective owners. <a href="models/ATTRIBUTION.md" target="_blank" rel="noopener noreferrer">Model credits &amp; licenses</a></footer>
     </main>
 
-    <!-- Three.js CDN -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Pinned local engine; modules finish before DOMContentLoaded. -->
+    <script type="module" src="js/engine.js"></script>
 
     <!-- Modular App Scripts -->
     <script src="js/colors.js"></script>
     <script src="js/parts-catalog.js"></script>
     <script src="js/brick-builder.js"></script>
     <script src="js/models-db.js"></script>
+    <script src="js/library-core.js"></script>
     <script src="js/generator.js"></script>
     <script src="js/audio.js"></script>
     <script src="js/viewer.js"></script>
