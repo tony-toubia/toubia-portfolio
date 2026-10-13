@@ -121,11 +121,18 @@ export async function detectMotion(model, readGeometry) {
         const matrix=b.slice(5,14),position=b.slice(2,5),world=s=>({point:add(position,mul(matrix,s.slice(0,3))),normal:normalize(mul(matrix,s.slice(3,6)))});
         return {index,partId,matrix,position,sub:model.submodels?.[b[15]]||'main',geometry,studs:geometry.studs.map(world),sockets:geometry.sockets.map(world),ports:(geometry.connectors||[]).map(p=>({...p,point:add(position,mul(matrix,p.point)),axis:normalize(mul(matrix,p.axis))}))};
     }));
-    const candidates=[];
+    const candidates=[],constraints=[];
     for(const rule of rules)for(const base of parts.filter(p=>p.partId===rule.base)) {
         const pivot=add(base.position,mul(base.matrix,rule.pivot)),axis=normalize(mul(base.matrix,rule.axis));
         const tops=parts.filter(p=>rule.tops.includes(p.partId)&&near(add(p.position,mul(p.matrix,rule.pivot)),pivot)&&parallel(normalize(mul(p.matrix,rule.axis)),axis));
         if(tops.length===1)candidates.push({rule,base,top:tops[0],pivot,axis});
+        // Older community models sometimes approximate engaged brick-hinge
+        // positions. A nearby half can constrain a leaf without being accurate
+        // enough to expose as a joint. Never loosen the playable joint match.
+        if(rule.base==='3831')for(const top of parts.filter(p=>rule.tops.includes(p.partId))){
+            const point=add(top.position,mul(top.matrix,rule.pivot));
+            if(distance(point,pivot)<.35&&parallel(normalize(mul(top.matrix,rule.axis)),axis))constraints.push({base,top,pivot,axis});
+        }
     }
     const portRules=[['finger-dual','finger-single','Finger hinge'],['click-dual','click-single','Click hinge']];
     for(const [a,b,label] of portRules)for(const base of parts)for(const port of base.ports.filter(p=>p.kind===a)){
@@ -177,7 +184,7 @@ export async function detectMotion(model, readGeometry) {
         else if(members.size>parts.length*.6)reason='Moving side is ambiguous';
         // Multiple bearings may support one rigid leaf only when coaxial. Nested
         // mechanisms need a hierarchy of joints, which the current poser lacks.
-        else if(candidates.some(c=>c!==candidate && members.has(c.top.index)!==members.has(c.base.index) && !coaxial(c,candidate)))reason='Multiple axes constrain the same assembly';
+        else if([...candidates,...constraints].some(c=>c!==candidate && members.has(c.top.index)!==members.has(c.base.index) && !coaxial(c,candidate)))reason='Multiple axes constrain the same assembly';
         else if(rule.mechanical && [...members].some(i=>parts[i].geometry.gear))reason='Geared assemblies need linked gear-motion support';
         else if(rule.mechanical && uncertainMatches.some(c=>members.has(c.shaft)!==members.has(c.bearing)))reason='A mixed axle/pin connection crosses the moving boundary';
         // Do not silently leave an unknown receiver attached to a moving stud.

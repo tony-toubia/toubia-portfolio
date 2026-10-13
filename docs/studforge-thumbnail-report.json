@@ -1,0 +1,950 @@
+{
+  "renderer": "viewer-parts-with-source-placement",
+  "kits": {
+    "8135-1": {
+      "parts": 576,
+      "rendered": 576,
+      "unavailableGeometry": []
+    },
+    "6351-1": {
+      "parts": 191,
+      "rendered": 191,
+      "unavailableGeometry": []
+    },
+    "4896-1": {
+      "parts": 924,
+      "rendered": 924,
+      "unavailableGeometry": []
+    },
+    "345-1": {
+      "parts": 132,
+      "rendered": 132,
+      "unavailableGeometry": []
+    },
+    "6373-1": {
+      "parts": 189,
+      "rendered": 189,
+      "unavailableGeometry": []
+    },
+    "6368-1": {
+      "parts": 147,
+      "rendered": 147,
+      "unavailableGeometry": []
+    },
+    "6356-1": {
+      "parts": 179,
+      "rendered": 179,
+      "unavailableGeometry": []
+    },
+    "6364-1": {
+      "parts": 145,
+      "rendered": 145,
+      "unavailableGeometry": []
+    },
+    "6666-1": {
+      "parts": 89,
+      "rendered": 89,
+      "unavailableGeometry": []
+    },
+    "6022-1": {
+      "parts": 53,
+      "rendered": 53,
+      "unavailableGeometry": []
+    },
+    "30026-1": {
+      "parts": 61,
+      "rendered": 61,
+      "unavailableGeometry": []
+    },
+    "4917-1-bird": {
+      "parts": 64,
+      "rendered": 64,
+      "unavailableGeometry": []
+    },
+    "311-1": {
+      "parts": 82,
+      "rendered": 81,
+      "unavailableGeometry": [
+        "x139b"
+      ]
+    },
+    "6698-1": {
+      "parts": 128,
+      "rendered": 128,
+      "unavailableGeometry": []
+    },
+    "6679-1": {
+      "parts": 94,
+      "rendered": 94,
+      "unavailableGeometry": []
+    },
+    "4643-1": {
+      "parts": 265,
+      "rendered": 265,
+      "unavailableGeometry": []
+    },
+    "6694-1": {
+      "parts": 121,
+      "rendered": 121,
+      "unavailableGeometry": []
+    },
+    "5934-1": {
+      "parts": 102,
+      "rendered": 100,
+      "unavailableGeometry": [
+        "71965c01"
+      ]
+    },
+    "5767-1": {
+      "parts": 593,
+      "rendered": 593,
+      "unavailableGeometry": []
+    },
+    "10242-1": {
+      "parts": 1076,
+      "rendered": 1076,
+      "unavailableGeometry": []
+    },
+    "76897-1": {
+      "parts": 262,
+      "rendered": 262,
+      "unavailableGeometry": []
+    },
+    "6040-1": {
+      "parts": 99,
+      "rendered": 99,
+      "unavailableGeometry": []
+    },
+    "6059-1": {
+      "parts": 256,
+      "rendered": 256,
+      "unavailableGeometry": []
+    },
+    "6071-1": {
+      "parts": 240,
+      "rendered": 240,
+      "unavailableGeometry": []
+    },
+    "10176-1": {
+      "parts": 943,
+      "rendered": 943,
+      "unavailableGeometry": []
+    },
+    "6648-2": {
+      "parts": 53,
+      "rendered": 53,
+      "unavailableGeometry": []
+    },
+    "6678-1": {
+      "parts": 69,
+      "rendered": 68,
+      "unavailableGeometry": [
+        "3492c01"
+      ]
+    },
+    "6352-1": {
+      "parts": 153,
+      "rendered": 153,
+      "unavailableGeometry": []
+    },
+    "5761-1": {
+      "parts": 53,
+      "rendered": 53,
+      "unavailableGeometry": []
+    },
+    "6043-1": {
+      "parts": 168,
+      "rendered": 168,
+      "unavailableGeometry": []
+    },
+    "6056-1": {
+      "parts": 118,
+      "rendered": 118,
+      "unavailableGeometry": []
+    },
+    "6379-1": {
+      "parts": 275,
+      "rendered": 274,
+      "unavailableGeometry": [
+        "horse sticker"
+      ]
+    },
+    "7637-1": {
+      "parts": 632,
+      "rendered": 632,
+      "unavailableGeometry": []
+    },
+    "6480-1": {
+      "parts": 210,
+      "rendered": 210,
+      "unavailableGeometry": []
+    },
+    "6440-1": {
+      "parts": 170,
+      "rendered": 170,
+      "unavailableGeometry": []
+    },
+    "4208-1": {
+      "parts": 248,
+      "rendered": 248,
+      "unavailableGeometry": []
+    },
+    "6911-1": {
+      "parts": 68,
+      "rendered": 68,
+      "unavailableGeometry": []
+    },
+    "6693-1": {
+      "parts": 128,
+      "rendered": 128,
+      "unavailableGeometry": []
+    },
+    "20011-1": {
+      "parts": 74,
+      "rendered": 74,
+      "unavailableGeometry": []
+    },
+    "6691-1": {
+      "parts": 115,
+      "rendered": 115,
+      "unavailableGeometry": []
+    },
+    "2531-1": {
+      "parts": 107,
+      "rendered": 107,
+      "unavailableGeometry": []
+    },
+    "30181-1": {
+      "parts": 52,
+      "rendered": 52,
+      "unavailableGeometry": []
+    },
+    "376-2": {
+      "parts": 231,
+      "rendered": 231,
+      "unavailableGeometry": []
+    },
+    "6365-1": {
+      "parts": 154,
+      "rendered": 154,
+      "unavailableGeometry": []
+    },
+    "6592-1": {
+      "parts": 124,
+      "rendered": 124,
+      "unavailableGeometry": []
+    },
+    "4954-1": {
+      "parts": 1174,
+      "rendered": 1174,
+      "unavailableGeometry": []
+    },
+    "5770-1": {
+      "parts": 514,
+      "rendered": 514,
+      "unavailableGeometry": []
+    },
+    "6675-1": {
+      "parts": 87,
+      "rendered": 87,
+      "unavailableGeometry": []
+    },
+    "6533-1": {
+      "parts": 69,
+      "rendered": 69,
+      "unavailableGeometry": []
+    },
+    "60065-1": {
+      "parts": 71,
+      "rendered": 71,
+      "unavailableGeometry": []
+    },
+    "6399-1": {
+      "parts": 788,
+      "rendered": 788,
+      "unavailableGeometry": []
+    },
+    "3178-1": {
+      "parts": 107,
+      "rendered": 107,
+      "unavailableGeometry": []
+    },
+    "6681-1": {
+      "parts": 87,
+      "rendered": 87,
+      "unavailableGeometry": []
+    },
+    "6684-1": {
+      "parts": 93,
+      "rendered": 93,
+      "unavailableGeometry": []
+    },
+    "7236-1": {
+      "parts": 63,
+      "rendered": 63,
+      "unavailableGeometry": []
+    },
+    "6889-1": {
+      "parts": 197,
+      "rendered": 197,
+      "unavailableGeometry": []
+    },
+    "4917-1": {
+      "parts": 77,
+      "rendered": 77,
+      "unavailableGeometry": []
+    },
+    "897-1": {
+      "parts": 90,
+      "rendered": 90,
+      "unavailableGeometry": []
+    },
+    "6870-1": {
+      "parts": 68,
+      "rendered": 68,
+      "unavailableGeometry": []
+    },
+    "6346-1": {
+      "parts": 456,
+      "rendered": 456,
+      "unavailableGeometry": []
+    },
+    "31066-1": {
+      "parts": 174,
+      "rendered": 174,
+      "unavailableGeometry": []
+    },
+    "6770-1": {
+      "parts": 123,
+      "rendered": 123,
+      "unavailableGeometry": []
+    },
+    "1621-1": {
+      "parts": 104,
+      "rendered": 104,
+      "unavailableGeometry": []
+    },
+    "6414-1": {
+      "parts": 217,
+      "rendered": 216,
+      "unavailableGeometry": [
+        "6228"
+      ]
+    },
+    "30025-1": {
+      "parts": 59,
+      "rendered": 59,
+      "unavailableGeometry": []
+    },
+    "316-1": {
+      "parts": 145,
+      "rendered": 145,
+      "unavailableGeometry": []
+    },
+    "4015-1": {
+      "parts": 93,
+      "rendered": 93,
+      "unavailableGeometry": []
+    },
+    "6362-1": {
+      "parts": 138,
+      "rendered": 138,
+      "unavailableGeometry": []
+    },
+    "6651-1": {
+      "parts": 50,
+      "rendered": 50,
+      "unavailableGeometry": []
+    },
+    "6376-1": {
+      "parts": 221,
+      "rendered": 221,
+      "unavailableGeometry": []
+    },
+    "10036-1": {
+      "parts": 166,
+      "rendered": 166,
+      "unavailableGeometry": []
+    },
+    "894-1": {
+      "parts": 85,
+      "rendered": 85,
+      "unavailableGeometry": []
+    },
+    "918-1": {
+      "parts": 92,
+      "rendered": 92,
+      "unavailableGeometry": []
+    },
+    "6841-1": {
+      "parts": 50,
+      "rendered": 50,
+      "unavailableGeometry": []
+    },
+    "6861-1": {
+      "parts": 61,
+      "rendered": 61,
+      "unavailableGeometry": []
+    },
+    "6878-1": {
+      "parts": 79,
+      "rendered": 79,
+      "unavailableGeometry": []
+    },
+    "6885-1": {
+      "parts": 110,
+      "rendered": 110,
+      "unavailableGeometry": []
+    },
+    "6988-1": {
+      "parts": 625,
+      "rendered": 625,
+      "unavailableGeometry": []
+    },
+    "374-1": {
+      "parts": 354,
+      "rendered": 354,
+      "unavailableGeometry": []
+    },
+    "6363-1": {
+      "parts": 150,
+      "rendered": 150,
+      "unavailableGeometry": []
+    },
+    "2150-1": {
+      "parts": 622,
+      "rendered": 622,
+      "unavailableGeometry": []
+    },
+    "10159-1": {
+      "parts": 584,
+      "rendered": 582,
+      "unavailableGeometry": [
+        "3596s99"
+      ]
+    },
+    "6692-1": {
+      "parts": 95,
+      "rendered": 95,
+      "unavailableGeometry": []
+    },
+    "7634-1": {
+      "parts": 83,
+      "rendered": 83,
+      "unavailableGeometry": []
+    },
+    "112-2": {
+      "parts": 78,
+      "rendered": 75,
+      "unavailableGeometry": [
+        "x579",
+        "x580",
+        "x507"
+      ]
+    },
+    "126-1": {
+      "parts": 60,
+      "rendered": 60,
+      "unavailableGeometry": []
+    },
+    "7730-1": {
+      "parts": 373,
+      "rendered": 369,
+      "unavailableGeometry": [
+        "3241ac04"
+      ]
+    },
+    "4536-1": {
+      "parts": 167,
+      "rendered": 167,
+      "unavailableGeometry": []
+    },
+    "10001-1": {
+      "parts": 841,
+      "rendered": 839,
+      "unavailableGeometry": [
+        "164565e"
+      ]
+    },
+    "6679-2": {
+      "parts": 82,
+      "rendered": 82,
+      "unavailableGeometry": []
+    },
+    "1772-1": {
+      "parts": 89,
+      "rendered": 89,
+      "unavailableGeometry": []
+    },
+    "10156-1": {
+      "parts": 110,
+      "rendered": 110,
+      "unavailableGeometry": []
+    },
+    "3179-1": {
+      "parts": 128,
+      "rendered": 128,
+      "unavailableGeometry": []
+    },
+    "7747-1": {
+      "parts": 455,
+      "rendered": 455,
+      "unavailableGeometry": []
+    },
+    "41590-1": {
+      "parts": 96,
+      "rendered": 96,
+      "unavailableGeometry": []
+    },
+    "41589-1": {
+      "parts": 79,
+      "rendered": 79,
+      "unavailableGeometry": []
+    },
+    "41591-1": {
+      "parts": 143,
+      "rendered": 143,
+      "unavailableGeometry": []
+    },
+    "41592-1": {
+      "parts": 93,
+      "rendered": 93,
+      "unavailableGeometry": []
+    },
+    "41605-1": {
+      "parts": 105,
+      "rendered": 105,
+      "unavailableGeometry": []
+    },
+    "41606-1": {
+      "parts": 113,
+      "rendered": 113,
+      "unavailableGeometry": []
+    },
+    "75317-1": {
+      "parts": 294,
+      "rendered": 294,
+      "unavailableGeometry": []
+    },
+    "41602-1": {
+      "parts": 119,
+      "rendered": 119,
+      "unavailableGeometry": []
+    },
+    "41603-1": {
+      "parts": 130,
+      "rendered": 130,
+      "unavailableGeometry": []
+    },
+    "41609-1": {
+      "parts": 149,
+      "rendered": 149,
+      "unavailableGeometry": []
+    },
+    "41620-1": {
+      "parts": 124,
+      "rendered": 124,
+      "unavailableGeometry": []
+    },
+    "41498-1": {
+      "parts": 329,
+      "rendered": 329,
+      "unavailableGeometry": []
+    },
+    "41585-1": {
+      "parts": 91,
+      "rendered": 91,
+      "unavailableGeometry": []
+    },
+    "41599-1": {
+      "parts": 143,
+      "rendered": 143,
+      "unavailableGeometry": []
+    },
+    "41615-1": {
+      "parts": 180,
+      "rendered": 180,
+      "unavailableGeometry": []
+    },
+    "41624-1": {
+      "parts": 109,
+      "rendered": 109,
+      "unavailableGeometry": []
+    },
+    "75053-1": {
+      "parts": 922,
+      "rendered": 922,
+      "unavailableGeometry": []
+    },
+    "10278-1": {
+      "parts": 2959,
+      "rendered": 2959,
+      "unavailableGeometry": []
+    },
+    "40448-1": {
+      "parts": 201,
+      "rendered": 201,
+      "unavailableGeometry": []
+    },
+    "21321-1": {
+      "parts": 863,
+      "rendered": 863,
+      "unavailableGeometry": []
+    },
+    "75272-1": {
+      "parts": 456,
+      "rendered": 456,
+      "unavailableGeometry": []
+    },
+    "75276-1": {
+      "parts": 645,
+      "rendered": 645,
+      "unavailableGeometry": []
+    },
+    "75277-1": {
+      "parts": 624,
+      "rendered": 624,
+      "unavailableGeometry": []
+    },
+    "75966-1": {
+      "parts": 169,
+      "rendered": 169,
+      "unavailableGeometry": []
+    },
+    "75968-1": {
+      "parts": 766,
+      "rendered": 766,
+      "unavailableGeometry": []
+    },
+    "21319-1": {
+      "parts": 1052,
+      "rendered": 1052,
+      "unavailableGeometry": []
+    },
+    "40433-1": {
+      "parts": 363,
+      "rendered": 363,
+      "unavailableGeometry": []
+    },
+    "75948-1": {
+      "parts": 884,
+      "rendered": 884,
+      "unavailableGeometry": []
+    },
+    "21309-1": {
+      "parts": 1845,
+      "rendered": 1845,
+      "unavailableGeometry": []
+    },
+    "30277-1": {
+      "parts": 56,
+      "rendered": 56,
+      "unavailableGeometry": []
+    },
+    "75895-1": {
+      "parts": 177,
+      "rendered": 177,
+      "unavailableGeometry": []
+    },
+    "21311-1": {
+      "parts": 2317,
+      "rendered": 2317,
+      "unavailableGeometry": []
+    },
+    "21303-1": {
+      "parts": 778,
+      "rendered": 778,
+      "unavailableGeometry": []
+    },
+    "75980-1": {
+      "parts": 1008,
+      "rendered": 1008,
+      "unavailableGeometry": []
+    },
+    "77904-1": {
+      "parts": 458,
+      "rendered": 458,
+      "unavailableGeometry": []
+    },
+    "9470-1": {
+      "parts": 242,
+      "rendered": 242,
+      "unavailableGeometry": []
+    },
+    "21113-1": {
+      "parts": 262,
+      "rendered": 262,
+      "unavailableGeometry": []
+    },
+    "75892-1": {
+      "parts": 228,
+      "rendered": 228,
+      "unavailableGeometry": []
+    },
+    "21307-1": {
+      "parts": 814,
+      "rendered": 814,
+      "unavailableGeometry": []
+    },
+    "75155-1": {
+      "parts": 649,
+      "rendered": 649,
+      "unavailableGeometry": []
+    },
+    "75954-1": {
+      "parts": 821,
+      "rendered": 821,
+      "unavailableGeometry": []
+    },
+    "21318-1": {
+      "parts": 2998,
+      "rendered": 2998,
+      "unavailableGeometry": []
+    },
+    "9476-1": {
+      "parts": 393,
+      "rendered": 393,
+      "unavailableGeometry": []
+    },
+    "76161-1": {
+      "parts": 2404,
+      "rendered": 2404,
+      "unavailableGeometry": []
+    },
+    "76042-1": {
+      "parts": 3084,
+      "rendered": 3084,
+      "unavailableGeometry": []
+    },
+    "75060-1": {
+      "parts": 2018,
+      "rendered": 2018,
+      "unavailableGeometry": []
+    },
+    "76139-1": {
+      "parts": 3292,
+      "rendered": 3292,
+      "unavailableGeometry": []
+    },
+    "10297-1": {
+      "parts": 3164,
+      "rendered": 3164,
+      "unavailableGeometry": []
+    },
+    "10212-1": {
+      "parts": 2526,
+      "rendered": 2526,
+      "unavailableGeometry": []
+    },
+    "21325-1": {
+      "parts": 2135,
+      "rendered": 2135,
+      "unavailableGeometry": []
+    },
+    "21323-1": {
+      "parts": 3680,
+      "rendered": 3680,
+      "unavailableGeometry": []
+    },
+    "6285-1": {
+      "parts": 1021,
+      "rendered": 1021,
+      "unavailableGeometry": []
+    },
+    "6286-1": {
+      "parts": 1237,
+      "rendered": 1237,
+      "unavailableGeometry": []
+    },
+    "10124-1": {
+      "parts": 689,
+      "rendered": 689,
+      "unavailableGeometry": []
+    },
+    "6073-1": {
+      "parts": 454,
+      "rendered": 454,
+      "unavailableGeometry": []
+    },
+    "6685-1": {
+      "parts": 315,
+      "rendered": 315,
+      "unavailableGeometry": []
+    },
+    "6061-1": {
+      "parts": 240,
+      "rendered": 240,
+      "unavailableGeometry": []
+    },
+    "75969-1": {
+      "parts": 925,
+      "rendered": 925,
+      "unavailableGeometry": []
+    },
+    "40335-1": {
+      "parts": 158,
+      "rendered": 158,
+      "unavailableGeometry": []
+    },
+    "75893-1": {
+      "parts": 483,
+      "rendered": 483,
+      "unavailableGeometry": []
+    },
+    "75181-1": {
+      "parts": 1928,
+      "rendered": 1928,
+      "unavailableGeometry": []
+    },
+    "75953-1": {
+      "parts": 720,
+      "rendered": 720,
+      "unavailableGeometry": []
+    },
+    "75144-1": {
+      "parts": 1715,
+      "rendered": 1715,
+      "unavailableGeometry": []
+    },
+    "75878-1": {
+      "parts": 199,
+      "rendered": 199,
+      "unavailableGeometry": []
+    },
+    "75870-1": {
+      "parts": 384,
+      "rendered": 384,
+      "unavailableGeometry": []
+    },
+    "21302-1": {
+      "parts": 456,
+      "rendered": 456,
+      "unavailableGeometry": []
+    },
+    "75102-1": {
+      "parts": 734,
+      "rendered": 734,
+      "unavailableGeometry": []
+    },
+    "21107-1": {
+      "parts": 430,
+      "rendered": 430,
+      "unavailableGeometry": []
+    },
+    "30300-1": {
+      "parts": 57,
+      "rendered": 57,
+      "unavailableGeometry": []
+    },
+    "75033-1": {
+      "parts": 100,
+      "rendered": 100,
+      "unavailableGeometry": []
+    },
+    "75075-1": {
+      "parts": 85,
+      "rendered": 85,
+      "unavailableGeometry": []
+    },
+    "75253-1": {
+      "parts": 933,
+      "rendered": 933,
+      "unavailableGeometry": []
+    },
+    "31084-1": {
+      "parts": 942,
+      "rendered": 942,
+      "unavailableGeometry": []
+    },
+    "42108-1": {
+      "parts": 1319,
+      "rendered": 1319,
+      "unavailableGeometry": []
+    },
+    "42042-1": {
+      "parts": 1417,
+      "rendered": 1417,
+      "unavailableGeometry": []
+    },
+    "rocket": {
+      "parts": 63,
+      "rendered": 63,
+      "unavailableGeometry": []
+    },
+    "castle": {
+      "parts": 291,
+      "rendered": 291,
+      "unavailableGeometry": []
+    },
+    "sportscar": {
+      "parts": 110,
+      "rendered": 110,
+      "unavailableGeometry": []
+    },
+    "lighthouse": {
+      "parts": 92,
+      "rendered": 92,
+      "unavailableGeometry": []
+    },
+    "dragon": {
+      "parts": 192,
+      "rendered": 192,
+      "unavailableGeometry": []
+    },
+    "mech": {
+      "parts": 72,
+      "rendered": 72,
+      "unavailableGeometry": []
+    },
+    "cottage": {
+      "parts": 591,
+      "rendered": 591,
+      "unavailableGeometry": []
+    },
+    "pagoda": {
+      "parts": 133,
+      "rendered": 133,
+      "unavailableGeometry": []
+    },
+    "pirate": {
+      "parts": 138,
+      "rendered": 138,
+      "unavailableGeometry": []
+    },
+    "speeder": {
+      "parts": 56,
+      "rendered": 56,
+      "unavailableGeometry": []
+    },
+    "tree": {
+      "parts": 61,
+      "rendered": 61,
+      "unavailableGeometry": []
+    },
+    "espresso": {
+      "parts": 47,
+      "rendered": 47,
+      "unavailableGeometry": []
+    },
+    "skyscraper": {
+      "parts": 392,
+      "rendered": 392,
+      "unavailableGeometry": []
+    },
+    "giraffe": {
+      "parts": 100,
+      "rendered": 100,
+      "unavailableGeometry": []
+    },
+    "ufo": {
+      "parts": 99,
+      "rendered": 99,
+      "unavailableGeometry": []
+    },
+    "arcade": {
+      "parts": 64,
+      "rendered": 64,
+      "unavailableGeometry": []
+    }
+  }
+}

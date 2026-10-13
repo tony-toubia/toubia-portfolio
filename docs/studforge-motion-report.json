@@ -25389,10 +25389,15 @@
     {
       "id": "31084-1",
       "name": "Pirate Roller Coaster",
-      "joints": 1,
+      "joints": 0,
       "candidates": 11,
       "assembliesRestored": false,
       "skipped": [
+        {
+          "base": 738,
+          "top": 737,
+          "reason": "Multiple axes constrain the same assembly"
+        },
         {
           "base": 175,
           "top": 176,
@@ -30329,6 +30334,6 @@
       ]
     }
   ],
-  "supported": 61,
-  "joints": 268
+  "supported": 60,
+  "joints": 267
 }

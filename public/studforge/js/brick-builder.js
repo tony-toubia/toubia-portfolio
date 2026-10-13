@@ -1097,16 +1097,23 @@ BrickBuilder.creaseGeometry = (v, idx, tris) => {
         for (let k = 0; k < 3; k++) {
             const vi = idx[ti * 3 + k], o = t * 9 + k * 3;
             pos[o] = v[vi * 3]; pos[o + 1] = v[vi * 3 + 1]; pos[o + 2] = v[vi * 3 + 2];
-            const key = `${Math.round(pos[o] * 1000)},${Math.round(pos[o + 1] * 1000)},${Math.round(pos[o + 2] * 1000)}`;
-            let g = groups.get(key); if (!g) groups.set(key, g = []);
-            g.push(t * 3 + k);
         }
         const o = t * 9;
         const ax = pos[o + 3] - pos[o], ay = pos[o + 4] - pos[o + 1], az = pos[o + 5] - pos[o + 2];
         const bx = pos[o + 6] - pos[o], by = pos[o + 7] - pos[o + 1], bz = pos[o + 8] - pos[o + 2];
         const nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx, len = Math.hypot(nx, ny, nz);
         fa[t] = len / 2;
-        if (len > 1e-12) { fn[t * 3] = nx / len; fn[t * 3 + 1] = ny / len; fn[t * 3 + 2] = nz / len; }
+        if (len > 1e-12) {
+            fn[t * 3] = nx / len; fn[t * 3 + 1] = ny / len; fn[t * 3 + 2] = nz / len;
+            // Collapsed rope endpoints contribute no surface normal. Including
+            // thousands at one point makes this smoothing pass quadratic.
+            for (let k = 0; k < 3; k++) {
+                const corner = t * 9 + k * 3;
+                const key = `${Math.round(pos[corner] * 1000)},${Math.round(pos[corner + 1] * 1000)},${Math.round(pos[corner + 2] * 1000)}`;
+                let g = groups.get(key); if (!g) groups.set(key, g = []);
+                g.push(t * 3 + k);
+            }
+        }
     }
     for (const g of groups.values()) {
         for (const a of g) {
