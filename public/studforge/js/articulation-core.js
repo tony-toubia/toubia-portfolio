@@ -56,5 +56,10 @@
             b * co + (z * a - x * c) * si + y * dot * (1 - co) + pivot[1],
             c * co + (x * b - y * a) * si + z * dot * (1 - co) + pivot[2]];
     }
-    globalThis.StudForgeArticulation = { resolve, fingerprint, clamp, rotatePoint, hasProfile: id => !!profiles[id], ids: Object.keys(profiles) };
+    // A printed face or fixed-color submesh belongs to its enclosing brick.
+    function memberIndex(object, meshes) {
+        while (object) { const index = meshes.indexOf(object); if (index >= 0) return index; object = object.parent; }
+        return -1;
+    }
+    globalThis.StudForgeArticulation = { resolve, fingerprint, clamp, rotatePoint, memberIndex, hasProfile: id => !!profiles[id], ids: Object.keys(profiles) };
 })();

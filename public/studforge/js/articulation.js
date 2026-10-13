@@ -4,40 +4,36 @@
         const sf = window.studForge, core = window.StudForgeArticulation;
         if (!sf || !core || sf.articulation) return;
         const viewer = sf.viewer, canvas = viewer.renderer.domElement;
-        const panel = sf.registerPanel({ id: 'pose', title: 'MOVE THIS KIT', group: 'build', order: 3 });
+        const panel = sf.registerPanel({ id: 'pose', title: 'MOVABLE ASSEMBLIES', group: 'build', order: 3 });
         const button = document.createElement('button'); button.type = 'button'; button.className = 'cam-btn'; button.id = 'btn-pose';
-        button.innerHTML = '<span class="vc-ico">↻</span><span class="vc-label">POSE</span>';
-        button.title = 'Grab movable pieces and rotate them on their joints'; button.setAttribute('aria-label', 'Pose movable pieces'); button.setAttribute('aria-pressed', 'false');
+        button.innerHTML = '<span class="vc-ico">↻</span><span class="vc-label">JOINTS</span>';
+        button.title = 'Move hinged assemblies; fixed bricks stay attached'; button.setAttribute('aria-label', 'Move hinged assemblies'); button.setAttribute('aria-pressed', 'false');
         sf.widget(button);
         const style = document.createElement('style');
         style.textContent = '.sfpose-controls label{display:block;margin:12px 0;font-size:14px}.sfpose-controls label>span{display:flex;justify-content:space-between;gap:8px;margin-bottom:6px}.sfpose-controls input{width:100%;accent-color:var(--lego-yellow)}.sfpose-controls output{color:var(--lego-yellow);font-family:var(--font-mono)}.sfpose-axis{position:absolute;bottom:64px;left:14px;max-width:calc(100% - 28px);padding:8px 12px;border:1px solid var(--lego-yellow);border-radius:8px;background:#151b27ed;color:var(--lego-yellow);font-size:13px;pointer-events:none;z-index:5}.sfpose-tip{font-size:13px;color:var(--text-secondary);line-height:1.5}';
         document.head.appendChild(style);
+        style.textContent += '.sfpose-controls label{padding:8px;border:1px solid transparent;border-radius:8px;cursor:pointer}.sfpose-controls label.on{border-color:var(--lego-yellow);background:#f2cd3712}.sfpose-controls small{display:block;color:var(--text-secondary);font-size:12px;margin-bottom:6px}';
         const hint = document.createElement('div'); hint.className = 'sfpose-axis'; hint.hidden = true; hint.setAttribute('role', 'status');
         (canvas.closest('.viewport-card') || viewer.container).appendChild(hint);
-        let rig = null, rest = [], values = {}, active = false, drag = null, baseY = 0, highlights = [];
+        let rig = null, rest = [], values = {}, active = false, drag = null, baseY = 0, highlights = [], selected = null, highlighted = null;
         const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
 
         function clearHighlights() {
-            for (const helper of highlights) { viewer.modelGroup.remove(helper); helper.geometry.dispose(); helper.material.dispose(); }
-            highlights = [];
+            for (const item of highlights) { item.mesh.material = item.original; item.material.dispose(); }
+            highlights = []; highlighted = null;
         }
         function showHighlights() {
-            let group = 0;
-            const partBox = new THREE.Box3();
-            for (const control of rig.controls) for (const joint of control.joints) {
-                let helper = highlights[group++];
-                if (!helper) {
-                    helper = new THREE.Box3Helper(new THREE.Box3(), 0xf2cd37);
-                    helper.material.transparent = true; helper.material.opacity = .45;
-                    helper.material.depthWrite = false; viewer.modelGroup.add(helper); highlights.push(helper);
-                }
-                const box = helper.box.makeEmpty();
-                for (const index of joint.members) {
-                    const mesh = viewer.brickMeshes[index]; mesh.updateMatrix();
-                    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
-                    box.union(partBox.copy(mesh.geometry.boundingBox).applyMatrix4(mesh.matrix));
-                }
-            }
+            if (highlighted === selected) return;
+            clearHighlights();
+            const control = rig.controls.find(c => c.id === selected);
+            for (const joint of control?.joints || []) for (const index of joint.members) viewer.brickMeshes[index].traverse(mesh => {
+                if (!mesh.isMesh || !mesh.material?.clone) return;
+                const original = mesh.material, material = original.clone();
+                material.color.lerp(new THREE.Color(0xf2cd37), .6);
+                if (material.emissive) { material.emissive.setHex(0xf2cd37); material.emissiveIntensity = .35; }
+                mesh.material = material; highlights.push({ mesh, original, material });
+            });
+            highlighted = selected;
         }
         function apply() {
             if (!active || !rig) return;
@@ -58,9 +54,10 @@
                 panel.body.querySelector(`[data-value="${control.id}"]`).textContent = `${Math.round(values[control.id])}°`;
             }
             const toggle = panel.body.querySelector('[data-toggle]');
-            if (toggle) { toggle.textContent = active ? '✓ POSE MODE ON' : '↻ TRY MOVING PIECES'; toggle.setAttribute('aria-pressed', String(active)); }
+            if (toggle) { toggle.textContent = active ? '✓ JOINT MOVEMENT ON' : '↻ SHOW MOVABLE ASSEMBLIES'; toggle.setAttribute('aria-pressed', String(active)); }
             button.classList.toggle('on', active); button.setAttribute('aria-pressed', String(active)); hint.hidden = !active;
-            if (active && !drag) hint.textContent = 'Drag a highlighted assembly · drag other pieces to orbit';
+            if (active && !drag) hint.textContent = `${rig.controls.find(c => c.id === selected)?.label} · drag its gold pieces · fixed pieces orbit`;
+            for (const control of rig?.controls || []) panel.body.querySelector(`[data-select="${control.id}"]`).classList.toggle('on', active && control.id === selected);
         }
         function endDrag() {
             if (drag && canvas.hasPointerCapture(drag.pointerId)) canvas.releasePointerCapture(drag.pointerId);
@@ -105,25 +102,32 @@
             if (sf.studio?.recording) { sf.toast('Finish the recording before changing the pose'); return; }
             if (!active) setActive(true);
             if (!active) { updateControls(); return; }
-            values[control.id] = core.clamp(value, control); apply(); updateControls();
+            selected = control.id; values[control.id] = core.clamp(value, control); apply(); updateControls();
         }
         function install(model) {
             rig = core.resolve(model); rest = []; values = Object.fromEntries((rig?.controls || []).map(c => [c.id, 0]));
+            selected = rig?.controls[0]?.id || null;
             button.hidden = !rig; panel.section.hidden = !rig;
             if (!rig) { panel.body.innerHTML = ''; return; }
-            panel.body.innerHTML = '<p class="sfpose-tip">Grab a highlighted assembly to move it on its joint. You can also use the angle controls below.</p>'
-                + '<button type="button" class="action-btn secondary" data-toggle aria-pressed="false">↻ TRY MOVING PIECES</button><div class="sfpose-controls">'
-                + rig.controls.map(c => `<label><span>${c.label}<output data-value="${c.id}">0°</output></span><input type="range" min="${c.min}" max="${c.max}" step="1" value="0" data-angle="${c.id}" aria-label="${c.label}"></label>`).join('')
+            panel.body.innerHTML = '<p class="sfpose-tip">Only movable assemblies rotate on their joints. Choose a slider to highlight its connected pieces in gold, then adjust the angle or drag those pieces. Fixed bricks stay attached; drag them to rotate the view.</p>'
+                + '<button type="button" class="action-btn secondary" data-toggle aria-pressed="false">↻ SHOW MOVABLE ASSEMBLIES</button><div class="sfpose-controls">'
+                + rig.controls.map(c => `<label data-select="${c.id}"><span>${c.label}<output data-value="${c.id}">0°</output></span><small>${c.joints.reduce((n, j) => n + j.members.length, 0)} connected pieces</small><input type="range" min="${c.min}" max="${c.max}" step="1" value="0" data-angle="${c.id}" aria-label="${c.label}"></label>`).join('')
                 + '</div><button type="button" class="action-btn tertiary" data-reset>RESET POSE</button><p class="sfpose-tip">Demonstration poses. Building steps and parts lists use the original assembly.</p>';
         }
         button.addEventListener('click', () => setActive(!active));
         panel.body.addEventListener('click', e => {
+            const choice = rig?.controls.find(c => c.id === e.target.closest('[data-select]')?.dataset.select);
+            if (choice) { selected = choice.id; setActive(true); if (active) { showHighlights(); updateControls(); } }
             if (e.target.closest('[data-toggle]')) setActive(!active);
             if (e.target.closest('[data-reset]')) { endDrag(); values = Object.fromEntries(rig.controls.map(c => [c.id, 0])); apply(); updateControls(); }
         });
         panel.body.addEventListener('input', e => {
             const control = rig?.controls.find(c => c.id === e.target.dataset.angle);
             if (control) setAngle(control, Number(e.target.value));
+        });
+        panel.body.addEventListener('focusin', e => {
+            const control = rig?.controls.find(c => c.id === e.target.dataset.angle);
+            if (control && active) { selected = control.id; showHighlights(); updateControls(); }
         });
 
         canvas.addEventListener('pointerdown', e => {
@@ -133,12 +137,13 @@
             const rect = canvas.getBoundingClientRect();
             pointer.set((e.clientX - rect.left) / rect.width * 2 - 1, -(e.clientY - rect.top) / rect.height * 2 + 1);
             viewer.scene.updateMatrixWorld(true); raycaster.setFromCamera(pointer, viewer.camera);
-            const hit = raycaster.intersectObjects(viewer.brickMeshes.filter(mesh => mesh.visible), false)[0];
+            const hit = raycaster.intersectObjects(viewer.brickMeshes.filter(mesh => mesh.visible), true)[0];
             if (!hit) return;
-            const index = viewer.brickMeshes.indexOf(hit.object);
+            const index = core.memberIndex(hit.object, viewer.brickMeshes);
             let control, joint;
             for (const c of rig.controls) for (const j of c.joints) if (j.members.includes(index)) { control = c; joint = j; }
             if (!joint) return;
+            selected = control.id; showHighlights(); updateControls();
             sf.studio?.setSpin(false);
             const point = viewer.modelGroup.worldToLocal(hit.point.clone());
             const project = p => {
