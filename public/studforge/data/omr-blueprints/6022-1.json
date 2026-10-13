@@ -1,0 +1,15 @@
+{"setId":"6022-1","name":"Horse Cart","year":1984,"theme":"Castle > Lion Knights","subject":"animal","label":"animal","labelPlural":"animals","authors":["Stefan Frenz [smf]"],"licence":"CC BY 2.0","source":"https://library.ldraw.org/omr/sets/1029","blueprint":{"name":"Horse Cart","description":"How set 6022-1 Horse Cart (1984) is built, compressed from its LDraw model.","base":{"w":6,"d":20,"color":"LIGHT_GREY"},"ops":[
+{"op":"module","id":"chassis","x":1,"z":0,"y":1,"params":{"width":4,"length":20,"axles":[5],"size":"large","color":"BLACK"}},
+{"op":"box","x0":2,"x1":3,"z0":11,"z1":19,"y0":1,"y1":18,"color":"BLACK"},
+{"op":"box","x0":2,"x1":4,"z0":3,"z1":14,"y0":6,"y1":9,"color":"RED"},
+{"op":"box","x0":1,"x1":4,"z0":5,"z1":6,"y0":5,"y1":7,"color":"BLACK"},
+{"op":"box","x0":2,"x1":3,"z0":7,"z1":8,"y0":5,"y1":10,"color":"BLACK"},
+{"op":"box","x0":1,"x1":1,"z0":7,"z1":8,"y0":7,"y1":7,"color":"BLACK"},
+{"op":"box","x0":0,"x1":2,"z0":0,"z1":1,"y0":9,"y1":14,"color":"BLUE"},
+{"op":"box","x0":1,"x1":4,"z0":2,"z1":7,"y0":11,"y1":12,"color":"BLACK","hollow":true},
+{"op":"box","x0":1,"x1":4,"z0":3,"z1":4,"y0":7,"y1":11,"color":"BLACK"},
+{"op":"box","x0":1,"x1":1,"z0":3,"z1":4,"y0":7,"y1":13,"color":"BLACK"},
+{"op":"box","x0":4,"x1":4,"z0":3,"z1":4,"y0":7,"y1":13,"color":"BLACK"},
+{"op":"box","x0":1,"x1":4,"z0":1,"z1":2,"y0":12,"y1":14,"color":"BLACK"},
+{"op":"box","x0":1,"x1":1,"z0":4,"z1":7,"y0":17,"y1":19,"color":"YELLOW"},
+{"op":"box","x0":1,"x1":1,"z0":4,"z1":7,"y0":21,"y1":23,"color":"RED"}]},"fidelity":{"iou":0.653,"color":0.785,"pieces":3.21,"srcPieces":28,"bpPieces":90,"hollowSrc":0.046,"hollowBp":0.027,"ops":14,"struts":2,"overlaps":0,"loose":0,"warnings":0,"bytes":1239}}

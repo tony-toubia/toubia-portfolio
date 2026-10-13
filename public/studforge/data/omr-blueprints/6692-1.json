@@ -1,0 +1,18 @@
+{"setId":"6692-1","name":"Tractor Trailer","year":1983,"theme":"Town > Classic Town","subject":"tractor","label":"tractor","labelPlural":"tractors","authors":["Robert Paciorek [bercik]"],"licence":"CC BY 2.0","source":"https://library.ldraw.org/omr/sets/419","blueprint":{"name":"Tractor Trailer","description":"How set 6692-1 Tractor Trailer (1983) is built, compressed from its LDraw model.","base":{"w":4,"d":22,"color":"LIGHT_GREY"},"ops":[
+{"op":"module","id":"chassis","x":1,"z":1,"y":1,"params":{"width":2,"length":21,"axles":[1,4,12,18],"size":"medium","color":"BLACK"}},
+{"op":"box","x0":0,"x1":0,"z0":16,"z1":17,"y0":4,"y1":4,"color":"BLACK"},
+{"op":"box","x0":3,"x1":3,"z0":16,"z1":17,"y0":4,"y1":4,"color":"BLACK"},
+{"op":"box","x0":1,"x1":2,"z0":21,"z1":21,"y0":5,"y1":6,"color":"BLACK"},
+{"op":"box","x0":0,"x1":3,"z0":16,"z1":21,"y0":7,"y1":18,"color":"YELLOW","hollow":true},
+{"op":"box","x0":0,"x1":3,"z0":1,"z1":14,"y0":8,"y1":19,"color":"YELLOW","hollow":true},
+{"op":"box","x0":1,"x1":2,"z0":1,"z1":10,"y0":3,"y1":8,"color":"BLACK"},
+{"op":"box","x0":1,"x1":2,"z0":13,"z1":20,"y0":3,"y1":8,"color":"BLACK"},
+{"op":"box","x0":1,"x1":2,"z0":17,"z1":17,"y0":7,"y1":18,"color":"YELLOW"},
+{"op":"box","x0":1,"x1":2,"z0":18,"z1":19,"y0":7,"y1":8,"color":"YELLOW"},
+{"op":"box","x0":1,"x1":2,"z0":1,"z1":14,"y0":8,"y1":8,"color":"YELLOW"},
+{"op":"box","x0":0,"x1":3,"z0":0,"z1":0,"y0":11,"y1":18,"color":"YELLOW"},
+{"op":"box","x0":0,"x1":3,"z0":20,"z1":21,"y0":12,"y1":17,"color":"TRANS_CLEAR"},
+{"op":"box","x0":1,"x1":2,"z0":20,"z1":20,"y0":7,"y1":12,"color":"YELLOW"},
+{"op":"box","x0":0,"x1":3,"z0":18,"z1":19,"y0":18,"y1":22,"color":"YELLOW"},
+{"op":"box","x0":1,"x1":2,"z0":20,"z1":20,"y0":18,"y1":18,"color":"YELLOW"},
+{"op":"box","x0":1,"x1":2,"z0":2,"z1":13,"y0":19,"y1":19,"color":"YELLOW"}]},"fidelity":{"iou":0.836,"color":0.87,"pieces":1.73,"srcPieces":85,"bpPieces":147,"hollowSrc":0.264,"hollowBp":0.217,"ops":17,"struts":2,"overlaps":0,"loose":0,"warnings":0,"bytes":1528}}

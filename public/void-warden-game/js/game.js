@@ -640,5 +640,7 @@ class VoidWardenGame {
         // Render WebGL
         this.renderer.render(this.scene, this.camera);
     }
+}
+
 window.VoidWardenGame = VoidWardenGame;
 window.Game = VoidWardenGame;

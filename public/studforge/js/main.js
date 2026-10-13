@@ -1,152 +1,550 @@
-// StudForge library and studio controller.
-document.addEventListener('DOMContentLoaded', async () => {
-    const $ = id => document.getElementById(id);
-    const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const library = window.StudForgeLibrary;
-    let storage;
-    try { storage = window.localStorage; } catch { storage = null; }
-    const state = library.readState(storage);
-    const status = message => { $('app-status').textContent = message; };
-    const persist = () => { if (!library.saveState(storage,state)) $('progress-note').textContent = 'Browser storage unavailable. Progress lasts for this visit.'; };
-    if (window.self !== window.top) document.body.classList.add('in-iframe');
-    let viewer;
-    try { viewer = new window.StudForgeViewer('viewport-3d'); }
-    catch { status('The 3D viewer could not start. Enable WebGL and reload to explore models.'); return; }
+// StudForge core: forging, the parts list, the canvas controls, the app shell, and the small
+// platform feature modules plug into.
+//
+// The shell has two places plus the canvas:
+//   MAKE       the create bar (desktop) / the Make sheet (phones): the prompt, the engine picker, suggestions,
+//              and the "start from" sources (real sets, mosaics, my builds) features add.
+//   WORKBENCH  four tabs about the current model: build, parts, style, learn. Features add sections to them.
+//   CANVAS     view tools (views, explode, reset, plus features' widgets) and one step scrubber.
+//
+// Features (instructions, tweaks, gallery, studio, buying help, the AI idea service...) live in their own
+// files, loaded after this one. They use:
+//
+//   studForge.forge(prompt, variant, opts)   forge an idea (opts: see BrickGenerator.generateFromPrompt)
+//   studForge.reforge(patch)                 the current idea again with changed opts, e.g. { colors: { roof: 'BLUE' } }
+//   studForge.model / .state                 the current model and { prompt, variant, opts }
+//   studForge.on(evt, fn)                    'model' | 'step' | 'explode' | 'forging' | 'panel' (tab id) | 'section'
+//                                            (section id) | 'engine' (engine id) | 'source' (source id or null) | 'make' (open?)
+//   studForge.registerPanel({ id, title, group, order, render(el) })
+//                                            a section in a workbench tab (group: 'build' | 'parts' | 'style' | 'learn');
+//                                            render fills `el` (class panel-body). Lower `order` comes first (the core
+//                                            parts list is 50, the build tab's model header is 0). Returns { body, section, show }.
+//   studForge.showPanel(id)                  open a tab ('build'...) or the tab holding section `id`, scrolled to it;
+//                                            also 'make' or a source id
+//   studForge.addSource({ id, icon, label, hint, order, render(el) })
+//                                            a "start from" source in Make (real sets, mosaic, my builds). Returns { body, show }.
+//   studForge.showSource(id) / .closeMake()  open Make on a source's panel / close Make
+//   studForge.registerEngine({ id, icon, label, hint, order })
+//                                            a choice in the engine picker (the core has 'quick'). Returns { setLocked(bool) }.
+//   studForge.engine / .setEngine(id)        the chosen engine (remembered on this browser)
+//   studForge.shareItem({ id, icon, label, hint, order, onClick })   an item in the header Share menu
+//   studForge.headerAction(el)               a button in the header next to Share (Save)
+//   studForge.summarySlot(el)                an extra bit of the header's model summary (the price)
+//   studForge.widget(el)                     a view tool on the canvas (spin, by-type tray)
+//   studForge.dock(el)                       legacy: an item in the ⋯ menu
+//   studForge.toast(text)                    a short status message
+//   studForge.isPhone()                      the phone layout is showing
+//   studForge.viewer / .generator / .bom     the 3D viewer, the generator, the current parts list
+document.addEventListener('DOMContentLoaded', () => {
+    // Inside the portfolio's desktop window the window chrome carries the way back; the /studforge page embeds the app
+    // full screen with ?standalone=1, so the app keeps its own back link (which leaves the frame: target _top).
+    if (window.self !== window.top && !/[?&]standalone=1\b/.test(location.search)) document.body.classList.add('in-iframe');
+
+    const viewer = new window.StudForgeViewer('viewport-3d');
     const generator = new window.BrickGenerator();
-    const originals = window.INSPIRATION_MODELS.map(model => ({...model,thumbnail:`thumbnails/${model.id}.png`,pieceCount:model.bricks.length}));
-    let models = originals, currentModel = null, bomParts = [], theme = '', favoritesOnly = false, request = 0, checklist = new Set(), loading = false;
+    const $ = (id) => document.getElementById(id);
+    const store = {
+        get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+        set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
+    };
 
-    function renderFilters() {
-        $('theme-filters').innerHTML = ['',...new Set(models.map(model=>model.category))].map(value=>`<button class="theme-chip ${theme===value?'active':''}" data-theme="${esc(value)}" aria-pressed="${theme===value}">${esc(value||'All builds')}</button>`).join('');
-    }
-    function renderLibrary() {
-        const matches = library.filterModels(models,$('library-search').value,theme,favoritesOnly,state.favorites);
-        $('library-count').textContent = `${matches.length} / ${models.length}`;
-        $('library-empty').hidden = matches.length > 0;
-        $('library-grid').innerHTML = matches.map(model=>{
-            const favorite = state.favorites.includes(model.id);
-            return `<article class="model-card ${currentModel?.id===model.id?'selected':''}"><button class="card-open" data-model="${esc(model.id)}" aria-label="Explore ${esc(model.name)}" aria-pressed="${currentModel?.id===model.id}"><img src="${esc(model.thumbnail)}" alt="" loading="lazy" width="320" height="250"><span class="card-theme">${esc(model.category)}</span><strong>${esc(model.name)}</strong><span class="card-meta">${model.setNumber?`#${esc(model.setNumber.split('-')[0])} · `:''}${model.pieceCount||model.bricks?.length||'—'} pieces</span><span class="card-badge">${model.format==='ldraw'?'3D SET MODEL':'MICRO BUILD'}</span></button><button class="card-favorite ${favorite?'saved':''}" data-favorite="${esc(model.id)}" aria-label="${favorite?'Remove':'Add'} ${esc(model.name)} ${favorite?'from':'to'} favorites" aria-pressed="${favorite}">${favorite?'♥':'♡'}</button></article>`;
-        }).join('');
-    }
-    $('theme-filters').addEventListener('click',event=>{ const button=event.target.closest('[data-theme]'); if(button){theme=button.dataset.theme;renderFilters();renderLibrary();} });
-    $('library-search').addEventListener('input',renderLibrary);
-    $('favorites-filter').addEventListener('click',()=>{favoritesOnly=!favoritesOnly;$('favorites-filter').setAttribute('aria-pressed',String(favoritesOnly));renderLibrary();});
-    $('library-grid').addEventListener('click',event=>{
-        const favorite=event.target.closest('[data-favorite]');
-        if(favorite){ const id=favorite.dataset.favorite; state.favorites=state.favorites.includes(id)?state.favorites.filter(value=>value!==id):[...state.favorites,id];persist();renderLibrary();return; }
-        const card=event.target.closest('[data-model]'); if(card)loadBlueprint(models.find(model=>model.id===card.dataset.model));
-    });
-    $('btn-library').addEventListener('click',()=>{
-        const expanded=$('btn-library').getAttribute('aria-expanded')!=='true';
-        $('btn-library').setAttribute('aria-expanded',String(expanded));$('library-panel').hidden=!expanded;
-        document.querySelector('.studio-grid').classList.toggle('library-closed',!expanded);
-    });
-    function enrich(bricks){
-        return bricks.map(brick=>{
-            const part=window.LEGO_PARTS[brick.partId], color=window.LEGO_COLORS[brick.color];
-            return {...brick,partName:brick.partName||part?.name||brick.partId,colorName:brick.colorName||color?.name||brick.color,colorHex:brick.colorHex||color?.hex||'#cccccc',blColorId:color?.blId};
+    let currentModel = null;
+    let bomParts = [];
+    const state = { prompt: '', variant: 0, opts: {} };
+    const listeners = {};
+    const on = (evt, fn) => { (listeners[evt] = listeners[evt] || []).push(fn); return () => { listeners[evt] = listeners[evt].filter((f) => f !== fn); }; };
+    // emit returns true when any listener returned true ("handled"), so core fallbacks can step aside.
+    const emit = (evt, ...args) => { let handled = false; for (const fn of listeners[evt] || []) { try { if (fn(...args) === true) handled = true; } catch (e) { console.error(`studForge ${evt} listener`, e); } } return handled; };
+
+    const promptInput = $('input-prompt'), btnGenerate = $('btn-generate'), btnSurprise = $('btn-surprise'), inspoContainer = $('inspo-pills');
+    const modelTitle = $('model-title'), modelDesc = $('model-desc'), modelBadge = $('model-badge'), modelPieceCount = $('model-piece-count'), modelStepCount = $('model-step-count'), modelEstTime = $('model-est-time'), modelDims = $('model-dims');
+    const explodeSlider = $('slider-explode'), explodeVal = $('val-explode'), stepSlider = $('slider-step'), stepVal = $('val-step'), stepHint = $('val-step-hint');
+    const bomTableBody = $('bom-table-body');
+    const body = document.body;
+
+    const SURPRISES = ['haunted lighthouse', 'giant purple octopus', 'cozy bakery with a garden', 'steampunk airship', 'neon cyberpunk arcade cabinet', 'red fire truck', 'medieval watchtower', 'tropical island with a hut', 'green t-rex', 'white space shuttle', 'pink cupcake', 'a knight with a shield', 'winter cabin in the snow', 'yellow school bus', 'blue whale', 'royal throne', 'pirate galleon', 'desert pyramid', 'moon lander', 'orange tractor', 'christmas tree', 'black police car', 'a cat', 'volcano', 'retro flying saucer', 'golden trophy', 'bonsai tree', 'tie fighter', 'a cheeseburger', 'pagoda shrine'];
+
+    const phoneMQ = window.matchMedia('(max-width: 767px)');
+    const drawerMQ = window.matchMedia('(min-width: 768px) and (max-width: 1100px)');
+    const isPhone = () => phoneMQ.matches;
+    const isDrawer = () => drawerMQ.matches;
+
+    const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    /** Insert `node` into `parent` keeping children sorted by data-order. */
+    const insertOrdered = (parent, node, order) => {
+        node.dataset.order = String(order);
+        const after = [...parent.children].find((c) => c.dataset.order != null && Number(c.dataset.order) > order);
+        parent.insertBefore(node, after || null);
+    };
+
+    /* ── toast ────────────────────────────────────────────────── */
+    let toastTimer = 0;
+    const toast = (text, ms = 2200) => { const t = $('sf-toast'); t.textContent = text; t.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), ms); };
+
+    /* ── menus (Share, ⋯, source, engine, view, explode) ──────── */
+    const menus = [...document.querySelectorAll('.sf-menu')];
+    const closeMenus = (except) => { for (const m of menus) if (m !== except && m.classList.contains('open')) { m.classList.remove('open'); const b = m.querySelector(':scope > button'); if (b) b.setAttribute('aria-expanded', 'false'); } };
+    for (const m of menus) {
+        const btn = m.querySelector(':scope > button');
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const open = !m.classList.contains('open');
+            closeMenus(m);
+            m.classList.toggle('open', open); btn.setAttribute('aria-expanded', String(open));
+            if (open && m.id !== 'source-menu') closeCreatePop();
         });
+        // Picking an item closes the menu (sliders and other controls inside a popover do not).
+        m.querySelector('.sf-menu-list').addEventListener('click', (e) => { if (e.target.closest('.sf-menu-item')) closeMenus(); });
     }
-    function renderBOM(){
-        bomParts=library.inventory(currentModel.bricks);
-        $('bom-table-body').innerHTML=bomParts.map(part=>`<tr><td><div class="part-preview-cell"><span class="color-dot" style="background:${esc(part.colorHex)}"></span><div class="part-info"><span class="part-name">${esc(part.partName)}</span><span class="part-meta">${esc(part.partId)} · ${esc(part.colorName)}</span></div></div></td><td class="text-right"><span class="qty-badge">×${part.quantity}</span></td></tr>`).join('');
-        $('total-unique-parts').textContent=`${bomParts.length} unique elements`;
-        $('total-pieces-count').textContent=`${currentModel.bricks.length} model pieces`;
-    }
-    function saveProgress(){
-        if(!currentModel||!models.some(model=>model.id===currentModel.id))return;
-        state.progress[currentModel.id]={step:viewer.currentStep,checks:[...checklist],inspecting:viewer.isStepMode};state.lastModel=currentModel.id;
-        $('progress-note').textContent='Progress saved on this device.';persist();
-    }
-    function renderStep(){
-        const noun=currentModel.stepKind==='steps'?'STEP':'LAYER';
-        $('slider-step').value=viewer.currentStep;
-        $('val-step').textContent=`${noun} ${viewer.currentStep+1} / ${viewer.maxLayer+1}`;
-        $('btn-prev-step').disabled=loading||(viewer.isStepMode&&viewer.currentStep===0);
-        $('btn-next-step').disabled=loading||viewer.currentStep===viewer.maxLayer;
-        $('btn-full-model').disabled=loading||!viewer.isStepMode;
-        $('step-mode-label').textContent=currentModel.stepKind==='steps'?'🛠️ MODEL ASSEMBLY STEPS':'🛠️ INSPECT LAYERS';
-        $('btn-start-build').textContent=currentModel.stepKind==='steps'?'START BUILDING':'START INSPECTING';
-        if(!viewer.isStepMode){
-            $('step-summary').textContent=currentModel.stepKind==='steps'?'Start to highlight new pieces and fade previous steps.':currentModel.instructionsUrl?'Inspect bottom-to-top layers. Use original instructions for assembly.':'Inspect this concept layer by layer before building.';
-            $('step-checklist').replaceChildren();return;
-        }
-        const parts=library.inventory(currentModel.bricks.filter(brick=>brick.layer===viewer.currentStep));
-        $('step-summary').textContent=`${parts.reduce((sum,part)=>sum+part.quantity,0)} highlighted pieces · previous pieces are faded`;
-        $('step-checklist').innerHTML=parts.map(part=>{
-            const key=`${viewer.currentStep}|${part.partId}|${part.color}`;
-            return `<label class="checklist-row"><input type="checkbox" data-check="${esc(key)}" ${checklist.has(key)?'checked':''}><span>${esc(part.partName)}<small>${esc(part.colorName)}</small></span><b>×${part.quantity}</b></label>`;
-        }).join('');
-    }
-    $('step-checklist').addEventListener('change',event=>{const key=event.target.dataset.check;if(!key)return;if(event.target.checked)checklist.add(key);else checklist.delete(key);saveProgress();});
-    function showStep(step){if(!currentModel||loading)return;viewer.setStep(step);renderStep();saveProgress();}
-    $('slider-step').addEventListener('input',event=>showStep(Number(event.target.value)));
-    $('btn-prev-step').addEventListener('click',()=>showStep(viewer.isStepMode?viewer.currentStep-1:0));
-    $('btn-next-step').addEventListener('click',()=>showStep(viewer.currentStep+1));
-    $('btn-start-build').addEventListener('click',()=>showStep(0));
-    $('btn-full-model').addEventListener('click',()=>{if(loading)return;viewer.isStepMode=false;viewer.currentStep=viewer.maxLayer;viewer.updatePieceAppearance();renderStep();saveProgress();});
-    $('slider-explode').addEventListener('input',event=>{if(loading)return;const value=Number(event.target.value);$('val-explode').textContent=`${Math.round(value*100)}%`;viewer.setExplode(value);window.studForgeAudio.playRatchetClick();});
+    document.addEventListener('click', (e) => { if (!e.target.closest('.sf-menu')) closeMenus(); });
 
-    async function loadBlueprint(model){
-        if(!model)return;
-        const token=++request;loading=true;
-        $('model-loading').hidden=false;$('model-loading').textContent=`Loading ${model.name}…`;$('viewport-3d').setAttribute('aria-busy','true');
-        ['btn-export-xml','btn-copy-bom','btn-start-build','btn-full-model','btn-prev-step','btn-next-step','slider-step','slider-explode','btn-print-card'].forEach(id=>{$(id).disabled=true;});
-        try{
-            const loaded=await viewer.loadModel(model);if(token!==request||!loaded)return;
-            currentModel={...loaded,bricks:enrich(loaded.bricks)};
-            $('model-title').textContent=model.name;$('model-desc').textContent=model.description;
-            $('model-badge').textContent=`${model.icon} ${model.category.toUpperCase()}`;$('model-piece-count').textContent=`${loaded.bricks.length} PIECES`;
-            $('model-est-time').textContent=model.setNumber?`SET #${model.setNumber.split('-')[0]}`:`⏱ ${model.estTime}`;
-            $('parts-subtitle').textContent=model.format==='ldraw'?'LDRAW MODEL INVENTORY · NO SPARE PIECES':'MICRO-BUILD INVENTORY';
-            $('slider-explode').value=0;$('val-explode').textContent='0%';$('slider-step').max=viewer.maxLayer;
-            const saved=state.progress[model.id];checklist=new Set(Array.isArray(saved?.checks)?saved.checks.filter(value=>typeof value==='string'):[]);
-            const step=library.resumeStep(saved?.step,viewer.maxLayer);if(saved?.inspecting===true&&step!==null)viewer.setStep(step);
-            $('progress-note').textContent=saved?'Restored your progress on this device.':'Progress saves automatically on this device.';
-            $('btn-instructions').hidden=!model.instructionsUrl;$('btn-model-file').hidden=model.format!=='ldraw';
-            if(model.instructionsUrl)$('btn-instructions').href=model.instructionsUrl;if(model.format==='ldraw')$('btn-model-file').href=model.modelUrl;
-            $('model-attribution').innerHTML=model.sourceUrl?`<a href="${esc(model.sourceUrl)}" target="_blank" rel="noopener noreferrer">Community model by ${esc(model.author)}</a><p>${esc(model.license.replace(' : see CAreadme.txt',''))}</p><p>${model.missing.length?`Source notes: missing ${esc(model.missing.join(', ').toLowerCase())}.`:'Source reports no missing parts, patterns or stickers.'}</p><p>Model piece count excludes spares; it may differ from the boxed set.</p>`:'Original StudForge micro-build. Inspect before building with real bricks.';
-            renderBOM();state.lastModel=models.some(item=>item.id===model.id)?model.id:state.lastModel;
-            persist();renderLibrary();status(`${model.name} loaded. ${loaded.bricks.length} pieces ready to explore.`);
-        }catch(error){if(token!==request)return;status(`Could not load ${model.name}. Your previous model is still available. Select the card to retry.`);console.error(error);}
-        finally{
-            if(token===request){
-                loading=false;$('model-loading').hidden=true;$('viewport-3d').setAttribute('aria-busy','false');
-                ['btn-export-xml','btn-copy-bom','btn-start-build','slider-step','slider-explode','btn-print-card'].forEach(id=>{$(id).disabled=!currentModel;});
-                if(currentModel){const imported=currentModel.format==='ldraw';$('btn-export-xml').textContent=imported?'↓ PARTS CSV':'🛒 BRICKLINK XML';$('btn-export-xml').title=imported?'Download LDraw identifiers and colors. BrickLink IDs require separate verification.':'Download BrickLink Wanted List XML';renderStep();}
-            }
+    const menuItem = ({ icon, label, hint }) => el('button', 'sf-menu-item', `<span class="mi-ico">${icon || ''}</span><span class="mi-text">${esc(label)}${hint ? `<small>${esc(hint)}</small>` : ''}</span>`);
+
+    /* ── workbench tabs and sections ──────────────────────────── */
+    const TABS = ['build', 'parts', 'style', 'learn'];
+    const tabs = $('side-tabs'), panels = $('side-panels'), bench = $('bom-card');
+    let currentTab = TABS.includes(store.get('studforge.tab')) ? store.get('studforge.tab') : 'build';
+    const tabScroll = (tab) => $(`tab-${tab}`).querySelector('.tab-scroll');
+    const sectionTab = {};   // section id → tab
+
+    // Phones: the workbench is a bottom sheet with three heights. Tablets: a drawer over the canvas.
+    let sheet = 'peek';
+    const setSheet = (s) => {
+        sheet = s; body.dataset.sheet = s;
+        for (const b of document.querySelectorAll('#tabbar .tb')) b.classList.toggle('on', b.dataset.tab === (body.classList.contains('make-open') ? 'make' : s === 'peek' ? '' : currentTab));
+    };
+    const setBenchOpen = (open) => { body.classList.toggle('bench-open', open); };
+
+    const showTab = (tab, { reveal = true } = {}) => {
+        if (!TABS.includes(tab)) return;
+        currentTab = tab; store.set('studforge.tab', tab);
+        for (const t of tabs.querySelectorAll('.side-tab')) { const onT = t.dataset.tab === tab; t.classList.toggle('on', onT); t.setAttribute('aria-selected', String(onT)); }
+        for (const p of panels.querySelectorAll('.side-panel')) p.classList.toggle('on', p.dataset.tab === tab);
+        if (reveal) {
+            if (isPhone()) { closeMake(); if (sheet === 'peek') setSheet('half'); else setSheet(sheet); }
+            else if (isDrawer()) setBenchOpen(true);
         }
-    }
-    async function handleGenerate(){
-        const query=$('input-prompt').value.trim();if(!query)return;
-        const exact=models.find(model=>model.name.toLowerCase()===query.toLowerCase()||model.setNumber===query||model.setNumber?.split('-')[0]===query);
-        await loadBlueprint(exact||generator.generateFromPrompt(query));
-    }
-    $('btn-generate').addEventListener('click',handleGenerate);$('input-prompt').addEventListener('keydown',event=>{if(event.key==='Enter')handleGenerate();});
-    ['iso','front','top','side'].forEach(view=>$(`btn-cam-${view}`).addEventListener('click',()=>viewer.setPresetView(view)));
-    $('btn-cam-reset').addEventListener('click',()=>viewer.resetView());
-    $('btn-audio').addEventListener('click',()=>{$('btn-audio').textContent=window.studForgeAudio.toggleMute()?'🔇':'🔊';});
-    function download(text,type,suffix){const url=URL.createObjectURL(new Blob([text],{type}));const anchor=document.createElement('a');anchor.href=url;anchor.download=`StudForge_${currentModel.id}.${suffix}`;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-    $('btn-export-xml').addEventListener('click',()=>{
-        if(!currentModel||loading)return;
-        if(currentModel.format==='ldraw'){
-            const csv=value=>`"${String(value).replaceAll('"','""')}"`;
-            download('LDraw Part ID,Part,Color Code,Color,Quantity\n'+bomParts.map(part=>[part.partId,part.partName,part.color,part.colorName,part.quantity].map(csv).join(',')).join('\n'),'text/csv;charset=utf-8','csv');return;
+        paintPeek();
+        emit('panel', tab);
+    };
+    tabs.addEventListener('click', (e) => {
+        const t = e.target.closest('.side-tab'); if (!t) return;
+        // On a tablet, tapping the open tab closes the drawer.
+        if (isDrawer() && body.classList.contains('bench-open') && t.dataset.tab === currentTab) { setBenchOpen(false); return; }
+        showTab(t.dataset.tab);
+    });
+    $('btn-bench-close').addEventListener('click', () => { if (isPhone()) setSheet('peek'); else setBenchOpen(false); });
+
+    // Legacy panels (registered without a group) land where the new layout puts them.
+    const LEGACY_GROUP = { steps: 'build', instructions: 'build', buy: 'parts', parts: 'parts', tweaks: 'style', studio: 'style', realsets: 'learn', gallery: 'make', mosaic: 'make' };
+    const registerPanel = ({ id, title, group, order, render }) => {
+        group = group || LEGACY_GROUP[id] || 'learn';
+        if (group === 'make') { const src = addSource({ id, label: String(title || id).replace(/^\S+\s/, ''), icon: String(title || '').split(' ')[0], render }); return { body: src.body, section: src.body, show: src.show }; }
+        const sec = el('section', 'bench-sec'); sec.id = `panel-${id}`;
+        if (title) sec.appendChild(el('h4', 'bench-h', esc(title)));
+        const b = el('div', 'panel-body'); sec.appendChild(b);
+        insertOrdered(tabScroll(group), sec, order == null ? 100 : order);
+        sectionTab[id] = group;
+        if (render) render(b);
+        return { body: b, section: sec, show: () => showPanel(id) };
+    };
+    sectionTab.parts = 'parts';
+
+    /** A tab, a section (opens its tab and scrolls to it), 'make', or a source. */
+    function showPanel(id) {
+        if (id === 'make') { openMake(); return; }
+        if (sources[id]) { showSource(id); return; }
+        if (TABS.includes(id)) { showTab(id); return; }
+        const tab = sectionTab[id]; if (!tab) return;
+        showTab(tab);
+        const sec = $(`panel-${id}`);
+        if (sec) {
+            const sc = tabScroll(tab);
+            requestAnimationFrame(() => { sc.scrollTo({ top: Math.max(0, sec.offsetTop - sc.offsetTop - 6), behavior: 'smooth' }); });
+            sec.classList.remove('flash'); void sec.offsetWidth; sec.classList.add('flash');
         }
-        if(bomParts.some(part=>!Number.isInteger(part.blColorId))){status('A color lacks a verified BrickLink ID. Export is unavailable.');return;}
-        download(`<?xml version="1.0" encoding="UTF-8"?>\n<INVENTORY>\n${bomParts.map(part=>`  <ITEM><ITEMTYPE>P</ITEMTYPE><ITEMID>${esc(part.partId)}</ITEMID><COLOR>${part.blColorId}</COLOR><MINQTY>${part.quantity}</MINQTY><CONDITION>N</CONDITION></ITEM>`).join('\n')}\n</INVENTORY>\n`,'application/xml','xml');
+        emit('section', id);
+    }
+
+    /* ── header: Share menu, actions, summary, ⋯ ───────────────── */
+    const shareItem = ({ id, icon, label, hint, order = 100, onClick }) => {
+        const it = menuItem({ icon, label, hint }); if (id) it.id = `share-${id}`; it.type = 'button';
+        it.addEventListener('click', (e) => { if (onClick) onClick(e); });
+        insertOrdered($('share-list'), it, order);
+        return it;
+    };
+    const headerAction = (node) => { $('head-actions').appendChild(node); return node; };
+    const summarySlot = (node) => { $('summary-slot').appendChild(node); return node; };
+    /** Legacy dock(): the control goes into the ⋯ menu instead of a chip row. */
+    const dock = (node) => { $('more-extra').appendChild(node); node.classList.add('more-extra-item'); return node; };
+    const widget = (node) => { $('viewport-widgets').appendChild(node); return node; };
+    $('model-summary').addEventListener('click', () => showTab('build'));
+
+    /* ── Make: sources, engines, suggestions ──────────────────── */
+    const createBar = $('create-bar'), createPop = $('create-pop');
+    const sources = {};
+    let activeSource = null;
+    const openCreatePop = () => { if (!isPhone()) createBar.classList.add('pop-open'); };
+    const closeCreatePop = () => { createBar.classList.remove('pop-open'); if (!isPhone() && activeSource) setSource(null); };
+    const setSource = (id) => {
+        activeSource = id && sources[id] ? id : null;
+        $('cp-home').hidden = !!activeSource; $('cp-source').hidden = !activeSource;
+        for (const s of Object.values(sources)) s.body.hidden = s.id !== activeSource;
+        if (activeSource) { const s = sources[activeSource]; $('cp-source-title').textContent = `${s.icon || ''} ${s.label}`; }
+        createBar.classList.toggle('has-source', !!activeSource);
+        emit('source', activeSource);
+    };
+    function openMake(source) {
+        closeMenus();
+        if (isPhone()) { body.classList.add('make-open'); setSheet(sheet); }
+        setSource(source || null);
+        openCreatePop();
+        emit('make', true);
+    }
+    function closeMake() {
+        const was = body.classList.contains('make-open') || createBar.classList.contains('pop-open');
+        body.classList.remove('make-open');
+        createBar.classList.remove('pop-open');
+        if (activeSource) setSource(null);
+        if (isPhone()) setSheet(sheet);
+        if (was) emit('make', false);
+    }
+    const showSource = (id) => openMake(id);
+    const addSource = ({ id, icon = '•', label, hint = '', order = 100, render }) => {
+        const b = el('div', 'source-body'); b.dataset.source = id; b.hidden = true;
+        $('cp-source-body').appendChild(b);
+        const tile = el('button', 'start-tile', `<span class="st-ico">${icon}</span><span class="st-label">${esc(label)}</span>${hint ? `<small>${esc(hint)}</small>` : ''}`); tile.type = 'button';
+        tile.addEventListener('click', (e) => { e.stopPropagation(); showSource(id); });
+        insertOrdered($('start-tiles'), tile, order);
+        const item = menuItem({ icon, label, hint }); item.type = 'button';
+        item.addEventListener('click', () => showSource(id));
+        insertOrdered($('source-list'), item, order);
+        sources[id] = { id, icon, label, body: b };
+        if (render) render(b);
+        return { body: b, show: () => showSource(id) };
+    };
+    // The built-in source: describing an idea is the bar itself.
+    (() => {
+        const item = menuItem({ icon: '✏️', label: 'Describe it', hint: 'Type an idea and forge it' }); item.type = 'button';
+        item.addEventListener('click', () => { closeMake(); promptInput.focus(); });
+        insertOrdered($('source-list'), item, 0);
+    })();
+    $('btn-source-back').addEventListener('click', (e) => { e.stopPropagation(); setSource(null); });
+    $('btn-make-close').addEventListener('click', () => closeMake());
+    // Suggestions open when the prompt is focused and empty or unchanged.
+    promptInput.addEventListener('focus', () => { if (!isPhone() && (!promptInput.value.trim() || promptInput.value.trim() === state.prompt)) openCreatePop(); });
+    promptInput.addEventListener('input', () => { if (!isPhone() && !activeSource) createBar.classList.toggle('pop-open', !promptInput.value.trim()); });
+    document.addEventListener('pointerdown', (e) => { if (!isPhone() && createBar.classList.contains('pop-open') && !e.target.closest('#create-bar')) closeCreatePop(); });
+
+    // Engines: who builds the idea. The core builds locally; the Claude client adds its own.
+    const engines = {};
+    let engine = store.get('studforge.engine') || 'quick';
+    const paintEngine = () => {
+        const e = engines[engine] || engines.quick;
+        $('btn-engine').innerHTML = `<span class="en-ico">${e.icon}</span><span class="cs-label">${esc(e.short || e.label)}</span>${e.locked ? '<span class="lock">🔒</span>' : ''}<span class="car">▾</span>`;
+        for (const it of $('engine-list').children) it.classList.toggle('on', it.dataset.engine === engine);
+        createBar.dataset.engine = engine;
+    };
+    const registerEngine = ({ id, icon, label, short, hint, tiny, order = 100 }) => {
+        // `tiny` is the hint on the phone's three-way switch, where there is room for two or three words.
+        const it = el('button', 'sf-menu-item engine-item', `<span class="mi-ico">${icon}</span><span class="mi-text"><span class="en-name">${esc(short || label)}<span class="lock">🔒</span></span><span class="en-long">${esc(label)}<span class="lock">🔒</span></span>${hint ? `<small class="en-hint">${esc(hint)}</small>` : ''}${tiny ? `<small class="en-tiny">${esc(tiny)}</small>` : ''}</span>`);
+        it.type = 'button'; it.dataset.engine = id;
+        it.addEventListener('click', () => setEngine(id));
+        insertOrdered($('engine-list'), it, order);
+        engines[id] = { id, icon, label, short, hint, locked: false, item: it };
+        paintEngine();
+        return { setLocked(v) { engines[id].locked = !!v; it.classList.toggle('locked', !!v); paintEngine(); } };
+    };
+    function setEngine(id) {
+        if (!engines[id]) id = 'quick';
+        const changed = id !== engine;
+        engine = id; store.set('studforge.engine', id); paintEngine();
+        if (changed || id !== 'quick') emit('engine', id);
+    }
+    registerEngine({ id: 'quick', icon: '⚡', label: 'Quick', hint: 'The built-in engine · free · instant', tiny: 'free · instant', order: 0 });
+    if (!engines[engine]) engine = 'quick';
+
+    /* ── suggestions (the inspiration models) ─────────────────── */
+    function populateInspirations() {
+        inspoContainer.innerHTML = '';
+        window.INSPIRATION_MODELS.forEach((m) => {
+            const pill = el('button', 'inspo-pill', `<span>${m.icon}</span> <span>${esc(m.name)}</span>`); pill.type = 'button';
+            pill.addEventListener('click', () => { promptInput.value = m.prompt; forge(m.prompt, 0, {}); pill.classList.add('active'); forgeLabel(); closeMake(); });
+            inspoContainer.appendChild(pill);
+        });
+        const surprise = el('button', 'inspo-pill surprise-pill', '<span>🎲</span> <span>Surprise me</span>'); surprise.type = 'button';
+        surprise.addEventListener('click', () => btnSurprise.click());
+        inspoContainer.appendChild(surprise);
+    }
+
+    /* ── forging ──────────────────────────────────────────────── */
+    function forge(prompt, v = 0, opts = {}) {
+        document.querySelectorAll('.inspo-pill').forEach((p) => p.classList.remove('active'));
+        emit('forging', { prompt, variant: v, opts });
+        const model = generator.generateFromPrompt(prompt, v, opts);
+        state.prompt = prompt; state.variant = v; state.opts = opts;
+        loadBlueprint(model);
+        return model;
+    }
+    /** The current idea again with some options changed (colours, scale, features); `null` clears a key. */
+    function reforge(patch = {}) {
+        const o = state.opts || {};
+        const merged = {
+            ...o,
+            colors: { ...(o.colors || {}), ...(patch.colors || {}) },
+            features: { ...(o.features || {}), ...(patch.features || {}) },
+            scale: patch.scale === undefined ? o.scale : patch.scale,
+            brief: patch.brief === undefined ? o.brief : patch.brief,
+        };
+        for (const k of Object.keys(merged.colors)) if (merged.colors[k] == null) delete merged.colors[k];
+        for (const k of Object.keys(merged.features)) if (merged.features[k] == null) delete merged.features[k];
+        if (merged.scale == null) delete merged.scale;
+        if (merged.brief == null) delete merged.brief;
+        return forge(state.prompt, state.variant, merged);
+    }
+
+    function loadBlueprint(model) {
+        stopPlay();
+        currentModel = model;
+        viewer.loadModel(model);
+        modelTitle.innerText = model.name;
+        modelDesc.innerText = model.description;
+        modelBadge.innerText = `${model.icon} ${model.category.toUpperCase()}`;
+        modelPieceCount.innerText = `${pieceCount(model)} pcs`;
+        modelStepCount.innerText = `${viewer.maxLayer + 1} ${model.stepKind === 'layers' ? 'layers' : 'steps'}`;
+        $('btn-export-xml').textContent = model.kind === 'reference' ? '↓ EXPORT PARTS CSV' : '↓ BRICKLINK XML';
+        $('btn-export-xml').title = model.kind === 'reference' ? 'Download this model’s parts using LDraw identifiers' : 'Download a BrickLink Wanted List to buy the bricks';
+        modelEstTime.innerText = `⏱️ ${model.estTime}`;
+        if (modelDims) modelDims.innerText = model.dims ? `${model.dims.w}×${model.dims.d}×${model.dims.h} · ${model.difficulty.toUpperCase()}` : model.difficulty.toUpperCase();
+        document.title = `${model.name} | StudForge`;
+        setExplode(0);
+        stepSlider.max = viewer.maxLayer; stepSlider.value = viewer.maxLayer;
+        showStep(viewer.maxLayer);
+        computeBOM(model);
+        emit('model', model);
+        paintPeek();
+    }
+
+    function showStep(step) {
+        stepVal.innerText = `${currentModel.stepKind === 'layers' ? 'LAYER' : 'STEP'} ${step + 1} / ${viewer.maxLayer + 1}`;
+        if (stepHint) stepHint.innerText = `+${viewer.stepCount(step)} pcs`;
+        const pct = viewer.maxLayer ? (step / viewer.maxLayer) * 100 : 100;
+        stepSlider.style.setProperty('--fill', `${pct}%`);
+    }
+
+    // The one-line summary on the phone sheet at peek height.
+    const peekers = [];
+    function paintPeek() {
+        const p = $('sheet-peek'); if (!currentModel) return;
+        const names = { build: '🔨', parts: '🧱', style: '🎨', learn: '📚' };
+        let custom = null;
+        for (const fn of peekers) { try { custom = fn(currentTab); } catch { custom = null; } if (custom) break; }
+        p.innerHTML = custom || `<span>${names[currentTab] || '🔨'}</span><span class="pk-main">Step ${viewer.currentStep + 1} of ${viewer.maxLayer + 1}</span><span class="pk-sub">+${viewer.stepCount(viewer.currentStep)} pieces · ${pieceCount(currentModel)} in all</span>`;
+    }
+
+    /* ── bill of materials ────────────────────────────────────── */
+    // A real set's flexible hose is drawn as many short segments (`segment`), but it is one piece: they are not counted.
+    const pieceCount = (model) => model.bricks.reduce((n, b) => n + (b.segment ? 0 : 1), 0);
+    function computeBOM(model) {
+        const partsMap = new Map();
+        model.bricks.forEach((b) => {
+            if (b.segment) return;
+            const key = `${b.partId}_${b.color}`;
+            const partInfo = (b.geometryId && window.BrickBuilder.partInfo(b.geometryId)) || window.LEGO_PARTS[b.partId] || window.BrickBuilder.partInfo(b.partId) || { name: b.partName || `Element ${b.partId}`, category: 'Standard' };
+            const colorInfo = window.LEGO_COLORS[b.color] || { name: b.color, hex: '#cccccc', blId: 0 };
+            if (!partsMap.has(key)) partsMap.set(key, { partId: b.partId, partName: partInfo.name, category: partInfo.category, colorKey: b.color, colorName: colorInfo.name, colorHex: colorInfo.hex, blColorId: colorInfo.blId, quantity: 0 });
+            partsMap.get(key).quantity++;
+        });
+        bomParts = Array.from(partsMap.values()).sort((a, b) => b.quantity - a.quantity);
+        renderBOMTable(bomParts);
+    }
+
+    function renderBOMTable(parts) {
+        bomTableBody.innerHTML = '';
+        for (const p of parts) {
+            const tr = document.createElement('tr');
+            tr.dataset.part = p.partId; tr.dataset.color = p.colorKey;
+            tr.innerHTML = `<td><div class="part-preview-cell"><span class="color-dot" style="background-color: ${p.colorHex}"></span><div class="part-info"><span class="part-name">${p.partName}</span><span class="part-meta">ID: ${p.partId} | ${p.colorName}</span></div></div></td><td class="text-right"><span class="qty-badge">x${p.quantity}</span></td>`;
+            bomTableBody.appendChild(tr);
+        }
+        $('total-unique-parts').innerText = `${parts.length} unique elements`;
+        $('total-pieces-count').innerText = `${pieceCount(currentModel)} total pieces`;
+    }
+
+    /* ── prompt handlers ──────────────────────────────────────── */
+    const forgeLabel = () => { btnGenerate.innerHTML = promptInput.value.trim() === state.prompt && state.prompt ? `<span>🎲</span> RE-FORGE` : `<span>⚡</span> FORGE`; };
+    function handleGenerate() {
+        const query = promptInput.value.trim();
+        if (!query) { promptInput.focus(); return; }
+        // The same idea forged again gives a new variation; a new idea starts fresh.
+        const same = query === state.prompt;
+        const v = same ? state.variant + 1 : 0;
+        btnGenerate.disabled = true;
+        btnGenerate.innerHTML = `<span class="spin-icon">⚙️</span> FORGING…`;
+        setTimeout(() => {
+            try { forge(query, v, same ? state.opts : {}); }
+            finally { btnGenerate.disabled = false; forgeLabel(); }
+        }, 60);
+    }
+    // After any forge from Make, get Make out of the way so the new model shows.
+    // (Re-forges from the workbench, like a colour tweak, leave everything where it is.)
+    const makeIsOpen = () => body.classList.contains('make-open') || createBar.classList.contains('pop-open');
+    on('forging', () => { if (!makeIsOpen() && document.activeElement !== promptInput) return; closeMake(); if (isPhone()) setSheet('peek'); promptInput.blur(); });
+    btnGenerate.addEventListener('click', handleGenerate);
+    promptInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleGenerate(); if (e.key === 'Escape') { closeMake(); promptInput.blur(); } });
+    promptInput.addEventListener('input', forgeLabel);
+    btnSurprise.addEventListener('click', () => {
+        const pick = SURPRISES[Math.floor(Math.random() * SURPRISES.length)];
+        promptInput.value = pick;
+        forge(pick, Math.floor(Math.random() * 4), {});
+        forgeLabel();
     });
-    $('btn-copy-bom').addEventListener('click',async()=>{
-        if(!currentModel||loading)return;
-        const text=`${currentModel.name} — ${currentModel.bricks.length} model pieces\n${currentModel.format==='ldraw'?'Identifiers: LDraw (not verified BrickLink IDs)\n':''}${bomParts.map(part=>`${part.quantity} × ${part.partName} | ${part.partId} | ${part.colorName}`).join('\n')}${currentModel.sourceUrl?`\nSource: ${currentModel.sourceUrl}\nModel by ${currentModel.author}\n${currentModel.license}`:''}`;
-        try{await navigator.clipboard.writeText(text);status('Parts list copied.');}catch{status('Clipboard access unavailable. Download the parts list instead.');}
+
+    /* ── canvas tools ─────────────────────────────────────────── */
+    function setExplode(val, { user = false } = {}) {
+        explodeSlider.value = val;
+        explodeVal.innerText = `${Math.round(val * 100)}%`;
+        explodeSlider.style.setProperty('--fill', `${val * 100}%`);
+        $('btn-explode').classList.toggle('on', val > 0);
+        viewer.setExplode(val);
+        if (user) { window.studForgeAudio.playRatchetClick(); emit('explode', val); }
+    }
+    explodeSlider.addEventListener('input', (e) => setExplode(parseFloat(e.target.value), { user: true }));
+
+    const goStep = (step) => {
+        step = Math.max(0, Math.min(viewer.maxLayer, step)); stepSlider.value = step; showStep(step); viewer.setStep(step);
+        emit('step', step); paintPeek();
+    };
+    stepSlider.addEventListener('input', (e) => { stopPlay(); goStep(parseInt(e.target.value, 10)); });
+    $('btn-prev-step').addEventListener('click', () => { stopPlay(); goStep(viewer.currentStep - 1); });
+    // A model opens complete (the last step); NEXT from there starts the build at step 1.
+    const nextStep = () => goStep(viewer.currentStep >= viewer.maxLayer ? 0 : viewer.currentStep + 1);
+    $('btn-next-step').addEventListener('click', () => { stopPlay(); nextStep(); });
+    // Play: step through the build from the start (or from where you are), one step at a time.
+    let playTimer = 0;
+    function stopPlay() { if (playTimer) { clearInterval(playTimer); playTimer = 0; } const b = $('btn-play-step'); if (b) { b.textContent = '▶︎'; b.classList.remove('on'); b.title = 'Play the build'; } }
+    $('btn-play-step').addEventListener('click', () => {
+        if (playTimer) { stopPlay(); return; }
+        if (viewer.currentStep >= viewer.maxLayer) goStep(0);
+        const b = $('btn-play-step'); b.textContent = '❚❚'; b.classList.add('on'); b.title = 'Pause';
+        playTimer = setInterval(() => { if (viewer.currentStep >= viewer.maxLayer) { stopPlay(); return; } goStep(viewer.currentStep + 1); }, 850);
     });
-    $('btn-print-card').addEventListener('click',()=>window.print());
-    renderFilters();renderLibrary();
-    try{
-        const responses=await Promise.all([fetch('models/catalog.json'),fetch('models/parts.json')]);if(responses.some(response=>!response.ok))throw new Error('Catalog unavailable');
-        const [sets,parts]=await Promise.all(responses.map(response=>response.json()));window.LDRAW_PARTS=parts;models=[...sets,...originals];renderFilters();renderLibrary();
-    }catch{status('The set library could not load. Micro-builds are available; reload to try again.');}
-    let hashId='';try{hashId=decodeURIComponent(window.location.hash.slice(1));}catch{}
-    await loadBlueprint(models.find(model=>model.id===hashId)||models.find(model=>model.id===state.lastModel)||models[0]);
+
+    for (const v of ['iso', 'front', 'top', 'side']) $(`btn-cam-${v}`).addEventListener('click', () => viewer.setPresetView(v));
+    $('btn-cam-reset').addEventListener('click', () => viewer.resetView());
+    const paintAudio = (muted) => { $('btn-audio').innerHTML = `<span class="mi-ico">${muted ? '🔇' : '🔊'}</span><span class="mi-text">${muted ? 'Sound off' : 'Sound on'}<small>${muted ? 'Click to turn on' : 'Click to mute'}</small></span>`; };
+    $('btn-audio').addEventListener('click', () => paintAudio(window.studForgeAudio.toggleMute()));
+    $('btn-keys').addEventListener('click', () => toast('/ prompt · ← → steps · E explode · R reset · Esc close', 4200));
+
+    /* ── keyboard ─────────────────────────────────────────────── */
+    document.addEventListener('keydown', (e) => {
+        const t = e.target, typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+        if (e.key === 'Escape') { closeMenus(); closeMake(); return; }
+        if (typing || e.metaKey || e.ctrlKey || e.altKey || !currentModel) return;
+        if (e.key === '/') { e.preventDefault(); promptInput.focus(); promptInput.select(); }
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); stopPlay(); goStep(viewer.currentStep - 1); }
+        else if (e.key === 'ArrowRight') { e.preventDefault(); stopPlay(); nextStep(); }
+        else if (e.key === 'e' || e.key === 'E') setExplode(parseFloat(explodeSlider.value) > 0 ? 0 : 0.6, { user: true });
+        else if (e.key === 'r' || e.key === 'R') viewer.resetView();
+    });
+
+    /* ── phone sheet: tab bar, handle drag ────────────────────── */
+    $('tabbar').addEventListener('click', (e) => {
+        const b = e.target.closest('.tb'); if (!b) return;
+        const tab = b.dataset.tab;
+        if (tab === 'make') { if (body.classList.contains('make-open')) closeMake(); else openMake(); return; }
+        // Tapping the open tab again drops the sheet back to peek.
+        if (!body.classList.contains('make-open') && sheet !== 'peek' && tab === currentTab) { setSheet('peek'); return; }
+        showTab(tab);
+    });
+    (() => {
+        const grip = [$('sheet-handle'), $('sheet-peek')];
+        let startY = 0, startH = 0, dragging = false, moved = false;
+        const heights = () => { const h = window.innerHeight; return { peek: 0, half: h * 0.46, full: h * 0.86 }; };
+        const onDown = (e) => { if (!isPhone()) return; dragging = true; moved = false; startY = e.clientY; startH = bench.getBoundingClientRect().height; bench.style.transition = 'none'; e.target.setPointerCapture && e.target.setPointerCapture(e.pointerId); };
+        const onMove = (e) => {
+            if (!dragging) return;
+            const dy = startY - e.clientY; if (Math.abs(dy) > 6) moved = true;
+            if (moved) bench.style.height = `${Math.max(56, Math.min(window.innerHeight * 0.9, startH + dy))}px`;
+        };
+        const onUp = (e) => {
+            if (!dragging) return; dragging = false; bench.style.transition = '';
+            const h = bench.getBoundingClientRect().height; bench.style.height = '';
+            if (!moved) { setSheet(sheet === 'peek' ? 'half' : 'peek'); return; }
+            const H = heights(), dy = startY - e.clientY;
+            // A flick goes one height in its direction; otherwise snap to the nearest height.
+            let next;
+            if (Math.abs(dy) > 40) next = dy > 0 ? (sheet === 'peek' ? 'half' : 'full') : (sheet === 'full' ? 'half' : 'peek');
+            else next = Object.entries(H).sort((a, b) => Math.abs(a[1] - h) - Math.abs(b[1] - h))[0][0];
+            setSheet(next);
+        };
+        for (const g of grip) { g.addEventListener('pointerdown', onDown); g.addEventListener('pointermove', onMove); g.addEventListener('pointerup', onUp); g.addEventListener('pointercancel', onUp); }
+    })();
+    const onLayout = () => {
+        closeMenus();
+        if (!isPhone()) { body.classList.remove('make-open'); }
+        if (!isDrawer()) setBenchOpen(false);
+        setSheet(sheet);
+    };
+    phoneMQ.addEventListener('change', onLayout);
+    drawerMQ.addEventListener('change', onLayout);
+
+    /* ── exports ──────────────────────────────────────────────── */
+    $('btn-copy-bom').addEventListener('click', () => {
+        if (!currentModel) return;
+        let text = `📦 STUDFORGE PARTS MANIFEST: ${currentModel.name.toUpperCase()}\n${currentModel.description}\n`;
+        text += `Total Pieces: ${pieceCount(currentModel)} | Unique Elements: ${bomParts.length}\n\n[ ] QTY | ELEMENT | DESIGN ID | COLOR\n----------------------------------------------------\n`;
+        for (const p of bomParts) text += `[ ] ${p.quantity.toString().padEnd(4)} | ${p.partName.padEnd(34)} | #${p.partId.padEnd(6)} | ${p.colorName}\n`;
+        text += `\nGenerated with StudForge 3D LEGO Idea Maker (https://tonytoubia.com/studforge) from the idea "${currentModel.prompt || currentModel.name}"`;
+        const b = $('btn-copy-bom'), orig = b.innerHTML;
+        navigator.clipboard.writeText(text).then(() => { b.innerHTML = `✓ COPIED!`; setTimeout(() => { b.innerHTML = orig; }, 1800); }).catch(() => toast('Copy was blocked by the browser'));
+    });
+    $('btn-export-xml').addEventListener('click', () => {
+        if (!currentModel) return;
+        if (currentModel.kind === 'reference') {
+            const quote = value => `"${String(value).replace(/"/g, '""')}"`;
+            const rows = [['LDraw part ID', 'Part name', 'LDraw color', 'Color name', 'Quantity'],
+                ...bomParts.map(p => [p.partId, p.partName, window.LEGO_COLORS[p.colorKey]?.ldrawCode ?? p.colorKey, p.colorName, p.quantity])];
+            const csv = rows.map(row => row.map(quote).join(',')).join('\r\n');
+            const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+            const a = document.createElement('a'); a.href = url; a.download = `StudForge_${currentModel.id}_LDraw-parts.csv`; a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            return;
+        }
+        let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<INVENTORY>\n`;
+        for (const p of bomParts) xml += `  <ITEM>\n    <ITEMTYPE>P</ITEMTYPE>\n    <ITEMID>${p.partId}</ITEMID>\n    <COLOR>${p.blColorId}</COLOR>\n    <MINQTY>${p.quantity}</MINQTY>\n    <CONDITION>N</CONDITION>\n  </ITEM>\n`;
+        xml += `</INVENTORY>\n`;
+        const url = URL.createObjectURL(new Blob([xml], { type: 'application/xml' }));
+        const a = document.createElement('a'); a.href = url; a.download = `StudForge_${currentModel.id}_BrickLink.xml`; a.click();
+        URL.revokeObjectURL(url);
+    });
+    $('btn-print-card').addEventListener('click', () => { if (!emit('print')) window.print(); });
+
+    /* ── the platform object, then start ──────────────────────── */
+    window.studForge = {
+        viewer, generator, forge, reforge, on, emit, registerPanel, dock, widget, showPanel, showTab, goStep, state,
+        addSource, showSource, openMake, closeMake, registerEngine, setEngine, shareItem, headerAction, summarySlot, toast, isPhone,
+        setExplode: (v) => setExplode(v, { user: true }),
+        /** fn(tab) → HTML for the phone sheet's peek line, or null to pass. The first non-null answer wins; all null → the default step line. */
+        setPeek(fn) { if (fn && !peekers.includes(fn)) peekers.push(fn); paintPeek(); },
+        get engine() { return engines[engine] ? engine : 'quick'; },
+        get model() { return currentModel; }, get bom() { return bomParts; }, promptInput,
+        setPrompt(p) { promptInput.value = p; forgeLabel(); },
+        load(model) { if (makeIsOpen()) { closeMake(); if (isPhone()) setSheet('peek'); } loadBlueprint(model); return model; },   // a model built outside the generator (mosaic, real sets) through the same pipeline
+    };
+    populateInspirations();
+    showTab(currentTab, { reveal: false });
+    setSheet('peek');
+    document.dispatchEvent(new CustomEvent('studforge:ready'));
+    // Features may have claimed the first forge (e.g. a share link); otherwise show the first inspiration,
+    // and on a first visit open the suggestions so newcomers see where to start.
+    if (!currentModel) {
+        const first = window.INSPIRATION_MODELS[0];
+        promptInput.value = first.prompt;
+        forge(first.prompt, 0, {});
+        if (inspoContainer.firstChild) inspoContainer.firstChild.classList.add('active');
+        forgeLabel();
+        if (!store.get('studforge.seen')) { store.set('studforge.seen', '1'); if (!isPhone()) setTimeout(openCreatePop, 400); }
+    }
 });

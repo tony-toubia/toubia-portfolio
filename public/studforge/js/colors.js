@@ -118,7 +118,8 @@ const LEGO_COLORS = {
         blId: 115,
         name: 'Warm Gold (Pearl Gold)',
         hex: '#AA7F2E',
-        category: 'Metallic'
+        category: 'Metallic',
+        finish: { metalness: 0.65, roughness: 0.32 }   // material hint read by BrickBuilder (pearl gold: metallic, slightly satin)
     },
     TRANS_BLUE: {
         id: 42,

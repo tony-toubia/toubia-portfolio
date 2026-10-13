@@ -31,6 +31,10 @@ interface WindowManagerContextType {
 const WindowManagerContext = createContext<WindowManagerContextType | null>(null);
 
 let nextZIndex = 100;
+// The window opened most recently, and when. A click that opens a window also
+// bubbles to whatever it was clicked in (a folder window), which would focus
+// that on top of the new one; focus requests right after an open are ignored.
+let lastOpened: { id: string; at: number } | null = null;
 
 export function WindowManagerProvider({ children }: { children: ReactNode }) {
   const [windows, setWindows] = useState<WindowState[]>([]);
@@ -49,6 +53,7 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
       }
       return [...prev, { ...window, isOpen: true, zIndex: nextZIndex++ }];
     });
+    lastOpened = { id: window.id, at: Date.now() };
     setActiveWindowId(window.id);
   }, []);
 
@@ -80,6 +85,7 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const focusWindow = useCallback((id: string) => {
+    if (lastOpened && lastOpened.id !== id && Date.now() - lastOpened.at < 400) return;
     setWindows(prev => prev.map(w =>
       w.id === id ? { ...w, zIndex: nextZIndex++ } : w
     ));

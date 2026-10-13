@@ -5,7 +5,6 @@ import AuraWindow from './AuraWindow';
 import DuetWindow from './DuetWindow';
 import AMZToolsWindow from './AMZToolsWindow';
 import PrimalHuntWindow from './PrimalHuntWindow';
-import VoidWardenWindow from './VoidWardenWindow';
 import StudForgeWindow from './StudForgeWindow';
 
 interface Project {
@@ -65,20 +64,6 @@ const projects: Project[] = [
     windowSize: { width: 800, height: 600 },
   },
   {
-    id: 'void-warden',
-    name: 'Void Warden',
-    icon: (
-      <svg viewBox="0 0 48 48" className="w-10 h-10">
-        <rect x="4" y="4" width="40" height="40" rx="4" fill="#080c18" />
-        <circle cx="24" cy="24" r="14" fill="#000" stroke="#00f3ff" strokeWidth="2" />
-        <circle cx="24" cy="24" r="8" fill="#9d4edd" opacity="0.7" />
-        <text x="24" y="28" textAnchor="middle" fontSize="12">🌀</text>
-      </svg>
-    ),
-    windowContent: <VoidWardenWindow />,
-    windowSize: { width: 840, height: 620 },
-  },
-  {
     id: 'studforge',
     name: 'StudForge',
     icon: (
@@ -118,7 +103,8 @@ export default function ProjectsWindow() {
       id: project.id,
       title: project.name,
       isMinimized: false,
-      isMaximized: false,
+      // The games and StudForge need the whole screen on a phone.
+      isMaximized: isMobile && ['studforge', 'primal-hunt'].includes(project.id),
       position: { x: centerX, y: centerY },
       size: windowSize,
       content: project.windowContent,
@@ -135,12 +121,15 @@ export default function ProjectsWindow() {
             <div
               key={project.id}
               className="flex flex-col items-center gap-1 w-24 cursor-pointer group p-1 rounded hover:bg-[var(--selection-bg)] hover:bg-opacity-20 transition-colors"
-              onClick={() => {
+              onClick={(e) => {
                 if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                  // Don't let the click bubble to the folder window, which would
+                  // re-focus it on top of the window we just opened.
+                  e.stopPropagation();
                   handleDoubleClick(project);
                 }
               }}
-              onDoubleClick={() => handleDoubleClick(project)}
+              onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClick(project); }}
             >
               <div className="p-1">
                 {project.icon}
@@ -148,17 +137,6 @@ export default function ProjectsWindow() {
               <span className="text-xs text-center text-[var(--window-text)] group-hover:text-[var(--selection-bg)] break-words w-full font-medium">
                 {project.name}
               </span>
-              {project.id === 'void-warden' && (
-                <a
-                  href="/void-warden-game"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[9px] text-cyan-400 hover:underline mt-0.5"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  /void-warden-game ↗
-                </a>
-              )}
               {project.id === 'studforge' && (
                 <a
                   href="/studforge"
