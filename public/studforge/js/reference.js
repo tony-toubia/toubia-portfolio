@@ -289,6 +289,7 @@
         /* ── cards, shared by the browser and BUILD A REAL ONE ─── */
         const iconOf = (subject) => { const rs = realsets(); return rs && rs.subjectIcon ? rs.subjectIcon(subject) : '🏷️'; };
         const themeText = (t) => String(t || '').split(' > ').join(' · ');
+        const previewURL = (url) => String(url).startsWith('thumbnails/') ? `${url}${String(url).includes('?') ? '&' : '?'}v=20261013b` : url;
         function previewFallback(button, icon) {
             const image = button.querySelector('img');
             image?.addEventListener('error', () => {
@@ -303,7 +304,7 @@
             const tile = el('div', `${PRE}-tile`);
             const b = el('button', `${PRE}-card${e.id === shownId() ? ' on' : ''}${loading === e.id ? ' busy' : ''}`); b.disabled = loading === e.id;
             b.type = 'button'; b.dataset.set = e.id; b.title = `Build ${e.name} (${e.id}) step by step`;
-            b.innerHTML = (e.thumbnail ? `<img class="${PRE}-thumb" src="${esc(e.thumbnail)}" alt="" loading="lazy">` : '') + `<span class="${PRE}-top"><span class="ico" aria-hidden="true">${iconOf(e.subject)}</span>#${esc(e.id)}${e.year ? `<span class="yr">${esc(e.year)}</span>` : ''}</span>`
+            b.innerHTML = (e.thumbnail ? `<img class="${PRE}-thumb" src="${esc(previewURL(e.thumbnail))}" alt="" loading="lazy">` : '') + `<span class="${PRE}-top"><span class="ico" aria-hidden="true">${iconOf(e.subject)}</span>#${esc(e.id)}${e.year ? `<span class="yr">${esc(e.year)}</span>` : ''}</span>`
                 + `<span class="${PRE}-name">${esc(e.name)}</span>`
                 + (e.theme ? `<span class="${PRE}-theme">${esc(themeText(e.theme))}</span>` : '')
                 + (e.missing && e.missing.length ? `<span class="${PRE}-meta">Source omits ${esc(e.missing.join(', ').toLowerCase())}</span>` : '')
@@ -381,7 +382,7 @@
             if (!e.ref) {
                 const button = el('button', `${PRE}-card`); button.type = 'button'; button.dataset.build = e.key;
                 button.title = `Open ${e.name || e.prompt}`;
-                button.innerHTML = (e.thumb ? `<img class="${PRE}-thumb" alt="" src="${esc(e.thumb)}" loading="lazy">` : `<span class="${PRE}-idea-icon" aria-hidden="true">${esc(e.icon || '🧱')}</span>`)
+                button.innerHTML = (e.thumb ? `<img class="${PRE}-thumb" alt="" src="${esc(previewURL(e.thumb))}" loading="lazy">` : `<span class="${PRE}-idea-icon" aria-hidden="true">${esc(e.icon || '🧱')}</span>`)
                     + `<span class="${PRE}-name">${esc(e.name || e.prompt)}</span><span class="${PRE}-meta">${e.pieces ? `${esc(e.pieces)} PCS · ` : ''}OPEN BUILD →</span>`;
                 button.addEventListener('click', () => sf.gallery.open(e.savedEntry || e)); previewFallback(button, e.icon); tile.appendChild(button);
                 const favorite = el('button', `${PRE}-favorite`); favorite.type = 'button';

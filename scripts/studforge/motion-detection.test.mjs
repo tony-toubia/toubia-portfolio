@@ -33,6 +33,18 @@ test('source subassemblies preserve attached head details and inferred metadata 
  for(const [i,b] of model.bricks.entries())if(model.submodels[b[15]]==='robot - head')assert.ok(members.has(i));
  assert.ok(!members.has(106));assert.ok(members.has(107));
 });
+
+test('a brace hinged at two separate axes stays fixed despite approximate source placements',async()=>{
+ const model=await load('31084-1'),original=JSON.stringify(model),result=await detectMotion(model,readGeometry);
+ assert.equal(result.motion,null);assert.ok(result.skipped.some(s=>s.base===738&&s.top===737&&/Multiple axes/.test(s.reason)));
+ // Detach the second half: the first joint can then move the complete six-part leaf.
+ const detached=structuredClone(model);detached.bricks[740][2]+=2;
+ const free=await detectMotion(detached,readGeometry);
+ assert.deepEqual(free.motion.controls[0].joints[0].members,[736,737,739,741,742,743]);
+ // Approximate pairs constrain existing joints; they never create playable joints.
+ detached.bricks[737][2]+=.1;assert.equal((await detectMotion(detached,readGeometry)).motion,null);
+ assert.equal(JSON.stringify(model),original);
+});
 test('every published automatic rig matches its model, has disjoint members and stays disabled after placement changes',async()=>{
  const context=vm.createContext({});context.window=context;
  vm.runInContext(await fs.readFile(root+'/js/articulation-core.js','utf8'),context);
