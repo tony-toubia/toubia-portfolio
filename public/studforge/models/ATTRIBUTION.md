@@ -22,6 +22,15 @@ Modifications: embedded file names were normalized to lowercase with forward sla
 | 41599-1 | [Wonder Woman](https://library.ldraw.org/omr/sets/1256) · [original MPD](https://library.ldraw.org/library/omr/41599-1.mpd) | Vincent Messenet [Cheenzo] | Redistributable under CCAL version 2.0 |
 | 41615-1 | [Harry Potter & Hedwig](https://library.ldraw.org/omr/sets/1271) · [original MPD](https://library.ldraw.org/library/omr/41615-1.mpd) | Vincent Messenet [Cheenzo] | Redistributable under CCAL version 2.0 |
 | 41624-1 | [Mickey Mouse](https://library.ldraw.org/omr/sets/1277) · [original MPD](https://library.ldraw.org/library/omr/41624-1.mpd) | Vincent Messenet [Cheenzo] | Redistributable under CCAL version 2.0 |
+| 75053-1 | [The Ghost](https://library.ldraw.org/omr/sets/895) · [original MPD](https://library.ldraw.org/library/omr/75053-1.mpd) | Evert Jan Boer [ejboer] | Redistributable under CCAL version 2.0 |
+| 10278-1 | [Police Station](https://library.ldraw.org/omr/sets/1446) · [original MPD](https://library.ldraw.org/library/omr/10278-1.mpd) | Philippe Hurbain [Philo] | Redistributable under CCAL version 2.0 |
+| 40448-1 | [Vintage Car](https://library.ldraw.org/omr/sets/1290) · [original MPD](https://library.ldraw.org/library/omr/40448-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
+| 21321-1 | [International Space Station](https://library.ldraw.org/omr/sets/1146) · [original MPD](https://library.ldraw.org/library/omr/21321-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
+| 75272-1 | [Sith TIE Fighter](https://library.ldraw.org/omr/sets/1213) · [original MPD](https://library.ldraw.org/library/omr/75272-1.mpd) | Vincent Messenet [Cheenzo] | Redistributable under CCAL version 2.0 |
+| 75276-1 | [Stormtrooper](https://library.ldraw.org/omr/sets/1212) · [original MPD](https://library.ldraw.org/library/omr/75276-1.mpd) | Jaco van der Molen [Jaco] | Redistributable under CCAL version 2.0 |
+| 75277-1 | [Boba Fett](https://library.ldraw.org/omr/sets/1211) · [original MPD](https://library.ldraw.org/library/omr/75277-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
+| 75966-1 | [Hogwarts Room of Requirement](https://library.ldraw.org/omr/sets/1219) · [original MPD](https://library.ldraw.org/library/omr/75966-1.mpd) | Stefan Frenz [smf] | Redistributable under CCAL version 2.0 |
+| 75968-1 | [4 Privet Drive](https://library.ldraw.org/omr/sets/1221) · [original MPD](https://library.ldraw.org/library/omr/75968-1.mpd) | Stefan Frenz [smf] | Redistributable under CCAL version 2.0 |
 
 Individual model and part files retain their !LICENSE and author headers. Official part definitions may use CC BY 2.0 or CC BY 4.0; the applicable license is identified in each embedded file. Full notices: [LDraw CAreadme](CAreadme.txt), [CC BY 2.0](CAlicense.txt), [CC BY 4.0](CAlicense4.txt). Attribution metadata for parts is also available in parts.json.
 

@@ -320,5 +320,230 @@
     "pieceCount": 109,
     "sourceStepCount": 42,
     "frontAngle": 0
+  },
+  {
+    "id": "set-75053-1",
+    "setNumber": "75053-1",
+    "name": "The Ghost",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "spaceship",
+    "year": 2014,
+    "format": "ldraw",
+    "modelUrl": "models/75053-1.mpd",
+    "thumbnail": "thumbnails/75053-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/895",
+    "originalUrl": "https://library.ldraw.org/library/omr/75053-1.mpd",
+    "author": "Evert Jan Boer [ejboer]",
+    "missing": [
+      "Parts"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75053",
+    "collections": [
+      "popular-picks"
+    ],
+    "rank": 40,
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 922,
+    "sourceStepCount": 320
+  },
+  {
+    "id": "set-10278-1",
+    "setNumber": "10278-1",
+    "name": "Police Station",
+    "category": "Modular Buildings",
+    "theme": "Modular Buildings",
+    "subject": "house",
+    "year": 2021,
+    "format": "ldraw",
+    "modelUrl": "models/10278-1.mpd",
+    "thumbnail": "thumbnails/10278-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1446",
+    "originalUrl": "https://library.ldraw.org/library/omr/10278-1.mpd",
+    "author": "Philippe Hurbain [Philo]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/10278",
+    "collections": [
+      "popular-picks"
+    ],
+    "rank": 75,
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 2959,
+    "sourceStepCount": 360
+  },
+  {
+    "id": "set-40448-1",
+    "setNumber": "40448-1",
+    "name": "Vintage Car",
+    "category": "LEGO Ideas and CUUSOO",
+    "theme": "LEGO Ideas and CUUSOO",
+    "subject": "car",
+    "year": 2021,
+    "format": "ldraw",
+    "modelUrl": "models/40448-1.mpd",
+    "thumbnail": "thumbnails/40448-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1290",
+    "originalUrl": "https://library.ldraw.org/library/omr/40448-1.mpd",
+    "author": "Orion Pobursky [OrionP]",
+    "missing": [
+      "Patterns",
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/40448",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 201,
+    "sourceStepCount": 65
+  },
+  {
+    "id": "set-21321-1",
+    "setNumber": "21321-1",
+    "name": "International Space Station",
+    "category": "LEGO Ideas and CUUSOO",
+    "theme": "LEGO Ideas and CUUSOO",
+    "subject": "spaceship",
+    "year": 2020,
+    "format": "ldraw",
+    "modelUrl": "models/21321-1.mpd",
+    "thumbnail": "thumbnails/21321-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1146",
+    "originalUrl": "https://library.ldraw.org/library/omr/21321-1.mpd",
+    "author": "Orion Pobursky [OrionP]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/21321",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 863,
+    "sourceStepCount": 261
+  },
+  {
+    "id": "set-75272-1",
+    "setNumber": "75272-1",
+    "name": "Sith TIE Fighter",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "spaceship",
+    "year": 2020,
+    "format": "ldraw",
+    "modelUrl": "models/75272-1.mpd",
+    "thumbnail": "thumbnails/75272-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1213",
+    "originalUrl": "https://library.ldraw.org/library/omr/75272-1.mpd",
+    "author": "Vincent Messenet [Cheenzo]",
+    "missing": [
+      "Parts",
+      "Patterns"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75272",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 456,
+    "sourceStepCount": 140
+  },
+  {
+    "id": "set-75276-1",
+    "setNumber": "75276-1",
+    "name": "Stormtrooper",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "character",
+    "year": 2020,
+    "format": "ldraw",
+    "modelUrl": "models/75276-1.mpd",
+    "thumbnail": "thumbnails/75276-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1212",
+    "originalUrl": "https://library.ldraw.org/library/omr/75276-1.mpd",
+    "author": "Jaco van der Molen [Jaco]",
+    "missing": [
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75276",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 645,
+    "sourceStepCount": 270
+  },
+  {
+    "id": "set-75277-1",
+    "setNumber": "75277-1",
+    "name": "Boba Fett",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "character",
+    "year": 2020,
+    "format": "ldraw",
+    "modelUrl": "models/75277-1.mpd",
+    "thumbnail": "thumbnails/75277-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1211",
+    "originalUrl": "https://library.ldraw.org/library/omr/75277-1.mpd",
+    "author": "Orion Pobursky [OrionP]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75277",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 624,
+    "sourceStepCount": 205
+  },
+  {
+    "id": "set-75966-1",
+    "setNumber": "75966-1",
+    "name": "Hogwarts Room of Requirement",
+    "category": "Harry Potter",
+    "theme": "Harry Potter",
+    "subject": "castle",
+    "year": 2020,
+    "format": "ldraw",
+    "modelUrl": "models/75966-1.mpd",
+    "thumbnail": "thumbnails/75966-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1219",
+    "originalUrl": "https://library.ldraw.org/library/omr/75966-1.mpd",
+    "author": "Stefan Frenz [smf]",
+    "missing": [
+      "Parts",
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75966",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 169,
+    "sourceStepCount": 62
+  },
+  {
+    "id": "set-75968-1",
+    "setNumber": "75968-1",
+    "name": "4 Privet Drive",
+    "category": "Harry Potter",
+    "theme": "Harry Potter",
+    "subject": "character",
+    "year": 2020,
+    "format": "ldraw",
+    "modelUrl": "models/75968-1.mpd",
+    "thumbnail": "thumbnails/75968-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1221",
+    "originalUrl": "https://library.ldraw.org/library/omr/75968-1.mpd",
+    "author": "Stefan Frenz [smf]",
+    "missing": [
+      "Parts",
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75968",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 766,
+    "sourceStepCount": 219
   }
 ]

@@ -289,6 +289,7 @@
             b.innerHTML = (e.thumbnail ? `<img class="${PRE}-thumb" src="${esc(e.thumbnail)}" alt="" loading="lazy">` : '') + `<span class="${PRE}-top"><span class="ico" aria-hidden="true">${iconOf(e.subject)}</span>#${esc(e.id)}${e.year ? `<span class="yr">${esc(e.year)}</span>` : ''}</span>`
                 + `<span class="${PRE}-name">${esc(e.name)}</span>`
                 + (e.theme ? `<span class="${PRE}-theme">${esc(themeText(e.theme))}</span>` : '')
+                + (e.missing && e.missing.length ? `<span class="${PRE}-meta">Source omits ${esc(e.missing.join(', ').toLowerCase())}</span>` : '')
                 + `<span class="${PRE}-meta">${esc(e.pieces || '?')} PCS${e.steps ? ` · ${esc(e.steps)} ${e.stepKind === 'layers' ? 'LAYERS' : 'STEPS'}` : ''}</span>`;
             b.addEventListener('click', () => loadSet(e.id));
             const favorite = el('button', `${PRE}-favorite`); favorite.type = 'button';
@@ -333,7 +334,7 @@
   <div class="${PRE}-chips" role="group" aria-label="Filter by kind"></div>
   <div class="${PRE}-bar"><span class="${PRE}-count"></span><span class="${PRE}-status" role="status"></span></div>
   <div class="${PRE}-grid"><p class="${PRE}-empty">Loading the real sets…</p></div>
-  <p class="${PRE}-foot">Community models by the LDraw OMR authors named on each set. <a href="models/ATTRIBUTION.md" target="_blank" rel="noopener">Character model credits and licenses</a>. LEGO is a trademark of the LEGO Group, which does not sponsor or endorse this project.</p>
+  <p class="${PRE}-foot">Community models by the LDraw OMR authors named on each set. <a href="models/ATTRIBUTION.md" target="_blank" rel="noopener">Model credits and licenses</a>. LEGO is a trademark of the LEGO Group, which does not sponsor or endorse this project.</p>
 </div>`;
         const search = sb.querySelector(`.${PRE}-search`), chips = sb.querySelector(`.${PRE}-chips`), grid = sb.querySelector(`.${PRE}-grid`), count = sb.querySelector(`.${PRE}-count`);
         const kindOf = (subject) => (KINDS.find(([, , subs]) => subs.includes(subject)) || [])[0] || null;
@@ -342,8 +343,8 @@
             const subject = subjectOf(sf.model);
             const mine = subject ? all.filter((e) => e.subject === subject).length : 0;
             const library = window.StudForgeLibraryState ||= window.StudForgeLibrary.readState(localStorage);
-            const list = [['all', 'All', all.length], ['favorites', '♥ Favorites', all.filter(e => library.favorites.includes(e.id) || library.favorites.includes(`set-${e.id}`)).length]];
-            for (const theme of ['Star Wars', 'Marvel', 'DC', 'Harry Potter', 'Disney']) {
+            const list = [['all', 'All', all.length], ['popular', '✨ Popular picks', all.filter(e => e.collections?.includes('popular-picks')).length], ['favorites', '♥ Favorites', all.filter(e => library.favorites.includes(e.id) || library.favorites.includes(`set-${e.id}`)).length]];
+            for (const theme of ['Star Wars', 'Marvel', 'DC', 'Harry Potter', 'Disney', 'Lord of the Rings', 'Indiana Jones', 'Minecraft', 'LEGO Ideas and CUUSOO', 'Speed Champions']) {
                 const n = all.filter(e => e.category === theme || String(e.theme).split(' > ')[0] === theme).length;
                 if (n) list.push([`t:${theme}`, theme, n]);
             }
@@ -357,7 +358,7 @@
             if (!index) return;
             const q = query.trim().toLowerCase();
             const library = window.StudForgeLibraryState ||= window.StudForgeLibrary.readState(localStorage);
-            const hits = index.filter((e) => (kind === 'all' || (kind === 'favorites' ? library.favorites.includes(e.id) || library.favorites.includes(`set-${e.id}`) : kind.startsWith('t:') ? (e.category || String(e.theme).split(' > ')[0]) === kind.slice(2) : kind.startsWith('s:') ? e.subject === kind.slice(2) : kindOf(e.subject) === kind))
+            const hits = index.filter((e) => (kind === 'all' || (kind === 'popular' ? e.collections?.includes('popular-picks') : kind === 'favorites' ? library.favorites.includes(e.id) || library.favorites.includes(`set-${e.id}`) : kind.startsWith('t:') ? (e.category || String(e.theme).split(' > ')[0]) === kind.slice(2) : kind.startsWith('s:') ? e.subject === kind.slice(2) : kindOf(e.subject) === kind))
                 && (!q || [e.name, e.id, e.theme, e.year, e.subject && subjectWords(e.subject)].some((f) => String(f || '').toLowerCase().includes(q))))
                 .sort((a, b) => String(a.theme || '').localeCompare(String(b.theme || '')) || (a.year || 0) - (b.year || 0) || a.name.localeCompare(b.name));
             grid.innerHTML = '';
@@ -383,6 +384,7 @@
             now.innerHTML = `<span class="${PRE}-badge">🏷️ REAL SET</span><h5>${esc(model.name)}</h5>`
                 + `<p>Set <b>#${esc(r.setId)}</b>${r.year ? ` · ${esc(r.year)}` : ''}${r.theme ? ` · ${esc(themeText(r.theme))}` : ''} · <b>${pieces(model)}</b> pieces · <b>${steps}</b> ${model.stepKind === 'layers' ? 'inspection layers. Use the original instructions for assembly.' : 'source-file steps.'}</p>`
                 + `<p class="${PRE}-attr">${attribution(model)}${r.url && /^https:\/\//.test(r.url) ? ` · <a href="${esc(r.url)}" target="_blank" rel="noopener">source</a>` : ''}</p>`;
+            if (r.missing && r.missing.length) now.appendChild(el('p', `${PRE}-hint`, `The community author reports omitted ${esc(r.missing.join(', ').toLowerCase())}. Counts and inventories describe this recreation.`));
             const row = el('div', `${PRE}-row`);
             const forgeBtn = el('button', 'action-btn primary', '⚒️ FORGE ONE LIKE THIS'); forgeBtn.type = 'button'; forgeBtn.id = `${PRE}-forge`;
             forgeBtn.title = `Forge a ${subjectOf(model) ? subjectWords(subjectOf(model)) : 'model'} of your own with the generator`;
