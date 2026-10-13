@@ -180,6 +180,7 @@ class StudForgeViewer {
     }
 
     loadModel(modelData) {
+        this.brickBuilder.heavyLeft = window.BrickBuilder.HEAVY_BUDGET;   // each model gets the lite tier's full heavy-part budget
         this.activeModel = modelData;
         this.clearModel();
 

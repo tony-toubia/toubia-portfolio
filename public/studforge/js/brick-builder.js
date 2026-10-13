@@ -764,7 +764,8 @@ class BrickBuilder {
         const entry = plate ? null : BrickBuilder.bakedCache.get(id);
         const colorDef = window.LEGO_COLORS[colorKey];
         const isTrans = !!(colorDef && colorDef.category === 'Transparent');
-        const lite = !!(entry && entry.heavy && this.quality === 'lite');   // a part over the triangle cap: a box on phones
+        // A part over the triangle cap is drawn in full on phones too, while the model's heavy-part budget lasts; past it, a box.
+        const lite = !!(entry && entry.heavy && this.quality === 'lite' && !this.spendHeavy(entry));
         const geom = entry ? (lite ? this.heavyBox(entry) : this.quality === 'lite' ? entry.liteGeometry : entry.geometry) : plate ? this.baseplateGeometry(options) : this.bakedFallback(options);
         const mesh = new THREE.Mesh(geom, this.bakedMaterial(colorKey, entry && entry.rubber ? 'rubber' : 'plastic'));
         mesh.castShadow = !isTrans;
@@ -781,7 +782,7 @@ class BrickBuilder {
             BrickBuilder.preload([partId]).then(() => {
                 const e = BrickBuilder.bakedCache.get(id);
                 if (!e || mesh.geometry !== geom) return;
-                const box = e.heavy && this.quality === 'lite';
+                const box = e.heavy && this.quality === 'lite' && !this.spendHeavy(e);
                 mesh.geometry = box ? this.heavyBox(e) : this.quality === 'lite' ? e.liteGeometry : e.geometry;
                 if (e.rubber) mesh.material = this.bakedMaterial(colorKey, 'rubber');
                 Object.assign(mesh.userData, { partName: e.name, width: e.size[0], length: e.size[2], height: e.size[1] });
@@ -828,7 +829,20 @@ class BrickBuilder {
         return geom;
     }
 
-    /** The lite-tier stand-in for a heavy part: its bounding box, shared per part. */
+    /**
+     * The lite tier's allowance for heavy parts (horses, dragons, big hulls: 3–12k triangles each), per model: the viewer
+     * resets it on every load. Every converted real set fits (the most is about 150k), so a phone only falls back to boxes
+     * on something bigger. Returns true when the part may be drawn in full.
+     */
+    spendHeavy(entry) {
+        if (this.heavyLeft == null) this.heavyLeft = BrickBuilder.HEAVY_BUDGET;
+        const t = entry.tris || 0;
+        if (t > this.heavyLeft) return false;
+        this.heavyLeft -= t;
+        return true;
+    }
+
+    /** The lite-tier stand-in for a heavy part past the budget: its bounding box, shared per part. */
     heavyBox(entry) {
         if (!entry.liteBox) { const b = entry.bbox, g = this.gap / 2; entry.liteBox = this.box(b[0] + g, b[3] - g, b[1], b[4], b[2] + g, b[5] - g); }
         return entry.liteBox;
@@ -887,6 +901,7 @@ class BrickBuilder {
 
 /* ── the shared baked-part cache ─────────────────────────────── */
 BrickBuilder.bakedBase = 'data/ldraw/parts/';   // relative to the page, like data/knowledge.json
+BrickBuilder.HEAVY_BUDGET = 200000;            // triangles of heavy parts a lite-tier model may draw in full
 BrickBuilder.bakedCache = new Map();            // id → { geometry, details, name, size, rubber } | null (no file)
 BrickBuilder.bakedPending = new Map();          // id → Promise, so concurrent requests share one fetch
 /** LDraw file name → baked id: lower case, no `.dat`, `/` → `_` (matches the baker). */
@@ -976,7 +991,7 @@ BrickBuilder.buildBaked = (doc, name) => {
     return {
         geometry: tubes ? BrickBuilder.bounded(BrickBuilder.protos().helper.merge([body, tubes])) : body,
         liteGeometry: body,
-        details, name, bbox: bb, heavy: !!doc.heavy,
+        details, name, bbox: bb, heavy: !!doc.heavy, tris: doc.tris || idx.length / 3,
         size: [bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2]],
         rubber: /\b(tyre|tire)\b/i.test(name),
     };
