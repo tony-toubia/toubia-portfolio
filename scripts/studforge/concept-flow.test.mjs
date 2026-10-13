@@ -157,9 +157,10 @@ function client(mode, answers, faults = [], draftFaults = []) {
         constructor(tag) { this.tag = tag; this.children = []; this.listeners = {}; this.attributes = {}; this.value = ''; this.open = false; this.classList = { add() {}, remove() {} }; }
         setAttribute(k, v) { this.attributes[k] = v; }
         addEventListener(k, cb) { this.listeners[k] = cb; }
-        appendChild(c) { this.children.push(c); return c; }
+        appendChild(c) { c.parentNode = this; this.children.push(c); return c; }
+        insertBefore(c, before) { c.parentNode = this; const index = this.children.indexOf(before); if (index < 0) this.children.push(c); else this.children.splice(index, 0, c); return c; }
         replaceChildren() { this.children = []; }
-        querySelector(s) { this.selectors ||= {}; return this.selectors[s] ||= new Element(s); }
+        querySelector(s) { this.selectors ||= {}; if (!this.selectors[s]) { this.selectors[s] = new Element(s); this.appendChild(this.selectors[s]); } return this.selectors[s]; }
         querySelectorAll(s) { return s === 'button' ? this.children.filter(c => c.tag === 'button') : []; }
         get childElementCount() { return this.children.length; }
         showModal() { this.open = true; }
@@ -228,4 +229,9 @@ test('floating structural sketches cannot become enabled choices and get one pre
     assert.equal(c.dialog.querySelector('.sfconcept-build').disabled, true);
     assert.equal(c.forged.length, 0);
     assert.match(c.dialog.querySelector('.sfconcept-status').textContent, /still need refinement/);
+    const details = c.dialog.children.find(child => child.className === 'sfconcept-checks');
+    assert.equal(details.hidden, false);
+    assert.match(details.children[1].children[0].textContent, /Option 1: 2 extra supports needed/);
+    assert.match(c.requests[1].correction, /missingFromY/);
+    assert.match(c.requests[1].correction, /VERTICAL backing panel does not support/);
 });

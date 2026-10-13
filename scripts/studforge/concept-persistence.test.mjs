@@ -24,13 +24,13 @@ function gallery(storage = new Map(), search = '') {
         localStorage: { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) },
         document: { head: new Node('head'), body: new Node('body'), createElement: tag => new Node(tag), addEventListener() {} }, navigator: { clipboard: { writeText: async s => clipboard.push(s) } } };
     context.window = context; vm.createContext(context);
-    for (const file of ['colors','parts-catalog','forge-grid','forge-modules','blueprint','forge-builders','forge-builders-2','forge-builders-3','models-db','generator','library-core']) vm.runInContext(fs.readFileSync(path.join(root, 'public/studforge/js', `${file}.js`), 'utf8'), context);
+    for (const file of ['colors','parts-catalog','forge-grid','forge-modules','blueprint','forge-builders','forge-builders-2','forge-builders-3','models-db','generator','library-core','concept-core']) vm.runInContext(fs.readFileSync(path.join(root, 'public/studforge/js', `${file}.js`), 'utf8'), context);
     vm.runInContext('window.testGenerator = new BrickGenerator()', context);
     const sf = { state: { prompt: '', variant: 0, opts: {} }, model: null, viewer: {}, on: (key, fn) => (events[key] ||= []).push(fn), emit: key => (events[key] || []).forEach(fn => fn()), toast: msg => notices.push(msg), headerAction() {}, shareItem() {}, setPrompt: p => sf.state.prompt = p, closeMake() {},
         forge(prompt, variant, opts) { sf.state = { prompt, variant, opts }; sf.model = context.testGenerator.generateFromPrompt(prompt, variant, opts); sf.emit('model'); return sf.model; } };
     context.studForge = sf;
     vm.runInContext(fs.readFileSync(path.join(root, 'public/studforge/js/gallery.js'), 'utf8'), context);
-    return { sf, storage, notices, historyWrites, clipboard };
+    return { sf, storage, notices, historyWrites, clipboard, context };
 }
 
 test('approved blueprint saves and reopens with identical pieces and safe concept metadata', () => {
@@ -71,4 +71,30 @@ test('distinct layouts with the same generated name/id retain distinct local res
     assert.notEqual(address, app.historyWrites.at(-1));
     const reopened = gallery(app.storage, address.slice(address.indexOf('?')));
     assert.deepEqual(JSON.parse(JSON.stringify(reopened.sf.model.bricks)), JSON.parse(JSON.stringify(first.bricks)));
+});
+
+test('horizontal mascot mosaic is supported and diagram preserves the final overwritten shirt/H colors', () => {
+    const app = gallery(), rect = (x0,x1,z0,z1,color) => ({ op:'box',x0,x1,z0,z1,y0:1,y1:1,color });
+    const mosaic = { name: 'Hawk mosaic', base: { w:16,d:24,color:'BLACK' }, ops:[rect(0,15,0,23,'WHITE'),rect(3,12,2,21,'BLACK'),rect(4,11,3,10,'WHITE'),rect(1,4,7,9,'WHITE'),rect(4,11,11,18,'RED'),rect(6,6,12,17,'WHITE'),rect(9,9,12,17,'WHITE'),rect(6,9,14,14,'WHITE'),rect(5,6,19,21,'WHITE'),rect(9,10,19,21,'WHITE'),rect(8,8,5,5,'BLACK'),rect(2,3,9,10,'BLACK')] };
+    const model = app.context.testGenerator.generateFromPrompt('a school hawk mosaic', 0, { blueprint:mosaic,concept:{id:'approved'} });
+    assert.deepEqual(JSON.parse(JSON.stringify(app.context.StudForgeConcept.quality(model))), []);
+    assert.equal(model.anchor.struts,0); assert.equal(model.anchor.dropped,0);
+    const top = new Map();
+    for (const brick of model.bricks) { const f = brick.fp; if (!f || brick.ghost) continue; for (let x=f.x0;x<f.x0+f.w;x++) for (let z=f.z0;z<f.z0+f.l;z++) { const k=`${x},${z}`, y=f.y0+f.hp-1; if (!top.has(k) || top.get(k).y<y) top.set(k,{y,color:brick.color}); } }
+    const expected = {}; for (const cell of top.values()) expected[cell.color]=(expected[cell.color]||0)+1;
+    const svg = app.context.StudForgeConcept.diagram({name:mosaic.name,sketch:mosaic},app.context.LEGO_COLORS), actual = {};
+    for (const match of svg.matchAll(/data-face="top" data-color="([A-Z_]+)"/g)) actual[match[1]]=(actual[match[1]]||0)+1;
+    assert.deepEqual(actual,expected);
+    assert.ok(actual.RED>0 && actual.WHITE>0 && actual.BLACK>0);
+    assert.equal(Object.values(actual).reduce((a,b)=>a+b,0),16*24);
+});
+
+test('3D diagram exposes real outer surfaces while hiding buried tops and interior faces', () => {
+    const app=gallery(), shape={name:'Stacked statue',sketch:{base:{w:2,d:2,color:'BLACK'},ops:[{op:'box',x0:0,x1:1,z0:0,z1:1,y0:1,y1:2,color:'RED'},{op:'box',x0:0,x1:1,z0:0,z1:1,y0:3,y1:3,color:'WHITE'}]}};
+    const svg=app.context.StudForgeConcept.diagram(shape,app.context.LEGO_COLORS);
+    assert.equal([...svg.matchAll(/data-face="top"/g)].length,4);
+    assert.equal([...svg.matchAll(/data-face="top" data-color="WHITE"/g)].length,4);
+    assert.equal([...svg.matchAll(/data-face="front"/g)].length,8);
+    assert.equal([...svg.matchAll(/data-face="side"/g)].length,8);
+    assert.doesNotMatch(svg,/NaN|Infinity/);
 });
