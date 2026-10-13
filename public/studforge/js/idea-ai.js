@@ -57,6 +57,9 @@
 .sfconcept-reference img { max-width: 260px; max-height: 150px; padding: 10px; background: #fff; border-radius: 8px; object-fit: contain; }
 .sfconcept-reference a { color: #91c8ff; display: block; font-size: 12px; margin: 4px 0; }
 .sfconcept .sfconcept-status { min-height: 22px; color: #ffd500; }
+.sfconcept .sfconcept-checks { padding: 10px 12px; margin: 10px 0; border: 1px solid #52627b; border-radius: 8px; font-size: 12px; }
+.sfconcept-checks summary { cursor: pointer; font-weight: 600; }
+.sfconcept-checks ul { margin: 10px 0 0; padding-left: 18px; }
 .sfconcept-local-go { background: #24314a; color: #e8eef7; border: 1px solid #52627b; }
 .sfconcept-preview-go { white-space: nowrap; }
 @media (max-width: 600px) { .sfconcept { padding: 16px; } .sfconcept h2 { font-size: 21px; } .sfconcept .sfconcept-cards { grid-template-columns: 1fr; } .sfconcept-preview-go { order: 3; flex: 1; height: 46px; font-size: 13px; } }
@@ -158,6 +161,10 @@
         dialog.innerHTML = `<button type="button" class="sfconcept-close" aria-label="Close idea previews">✕</button><h2 id="sfconcept-title">Choose the look</h2><p>Review the shape and colors before we build. These layout sketches become the structure of your model.</p><label for="sfconcept-prompt">Your idea</label><textarea id="sfconcept-prompt" maxlength="200"></textarea><label for="sfconcept-image">Use a reference image (optional)</label><input id="sfconcept-image" type="file" accept="image/png,image/jpeg,image/webp"><p class="sfconcept-status" role="status" aria-live="polite"></p><div class="sfconcept-reference"></div><div class="sfconcept-cards"></div><div class="sfconcept-actions"><button type="button" class="sfconcept-revise">Try different looks</button><button type="button" class="sfconcept-build" disabled>Build this idea</button></div>`;
         document.body.appendChild(dialog);
         const edit = dialog.querySelector('textarea'), upload = dialog.querySelector('input'), cards = dialog.querySelector('.sfconcept-cards'), reference = dialog.querySelector('.sfconcept-reference'), status = dialog.querySelector('.sfconcept-status'), build = dialog.querySelector('.sfconcept-build'), revise = dialog.querySelector('.sfconcept-revise');
+        const checks = document.createElement('details'); checks.className = 'sfconcept-checks'; checks.hidden = true;
+        const checkTitle = document.createElement('summary'); checkTitle.textContent = 'Why these layouts need refinement'; checks.appendChild(checkTitle);
+        const checkList = document.createElement('ul'); checks.appendChild(checkList);
+        if (cards.parentNode) cards.parentNode.insertBefore(checks, cards);
         let revision = 0, selection = null, referenceImage = '', conceptPrompt = '', conceptVariant = 0;
         const message = () => ({ 'no-key': 'AI design is unavailable here. Your current kit is still open; you can use Quick for a local idea.', locked: 'Unlock the AI engine to plan this idea.', 'rate-limited': 'The designer is busy. Please try again shortly.', timeout: 'This design took too long to finish. Try again or simplify the idea; your current kit is still open.', 'reference-unavailable': 'The official reference image could not be loaded. Add the actual image or try again.', 'concept-drift': 'The design changed the approved look. Please try this concept again.' }[lastReason] || 'I could not finish this design. Try again or revise the idea; your current kit is still open.');
         function controls(working) { revise.disabled = working; upload.disabled = working; edit.disabled = working; build.disabled = working || !selection; cards.querySelectorAll('button').forEach(b => b.disabled = working); }
@@ -177,8 +184,40 @@
             }
             const note = document.createElement('p'); note.textContent = data.referenceStatus === 'image' ? 'Based on the actual reference image.' : data.referenceStatus === 'sources' ? 'Source-inspired: exact visual not yet confirmed. Add an image for a closer match.' : data.referenceStatus === 'unresolved' ? 'Exact reference needed.' : 'An original interpretation of your idea.'; text.appendChild(note); reference.appendChild(text);
         }
+        function draftCheck(draft, sketch, option) {
+            const a = draft && draft.anchor || {}, warnings = draft && draft.warnings || [];
+            const report = { option, pieces: draft && draft.bricks && draft.bricks.length || 0, supports: a.struts || 0, longestSupport: a.maxStrut || 0, movedGroups: a.dropped || 0, unsupportedGroups: a.stuck || 0, skippedSections: warnings.length, gaps: [] };
+            // Number-only footprint gaps help the designer repair unsupported painted decorations.
+            // A gap is diagnostic context, not proof of failure: bridging plates can span empty space.
+            const columns = new Map();
+            for (const op of sketch.ops) {
+                const lo = op.op === 'slab' ? op.y : op.y0, hi = op.op === 'slab' ? op.y + 1 : op.y1;
+                for (let x = op.x0; x <= op.x1; x++) for (let z = op.z0; z <= op.z1; z++) {
+                    const key = `${x},${z}`; if (!columns.has(key)) columns.set(key, { x, z, ranges: x >= 0 && x < sketch.base.w && z >= 0 && z < sketch.base.d ? [[0, 0]] : [] });
+                    columns.get(key).ranges.push([lo, hi]);
+                }
+            }
+            for (const column of columns.values()) {
+                let end = -1;
+                for (const [lo, hi] of column.ranges.sort((a, b) => a[0] - b[0])) { if (lo > end + 1 && report.gaps.length < 12) report.gaps.push({ x: column.x, z: column.z, missingFromY: end + 1, missingThroughY: lo - 1 }); end = Math.max(end, hi); }
+            }
+            return report;
+        }
+        function showChecks(reports) {
+            checkList.replaceChildren(); checks.hidden = !reports.length;
+            for (const report of reports) {
+                const item = document.createElement('li'), problems = [];
+                if (report.supports) problems.push(`${report.supports} extra supports needed`);
+                if (report.movedGroups) problems.push(`${report.movedGroups} sections changed position`);
+                if (report.unsupportedGroups) problems.push(`${report.unsupportedGroups} unsupported sections`);
+                if (report.skippedSections) problems.push(`${report.skippedSections} sections could not be built`);
+                if (report.pieces < 15) problems.push('too little structure for a recognizable model');
+                item.textContent = `Option ${report.option}: ${problems.join('; ') || 'layout could not be assembled'}. ${report.pieces} pieces in the sketch.`; checkList.appendChild(item);
+            }
+        }
         async function previewConcepts(prompt, variant = 0, correction = '') {
             const mine = ++revision; conceptPrompt = prompt; conceptVariant = variant; selection = null; cards.replaceChildren(); reference.replaceChildren();
+            showChecks([]);
             controls(true); wait('FINDING THE LOOK…'); status.textContent = 'Finding references and sketching a few directions…';
             try {
                 const B = window.FORGE && window.FORGE.blueprint;
@@ -187,15 +226,15 @@
                 if (!data || !B || !window.StudForgeConcept) { status.textContent = message(); return; }
                 paintReference(data);
                 status.textContent = data.message || 'Choose a sketch to continue.';
-                const rejected = [];
-                for (const concept of data.concepts.slice(0, 3)) {
+                const rejected = [], reports = [];
+                for (const [index, concept] of data.concepts.slice(0, 3).entries()) {
                     const checked = B.validate({ ...concept.sketch, name: concept.name });
                     if (!checked.ok || !concept.selection) continue;
                     // The small structural sketch must already connect properly. A full design may
                     // only refine this approved structure, so floating sketches cannot be choices.
                     const draft = sf.generator.generateFromPrompt(prompt, variant, { blueprint: checked.bp, concept: { id: concept.id, name: concept.name }, previewConcept: true });
                     const faults = window.StudForgeConcept.quality(draft);
-                    if (faults.length) { rejected.push(`${concept.id}: ${faults.join('; ')}`); continue; }
+                    if (faults.length) { const report = draftCheck(draft, concept.sketch, index + 1); reports.push(report); rejected.push(`${concept.id}: ${faults.join('; ')}. Support measurements: ${JSON.stringify(report)}`); console.info('StudForge sketch assembly check', report); continue; }
                     const card = document.createElement('button'); card.type = 'button'; card.className = 'sfconcept-card'; card.setAttribute('aria-pressed', 'false');
                     card.innerHTML = window.StudForgeConcept.diagram(concept, window.LEGO_COLORS || {});
                     const title = document.createElement('strong'); title.textContent = concept.name; card.appendChild(title);
@@ -204,9 +243,10 @@
                     card.addEventListener('click', () => { selection = { ...concept, identity: data.identity, sources: data.sources, referenceStatus: data.referenceStatus }; cards.querySelectorAll('button').forEach(c => c.setAttribute('aria-pressed', String(c === card))); build.disabled = false; status.textContent = `${concept.name} selected. We’ll keep this shape and add the details.`; });
                     cards.appendChild(card);
                 }
+                showChecks(reports);
                 if (!cards.childElementCount && rejected.length && !correction) {
                     status.textContent = 'Refining the layouts so their pieces connect cleanly…';
-                    return previewConcepts(prompt, variant, `Structural sketch assembly checks failed: ${rejected.join(' | ')}. Return corrected recognizable sketches with every shape supported. Use a continuous backing panel for reliefs and overlapping slabs for necks, limbs and beaks; do not depend on side adjacency or rescue supports.`);
+                    return previewConcepts(prompt, variant, `Structural sketch assembly checks failed: ${rejected.join(' | ')}. Return corrected recognizable sketches with every shape supported. A VERTICAL backing panel does not support details on its front: the engine connects only above/below. A safe relief is a HORIZONTAL top-facing brick mosaic on the base (all image colors at y=1, portrait axes x/z). For upright models, legs support an overlapping horizontal torso slab; neck/head and overhanging beak sit on connected horizontal slabs. Do not rely on sideways adjacency or rescue supports. Keep each painted x/z column's lowest y on a connected surface; the measured gaps identify unsupported details.`);
                 }
                 if (!cards.childElementCount && data.concepts.length) status.textContent = 'These layouts still need refinement before they can be built. Try different looks or revise the idea.';
             } catch { if (mine === revision) status.textContent = message(); }
