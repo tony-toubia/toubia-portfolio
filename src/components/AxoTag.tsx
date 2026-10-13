@@ -2,7 +2,7 @@
 
 import Script from "next/script";
 import { usePathname } from "next/navigation";
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 /**
  * Loads the AXO personalization tag on tonytoubia.com.
@@ -29,8 +29,18 @@ const getServerHostname = () => "";
 export function AxoTag() {
   const pathname = usePathname() ?? "/";
   const hostname = useSyncExternalStore(subscribe, getHostname, getServerHostname);
+  const excluded = EXCLUDED_PATH.test(pathname);
 
-  if (!AXO_SITE_ID || !ALLOWED_HOST.test(hostname) || EXCLUDED_PATH.test(pathname)) {
+  // A script tag cannot be unloaded. If the tag is already in this document
+  // and a client-side navigation lands on /slt, reload the page so the /slt
+  // view starts in a fresh document that never had the tag.
+  useEffect(() => {
+    if (excluded && document.querySelector('script[src*="axoapp.ai/tag.js"]')) {
+      window.location.reload();
+    }
+  }, [excluded]);
+
+  if (!AXO_SITE_ID || !ALLOWED_HOST.test(hostname) || excluded) {
     return null;
   }
 
