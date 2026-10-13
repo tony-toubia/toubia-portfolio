@@ -3,7 +3,7 @@
 //
 // The shell has two places plus the canvas:
 //   MAKE       the create bar (desktop) / the Make sheet (phones): the prompt, the engine picker, suggestions,
-//              and the "start from" sources (real sets, mosaics, my builds) features add.
+//              and the "start from" sources (the library and mosaics) features add.
 //   WORKBENCH  four tabs about the current model: build, parts, style, learn. Features add sections to them.
 //   CANVAS     view tools (views, explode, reset, plus features' widgets) and one step scrubber.
 //
@@ -22,7 +22,7 @@
 //   studForge.showPanel(id)                  open a tab ('build'...) or the tab holding section `id`, scrolled to it;
 //                                            also 'make' or a source id
 //   studForge.addSource({ id, icon, label, hint, order, render(el) })
-//                                            a "start from" source in Make (real sets, mosaic, my builds). Returns { body, show }.
+//                                            a "start from" source in Make (library, mosaic). Returns { body, show }.
 //   studForge.showSource(id) / .closeMake()  open Make on a source's panel / close Make
 //   studForge.registerEngine({ id, icon, label, hint, order })
 //                                            a choice in the engine picker (the core has 'quick'). Returns { setLocked(bool) }.
@@ -36,6 +36,8 @@
 //   studForge.isPhone()                      the phone layout is showing
 //   studForge.viewer / .generator / .bom     the 3D viewer, the generator, the current parts list
 document.addEventListener('DOMContentLoaded', () => {
+    // Capture shared links before gallery.js updates the address for the first model.
+    const initialSearch = location.search;
     // Inside the portfolio's desktop window the window chrome carries the way back; the /studforge page embeds the app
     // full screen with ?standalone=1, so the app keeps its own back link (which leaves the frame: target _top).
     if (window.self !== window.top && !/[?&]standalone=1\b/.test(location.search)) document.body.classList.add('in-iframe');
@@ -232,10 +234,11 @@ document.addEventListener('DOMContentLoaded', () => {
     })();
     $('btn-source-back').addEventListener('click', (e) => { e.stopPropagation(); setSource(null); });
     $('btn-make-close').addEventListener('click', () => closeMake());
+    $('btn-library-close').addEventListener('click', () => closeMake());
     // Suggestions open when the prompt is focused and empty or unchanged.
     promptInput.addEventListener('focus', () => { if (!isPhone() && (!promptInput.value.trim() || promptInput.value.trim() === state.prompt)) openCreatePop(); });
     promptInput.addEventListener('input', () => { if (!isPhone() && !activeSource) createBar.classList.toggle('pop-open', !promptInput.value.trim()); });
-    document.addEventListener('pointerdown', (e) => { if (!isPhone() && createBar.classList.contains('pop-open') && !e.target.closest('#create-bar')) closeCreatePop(); });
+    document.addEventListener('pointerdown', (e) => { if (!isPhone() && createBar.classList.contains('pop-open') && !e.target.closest('#create-bar, .sfg-toast')) closeCreatePop(); });
 
     // Engines: who builds the idea. The core builds locally; the Claude client adds its own.
     const engines = {};
@@ -536,6 +539,7 @@ document.addEventListener('DOMContentLoaded', () => {
     populateInspirations();
     showTab(currentTab, { reveal: false });
     setSheet('peek');
+    const browseOnStart = window.StudForgeLibrary.shouldBrowseOnStart(initialSearch, store.get('studforge.seen'), window.StudForgeLibrary.readState({ getItem: key => store.get(key) }).lastModel);
     document.dispatchEvent(new CustomEvent('studforge:ready'));
     // Features may have claimed the first forge (e.g. a share link); otherwise show the first inspiration,
     // and on a first visit open the suggestions so newcomers see where to start.
@@ -545,6 +549,7 @@ document.addEventListener('DOMContentLoaded', () => {
         forge(first.prompt, 0, {});
         if (inspoContainer.firstChild) inspoContainer.firstChild.classList.add('active');
         forgeLabel();
-        if (!store.get('studforge.seen')) { store.set('studforge.seen', '1'); if (!isPhone()) setTimeout(openCreatePop, 400); }
+        if (!store.get('studforge.seen')) store.set('studforge.seen', '1');
+        if (browseOnStart) setTimeout(() => { if (window.studForge.library && !makeIsOpen()) window.studForge.library.browse(); }, 400);
     }
 });

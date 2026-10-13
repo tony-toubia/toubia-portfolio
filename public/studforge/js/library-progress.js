@@ -4,11 +4,12 @@
         const sf = window.studForge, core = window.StudForgeLibrary;
         if (!sf || !core || sf.libraryProgress) return;
         sf.libraryProgress = true;
-        const state = window.StudForgeLibraryState ||= core.readState(localStorage);
+        const storage = { getItem: key => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) };
+        const state = window.StudForgeLibraryState ||= core.readState(storage);
         const panel = sf.registerPanel({ id: 'library-progress', title: 'YOUR BUILD PROGRESS', group: 'build', order: 5 });
         const esc = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         let model = null, saved = null;
-        const persist = () => { if (!core.saveState(localStorage, state)) sf.toast('Browser storage is unavailable; progress lasts for this visit'); };
+        const persist = () => { if (!core.saveState(storage, state)) sf.toast('Browser storage is unavailable; progress lasts for this visit'); };
         function paint() {
             panel.section.hidden = !model;
             if (!model) return;

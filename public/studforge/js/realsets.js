@@ -133,7 +133,7 @@
                     : `<p class="sfr-hint">We have no real-set data for ${model && model.name ? `<b>${esc(model.name)}</b>` : 'this idea'} yet. Learn works for subjects real LEGO sets cover: their colours, size, parts and how they are put together.</p>`;
             return `<div class="${PRE}-empty"><p class="${PRE}-kicker">HOW LEGO BUILDS IT</p>${what}`
                 + `<p class="${PRE}-kicker" style="margin-top:12px">TRY ONE OF THESE</p><div class="${PRE}-try">${TRY.map(([w, i]) => `<button type="button" class="tool-chip" data-try="${esc(w)}">${i} ${esc(w)}</button>`).join('')}</div>`
-                + `<button type="button" class="action-btn secondary" data-browse>🏷️ BUILD A REAL SET STEP BY STEP</button></div>`;
+                + `<button type="button" class="action-btn secondary" data-browse>🧱 BROWSE LIBRARY</button></div>`;
         }
 
         function renderOwn(model) {
@@ -215,7 +215,7 @@
         P.intro.body.addEventListener('click', (e) => {
             const t = e.target.closest('[data-try]');
             if (t) { const w = t.dataset.try; if (sf.setPrompt) sf.setPrompt(w); sf.forge(w, 0, {}); return; }
-            if (e.target.closest('[data-browse]')) sf.showPanel(sf.reference && sf.reference.sourceId ? sf.reference.sourceId : 'realsets-browse');
+            if (e.target.closest('[data-browse]')) sf.showPanel(sf.reference && sf.reference.sourceId ? sf.reference.sourceId : 'library');
         });
 
         sf.on('model', render);

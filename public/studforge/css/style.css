@@ -115,6 +115,8 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 .nav-btn.primary .car { color: rgba(0, 0, 0, 0.55); }
 .nav-btn.primary:hover { filter: brightness(1.08); }
 .nb-ico { font-size: 13px; }
+.library-phone { display: none; }
+#btn-library { white-space: nowrap; }
 .nav-icon-btn {
     background: var(--bg-card); border: 1px solid var(--border-main); color: var(--text-primary);
     width: 32px; height: 32px; border-radius: 7px; cursor: pointer;
@@ -245,6 +247,7 @@ body.in-iframe #btn-back-home { display: none; }
 .cp-back { background: none; border: 1px solid var(--border-main); color: var(--text-secondary); border-radius: 7px; padding: 4px 10px; font-family: var(--font-heading); font-size: 9px; letter-spacing: 1px; cursor: pointer; }
 .cp-back:hover { color: #fff; border-color: var(--lego-yellow); }
 .cp-source-title { font-family: var(--font-heading); font-size: 12px; letter-spacing: 1px; color: #fff; }
+.cp-close { margin-left: auto; min-width: 32px; min-height: 32px; }
 .source-body { font-size: 13px; color: var(--text-secondary); }
 .source-body h4 { font-family: var(--font-heading); font-size: 11px; letter-spacing: 1px; color: #fff; margin: 0 0 8px; }
 
@@ -452,6 +455,8 @@ body.sfi-booklet-open .create-bar, body.sfi-booklet-open .tabbar { display: none
     .nav-spacer { display: none; }
     .nav-btn, .nav-actions > button { height: 32px; padding: 0 9px; }
     .nav-btn .nb-label, .nav-btn .car, .nav-actions .nb-label { display: none; }
+    .library-wide { display: none; }
+    .library-phone { display: inline; font-size: 9px; }
     .back-to-home, body:not(.in-iframe) .back-to-home { display: none; }
     #btn-keys { display: none; }
 

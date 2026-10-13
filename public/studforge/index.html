@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>StudForge | 3D LEGO® Blueprint & Idea Maker</title>
-    <link rel="stylesheet" href="css/style.css?v=6">
+    <link rel="stylesheet" href="css/style.css?v=7">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -30,9 +30,10 @@
             <span class="summary-meta"><span id="model-piece-count">0 pcs</span><span class="dot">·</span><span id="model-step-count">0 steps</span><span id="summary-slot"></span></span>
         </button>
         <div class="nav-spacer"></div>
+        <button class="nav-btn primary" id="btn-library" type="button" aria-label="Browse library" title="Browse all kits and your builds"><span class="nb-ico">🧱</span><span class="library-wide">BROWSE KITS</span><span class="library-phone">LIBRARY</span></button>
         <div class="nav-actions" id="head-actions"></div>
         <div class="sf-menu" id="share-menu">
-            <button class="nav-btn primary" id="btn-share-menu" type="button" aria-haspopup="true" aria-expanded="false" title="Share this build"><span class="nb-ico">↗</span><span class="nb-label">SHARE</span><span class="car">▾</span></button>
+            <button class="nav-btn" id="btn-share-menu" type="button" aria-haspopup="true" aria-expanded="false" title="Share this build"><span class="nb-ico">↗</span><span class="nb-label">SHARE</span><span class="car">▾</span></button>
             <div class="sf-menu-list right" id="share-list" role="menu"></div>
         </div>
         <div class="sf-menu" id="more-menu">
@@ -82,7 +83,7 @@
                 <div class="start-tiles" id="start-tiles"></div>
             </div>
             <div class="cp-source" id="cp-source" hidden>
-                <div class="cp-source-head"><button class="cp-back" id="btn-source-back" type="button">← Back</button><span class="cp-source-title" id="cp-source-title"></span></div>
+                <div class="cp-source-head"><button class="cp-back" id="btn-source-back" type="button">← Create</button><span class="cp-source-title" id="cp-source-title"></span><button class="cp-back cp-close" id="btn-library-close" type="button" aria-label="Close library">✕</button></div>
                 <div class="cp-source-body" id="cp-source-body"></div>
             </div>
         </div>
@@ -206,7 +207,7 @@
     <!-- Modular App Scripts -->
     <script src="js/colors.js?v=3"></script>
     <script src="js/ldraw-palette.js?v=2"></script>
-    <script src="js/library-core.js?v=2"></script>
+    <script src="js/library-core.js?v=3"></script>
     <script src="js/parts-catalog.js?v=4"></script>
     <script src="js/brick-builder.js?v=7"></script>
     <script src="js/forge-grid.js?v=3"></script>
@@ -221,20 +222,20 @@
     <script src="js/generator.js?v=7"></script>
     <script src="js/audio.js?v=2"></script>
     <script src="js/viewer.js?v=8"></script>
-    <script src="js/main.js?v=10"></script>
+    <script src="js/main.js?v=11"></script>
     <!-- Feature modules register themselves with window.studForge; load them after main.js -->
     <div id="feature-scripts">
     <script src="js/ai-gate.js?v=2"></script>
     <script src="js/studio.js?v=5"></script>
     <script src="js/buy.js?v=5"></script>
-    <script src="js/gallery.js?v=3"></script>
+    <script src="js/gallery.js?v=4"></script>
     <script src="js/idea-ai.js?v=4"></script>
     <script src="js/instructions.js?v=5"></script>
     <script src="js/mosaic.js?v=2"></script>
     <script src="js/omr.js?v=5"></script>
-    <script src="js/realsets.js?v=4"></script>
-    <script src="js/reference.js?v=6"></script>
-    <script src="js/library-progress.js?v=2"></script>
+    <script src="js/realsets.js?v=5"></script>
+    <script src="js/reference.js?v=7"></script>
+    <script src="js/library-progress.js?v=3"></script>
     <script src="js/tweaks.js?v=3"></script>
     </div>
 </body>
