@@ -1,7 +1,8 @@
 // StudForge buying help: what the build would cost in real bricks, cheaper
 // colour swaps, and "I own these bricks" so the parts list and the price only
 // count what you still need. Everything is client-side; prices are rough
-// marketplace ballparks kept in this file.
+// marketplace ballparks kept in this file. It sits at the top of the Parts tab, above
+// the core parts list, and puts the estimate in the header summary.
 (() => {
     const PRE = 'sfb';                       // CSS / DOM prefix for this feature
     const STORE_KEY = 'studforge.owned.v1';
@@ -168,8 +169,9 @@
     function estimate(model, entries) {
         const rows = rowsOf(model);
         const owned = allocate(rows, entries || []);
-        let total = 0, full = 0, ownedPieces = 0, ownedValue = 0;
+        let total = 0, full = 0, ownedPieces = 0, ownedValue = 0, pieces = 0;
         for (const r of rows) {
+            pieces += r.quantity;
             r.unit = unitPrice(r.priceId || r.partId, r.colorKey, r.area);
             r.owned = owned.get(r.key) || 0;
             r.need = r.quantity - r.owned;
@@ -177,56 +179,84 @@
             full += r.quantity * r.unit; total += r.line; ownedPieces += r.owned; ownedValue += r.owned * r.unit;
         }
         rows.sort((a, b) => b.line - a.line || b.quantity - a.quantity);
-        return { rows, total, full, pieces: model.bricks.length, ownedPieces, ownedValue, low: total * RANGE[0], high: total * RANGE[1] };
+        return { rows, total, full, pieces, ownedPieces, ownedValue, low: total * RANGE[0], high: total * RANGE[1] };
     }
 
     /* ── UI ─────────────────────────────────────────────────────────── */
     const css = `
-.${PRE}-total { font-family: var(--font-heading); font-size: 30px; font-weight: 900; color: var(--lego-yellow); line-height: 1; letter-spacing: 1px; }
-.${PRE}-range { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-top: 6px; }
-.${PRE}-ownnote { font-family: var(--font-mono); font-size: 10px; color: #7ee787; margin-top: 4px; }
-.${PRE}-note { font-size: 11px; color: var(--text-muted); margin: 8px 0 0; line-height: 1.4; }
-.${PRE}-sec { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border-main); }
+.${PRE}-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.${PRE}-k { font-family: var(--font-heading); font-size: 9px; letter-spacing: 1.2px; color: var(--text-muted); font-weight: 700; margin-bottom: 5px; }
+.${PRE}-total { font-family: var(--font-heading); font-size: 26px; font-weight: 900; color: var(--lego-yellow); line-height: 1; letter-spacing: 0.5px; white-space: nowrap; }
+.${PRE}-pcs { text-align: right; flex: none; }
+.${PRE}-pcs b { display: block; font-family: var(--font-mono); font-size: 17px; font-weight: 700; color: #fff; line-height: 1.1; }
+.${PRE}-pcs span { font-family: var(--font-heading); font-size: 8px; letter-spacing: 1px; color: var(--text-muted); font-weight: 700; }
+.${PRE}-range { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-top: 7px; line-height: 1.5; }
+.${PRE}-ownnote { font-family: var(--font-mono); font-size: 10px; color: #7ee787; margin-top: 3px; }
+.${PRE}-note { font-size: 12px; color: var(--text-muted); margin: 6px 0 0; line-height: 1.4; }
+.${PRE}-note code { font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary); background: rgba(255,255,255,0.06); padding: 0 4px; border-radius: 3px; }
+.${PRE}-block { margin-top: 12px; }
+.${PRE}-toggle { width: 100%; display: flex; align-items: center; gap: 8px; padding: 0 10px; min-height: 34px; border-radius: 7px; border: 1px solid var(--border-main); background: rgba(255,255,255,0.03); color: var(--text-primary); font-family: var(--font-body); font-size: 14px; font-weight: 700; cursor: pointer; text-align: left; }
+.${PRE}-toggle:hover, .${PRE}-toggle[aria-expanded="true"] { border-color: rgba(242,205,55,0.45); }
+.${PRE}-toggle .t-main { flex: 1; min-width: 0; }
+.${PRE}-toggle .t-badge { font-family: var(--font-mono); font-size: 10px; color: #7ee787; white-space: nowrap; }
+.${PRE}-toggle .t-car { font-size: 9px; color: var(--text-muted); transition: transform 0.15s ease; }
+.${PRE}-toggle[aria-expanded="true"] .t-car { transform: rotate(180deg); }
+.${PRE}-own { padding: 2px 0 0; }
 .${PRE}-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-[class^='${PRE}-'] [hidden], .${PRE}-ownnote[hidden] { display: none !important; }
-.${PRE}-dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3); display: inline-block; flex-shrink: 0; }
-.${PRE}-row .action-btn { width: auto; flex: 1 1 auto; padding: 7px 10px; font-size: 10px; }
+.${PRE}-row .action-btn { width: auto; flex: 1 1 auto; padding: 0 10px; min-height: 32px; font-size: 10px; }
 .${PRE}-status { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; }
+.${PRE}-status:empty { display: none; }
 .${PRE}-status .bad { color: #f87171; }
-.${PRE}-ta { width: 100%; min-height: 84px; resize: vertical; box-sizing: border-box; background: rgba(9, 12, 19, 0.6); color: var(--text-primary); border: 1px solid var(--border-main); border-radius: 6px; padding: 8px; font-family: var(--font-mono); font-size: 11px; line-height: 1.5; margin-top: 8px; }
+.${PRE}-ta { width: 100%; min-height: 84px; resize: vertical; box-sizing: border-box; background: rgba(9, 12, 19, 0.6); color: var(--text-primary); border: 1px solid var(--border-main); border-radius: 7px; padding: 8px; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; margin-top: 8px; }
 .${PRE}-ta:focus { outline: none; border-color: var(--lego-yellow); }
-.${PRE}-swaps { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
-.${PRE}-swap { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border-main); border-radius: 6px; background: rgba(255, 255, 255, 0.03); }
+.${PRE}-tip { display: flex; flex-direction: column; gap: 6px; }
+.${PRE}-tip-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.${PRE}-tip-h .${PRE}-k { margin: 0; }
+.${PRE}-undo { background: none; border: 1px solid var(--border-main); color: var(--text-secondary); border-radius: 6px; min-height: 26px; padding: 0 9px; font-family: var(--font-heading); font-size: 9px; font-weight: 700; letter-spacing: 0.8px; cursor: pointer; }
+.${PRE}-undo:hover { color: #fff; border-color: var(--lego-yellow); }
+.${PRE}-dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3); display: inline-block; flex-shrink: 0; }
+.${PRE}-swap { display: flex; align-items: center; gap: 8px; padding: 7px 8px 7px 10px; border: 1px solid rgba(126,231,135,0.22); border-radius: 7px; background: rgba(126,231,135,0.05); }
 .${PRE}-swap-info { flex: 1; min-width: 0; }
-.${PRE}-swap-roles { font-family: var(--font-heading); font-size: 9px; letter-spacing: 0.6px; color: var(--text-muted); text-transform: uppercase; }
-.${PRE}-swap-colors { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 12px; color: #e2e8f0; margin: 3px 0; }
+.${PRE}-swap-colors { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; font-size: 13px; font-weight: 600; color: #e2e8f0; }
 .${PRE}-swap-colors span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-.${PRE}-swap-save { font-family: var(--font-mono); font-size: 10px; color: #7ee787; }
-.${PRE}-swap .action-btn { width: auto; padding: 6px 10px; font-size: 10px; flex-shrink: 0; }
-.${PRE}-empty { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
-.${PRE}-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 8px; }
+.${PRE}-swap-meta { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.${PRE}-swap-meta b { color: #7ee787; font-weight: 700; }
+.${PRE}-swap .action-btn { width: auto; padding: 0 12px; min-height: 30px; font-size: 10px; flex-shrink: 0; }
+.${PRE}-empty { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
+.${PRE}-bd { margin-top: 12px; border-top: 1px solid var(--border-main); }
+.${PRE}-bd > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; min-height: 34px; padding-top: 8px; }
+.${PRE}-bd > summary::-webkit-details-marker { display: none; }
+.${PRE}-bd > summary .${PRE}-k { margin: 0; flex: 1; }
+.${PRE}-bd > summary small { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+.${PRE}-bd > summary i { font-style: normal; font-size: 9px; color: var(--text-muted); transition: transform 0.15s ease; }
+.${PRE}-bd[open] > summary i { transform: rotate(180deg); }
+.${PRE}-bd > summary:hover .${PRE}-k { color: #fff; }
+.${PRE}-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 2px; table-layout: fixed; }
 .${PRE}-table th { text-align: left; font-family: var(--font-heading); font-size: 8px; letter-spacing: 0.5px; color: var(--text-muted); padding: 4px 4px; border-bottom: 1px solid var(--border-main); }
+.${PRE}-table th:first-child { width: auto; } .${PRE}-table th.num { width: 52px; } .${PRE}-table th.q { width: 40px; }
 .${PRE}-table td { padding: 5px 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); vertical-align: top; }
 .${PRE}-table .num { text-align: right; font-family: var(--font-mono); white-space: nowrap; }
 .${PRE}-table .line { color: #fff; font-weight: 700; }
 .${PRE}-table tr.owned td { opacity: 0.4; }
-.${PRE}-pn { color: #e2e8f0; font-weight: 600; line-height: 1.2; }
-.${PRE}-pc { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
-.${PRE}-pc i { width: 8px; height: 8px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.25); display: inline-block; }
-.${PRE}-chip .${PRE}-chip-val { font-family: var(--font-mono); color: var(--lego-yellow); }
+.${PRE}-pn { color: #e2e8f0; font-weight: 600; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.${PRE}-pc { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; overflow: hidden; white-space: nowrap; }
+.${PRE}-pc i { width: 8px; height: 8px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.25); display: inline-block; flex: none; }
+.${PRE}-src { font-size: 11px; color: var(--text-muted); margin-top: 8px; line-height: 1.4; }
+/* the header summary's price */
+.${PRE}-price { color: var(--lego-yellow); cursor: pointer; border-radius: 4px; }
+.${PRE}-price:hover { text-decoration: underline; text-underline-offset: 3px; }
+.${PRE}-price:focus-visible { outline: 2px solid var(--lego-yellow); outline-offset: 2px; }
 /* the parts table: owned rows fade, partial rows say what is still needed */
 #bom-table-body tr.${PRE}-owned td { opacity: 0.45; }
 #bom-table-body tr.${PRE}-owned .part-name { text-decoration: line-through; }
 .${PRE}-tag { display: block; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.3px; margin-top: 3px; color: #7ee787; white-space: nowrap; }
 .${PRE}-tag.partial { color: var(--lego-yellow); }
-@media (max-width: 600px) {
-  .${PRE}-total { font-size: 26px; } .${PRE}-table { font-size: 10px; }
-}
+#panel-buy { background: linear-gradient(180deg, rgba(242,205,55,0.035), transparent 70%); }
 `;
 
     function init() {
         const sf = window.studForge;
-        if (!sf || !sf.registerPanel) return;
+        if (!sf || !sf.registerPanel || sf.buy) return;
         const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
 
         let ownedText = '';
@@ -234,50 +264,50 @@
         let entries = parseOwned(ownedText);
         let est = null;
         let lastSwap = null;          // { roles: { role: previousValueOrNull } } for UNDO
-        let swapsOpen = false;
+        let swapsFor = null;          // the model the tip was worked out for
+        let breakdownTouched = false; // once someone opens or closes the breakdown, it stays how they left it
 
-        /* the panel */
-        const panel = sf.registerPanel({ id: 'buy', title: '🛒 BUY' });
+        /* the section: top of the Parts tab, above the core parts list (order 50) */
+        const panel = sf.registerPanel({ id: 'buy', title: null, group: 'parts', order: 20 });
         const body = panel.body;
         body.innerHTML = `
-<h4>PRICE ESTIMATE</h4>
-<div class="${PRE}-total" id="${PRE}-total">≈ $0.00</div>
+<div class="${PRE}-head">
+  <div><div class="${PRE}-k">ESTIMATED PRICE</div><div class="${PRE}-total" id="${PRE}-total">≈ $0.00</div></div>
+  <div class="${PRE}-pcs"><b id="${PRE}-pieces">0</b><span id="${PRE}-pieces-l">PIECES</span></div>
+</div>
 <div class="${PRE}-range" id="${PRE}-range"></div>
 <div class="${PRE}-ownnote" id="${PRE}-ownnote" hidden></div>
-<p class="${PRE}-note">Rough new-part ballparks (USD, recent marketplace averages) – real prices vary by seller and colour. Buy the list on BrickLink or LEGO Pick-a-Brick.</p>
-<div class="${PRE}-sec">
-  <h4>💸 CHEAPER COLOURS</h4>
-  <div class="${PRE}-row"><button class="action-btn secondary" id="${PRE}-find">💸 CHEAPER COLOURS</button><button class="action-btn tertiary" id="${PRE}-undo" hidden>↩ UNDO SWAP</button></div>
-  <div class="${PRE}-swaps" id="${PRE}-swaps"></div>
+<div class="${PRE}-block">
+  <button class="${PRE}-toggle" id="${PRE}-own-toggle" type="button" aria-expanded="false" aria-controls="${PRE}-own"><span>🧱</span><span class="t-main">I own some of these bricks</span><span class="t-badge" id="${PRE}-own-badge"></span><span class="t-car">▾</span></button>
+  <div class="${PRE}-own" id="${PRE}-own" hidden>
+    <p class="${PRE}-note">One per line, like <code>10 x 3001 red</code> or <code>2x4 brick red 10</code>, or paste a copied parts list. No colour means any colour.</p>
+    <textarea class="${PRE}-ta" id="${PRE}-ta" placeholder="10 x 3001 red&#10;2x4 plate 6&#10;3024 white 20" spellcheck="false" aria-label="Bricks you own"></textarea>
+    <div class="${PRE}-row"><button class="action-btn primary" id="${PRE}-save" type="button">✓ Count what I own</button><button class="action-btn tertiary" id="${PRE}-clear" type="button">Clear</button></div>
+    <div class="${PRE}-status" id="${PRE}-status"></div>
+    <div class="${PRE}-row"><button class="action-btn secondary" id="${PRE}-copy" type="button">📋 Copy what I still need</button></div>
+  </div>
 </div>
-<div class="${PRE}-sec">
-  <h4>🧱 I OWN THESE BRICKS</h4>
-  <p class="${PRE}-note" style="margin:0">One per line: <code>10 x 3001 red</code>, <code>2x4 brick red 10</code>, or paste the COPY LIST text. No colour = any colour.</p>
-  <textarea class="${PRE}-ta" id="${PRE}-ta" placeholder="10 x 3001 red&#10;2x4 plate 6&#10;3024 white 20" spellcheck="false"></textarea>
-  <div class="${PRE}-row"><button class="action-btn primary" id="${PRE}-save">✓ APPLY OWNED</button><button class="action-btn tertiary" id="${PRE}-clear">CLEAR</button></div>
-  <div class="${PRE}-status" id="${PRE}-status"></div>
-  <div class="${PRE}-row"><button class="action-btn secondary" id="${PRE}-copy">📋 COPY MISSING PARTS</button></div>
+<div class="${PRE}-block ${PRE}-tip" id="${PRE}-tip">
+  <div class="${PRE}-tip-h"><div class="${PRE}-k">💸 CHEAPER COLOURS</div><button class="${PRE}-undo" id="${PRE}-undo" type="button" hidden>↩ UNDO SWAP</button></div>
+  <div id="${PRE}-swaps"><div class="${PRE}-empty">Checking for pricey colours…</div></div>
 </div>
-<div class="${PRE}-sec">
-  <h4>BREAKDOWN</h4>
-  <table class="${PRE}-table"><thead><tr><th>PART</th><th class="num">QTY</th><th class="num">UNIT</th><th class="num">LINE</th></tr></thead><tbody id="${PRE}-rows"></tbody></table>
-</div>`;
+<details class="${PRE}-bd" id="${PRE}-bd">
+  <summary><span class="${PRE}-k">PRICE BREAKDOWN</span><small id="${PRE}-bd-n"></small><i>▾</i></summary>
+  <table class="${PRE}-table"><thead><tr><th>PART</th><th class="num q">QTY</th><th class="num">EACH</th><th class="num">TOTAL</th></tr></thead><tbody id="${PRE}-rows"></tbody></table>
+  <p class="${PRE}-src">Rough new-part prices (USD, recent marketplace averages); real prices vary by seller and colour. Buy the list on BrickLink or LEGO Pick a Brick.</p>
+</details>`;
         const $ = (id) => body.querySelector(`#${PRE}-${id}`);
         const ta = $('ta'); ta.value = ownedText;
 
-        /* the dock chip */
-        const chip = document.createElement('button');
-        chip.className = `tool-chip ${PRE}-chip`; chip.type = 'button'; chip.title = 'What these bricks would cost';
-        chip.innerHTML = `🛒 <span class="${PRE}-chip-val">≈ $0.00</span>`;
-        chip.addEventListener('click', () => {
-            // On phones the side panel is folded under the PARTS button: unfold it first.
-            const card = document.getElementById('bom-card'), toggle = document.getElementById('btn-bom-toggle');
-            if (card && toggle && getComputedStyle(card).display === 'none') toggle.click();
-            panel.show();
-            // Bring the card on screen when it sits below the fold (phones stack it under the viewport).
-            if (card) { const r = card.getBoundingClientRect(); if (r.top > window.innerHeight - 120 || r.bottom < 0) card.scrollIntoView({ block: 'start' }); }
-        });
-        sf.dock(chip);
+        /* the price in the header summary: "≈ $6.68", opens this section */
+        // The summary is itself a button (it opens the Build tab), so this is a span with button behaviour.
+        const price = document.createElement('span');
+        price.className = `${PRE}-price`; price.setAttribute('role', 'button'); price.tabIndex = 0;
+        price.title = 'What these bricks would cost'; price.textContent = '≈ $0.00';
+        const openBuy = (e) => { e.stopPropagation(); e.preventDefault(); sf.showPanel('buy'); };
+        price.addEventListener('click', openBuy);
+        price.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') openBuy(e); });
+        if (sf.summarySlot) sf.summarySlot(price);
 
         const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
         const colorName = (id) => (colors()[id] || { name: id }).name;
@@ -286,18 +316,25 @@
         function renderEstimate() {
             if (!sf.model) return;
             est = estimate(sf.model, entries);
+            const toBuy = est.pieces - est.ownedPieces;
             $('total').textContent = `≈ ${money(est.total)}`;
-            $('range').textContent = `LOW ${money(est.low)} – HIGH ${money(est.high)} · ${est.pieces - est.ownedPieces} PIECES TO BUY`;
+            $('pieces').textContent = String(toBuy);
+            $('pieces-l').textContent = est.ownedPieces ? 'PIECES TO BUY' : 'PIECES';
+            $('range').textContent = `Likely ${money(est.low)} to ${money(est.high)} · ${est.rows.length} kinds of part`;
             const note = $('ownnote');
             note.hidden = !est.ownedPieces;
-            if (est.ownedPieces) note.textContent = `YOU OWN ${est.ownedPieces} OF ${est.pieces} PIECES (−${money(est.ownedValue)})`;
-            chip.querySelector(`.${PRE}-chip-val`).textContent = `≈ ${money(est.total)}`;
-            $('rows').innerHTML = est.rows.map((r) => `<tr class="${r.need === 0 ? 'owned' : ''}"><td><div class="${PRE}-pn">${esc(r.partName)}</div><div class="${PRE}-pc"><i style="background:${r.colorHex}"></i>${esc(r.colorName)} · #${esc(r.partId)}</div></td><td class="num">${r.need < r.quantity ? `${r.need}<span style="color:var(--text-muted)">/${r.quantity}</span>` : r.quantity}</td><td class="num">${money(r.unit)}</td><td class="num line">${money(r.line)}</td></tr>`).join('');
+            if (est.ownedPieces) note.textContent = `You own ${est.ownedPieces} of ${est.pieces} pieces (−${money(est.ownedValue)})`;
+            price.textContent = `≈ ${money(est.total)}`;
+            $('rows').innerHTML = est.rows.map((r) => `<tr class="${r.need === 0 ? 'owned' : ''}"><td><div class="${PRE}-pn" title="${esc(r.partName)}">${esc(r.partName)}</div><div class="${PRE}-pc"><i style="background:${r.colorHex}"></i>${esc(r.colorName)} · #${esc(r.partId)}</div></td><td class="num">${r.need < r.quantity ? `${r.need}<span style="color:var(--text-muted)">/${r.quantity}</span>` : r.quantity}</td><td class="num">${money(r.unit)}</td><td class="num line">${money(r.line)}</td></tr>`).join('');
+            $('bd-n').textContent = `${est.rows.length} line${est.rows.length === 1 ? '' : 's'}`;
+            // Short breakdowns show open; long ones fold away until asked for.
+            if (!breakdownTouched) $('bd').open = est.rows.length <= 6;
             decorateParts();
-            if (swapsOpen) findSwaps();
+            scheduleSwaps();
         }
+        $('bd').querySelector('summary').addEventListener('click', () => { breakdownTouched = true; });
 
-        // Grey out owned rows in the PARTS table; main.js re-renders it on every model, so this runs after.
+        // Grey out owned rows in the core parts table; main.js re-renders it on every model, so this runs after.
         function decorateParts() {
             const rows = document.querySelectorAll('#bom-table-body tr[data-part][data-color]');
             const byKey = new Map((est ? est.rows : []).map((r) => [r.key, r]));
@@ -315,17 +352,22 @@
         }
 
         /* owned list */
+        const ownToggle = $('own-toggle'), ownBox = $('own');
+        const setOwnOpen = (open) => { ownBox.hidden = !open; ownToggle.setAttribute('aria-expanded', String(open)); if (open && !(sf.isPhone && sf.isPhone())) ta.focus({ preventScroll: true }); };   // no surprise keyboard on phones
+        ownToggle.addEventListener('click', () => setOwnOpen(ownBox.hidden));
         function applyOwned() {
             ownedText = ta.value;
             entries = parseOwned(ownedText);
             try { if (ownedText.trim()) localStorage.setItem(STORE_KEY, ownedText); else localStorage.removeItem(STORE_KEY); } catch (e) { /* not persisted */ }
             renderStatus();
+            swapsFor = null;     // savings depend on what is owned
             renderEstimate();
         }
         function renderStatus() {
             const good = entries.filter((e) => e.ok), bad = entries.filter((e) => !e.ok);
             const pieces = good.reduce((n, e) => n + e.qty, 0);
-            $('status').innerHTML = !entries.length ? '' : `${good.length} LINE${good.length === 1 ? '' : 'S'} · ${pieces} PIECES OWNED` + (bad.length ? `<br><span class="bad">COULDN'T READ: ${bad.slice(0, 3).map((e) => esc(e.raw.trim())).join(' · ')}${bad.length > 3 ? ` (+${bad.length - 3})` : ''}</span>` : '');
+            $('own-badge').textContent = pieces ? `${pieces} owned` : '';
+            $('status').innerHTML = !entries.length ? '' : `Read ${good.length} line${good.length === 1 ? '' : 's'}: ${pieces} piece${pieces === 1 ? '' : 's'} owned` + (bad.length ? `<br><span class="bad">Couldn't read: ${bad.slice(0, 3).map((e) => esc(e.raw.trim())).join(' · ')}${bad.length > 3 ? ` (+${bad.length - 3})` : ''}</span>` : '');
         }
         $('save').addEventListener('click', applyOwned);
         ta.addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') applyOwned(); });
@@ -339,12 +381,12 @@
             const rows = est.rows.filter((r) => r.need > 0).sort((a, b) => b.need - a.need);
             const need = rows.reduce((n, r) => n + r.need, 0);
             let text = `📦 STUDFORGE MISSING PARTS: ${m.name.toUpperCase()}\n${m.description}\n`;
-            text += `Still Needed: ${need} of ${m.bricks.length} pieces | Unique Elements: ${rows.length} | Est. ≈ ${money(est.total)}\n\n[ ] QTY | ELEMENT | DESIGN ID | COLOR\n----------------------------------------------------\n`;
+            text += `Still Needed: ${need} of ${est.pieces} pieces | Unique Elements: ${rows.length} | Est. ≈ ${money(est.total)}\n\n[ ] QTY | ELEMENT | DESIGN ID | COLOR\n----------------------------------------------------\n`;
             for (const r of rows) text += `[ ] ${String(r.need).padEnd(4)} | ${r.partName.padEnd(34)} | #${r.partId.padEnd(6)} | ${r.colorName}\n`;
             text += `\nGenerated with StudForge 3D LEGO Idea Maker (https://tonytoubia.com/studforge) from the idea "${m.prompt || m.name}"`;
             return text;
         }
-        $('copy').addEventListener('click', () => { const b = $('copy'); copyText(missingText()).then(() => flash(b, '✓ COPIED!'), () => flash(b, '✗ COPY BLOCKED')); });
+        $('copy').addEventListener('click', () => { const b = $('copy'); copyText(missingText()).then(() => { flash(b, '✓ Copied'); if (sf.toast) sf.toast('Missing parts copied'); }, () => flash(b, '✗ Copy blocked')); });
 
         /* cheaper colours: dry-run the forge with each swap to price the real saving */
         const mergedOpts = (patch) => {
@@ -354,10 +396,14 @@
             for (const k of Object.keys(colorsOpt)) if (colorsOpt[k] == null) delete colorsOpt[k];
             return { ...o, colors: colorsOpt };
         };
+        // Only a model the generator made from the current idea can be re-forged with other colours
+        // (a real set, a mosaic or a Claude design is not the prompt in the bar).
+        const swappable = (m) => m && m.palette && m.kind !== 'reference' && m.kind !== 'mosaic' && (m.prompt || '') === (sf.state.prompt || '') && (m.variant | 0) === (sf.state.variant | 0);
         function findSwaps() {
-            swapsOpen = true;
             const box = $('swaps'); box.innerHTML = '';
-            const m = sf.model; if (!m || !est) return;
+            const m = sf.model; if (!m || !est) return [];
+            swapsFor = m;
+            if (!swappable(m)) { box.innerHTML = `<div class="${PRE}-empty">The colours of this model are fixed, so there is no swap to suggest.</div>`; return []; }
             const used = new Set(m.bricks.map((b) => b.color));
             // Group roles by the rare colour they share, so one APPLY swaps "gold" everywhere it appears.
             const groups = new Map();
@@ -377,10 +423,10 @@
                 if (saving > 0.005) found.push({ from, to, roles, saving, patch });
             }
             found.sort((a, b) => b.saving - a.saving);
-            if (!found.length) { box.innerHTML = `<div class="${PRE}-empty">${groups.size ? 'The pricey colours here are baked into the design – a palette swap would not change them.' : 'No pricey colours in this build – it is already as cheap as it gets. 🎉'}</div>`; return; }
+            if (!found.length) { box.innerHTML = `<div class="${PRE}-empty">${groups.size ? 'The pricey colours here are part of the design; a swap would not change them.' : 'No pricey colours in this build. It is already as cheap as it gets.'}</div>`; return found; }
             for (const s of found) {
                 const el = document.createElement('div'); el.className = `${PRE}-swap`;
-                el.innerHTML = `<div class="${PRE}-swap-info"><div class="${PRE}-swap-roles">${esc(s.roles.join(' · '))}</div><div class="${PRE}-swap-colors"><span><i class="${PRE}-dot" style="background:${colorHex(s.from)}"></i>${esc(colorName(s.from))}</span><span>→</span><span><i class="${PRE}-dot" style="background:${colorHex(s.to)}"></i>${esc(colorName(s.to))}</span></div><div class="${PRE}-swap-save">SAVE ≈ ${money(s.saving)}</div></div><button class="action-btn primary" type="button">APPLY</button>`;
+                el.innerHTML = `<div class="${PRE}-swap-info"><div class="${PRE}-swap-colors"><span><i class="${PRE}-dot" style="background:${colorHex(s.from)}"></i>${esc(colorName(s.from))}</span><span>→</span><span><i class="${PRE}-dot" style="background:${colorHex(s.to)}"></i>${esc(colorName(s.to))}</span></div><div class="${PRE}-swap-meta"><b>Save ≈ ${money(s.saving)}</b> · ${esc(s.roles.join(', '))}</div></div><button class="action-btn primary" type="button">Swap</button>`;
                 el.querySelector('button').addEventListener('click', () => {
                     const prev = {}; const o = (sf.state.opts && sf.state.opts.colors) || {};
                     for (const r of s.roles) prev[r] = o[r] == null ? null : o[r];
@@ -388,11 +434,22 @@
                     $('undo').hidden = false;
                     sf.reforge({ colors: s.patch });
                     if (window.studForgeAudio && window.studForgeAudio.playRatchetClick) { try { window.studForgeAudio.playRatchetClick(); } catch (e) { /* silent */ } }
+                    if (sf.toast) sf.toast(`Swapped ${colorName(s.from)} for ${colorName(s.to)}`);
                 });
                 box.appendChild(el);
             }
+            return found;
         }
-        $('find').addEventListener('click', findSwaps);
+        // The tip is worked out lazily (it dry-runs a forge per pricey colour): only while the Parts tab is showing.
+        let swapTimer = 0;
+        const partsShowing = () => { const t = document.getElementById('tab-parts'); return !!(t && t.classList.contains('on')); };
+        function scheduleSwaps() {
+            clearTimeout(swapTimer);
+            if (swapsFor === sf.model) return;
+            $('swaps').innerHTML = `<div class="${PRE}-empty">Checking for pricey colours…</div>`;
+            if (partsShowing()) swapTimer = setTimeout(() => { if (swapsFor !== sf.model) findSwaps(); }, 60);
+        }
+        sf.on('panel', (tab) => { if (tab === 'parts' && swapsFor !== sf.model) { clearTimeout(swapTimer); swapTimer = setTimeout(findSwaps, 30); } });
         $('undo').addEventListener('click', () => {
             if (!lastSwap) return;
             const colorsPatch = {}; for (const [r, v] of Object.entries(lastSwap.roles)) colorsPatch[r] = v;
@@ -400,15 +457,17 @@
             sf.reforge({ colors: colorsPatch });
         });
 
-        // A new idea: clear the undo stack (it belonged to the old idea) and recompute.
+        // A new idea: clear the undo (it belonged to the old idea) and recompute.
         let lastPrompt = null;
-        sf.on('forging', ({ prompt }) => { if (prompt !== lastPrompt) { lastPrompt = prompt; lastSwap = null; $('undo').hidden = true; swapsOpen = false; $('swaps').innerHTML = ''; } });
+        sf.on('forging', ({ prompt }) => { if (prompt !== lastPrompt) { lastPrompt = prompt; lastSwap = null; $('undo').hidden = true; } });
         sf.on('model', renderEstimate);
         renderStatus();
         if (sf.model) renderEstimate();
 
         // Small API for other features and tests.
-        window.studForgeBuy = { parseOwned, estimate: (m) => estimate(m || sf.model, entries), unitPrice, refresh: renderEstimate, get entries() { return entries; }, get estimate_() { return est; }, findSwaps };
+        const api = { parseOwned, estimate: (m) => estimate(m || sf.model, entries), unitPrice, refresh: renderEstimate, get entries() { return entries; }, get estimate_() { return est; }, findSwaps, show: () => sf.showPanel('buy') };
+        sf.buy = api;
+        window.studForgeBuy = api;
     }
 
     if (window.studForge) init();

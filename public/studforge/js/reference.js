@@ -1,64 +1,73 @@
-// StudForge reference viewer: build a REAL set step by step.
+// StudForge real sets: build a REAL set step by step.
 //
 // The LDraw community's Official Model Repository (OMR) rebuilds official sets part for part.
 // A curated set of them is converted into StudForge models (data/omr/, loaded and expanded by
-// FORGE.omr in omr.js) whose bricks carry their LDraw part id, a 3×3 rotation and their real
-// instruction step. This feature adds, inside the 🏷️ REAL SETS panel:
-//   - 🏷️ BUILD A REAL SET: the converted sets of the current idea's subject (cards: set number,
-//     name, year, pieces), and a NOW BUILDING card while one is loaded (attribution, a
-//     ⚒️ FORGE ONE LIKE THIS button that forges the same subject with the generator)
-//   - 📚 BROWSE ALL REAL SETS: every converted set, searchable, grouped by theme
+// FORGE.omr in omr.js) whose bricks carry their LDraw part id, a 3x3 rotation and their real
+// instruction step. This feature adds:
+//   - a "start from" source in Make, 🏷️ A real set (showPanel('realsets-browse')): every converted set,
+//     searchable, filtered by kind (vehicles, space, buildings...), as cards (name, set number, year, theme,
+//     pieces, steps). Picking one loads it and closes Make.
+//   - in the LEARN tab: the real-set card while one is shown (set, attribution, ⚒️ FORGE ONE LIKE THIS,
+//     ⏮ STEP 1), and BUILD A REAL ONE: the converted sets of the current model's subject
+//   - on the BUILD tab: a REFERENCE badge and the attribution line under #model-desc, and the step hint names
+//     the sub-assembly a step builds
 // Loading a set preloads its baked part geometry (BrickBuilder.preload) and then hands the model
-// to studForge.load, opened at step 1 so the step slider, the STEPS panel and the booklet walk the
-// real instruction steps. The step hint names the sub-assembly a step builds.
+// to studForge.load, opened at step 1 so the step slider, the steps list and the booklet walk the
+// real instruction steps.
 //
 // A reference is not a forge, so the options that re-run the generator are rerouted while one is
 // shown: studForge.reforge() rebuilds the set from its pristine colours (so colour swaps from
-// TWEAKS and PARTS still apply as direct recolours), and scale or feature dials do nothing.
+// Style and Parts still apply as direct recolours), and scale or feature dials do nothing.
 // `?ref=<setId>` opens a set on load; the gallery writes that link for a reference.
 (() => {
     const PRE = 'sfref';
     const CSS = `
-.${PRE}-sec { margin-bottom: 16px; }
-.${PRE}-sec h4 { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.${PRE}-sec h4 small { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); letter-spacing: 0.4px; font-weight: 500; }
-.${PRE}-hint { font-size: 12px; color: var(--text-muted); line-height: 1.45; margin: 0 0 8px; }
-.${PRE}-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
-.${PRE}-card { display: flex; flex-direction: column; gap: 3px; text-align: left; background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 8px; padding: 8px 9px; cursor: pointer; color: inherit; font: inherit; min-width: 0; transition: border-color 0.15s ease, transform 0.15s ease; }
+.${PRE}-browser { display: flex; flex-direction: column; gap: 10px; }
+.${PRE}-intro { margin: 0; font-size: 14px; color: var(--text-secondary); line-height: 1.4; }
+.${PRE}-search { width: 100%; box-sizing: border-box; height: 40px; background: var(--bg-main); border: 1px solid var(--border-main); border-radius: 9px; color: #fff; font-family: var(--font-body); font-size: 16px; font-weight: 600; padding: 0 12px; outline: none; user-select: text; -webkit-user-select: text; }
+.${PRE}-search::placeholder { color: var(--text-muted); font-weight: 500; }
+.${PRE}-search:focus { border-color: var(--border-active); }
+.${PRE}-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.${PRE}-chips .tool-chip { min-height: 32px; font-size: 13px; white-space: nowrap; }
+.${PRE}-chips .tool-chip i { font-style: normal; font-family: var(--font-mono); font-size: 10px; font-weight: 500; color: var(--text-muted); }
+.${PRE}-chips .tool-chip.on { background: rgba(242, 205, 55, 0.1); color: var(--lego-yellow); }
+.${PRE}-bar { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-height: 14px; }
+.${PRE}-count { font-family: var(--font-heading); font-size: 9px; font-weight: 700; letter-spacing: 1.2px; color: var(--text-muted); }
+.${PRE}-status { font-family: var(--font-heading); font-size: 9px; font-weight: 700; letter-spacing: 0.8px; color: var(--lego-yellow); text-align: right; }
+.${PRE}-status.err { color: #f87171; }
+.${PRE}-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(160px, 100%), 1fr)); gap: 8px; }
+.${PRE}-card { display: flex; flex-direction: column; gap: 3px; text-align: left; background: var(--bg-main); border: 1px solid var(--border-main); border-radius: 10px; padding: 10px 11px; cursor: pointer; color: inherit; font: inherit; min-width: 0; transition: border-color 0.15s ease, transform 0.15s ease; }
 .${PRE}-card:hover, .${PRE}-card:focus-visible { border-color: var(--lego-yellow); transform: translateY(-1px); outline: none; }
 .${PRE}-card.on { border-color: var(--lego-yellow); box-shadow: inset 0 0 0 1px var(--lego-yellow); }
-.${PRE}-card.busy { opacity: 0.6; cursor: progress; }
-.${PRE}-num { font-family: var(--font-mono); font-size: 10px; color: var(--lego-yellow); letter-spacing: 0.3px; }
-.${PRE}-name { font-family: var(--font-heading); font-size: 10px; font-weight: 700; color: #fff; letter-spacing: 0.3px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.${PRE}-meta { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); letter-spacing: 0.3px; }
-.${PRE}-now { border: 1px solid rgba(242, 205, 55, 0.45); border-radius: 10px; padding: 10px 11px; background: rgba(242, 205, 55, 0.06); margin-bottom: 16px; }
+.${PRE}-card.busy { opacity: 0.65; cursor: progress; }
+.${PRE}-card.busy .${PRE}-meta::after { content: ' · LOADING…'; color: var(--lego-yellow); }
+.${PRE}-top { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 10px; color: var(--lego-yellow); letter-spacing: 0.3px; }
+.${PRE}-top .ico { font-size: 15px; line-height: 1; }
+.${PRE}-top .yr { color: var(--text-muted); margin-left: auto; }
+.${PRE}-name { font-family: var(--font-body); font-size: 15px; font-weight: 700; color: #fff; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.${PRE}-theme { font-size: 12px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.${PRE}-meta { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); letter-spacing: 0.3px; }
+.${PRE}-empty { grid-column: 1 / -1; font-size: 14px; color: var(--text-muted); padding: 14px 0; text-align: center; }
+.${PRE}-foot { margin: 2px 0 0; font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+.${PRE}-hint { font-size: 13px; color: var(--text-secondary); line-height: 1.45; margin: 0 0 10px; }
+.${PRE}-more { margin-top: 10px; }
+.${PRE}-now { border: 1px solid rgba(242, 205, 55, 0.45); border-radius: 10px; padding: 12px; background: rgba(242, 205, 55, 0.06); }
 .${PRE}-badge { display: inline-block; font-family: var(--font-heading); font-size: 8px; font-weight: 800; letter-spacing: 1px; color: #0c0f17; background: var(--lego-yellow); border-radius: 4px; padding: 2px 6px; margin-bottom: 6px; }
 .${PRE}-now h5 { margin: 0 0 4px; font-family: var(--font-heading); font-size: 13px; color: #fff; letter-spacing: 0.4px; line-height: 1.3; }
-.${PRE}-now p { margin: 0 0 6px; font-size: 12px; color: var(--text-secondary); line-height: 1.45; }
-.${PRE}-attr { font-size: 10px !important; color: var(--text-muted) !important; line-height: 1.4; }
+.${PRE}-now p { margin: 0 0 6px; font-size: 13px; color: var(--text-secondary); line-height: 1.45; }
+.${PRE}-now p b { color: #e2e8f0; }
+.${PRE}-attr { font-size: 11px !important; color: var(--text-muted) !important; line-height: 1.4; }
 .${PRE}-attr a { color: var(--text-secondary); }
-.${PRE}-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.${PRE}-row .action-btn { flex: 1 1 auto; margin: 0; }
-.${PRE}-search { width: 100%; box-sizing: border-box; background: var(--bg-main, #0c0f17); border: 1px solid var(--border-main); border-radius: 8px; color: #fff; font-family: var(--font-body); font-size: 13px; padding: 7px 10px; outline: none; margin-bottom: 8px; user-select: text; -webkit-user-select: text; }
-.${PRE}-search:focus { border-color: var(--border-active, var(--lego-yellow)); }
-.${PRE}-theme { margin: 8px 0 4px; font-family: var(--font-heading); font-size: 9px; letter-spacing: 1px; color: var(--text-secondary); text-transform: uppercase; display: flex; justify-content: space-between; }
-.${PRE}-theme small { font-family: var(--font-mono); color: var(--text-muted); }
-.${PRE}-list { list-style: none; margin: 0; padding: 0; }
-.${PRE}-browse-list { max-height: 340px; overflow-y: auto; overscroll-behavior: contain; }
-.${PRE}-browse summary { cursor: pointer; }
-.${PRE}-item { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; width: 100%; text-align: left; background: transparent; border: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding: 6px 2px; cursor: pointer; color: inherit; font: inherit; }
-.${PRE}-item:hover, .${PRE}-item:focus-visible { background: rgba(255, 255, 255, 0.04); outline: none; }
-.${PRE}-item.on .${PRE}-iname { color: var(--lego-yellow); }
-.${PRE}-iname { font-size: 12px; color: #e2e8f0; line-height: 1.3; }
-.${PRE}-iname small { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); margin-left: 4px; }
-.${PRE}-ipcs { font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary); white-space: nowrap; }
-.${PRE}-status { font-family: var(--font-heading); font-size: 9px; letter-spacing: 0.8px; color: var(--lego-yellow); min-height: 12px; margin-top: 6px; }
-.${PRE}-status.err { color: #f87171; }
+.${PRE}-row { display: grid; grid-template-columns: 1fr auto; gap: 6px; margin-top: 10px; }
+.${PRE}-row .action-btn { margin: 0; min-height: 36px; padding: 9px 12px; }
 .${PRE}-vbadge { background: var(--lego-yellow) !important; color: #0c0f17 !important; border-color: var(--lego-yellow) !important; }
-.active-model-desc + .${PRE}-vattr, .${PRE}-vattr { margin: 2px 0 0; font-size: 10px; color: var(--text-muted); line-height: 1.35; max-width: 520px; }
+.${PRE}-vattr { margin: 4px 0 0; font-size: 11px; color: var(--text-muted); line-height: 1.35; }
 .${PRE}-vattr[hidden] { display: none; }
-@media (max-width: 600px) { .${PRE}-cards { grid-template-columns: 1fr 1fr; } }
-@media print { .${PRE}-now .${PRE}-row, .${PRE}-search { display: none !important; } }
+@media (max-width: 767px) {
+  .${PRE}-chips { flex-wrap: nowrap; overflow-x: auto; margin: 0 -12px; padding: 0 12px 2px; scrollbar-width: none; }
+  .${PRE}-chips::-webkit-scrollbar { display: none; }
+}
+@media print { .${PRE}-now .${PRE}-row { display: none !important; } }
 `;
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
@@ -109,7 +118,7 @@
 
     function init() {
         const sf = window.studForge;
-        if (!sf || !sf.registerPanel || !window.BrickBuilder) return;
+        if (!sf || !sf.registerPanel || !sf.addSource || !window.BrickBuilder) return;
         const style = el('style'); style.id = `${PRE}-style`; style.textContent = CSS; document.head.appendChild(style);
         const K = () => (window.FORGE && window.FORGE.knowledge) || null;
         const pieces = (m) => m.bricks.reduce((n, b) => n + (b.segment ? 0 : 1), 0);   // hose segments are one piece
@@ -212,6 +221,7 @@
                 if (my !== token) return;
                 console.warn('StudForge real set', id, e);
                 loading = null; status = '✗ COULD NOT LOAD THAT SET'; statusErr = true; refresh();
+                if (sf.toast) sf.toast('Could not load that real set');
             }
         }
 
@@ -264,110 +274,148 @@
             if (subs && subs.length) stepHint.innerText = `${stepHint.innerText} · ⚙️ ${prettySub(subs[0]).toUpperCase()}`;
         }
 
-        /* ── the REAL SETS panel section ───────────────────────── */
-        let query = '';
-        let browseOpen = false;
-        const setCard = (e, on) => {
-            const b = el('button', `${PRE}-card${on ? ' on' : ''}${loading === e.id ? ' busy' : ''}`);
+        /* ── cards, shared by the browser and BUILD A REAL ONE ─── */
+        const iconOf = (subject) => { const rs = realsets(); return rs && rs.subjectIcon ? rs.subjectIcon(subject) : '🏷️'; };
+        const themeText = (t) => String(t || '').split(' > ').join(' · ');
+        const shownId = () => (isRef() ? sf.model.reference.setId : null);
+        const setCard = (e) => {
+            const b = el('button', `${PRE}-card${e.id === shownId() ? ' on' : ''}${loading === e.id ? ' busy' : ''}`);
             b.type = 'button'; b.dataset.set = e.id; b.title = `Build ${e.name} (${e.id}) step by step`;
-            b.innerHTML = `<span class="${PRE}-num">#${esc(e.id)}</span><span class="${PRE}-name">${esc(e.name)}</span><span class="${PRE}-meta">${esc(e.year || '')}${e.year ? ' · ' : ''}${esc(e.pieces || '?')} PCS${e.steps ? ` · ${esc(e.steps)} STEPS` : ''}</span>`;
+            b.innerHTML = `<span class="${PRE}-top"><span class="ico" aria-hidden="true">${iconOf(e.subject)}</span>#${esc(e.id)}${e.year ? `<span class="yr">${esc(e.year)}</span>` : ''}</span>`
+                + `<span class="${PRE}-name">${esc(e.name)}</span>`
+                + (e.theme ? `<span class="${PRE}-theme">${esc(themeText(e.theme))}</span>` : '')
+                + `<span class="${PRE}-meta">${esc(e.pieces || '?')} PCS${e.steps ? ` · ${esc(e.steps)} STEP${e.steps === 1 ? '' : 'S'}` : ''}</span>`;
             b.addEventListener('click', () => loadSet(e.id));
             return b;
         };
-        function browseList(wrap, shownId) {
-            wrap.innerHTML = '';
+        /** Loading and "now showing" marks on every card, and the status lines, without re-rendering. */
+        function refresh() {
+            const on = shownId();
+            for (const c of document.querySelectorAll(`.${PRE}-card[data-set]`)) { c.classList.toggle('busy', c.dataset.set === loading); c.classList.toggle('on', c.dataset.set === on); }
+            for (const s of document.querySelectorAll(`.${PRE}-status`)) { s.textContent = status; s.classList.toggle('err', statusErr); }
+        }
+
+        /* ── Make → 🏷️ A real set: the browser ─────────────────── */
+        const SOURCE = 'realsets-browse';
+        const KINDS = [
+            ['vehicles', '🚗 Vehicles', ['fireTruck', 'policeCar', 'ambulance', 'car', 'truck', 'monsterTruck', 'garbageTruck', 'bus', 'tractor', 'construction', 'motorcycle', 'tank']],
+            ['trains', '🚂 Trains', ['train']],
+            ['airsea', '✈️ Air & sea', ['plane', 'helicopter', 'boat', 'ship', 'pirateShip', 'submarine']],
+            ['space', '🚀 Space', ['rocket', 'spaceship', 'rover', 'spaceStation', 'robot']],
+            ['buildings', '🏠 Buildings', ['house', 'tower', 'lighthouse', 'windmill', 'bridge', 'shop', 'station', 'farm']],
+            ['castle', '🏰 Castles & dragons', ['castle', 'dragon']],
+            ['nature', '🐾 Animals', ['animal', 'bird', 'seaCreature', 'dinosaur', 'tree', 'flower', 'insect']],
+        ];
+        let query = '', kind = 'all';
+        const src = sf.addSource({ id: SOURCE, icon: '🏷️', label: 'A real set', hint: '100 sets, built step by step', order: 10 });
+        const sb = src.body;
+        sb.innerHTML = `<div class="${PRE}-browser">
+  <p class="${PRE}-intro">Official LEGO sets, rebuilt part for part by the LDraw community. Pick one to build it with its real instruction steps.</p>
+  <input type="search" class="${PRE}-search" placeholder="Search by name, set number, theme or year" aria-label="Search real sets" enterkeyhint="search" autocomplete="off" spellcheck="false">
+  <div class="${PRE}-chips" role="group" aria-label="Filter by kind"></div>
+  <div class="${PRE}-bar"><span class="${PRE}-count"></span><span class="${PRE}-status" role="status"></span></div>
+  <div class="${PRE}-grid"><p class="${PRE}-empty">Loading the real sets…</p></div>
+  <p class="${PRE}-foot">Models by the LDraw OMR authors named on each set (CC BY). LEGO is a trademark of the LEGO Group, which does not sponsor or endorse this project.</p>
+</div>`;
+        const search = sb.querySelector(`.${PRE}-search`), chips = sb.querySelector(`.${PRE}-chips`), grid = sb.querySelector(`.${PRE}-grid`), count = sb.querySelector(`.${PRE}-count`);
+        const kindOf = (subject) => (KINDS.find(([, , subs]) => subs.includes(subject)) || [])[0] || null;
+        function paintChips() {
+            const all = index || [];
+            const subject = subjectOf(sf.model);
+            const mine = subject ? all.filter((e) => e.subject === subject).length : 0;
+            const list = [['all', 'All', all.length]];
+            // The current model's subject first, when real sets of it exist.
+            if (mine) list.push([`s:${subject}`, `${iconOf(subject)} Like this ${isRef() ? 'set' : 'model'}`, mine]);
+            for (const [id, label, subs] of KINDS) { const n = all.filter((e) => subs.includes(e.subject)).length; if (n) list.push([id, label, n]); }
+            if (!list.some(([id]) => id === kind)) kind = 'all';
+            chips.innerHTML = list.map(([id, label, n]) => `<button type="button" class="tool-chip${id === kind ? ' on' : ''}" data-kind="${esc(id)}" aria-pressed="${id === kind}">${esc(label)} <i>${n}</i></button>`).join('');
+        }
+        function paintGrid() {
+            if (!index) return;
             const q = query.trim().toLowerCase();
-            const hits = (index || []).filter((e) => !q || [e.name, e.id, e.theme, e.subject, e.year].some((f) => String(f || '').toLowerCase().includes(q)));
-            if (!hits.length) { wrap.appendChild(el('p', `${PRE}-hint`, q ? `No real set matches “${esc(query)}”.` : 'No real sets yet.')); return; }
-            const groups = new Map();
-            for (const e of hits) { const t = String(e.theme || 'Other').split(' > ')[0];   // "Town > Classic Town" groups under Town
-                if (!groups.has(t)) groups.set(t, []); groups.get(t).push(e); }
-            for (const [theme, list] of [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-                wrap.appendChild(el('div', `${PRE}-theme`, `<span>${esc(theme)}</span><small>${list.length}</small>`));
-                const ul = el('ul', `${PRE}-list`);
-                for (const e of list.sort((a, b) => (a.year || 0) - (b.year || 0) || a.name.localeCompare(b.name))) {
-                    const li = el('li');
-                    const b = el('button', `${PRE}-item${e.id === shownId ? ' on' : ''}`); b.type = 'button'; b.dataset.set = e.id;
-                    b.innerHTML = `<span class="${PRE}-iname">${esc(e.name)}<small>#${esc(e.id)}${e.year ? ` · ${esc(e.year)}` : ''}</small></span><span class="${PRE}-ipcs">${esc(e.pieces || '?')} PCS</span>`;
-                    b.addEventListener('click', () => loadSet(e.id));
-                    li.appendChild(b); ul.appendChild(li);
+            const hits = index.filter((e) => (kind === 'all' || (kind.startsWith('s:') ? e.subject === kind.slice(2) : kindOf(e.subject) === kind))
+                && (!q || [e.name, e.id, e.theme, e.year, e.subject && subjectWords(e.subject)].some((f) => String(f || '').toLowerCase().includes(q))))
+                .sort((a, b) => String(a.theme || '').localeCompare(String(b.theme || '')) || (a.year || 0) - (b.year || 0) || a.name.localeCompare(b.name));
+            grid.innerHTML = '';
+            if (!hits.length) grid.appendChild(el('p', `${PRE}-empty`, index.length ? `No real set matches${q ? ` “${esc(query)}”` : ''}${kind !== 'all' ? ' in this kind' : ''}.` : 'No real sets yet.'));
+            for (const e of hits) grid.appendChild(setCard(e));
+            count.textContent = hits.length === index.length ? `${index.length} SETS` : `${hits.length} OF ${index.length} SETS`;
+        }
+        const paintBrowser = () => { if (!index) return; paintChips(); paintGrid(); refresh(); };
+        search.addEventListener('input', () => { query = search.value; paintGrid(); });
+        chips.addEventListener('click', (e) => { const c = e.target.closest('[data-kind]'); if (!c) return; kind = c.dataset.kind; paintChips(); paintGrid(); });
+        sf.on('source', (id) => { if (id === SOURCE) paintBrowser(); });
+
+        /* ── LEARN: the real set on show, and BUILD A REAL ONE ──── */
+        const nowP = sf.registerPanel({ id: 'realsets-now', title: null, group: 'learn', order: 5 });
+        const realP = sf.registerPanel({ id: 'realsets-real', title: 'BUILD A REAL ONE', group: 'learn', order: 30 });
+        function paintNow() {
+            const model = sf.model;
+            nowP.section.hidden = !isRef(model);
+            nowP.body.innerHTML = '';
+            if (!isRef(model)) return;
+            const r = model.reference, steps = sf.viewer.maxLayer + 1;
+            const now = el('div', `${PRE}-now`);
+            now.innerHTML = `<span class="${PRE}-badge">🏷️ REAL SET</span><h5>${esc(model.name)}</h5>`
+                + `<p>Set <b>#${esc(r.setId)}</b>${r.year ? ` · ${esc(r.year)}` : ''}${r.theme ? ` · ${esc(themeText(r.theme))}` : ''} · <b>${pieces(model)}</b> pieces · <b>${steps}</b> real steps. Walk the step slider to build it the way the instructions do.</p>`
+                + `<p class="${PRE}-attr">${attribution(model)}${r.url && /^https:\/\//.test(r.url) ? ` · <a href="${esc(r.url)}" target="_blank" rel="noopener">source</a>` : ''}</p>`;
+            const row = el('div', `${PRE}-row`);
+            const forgeBtn = el('button', 'action-btn primary', '⚒️ FORGE ONE LIKE THIS'); forgeBtn.type = 'button'; forgeBtn.id = `${PRE}-forge`;
+            forgeBtn.title = `Forge a ${subjectOf(model) ? subjectWords(subjectOf(model)) : 'model'} of your own with the generator`;
+            forgeBtn.addEventListener('click', forgeLikeThis);
+            const restart = el('button', 'action-btn secondary', '⏮ STEP 1'); restart.type = 'button'; restart.title = 'Back to the first step';
+            restart.addEventListener('click', () => sf.goStep(0));
+            row.append(forgeBtn, restart); now.appendChild(row);
+            nowP.body.appendChild(now);
+        }
+        let realToken = 0;
+        function paintReal() {
+            const my = ++realToken;
+            const subject = subjectOf(sf.model);
+            if (!subject) { realP.section.hidden = true; realP.body.innerHTML = ''; return; }
+            setsFor(subject).then((list) => {
+                if (my !== realToken) return;
+                if (!index || !index.length) { realP.section.hidden = true; return; }
+                realP.section.hidden = false;
+                const words = subjectWords(subject);
+                const body = realP.body; body.innerHTML = '';
+                body.appendChild(el('p', `${PRE}-hint`, list.length
+                    ? `Official ${esc(words)} sets, rebuilt part for part. Pick one to build it with its real steps.`
+                    : `No rebuilt ${esc(words)} set yet, but there are ${index.length} others to build.`));
+                if (list.length) {
+                    const g = el('div', `${PRE}-grid`);
+                    for (const e of list) g.appendChild(setCard(e));
+                    body.appendChild(g);
+                    const st = el('div', `${PRE}-status`); st.setAttribute('role', 'status'); st.style.marginTop = '8px'; st.style.textAlign = 'left';
+                    body.appendChild(st);
                 }
-                wrap.appendChild(ul);
-            }
+                const more = el('button', `action-btn tertiary ${PRE}-more`, `🏷️ BROWSE ALL ${index.length} REAL SETS`); more.type = 'button';
+                more.addEventListener('click', () => sf.showSource(SOURCE));
+                body.appendChild(more);
+                refresh();
+            });
         }
-
-        /** The section the REAL SETS panel shows first: now building, sets of this subject, browse all. */
-        function section(model) {
-            const wrap = el('div', `${PRE}-wrap`);
-            const ref = isRef(model), shownId = ref ? model.reference.setId : null;
-            if (ref) {
-                const r = model.reference, steps = sf.viewer.maxLayer + 1;
-                const now = el('div', `${PRE}-now`);
-                now.innerHTML = `<span class="${PRE}-badge">🏷️ REFERENCE · REAL SET</span><h5>${esc(model.name)}</h5>`
-                    + `<p>Set <b>#${esc(r.setId)}</b>${r.year ? ` · ${esc(r.year)}` : ''}${r.theme ? ` · ${esc(r.theme)}` : ''} · <b>${pieces(model)}</b> pieces · <b>${steps}</b> real steps. Walk the STEP slider to build it the way the instructions do.</p>`
-                    + `<p class="${PRE}-attr">${attribution(model)}${r.url && /^https:\/\//.test(r.url) ? ` · <a href="${esc(r.url)}" target="_blank" rel="noopener">source</a>` : ''}</p>`;
-                const row = el('div', `${PRE}-row`);
-                const forgeBtn = el('button', 'action-btn primary', '⚒️ FORGE ONE LIKE THIS'); forgeBtn.type = 'button'; forgeBtn.id = `${PRE}-forge`;
-                forgeBtn.title = `Forge a ${subjectOf(model) ? subjectWords(subjectOf(model)) : 'model'} of your own with the generator`;
-                forgeBtn.addEventListener('click', forgeLikeThis);
-                const restart = el('button', 'action-btn secondary', '⏮ STEP 1'); restart.type = 'button';
-                restart.addEventListener('click', () => sf.goStep(0));
-                row.append(forgeBtn, restart); now.appendChild(row);
-                wrap.appendChild(now);
-            }
-            if (!index) { loadIndex().then(() => { if (realsets()) realsets().render(); }); return wrap; }
-            if (!index.length) return wrap;   // no converted sets shipped: nothing to offer
-
-            const subject = subjectOf(model);
-            const sec = el('div', `${PRE}-sec`);
-            sec.appendChild(el('h4', '', `<span>🏷️ BUILD A REAL SET</span><small>${index.length} SETS</small>`));
-            const mine = subject ? index.filter((e) => e.subject === subject) : [];
-            const cardsWrap = el('div', `${PRE}-cards`);
-            if (subject) {
-                sec.appendChild(el('p', `${PRE}-hint`, mine.length ? `Official ${esc(subjectWords(subject))} sets, rebuilt part for part. Pick one to build it step by step.` : `No rebuilt ${esc(subjectWords(subject))} set yet. Browse them all below.`));
-                // forSubject may know better (aliases); refine the cards when it answers.
-                setsFor(subject).then((list) => {
-                    if (!list.length || !cardsWrap.isConnected) return;
-                    cardsWrap.innerHTML = '';
-                    for (const e of list) cardsWrap.appendChild(setCard(e, e.id === shownId));
-                });
-            } else sec.appendChild(el('p', `${PRE}-hint`, 'Official sets rebuilt part for part from their LDraw files. Pick one to build it step by step.'));
-            for (const e of mine) cardsWrap.appendChild(setCard(e, e.id === shownId));
-            sec.appendChild(cardsWrap);
-            const st = el('div', `${PRE}-status${statusErr ? ' err' : ''}`, esc(status)); st.setAttribute('role', 'status');
-            sec.appendChild(st);
-            wrap.appendChild(sec);
-
-            const browse = el('details', `${PRE}-sec ${PRE}-browse`);
-            browse.open = browseOpen || !subject || !mine.length;
-            const summary = el('summary', '', `<h4 style="display:inline">📚 BROWSE ALL REAL SETS</h4>`);
-            summary.addEventListener('click', () => { browseOpen = !browse.open; });   // only the user's choice sticks
-            browse.appendChild(summary);
-            const search = el('input', `${PRE}-search`); search.type = 'search'; search.placeholder = 'Search sets: name, number, theme…'; search.value = query; search.setAttribute('aria-label', 'Search real sets');
-            const list = el('div', `${PRE}-browse-list`);
-            search.addEventListener('input', () => { query = search.value; browseList(list, shownId); });
-            browse.append(search, list);
-            browseList(list, shownId);
-            wrap.appendChild(browse);
-            return wrap;
-        }
-        function refresh() { if (realsets() && realsets().render) realsets().render(); }
-        if (realsets() && realsets().addSection) realsets().addSection(section, { first: true });
 
         sf.on('model', () => {
             if (current && sf.model !== current.model) current = null;
             paintViewer();
+            paintNow();
+            paintReal();
+            refresh();
         });
         sf.on('step', paintStep);
         paintViewer();
-        loadIndex();
+        paintNow();
+        loadIndex().then(() => { paintReal(); paintBrowser(); });
+        // The subject of the first idea is known once the knowledge file lands.
+        if (K() && K().onReady) K().onReady(() => paintReal());
 
         // `?ref=<setId>` opens that real set (share links of a reference).
         let refParam = null;
         try { refParam = new URLSearchParams(location.search).get('ref'); } catch (e) { /* no URL */ }
         if (refParam && /^[\w.-]{1,40}$/.test(refParam)) loadSet(refParam);
 
-        sf.reference = { load: loadSet, list: () => (index || []).slice(), get current() { return current ? current.model : null; }, forgeLikeThis, isReference: isRef };
+        sf.reference = { load: loadSet, list: () => (index || []).slice(), get current() { return current ? current.model : null; }, forgeLikeThis, isReference: isRef, sourceId: SOURCE, browse: () => sf.showSource(SOURCE) };
     }
 
     if (window.studForge) init();

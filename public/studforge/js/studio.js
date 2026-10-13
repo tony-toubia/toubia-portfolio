@@ -1,5 +1,10 @@
 // StudForge studio: tap a brick to inspect it, a parts tray that sorts the
-// model by element type, baseplates, lighting moods and a turntable video.
+// model by element type, baseplates, lighting moods, a live spin and a turntable video.
+//
+// Where it lives in the workbench shell:
+//   canvas view cluster   🧩 BY TYPE (the parts tray) and ⟳ SPIN (auto-rotate; shows the recording ring)
+//   Style tab             SCENE: baseplate and lighting (section id 'studio')
+//   header Share menu     Snapshot (a PNG) and Record turntable video (a webm of one orbit)
 //
 // Everything hooks into the viewer from outside: the render loop is wrapped so
 // tweens and pulses run before each frame, `setExplode` is wrapped so the
@@ -11,12 +16,12 @@
     const GLOW = 0xffe14d;   // the highlight pulse colour (the app's yellow, a touch warmer)
 
     const CSS = `
-.sfs-widget-btn { background: rgba(19, 24, 34, 0.85); border: 1px solid var(--border-main); color: var(--text-secondary); font-family: var(--font-heading); font-size: 10px; font-weight: 700; letter-spacing: 0.4px; padding: 5px 9px; border-radius: 6px; cursor: pointer; backdrop-filter: blur(6px); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; transition: border-color 0.15s, color 0.15s; }
-.sfs-widget-btn:hover { color: #fff; border-color: var(--lego-yellow); }
-.sfs-widget-btn.on { color: var(--lego-yellow); border-color: var(--lego-yellow); background: rgba(242, 205, 55, 0.12); }
-.sfs-widget-btn.rec { color: #ff6b6b; border-color: rgba(255, 107, 107, 0.6); }
-.sfs-ring { width: 12px; height: 12px; border-radius: 50%; display: none; background: conic-gradient(#ff6b6b calc(var(--p, 0) * 1%), rgba(255, 255, 255, 0.15) 0); }
-.sfs-widget-btn.rec .sfs-ring { display: block; }
+/* canvas widgets (BY TYPE, SPIN) take the view cluster's .cam-btn look; recording shows on SPIN */
+.sfs-ring { width: 13px; height: 13px; border-radius: 50%; display: none; flex: none; background: conic-gradient(#ff6b6b calc(var(--p, 0) * 1%), rgba(255, 255, 255, 0.18) 0); box-shadow: 0 0 0 2px rgba(255, 107, 107, 0.25); }
+.cam-btn.rec { color: #ff8a8a; border-color: rgba(255, 107, 107, 0.7); cursor: default; }
+.cam-btn.rec .sfs-ring { display: block; }
+.cam-btn.rec .vc-ico { display: none; }
+.cam-btn.rec .vc-label { display: inline !important; font-family: var(--font-mono); letter-spacing: 0; }
 .sfs-inspect { position: absolute; z-index: 8; width: 236px; max-width: calc(100% - 16px); background: rgba(13, 17, 25, 0.94); border: 1px solid rgba(242, 205, 55, 0.5); border-radius: 10px; padding: 10px 12px 11px; box-shadow: 0 10px 34px rgba(0, 0, 0, 0.6); backdrop-filter: blur(8px); font-family: var(--font-body); color: var(--text-primary); animation: sfs-pop 0.16s ease-out; }
 .sfs-inspect[hidden] { display: none; }
 @keyframes sfs-pop { from { opacity: 0; transform: translateY(6px) scale(0.97); } to { opacity: 1; transform: none; } }
@@ -32,14 +37,19 @@
 .sfs-btn:hover { border-color: var(--lego-yellow); }
 .sfs-btn.on { background: rgba(242, 205, 55, 0.18); border-color: var(--lego-yellow); color: var(--lego-yellow); }
 .sfs-btn.primary { background: linear-gradient(135deg, var(--lego-yellow) 0%, #d4a017 100%); color: #0c0f17; border-color: transparent; }
-.sfs-section { margin-bottom: 14px; }
-.sfs-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.sfs-chips .tool-chip.on { background: rgba(242, 205, 55, 0.12); color: var(--lego-yellow); }
-.sfs-tip { font-size: 11px; color: var(--text-muted); line-height: 1.45; margin-top: 6px; }
-.sfs-status { font-size: 11px; color: var(--text-secondary); min-height: 14px; margin-top: 6px; }
-.sfs-legend { list-style: none; padding: 0; margin: 8px 0 0; }
-.sfs-legend li { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; padding: 2px 0; color: var(--text-secondary); }
-.sfs-legend .sfs-qty { margin-left: auto; font-family: var(--font-mono); color: var(--lego-yellow); }
+/* the SCENE section in the Style tab */
+.sfs-group + .sfs-group { margin-top: 14px; }
+.sfs-sub { font-family: var(--font-heading); font-size: 9px; font-weight: 700; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 7px; }
+/* one row of equal tiles per setting, the tool-chip look stretched to fit */
+.sfs-chips { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); gap: 6px; }
+.sfs-chips .tool-chip { flex-direction: column; justify-content: center; gap: 4px; min-height: 50px; padding: 6px 2px 5px; border-radius: 9px; font-size: 13px; line-height: 1.1; background: rgba(9, 12, 19, 0.5); min-width: 0; }
+.sfs-chips .tool-chip > span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sfs-chips .tool-chip.on { background: rgba(242, 205, 55, 0.12); color: var(--lego-yellow); border-color: rgba(242, 205, 55, 0.6); }
+.sfs-chips .tool-chip:focus-visible { outline: 2px solid var(--lego-yellow); outline-offset: 1px; }
+.sfs-sw { width: 18px; height: 18px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.28); flex: none; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.2); }
+.sfs-sw.none { background: repeating-linear-gradient(135deg, transparent 0 3px, rgba(255, 255, 255, 0.25) 3px 4px); }
+.sfs-chip-ico { font-size: 17px; line-height: 18px; height: 18px; }
+.sfs-tip { font-size: 13px; color: var(--text-muted); line-height: 1.4; margin-top: 7px; }
 .sfs-explode-off { opacity: 0.45; }
 .sfs-explode-off .tech-slider { cursor: not-allowed; }
 `;
@@ -159,7 +169,7 @@
            2. Parts tray: every brick sorted out by type and colour
            ══════════════════════════════════════════════════════════════ */
         const explodeSlider = document.getElementById('slider-explode');
-        const explodeGroup = explodeSlider && explodeSlider.closest('.studio-tool-group');
+        const explodeGroup = explodeSlider && (explodeSlider.closest('.explode-pop') || explodeSlider.parentElement);
         let trayOn = false, trayExtent = 0, trayLabels = null, trayGroups = [], trayRadius0 = null;
         const origSetExplode = viewer.setExplode.bind(viewer);
         viewer.setExplode = function (v) {
@@ -257,17 +267,6 @@
             tween(items, 850);
         }
 
-        const legend = document.createElement('ul'); legend.className = 'sfs-legend';
-        function renderLegend() {
-            legend.innerHTML = '';
-            if (!trayOn) return;
-            for (const g of trayGroups) {
-                const li = document.createElement('li');
-                li.innerHTML = `<span class="sfs-dot" style="background:${esc(g.color.hex)}"></span><span>${esc(g.part.name)}</span><span class="sfs-qty">×${g.meshes.length}</span>`;
-                legend.appendChild(li);
-            }
-        }
-
         // Glide the camera out to take in the whole tray, and back to where it was.
         let zoomTask = null;
         function glideRadius(to, ms) {
@@ -297,9 +296,7 @@
             if (explodeSlider) explodeSlider.disabled = on;
             if (explodeGroup) explodeGroup.classList.toggle('sfs-explode-off', on);
             trayBtn.classList.toggle('on', on);
-            trayChip.classList.toggle('on', on);
-            trayBtn.setAttribute('aria-pressed', on);
-            renderLegend();
+            trayBtn.setAttribute('aria-pressed', String(on));
             applyFloor();
             if (window.studForgeAudio && window.studForgeAudio.playRatchetClick) window.studForgeAudio.playRatchetClick();
         }
@@ -308,11 +305,11 @@
            3. Baseplates: a studded plate on the pedestal, sized to the model
            ══════════════════════════════════════════════════════════════ */
         const PLATES = {
-            none: { label: 'NONE' },
-            grass: { label: 'GRASS', color: 0x3f9a34, stud: 0x4db040, rough: 0.95 },
-            water: { label: 'WATER', color: 0x2f8de0, stud: 0x5ab0f5, rough: 0.12, metal: 0.1, trans: true, opacity: 0.72, shimmer: 0x0b3f7a },
-            snow: { label: 'SNOW', color: 0xf4f6f8, stud: 0xffffff, rough: 1 },
-            city: { label: 'CITY', color: 0x363b43, stud: 0x40454e, rough: 0.85, road: true },
+            none: { label: 'None' },
+            grass: { label: 'Grass', color: 0x3f9a34, stud: 0x4db040, rough: 0.95 },
+            water: { label: 'Water', color: 0x2f8de0, stud: 0x5ab0f5, rough: 0.12, metal: 0.1, trans: true, opacity: 0.72, shimmer: 0x0b3f7a },
+            snow: { label: 'Snow', color: 0xf4f6f8, stud: 0xffffff, rough: 1 },
+            city: { label: 'City', color: 0x363b43, stud: 0x40454e, rough: 0.85, road: true },
         };
         const plate = { kind: 'none', group: null, mats: [] };
         const evenCeil = (n) => Math.ceil(n / 2) * 2;
@@ -392,7 +389,7 @@
             if (!PLATES[kind]) kind = 'none';
             plate.kind = kind;
             applyFloor();
-            for (const b of plateChips.children) b.classList.toggle('on', b.dataset.kind === kind);
+            for (const b of plateChips.children) { const on = b.dataset.kind === kind; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); }
             if (persist) save();
         }
 
@@ -406,9 +403,9 @@
         const snap = (l) => (l ? { color: l.color.clone(), intensity: l.intensity, ground: l.groundColor ? l.groundColor.clone() : null } : null);
         const original = { bg: scene.background, fog: scene.fog ? scene.fog.color.clone() : null, ambient: snap(ambient), key: snap(viewer.keyLight), fill: snap(fill), rim: snap(rim), exposure: viewer.renderer.toneMappingExposure };
         const MOODS = {
-            studio: { label: 'STUDIO', keyPos: [1.1, 1.8, 1.4] },
-            sunset: { label: 'SUNSET', bg: ['#2a1540', '#b8405a', '#f7a35c'], fog: '#f7a35c', ambient: ['#ffd9b8', 0.6], key: ['#ffb36b', 1.5], fill: ['#ff6f9c', 0.45], rim: ['#ffd27a', 0.9], keyPos: [1.7, 0.6, 1.1], exposure: 1.1, env: 0.7 },
-            night: { label: 'NIGHT', bg: ['#03050c', '#070d1f', '#0d1a3a'], fog: '#0a1226', ambient: ['#2e4a9a', 0.42], key: ['#9fb4ff', 0.55], fill: ['#1b2f66', 0.35], rim: ['#4f6fd8', 0.6], keyPos: [1.1, 1.8, 1.4], exposure: 1.0, env: 0.3, glow: true },
+            studio: { label: 'Studio', icon: '💡', keyPos: [1.1, 1.8, 1.4] },
+            sunset: { label: 'Sunset', icon: '🌅', bg: ['#2a1540', '#b8405a', '#f7a35c'], fog: '#f7a35c', ambient: ['#ffd9b8', 0.6], key: ['#ffb36b', 1.5], fill: ['#ff6f9c', 0.45], rim: ['#ffd27a', 0.9], keyPos: [1.7, 0.6, 1.1], exposure: 1.1, env: 0.7 },
+            night: { label: 'Night', icon: '🌙', bg: ['#03050c', '#070d1f', '#0d1a3a'], fog: '#0a1226', ambient: ['#2e4a9a', 0.42], key: ['#9fb4ff', 0.55], fill: ['#1b2f66', 0.35], rim: ['#4f6fd8', 0.6], keyPos: [1.1, 1.8, 1.4], exposure: 1.0, env: 0.3, glow: true },
         };
         let mood = 'studio';
         const bgCache = {};
@@ -455,34 +452,59 @@
             if (spec.glow) { underLight.distance = (viewer.extent || 10) * 3; if (!underLight.parent) scene.add(underLight); }
             else if (underLight.parent) scene.remove(underLight);
             applyGlow();
-            for (const b of moodChips.children) b.classList.toggle('on', b.dataset.kind === mood);
+            for (const b of moodChips.children) { const on = b.dataset.kind === mood; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); }
             if (persist) save();
         }
 
         /* ══════════════════════════════════════════════════════════════
-           5. Turntable video (or a PNG where recording is unavailable)
+           5. Spin: a live turntable of the camera, stopped by a drag
+           ══════════════════════════════════════════════════════════════ */
+        const SPIN_RATE = (Math.PI * 2) / 14000;   // one turn every 14 s (radians per ms)
+        let spinning = false, spinLast = 0, recording = null;
+        const spinTask = (now) => {
+            const dt = spinLast ? Math.min(250, now - spinLast) : 0; spinLast = now;
+            if (recording || viewer.isDragging || document.body.classList.contains('sfi-booklet-open')) return;
+            viewer.spherical.theta += dt * SPIN_RATE; viewer.updateCameraPosition();
+        };
+        function setSpin(on) {
+            on = !!on;
+            if (on === spinning) return;
+            spinning = on; spinLast = 0;
+            if (on) frameTasks.add(spinTask); else frameTasks.delete(spinTask);
+            spinBtn.classList.toggle('on', on);
+            spinBtn.setAttribute('aria-pressed', String(on));
+            spinBtn.title = on ? 'Stop spinning' : 'Spin the model round';
+        }
+        // Grabbing the model to orbit it takes over from the spin.
+        canvas.addEventListener('pointermove', (e) => { if (spinning && press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 6) setSpin(false); });
+
+        /* ══════════════════════════════════════════════════════════════
+           6. Snapshot and turntable video (or a PNG where recording is unavailable)
            ══════════════════════════════════════════════════════════════ */
         const download = (href, name) => { const a = document.createElement('a'); a.href = href; a.download = name; document.body.appendChild(a); a.click(); a.remove(); };
-        function snapshotPNG() {
+        const say = (t, ms) => { if (sf.toast) sf.toast(t, ms); };
+        function snapshotPNG(note) {
             viewer.renderer.render(scene, viewer.camera);   // the drawing buffer is not preserved, so render right before reading it
             download(canvas.toDataURL('image/png'), `StudForge-${modelId()}-view.png`);
-            setStatus('Saved a PNG of this view (video capture is not available in this browser).');
+            say(typeof note === 'string' ? note : 'Saved a PNG of this view', 3200);
         }
-        let recording = null;
+        const NO_VIDEO = 'Video capture is not available in this browser, so this saved a PNG of the view instead';
         function startTurntable() {
             if (recording) return;
             let stream = null;
             try { stream = canvas.captureStream ? canvas.captureStream(30) : null; } catch (e) { stream = null; }
-            if (!stream || !window.MediaRecorder) return snapshotPNG();
+            if (!stream || !window.MediaRecorder) return snapshotPNG(NO_VIDEO);
             const mime = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find((m) => MediaRecorder.isTypeSupported(m)) || '';
             let rec;
-            try { rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 8e6 } : undefined); } catch (e) { return snapshotPNG(); }
+            try { rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 8e6 } : undefined); } catch (e) { return snapshotPNG(NO_VIDEO); }
             const chunks = [], theta0 = viewer.spherical.theta, DUR = 6000, t0 = performance.now();
-            const label = turnBtn.querySelector('.sfs-label'), ring = turnBtn.querySelector('.sfs-ring');
+            // The recording shows on the SPIN button: a red progress ring and the percentage.
+            const label = spinBtn.querySelector('.vc-label'), ring = spinBtn.querySelector('.sfs-ring');
             const finish = () => {
                 frameTasks.delete(task);
                 viewer.spherical.theta = theta0; viewer.updateCameraPosition();
-                turnBtn.classList.remove('rec'); label.textContent = 'TURNTABLE'; ring.style.setProperty('--p', 0);
+                spinBtn.classList.remove('rec'); label.textContent = 'SPIN'; ring.style.setProperty('--p', 0);
+                spinBtn.removeAttribute('aria-busy');
                 for (const t of stream.getTracks()) t.stop();
                 recording = null;
             };
@@ -491,10 +513,10 @@
                 const blob = new Blob(chunks, { type: mime || 'video/webm' }), url = URL.createObjectURL(blob);
                 download(url, `StudForge-${modelId()}-turntable.webm`);
                 setTimeout(() => URL.revokeObjectURL(url), 10000);
-                setStatus(`Turntable saved (${(blob.size / 1048576).toFixed(1)} MB webm).`);
+                say(`Saved the turntable video (${(blob.size / 1048576).toFixed(1)} MB)`, 3200);
                 finish();
             };
-            rec.onerror = () => { setStatus('Recording failed; saved a PNG instead.'); finish(); snapshotPNG(); };
+            rec.onerror = () => { finish(); snapshotPNG('Recording failed, so this saved a PNG of the view instead'); };
             // One full orbit at the current pitch; the viewer's idle drift is reset every frame, so it cannot accumulate.
             const task = (now) => {
                 const k = Math.min(1, (now - t0) / DUR);
@@ -503,50 +525,56 @@
                 if (k >= 1) { frameTasks.delete(task); setTimeout(() => { try { if (rec.state !== 'inactive') rec.stop(); } catch (e) { finish(); } }, 150); }
             };
             recording = { rec, task };
-            turnBtn.classList.add('rec');
-            setStatus('Recording one orbit, 6 s. Hold still...');
+            spinBtn.classList.add('rec'); spinBtn.setAttribute('aria-busy', 'true');
+            closeCard();
+            say('Recording a 360° spin (6 s). The video downloads when it ends.', 4200);
             frameTasks.add(task);
             rec.start(250);
         }
 
         /* ══════════════════════════════════════════════════════════════
-           6. Settings, the widgets and the STUDIO panel
+           7. Settings, the canvas widgets, the Share items and the SCENE section
            ══════════════════════════════════════════════════════════════ */
         const load = () => { try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (e) { return {}; } };
         const save = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify({ baseplate: plate.kind, lighting: mood })); } catch (e) { /* private mode */ } };
 
-        const widgetBtn = (html, title) => { const b = document.createElement('button'); b.className = 'sfs-widget-btn'; b.type = 'button'; b.title = title; b.innerHTML = html; return b; };
-        const trayBtn = sf.widget(widgetBtn('🧩 <span class="sfs-label">BY TYPE</span>', 'Sort every brick into a parts tray'));
-        trayBtn.setAttribute('aria-pressed', 'false');
+        const camBtn = (ico, label, title) => {
+            const b = document.createElement('button'); b.className = 'cam-btn'; b.type = 'button'; b.title = title;
+            b.innerHTML = `<span class="sfs-ring" aria-hidden="true"></span><span class="vc-ico">${ico}</span><span class="vc-label">${label}</span>`;
+            b.setAttribute('aria-pressed', 'false');
+            return sf.widget(b);
+        };
+        const trayBtn = camBtn('🧩', 'BY TYPE', 'Sort every brick into a parts tray by type');
         trayBtn.addEventListener('click', () => setTray(!trayOn));
-        const turnBtn = sf.widget(widgetBtn('<span class="sfs-ring"></span>🎥 <span class="sfs-label">TURNTABLE</span>', 'Record a 360° turntable video'));
-        turnBtn.addEventListener('click', startTurntable);
+        const spinBtn = camBtn('⟳', 'SPIN', 'Spin the model round');
+        spinBtn.addEventListener('click', () => { if (!recording) setSpin(!spinning); });
 
-        const chipRow = (kinds, onPick) => {
-            const row = document.createElement('div'); row.className = 'sfs-chips';
-            for (const [kind, spec] of Object.entries(kinds)) { const b = document.createElement('button'); b.className = 'tool-chip'; b.type = 'button'; b.dataset.kind = kind; b.textContent = spec.label; b.addEventListener('click', () => onPick(kind)); row.appendChild(b); }
+        if (sf.shareItem) {
+            sf.shareItem({ id: 'snapshot', icon: '📸', label: 'Snapshot', hint: 'A PNG of this view', order: 60, onClick: () => snapshotPNG() });
+            sf.shareItem({ id: 'turntable', icon: '🎥', label: 'Record turntable video', hint: 'A 360° spin', order: 61, onClick: startTurntable });
+        }
+
+        const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
+        const chipRow = (kinds, onPick, lead) => {
+            const row = document.createElement('div'); row.className = 'sfs-chips'; row.setAttribute('role', 'group'); row.style.setProperty('--n', Object.keys(kinds).length);
+            for (const [kind, spec] of Object.entries(kinds)) {
+                const b = document.createElement('button'); b.className = 'tool-chip'; b.type = 'button'; b.dataset.kind = kind; b.setAttribute('aria-pressed', 'false');
+                b.innerHTML = `${lead(kind, spec)}<span>${esc(spec.label)}</span>`;
+                b.addEventListener('click', () => onPick(kind)); row.appendChild(b);
+            }
             return row;
         };
-        const plateChips = chipRow(PLATES, (k) => setPlate(k));
-        const moodChips = chipRow(MOODS, (k) => applyMood(k));
-        const trayChip = document.createElement('button'); trayChip.className = 'tool-chip'; trayChip.type = 'button'; trayChip.textContent = '🧩 BY TYPE'; trayChip.addEventListener('click', () => setTray(!trayOn));
-        const status = document.createElement('div'); status.className = 'sfs-status';
-        const setStatus = (t) => { status.textContent = t; };
+        const plateChips = chipRow(PLATES, (k) => setPlate(k), (k, s) => (s.color ? `<span class="sfs-sw" style="background:${hex(s.color)}"></span>` : '<span class="sfs-sw none"></span>'));
+        const moodChips = chipRow(MOODS, (k) => applyMood(k), (k, s) => `<span class="sfs-chip-ico">${s.icon || ''}</span>`);
+        plateChips.setAttribute('aria-label', 'Baseplate'); moodChips.setAttribute('aria-label', 'Lighting');
 
         sf.registerPanel({
-            id: 'studio', title: '🎬 STUDIO',
+            id: 'studio', title: 'SCENE', group: 'style', order: 40,
             render(body) {
-                const section = (title, ...els) => { const s = document.createElement('div'); s.className = 'sfs-section'; const h = document.createElement('h4'); h.textContent = title; s.appendChild(h); for (const e of els) s.appendChild(e); body.appendChild(s); };
-                const tip = (t) => { const d = document.createElement('div'); d.className = 'sfs-tip'; d.textContent = t; return d; };
-                section('BASEPLATE', plateChips, tip('A studded plate under the model, sized to the build.'));
-                section('LIGHTING', moodChips, tip('Night makes transparent pieces glow like lit bricks.'));
-                const exportRow = document.createElement('div'); exportRow.className = 'sfs-chips';
-                const tt = document.createElement('button'); tt.className = 'tool-chip'; tt.type = 'button'; tt.textContent = '🎥 TURNTABLE'; tt.addEventListener('click', startTurntable);
-                const snapBtn = document.createElement('button'); snapBtn.className = 'tool-chip'; snapBtn.type = 'button'; snapBtn.textContent = '📸 SNAPSHOT'; snapBtn.addEventListener('click', snapshotPNG);
-                exportRow.append(tt, snapBtn);
-                section('EXPORT', exportRow, status, tip('Turntable records one 6 s orbit as a webm video.'));
-                const trayRow = document.createElement('div'); trayRow.className = 'sfs-chips'; trayRow.appendChild(trayChip);
-                section('PARTS TRAY', trayRow, legend, tip('Sorts every brick out by element and colour. Tap any brick in the 3D view to inspect it.'));
+                const group = (title, ...els) => { const g = document.createElement('div'); g.className = 'sfs-group'; const h = document.createElement('div'); h.className = 'sfs-sub'; h.textContent = title; g.appendChild(h); for (const e of els) g.appendChild(e); body.appendChild(g); };
+                const tip = (t) => { const d = document.createElement('p'); d.className = 'sfs-tip'; d.textContent = t; return d; };
+                group('BASEPLATE', plateChips);
+                group('LIGHTING', moodChips, tip('Night makes see-through pieces glow like lit bricks.'));
             },
         });
 
@@ -554,7 +582,7 @@
         sf.on('forging', () => closeCard());
         sf.on('model', () => {
             closeCard();
-            if (trayOn) { layoutTray(); renderLegend(); trayRadius0 = viewer.spherical.radius; glideRadius(Math.max(viewer.spherical.radius, Math.min(viewer.home.radius * 3, trayExtent * 1.35)), 950); }
+            if (trayOn) { layoutTray(); trayRadius0 = viewer.spherical.radius; glideRadius(Math.max(viewer.spherical.radius, Math.min(viewer.home.radius * 3, trayExtent * 1.35)), 950); }
             else trayExtent = 0;
             applyFloor();
             applyMood(mood, false);
@@ -563,7 +591,7 @@
         const saved = load();
         setPlate(saved.baseplate || 'none', false);
         applyMood(saved.lighting || 'studio', false);
-        sf.studio = { setTray, setPlate, setMood: applyMood, turntable: startTurntable, snapshot: snapshotPNG, get trayOn() { return trayOn; }, get mood() { return mood; }, get baseplate() { return plate.kind; } };
+        sf.studio = { setTray, setPlate, setMood: applyMood, setSpin, turntable: startTurntable, snapshot: () => snapshotPNG(), get trayOn() { return trayOn; }, get spinning() { return spinning; }, get recording() { return !!recording; }, get mood() { return mood; }, get baseplate() { return plate.kind; } };
     }
 
     if (window.studForge) init(); else document.addEventListener('studforge:ready', init, { once: true });
