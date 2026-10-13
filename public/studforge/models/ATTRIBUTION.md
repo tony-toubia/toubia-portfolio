@@ -78,6 +78,9 @@ Modifications: embedded file names were normalized to lowercase with forward sla
 | 75033-1 | [Star Destroyer](https://library.ldraw.org/omr/sets/996) · [original MPD](https://library.ldraw.org/library/omr/75033-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
 | 75253-1 | [Droid Commander](https://library.ldraw.org/omr/sets/1116) · [original MPD](https://library.ldraw.org/library/omr/75253-1.mpd) | Philippe Hurbain [Philo] | Redistributable under CCAL version 2.0 |
 | 75075-1 | [AT-AT](https://library.ldraw.org/omr/sets/1205) · [original MPD](https://library.ldraw.org/library/omr/75075-1.mpd) | folkoluck | Redistributable under CCAL version 2.0 |
+| 31084-1 | [Pirate Roller Coaster](https://library.ldraw.org/omr/sets/877) · [original MPD](https://library.ldraw.org/library/omr/31084-1.mpd) | Philippe Hurbain [Philo] | Redistributable under CCAL version 2.0 |
+| 42108-1 | [Mobile Crane](https://library.ldraw.org/omr/sets/1113) · [original MPD](https://library.ldraw.org/library/omr/42108-1.mpd) | MMR1988 [MMR1988] | Redistributable under CCAL version 2.0 |
+| 42042-1 | [Crawler Crane](https://library.ldraw.org/omr/sets/52) · [original MPD](https://library.ldraw.org/library/omr/42042-1.mpd) | Philippe Hurbain [Philo] | Redistributable under CCAL version 2.0 |
 
 Individual model and part files retain their !LICENSE and author headers. Official part definitions may use CC BY 2.0 or CC BY 4.0; the applicable license is identified in each embedded file. Full notices: [LDraw CAreadme](CAreadme.txt), [CC BY 2.0](CAlicense.txt), [CC BY 4.0](CAlicense4.txt). Attribution metadata for parts is also available in parts.json.
 

@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-10-13T16:27:35.130Z",
+  "checkedAt": "2026-10-13T19:02:43.838Z",
   "rankingSource": "https://brickranker.com/hall-of-fame/sets/top",
   "method": "Exact set-number matches first; other licensed/theme community models are supplemental picks, never substitutes for exact ranked versions.",
   "targets": [
@@ -2492,6 +2492,58 @@
       "legacyColors": 0,
       "missing": [],
       "durationSeconds": 9
+    },
+    {
+      "setNumber": "31084-1",
+      "name": "Pirate Roller Coaster",
+      "theme": "Creator > Creator 3-in-1",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/877",
+      "status": "imported",
+      "pieces": 942,
+      "triangles": 547488,
+      "sourceTriangles": 547488,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [],
+      "durationSeconds": 10
+    },
+    {
+      "setNumber": "42108-1",
+      "name": "Mobile Crane",
+      "theme": "Technic",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1113",
+      "status": "imported",
+      "pieces": 1318,
+      "triangles": 1451887,
+      "sourceTriangles": 1997191,
+      "primitiveReplacements": 76,
+      "visualComponents": 1,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [
+        "Stickers"
+      ],
+      "durationSeconds": 23
+    },
+    {
+      "setNumber": "42042-1",
+      "name": "Crawler Crane",
+      "theme": "Technic",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/52",
+      "status": "imported",
+      "pieces": 1413,
+      "triangles": 1783825,
+      "sourceTriangles": 2420299,
+      "primitiveReplacements": 71,
+      "visualComponents": 4,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [
+        "Stickers"
+      ],
+      "durationSeconds": 11
     }
   ],
   "geometryRepair": {
@@ -2707,39 +2759,23 @@
     "status": "selected batch complete",
     "rankedTargets": 100,
     "exactCommunityMatches": 7,
-    "attempted": 56,
-    "imported": 55,
+    "attempted": 59,
+    "imported": 58,
     "skipped": 1,
     "initialTrialImports": 1,
-    "totalNewSets": 50,
-    "totalLibrary": 166,
+    "totalNewSets": 53,
+    "totalLibrary": 169,
     "remainingInInitialBatch": 50
   },
   "latestBatch": {
-    "completedAt": "2026-10-13T16:27:44.743Z",
+    "completedAt": "2026-10-13T19:03:28.387Z",
     "selected": [
-      "75969-1",
-      "40335-1",
-      "75253-1",
-      "75893-1",
-      "75181-1",
-      "75953-1",
-      "75144-1",
-      "75878-1",
-      "75870-1",
-      "21302-1",
-      "75075-1",
-      "75102-1",
-      "21107-1",
-      "30300-1",
-      "75033-1"
+      "31084-1",
+      "42108-1",
+      "42042-1"
     ],
-    "imported": 15,
+    "imported": 3,
     "skipped": 0,
-    "durationSeconds": 109,
-    "processingAttempts": 18,
-    "initialPassImported": 13,
-    "initialPassSkipped": 2,
-    "validationRebuilds": 1
+    "durationSeconds": 44
   }
 }

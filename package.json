@@ -10,7 +10,7 @@
     "studforge:import": "node scripts/studforge/backfill-library.mjs",
     "studforge:backfill": "node scripts/studforge/backfill-library.mjs",
     "studforge:motion": "node scripts/studforge/backfill-motion.mjs",
-    "studforge:test": "node --test scripts/studforge/pipeline.test.mjs scripts/studforge/library.test.mjs scripts/studforge/integration.test.mjs scripts/studforge/converter.test.mjs scripts/studforge/articulation.test.mjs scripts/studforge/motion-detection.test.mjs"
+    "studforge:test": "node --test scripts/studforge/pipeline.test.mjs scripts/studforge/library.test.mjs scripts/studforge/integration.test.mjs scripts/studforge/converter.test.mjs scripts/studforge/articulation.test.mjs scripts/studforge/motion-detection.test.mjs scripts/studforge/technic.test.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
