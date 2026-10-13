@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=1">
+    <link rel="stylesheet" href="css/style.css?v=2">
 </head>
 <body>
     <div id="stage"></div>
@@ -60,11 +60,13 @@
     </div>
 
     <script src="vendor/three.min.js"></script>
+    <!-- cannon-es (MIT, vendor/cannon-es.LICENSE) is an ES module: expose it as window.CANNON for the plain scripts -->
+    <script type="module">import * as CANNON from './vendor/cannon-es.js'; window.CANNON = CANNON; window.dispatchEvent(new Event('hh-physics'));</script>
     <script src="js/models.js?v=1"></script>
     <script src="js/audio.js?v=1"></script>
-    <script src="js/levels.js?v=1"></script>
-    <script src="js/game.js?v=1"></script>
-    <script src="js/ui.js?v=1"></script>
-    <script src="js/main.js?v=1"></script>
+    <script src="js/levels.js?v=3"></script>
+    <script src="js/game.js?v=3"></script>
+    <script src="js/ui.js?v=2"></script>
+    <script src="js/main.js?v=2"></script>
 </body>
 </html>

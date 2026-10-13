@@ -231,27 +231,25 @@
             $('hud').appendChild(el); setTimeout(() => el.remove(), 900);
         }
 
-        /* ── input: a floating joystick wherever you touch, or WASD/arrows ── */
+        /* ── input: drag anywhere (the hole follows the finger 1:1 across the field), or WASD/arrows ── */
         bindInput() {
-            const joy = $('joy'), knob = $('joy-knob'), stage = document.body;
-            let id = null, ox = 0, oy = 0;
-            const R = 56;
+            const dot = $('joy'), stage = document.body;
+            let id = null, lx = 0, ly = 0;
             const set = (x, y) => this.game.setInput(x, y);
             stage.addEventListener('pointerdown', (e) => {
                 if (this.game.mode !== 'play' || e.target.closest('button, .card, .modal, a')) return;
-                id = e.pointerId; ox = e.clientX; oy = e.clientY;
-                joy.style.left = `${ox}px`; joy.style.top = `${oy}px`; joy.classList.add('on'); knob.style.transform = 'translate(-50%, -50%)';
+                id = e.pointerId; lx = e.clientX; ly = e.clientY;
+                dot.style.left = `${lx}px`; dot.style.top = `${ly}px`; dot.classList.add('on');
                 $('hint').classList.remove('on');
             });
             stage.addEventListener('pointermove', (e) => {
                 if (e.pointerId !== id) return;
-                let dx = e.clientX - ox, dy = e.clientY - oy; const len = Math.hypot(dx, dy);
-                if (len > R) { dx *= R / len; dy *= R / len; }
-                knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-                const m = Math.min(1, len / R), a = Math.atan2(dy, dx);
-                set(len > 4 ? Math.cos(a) * m : 0, len > 4 ? -Math.sin(a) * m : 0);
+                // Use every coalesced sample so fast swipes are not undersampled.
+                const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+                for (const ev of (evs.length ? evs : [e])) { this.game.drag(ev.clientX - lx, ev.clientY - ly); lx = ev.clientX; ly = ev.clientY; }
+                dot.style.left = `${lx}px`; dot.style.top = `${ly}px`;
             });
-            const end = (e) => { if (e.pointerId !== id) return; id = null; joy.classList.remove('on'); set(0, 0); };
+            const end = (e) => { if (e.pointerId !== id) return; id = null; dot.classList.remove('on'); };
             stage.addEventListener('pointerup', end); stage.addEventListener('pointercancel', end);
             const keys = new Set();
             const fromKeys = () => {
