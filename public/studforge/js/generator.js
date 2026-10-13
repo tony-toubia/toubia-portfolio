@@ -329,13 +329,15 @@ class BrickGenerator {
         };
         const built = B.build(bp, ctx);
         if (built.warnings.length) console.warn('StudForge: blueprint ops skipped:', built.warnings.join('; '));
-        H.dress({ g: built.g, P, rnd, chance: ctx.chance, pick: ctx.pick });
+        // An approved visual should not acquire random flowers or scenery after selection.
+        if (!opts.concept) H.dress({ g: built.g, P, rnd, chance: ctx.chance, pick: ctx.pick });
         const model = this.assemble(built.g, {
             id: `forge-${seed.toString(36)}`, name: bp.name, category: bp.category || 'Custom Creation', icon: '✨', kind: 'blueprint', prompt: promptText, variant, seed,
             title: bp.name, features: built.feats, lead: bp.description ? bp.description + ' ' : null,
             options: [], palette: P, opts: { colors: opts.colors || {}, scale: opts.scale || null, features: opts.features || {} }, brief: opts.brief || null, matchKey: 'blueprint',
         });
         model.blueprint = bp;
+        if (opts.concept) model.concept = opts.concept;
         model.warnings = built.warnings;
         return model;
     }

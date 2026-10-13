@@ -1,0 +1,25 @@
+# StudForge: choose the look before building
+
+Updated 13 October 2026.
+
+The prompt bar offers **Preview ideas** beside **Quick build**. Preview ideas uses the existing AI password gate, then opens a chooser with one to three structural diagrams, the actual reference when one is supplied, and source links. The user selects a sketch before the full model is requested. They can revise the prompt, try other looks, provide a PNG/JPEG/WebP reference under 800 KB, or close the chooser with the current kit intact. Saved Quick preferences and existing starter/library access continue to work.
+
+The server signs each concept with its prompt, reference-image digest, sources and one-hour expiry. Generation requires that signed approval and copies the approved structural operations first. Later painted details cannot recolor more than 16% of the approved structure or add more than 30% painted volume (small minimum allowances permit facial details). Large later repaints, a changed base or structural prefix, and a new bulk roof are rejected. The selected concept and reference identity stay on the generated model. Approved builds do not receive random diorama decorations.
+
+Before displaying a model, the browser runs the real generator and measures assembly faults. Skipped operations, unsupported assemblies, any gravity movement or rescue support, and trivially small results trigger one corrective AI request. A second failure stays in the chooser with a useful message. This does not prove physical stability or guarantee artistic fidelity; full collision/connectivity simulation and visual comparison of the finished model remain future work.
+
+## Actual mascot grounding
+
+The user's Fairway-area example resolves to **Highlands Hawks, Highlands Elementary, Shawnee Mission School District, Kansas**. The [official principal's welcome](https://highlands.smsd.org/about/principalmission) identifies the Hawks; the [official school homepage](https://highlands.smsd.org/) links its actual vector logo and lists the school at 6200 Roe Avenue, Mission, Kansas.
+
+The logo depicts a white cartoon hawk with black outlines, a red shirt bearing a white H, an upright/striding body and a left-pointing beak. It is not a generic brown or spread-wing eagle. The genuine [school vector logo](https://resources.finalsite.net/images/v1528228146/smsdorg/yvxlmn6p4ngmplcxqr2o/logo-highlands-elementary.svg) is shown in the chooser and rasterized to PNG for both concept and final-design vision input. Only this fixed official asset URL is fetched by the server, bounded to 150 KB and a six-second timeout, with a one-hour cache. The tiny school calendar icon is not used as the vision source.
+
+Other named subjects can use Anthropic's server-side web search, bounded to three searches. Citations are accepted only from actual tool-result URLs, never invented URLs supplied only in generated JSON. Results with only web facts are explicitly marked **exact visual unconfirmed**, and the user can add a real image. Missing named references stop at the chooser instead of silently generating a generic substitute. User images take priority.
+
+## Verification and limits
+
+`node --test scripts/studforge/concept-flow.test.mjs` exercises the actual endpoint implementation with mocked provider responses and the actual chooser script with a DOM fixture: concept request before full build, selected visual passed into generation, authentic school vision/source inputs, reference failure without generic fallback, fabricated source rejection, source-list omission, signed prompt/image binding, destructive repaint rejection, assembly repair, cancellation/revision and explicit Quick access. TypeScript and JavaScript syntax checks also pass.
+
+The existing native Anthropic HTTP integration was retained; no provider/framework migration was introduced. Vision and `web_search_20250305` request/response formats were checked against [Anthropic vision documentation](https://platform.claude.com/docs/en/build-with-claude/vision) and [web search documentation](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool). Concept requests fit within the route's 60-second duration with a six-second reference fetch and 48-second AI timeout.
+
+Production has the AI key and password configured, but Production Secrets are not available through the local Vercel environment runner. A real upstream mascot generation has therefore **not** been visually certified in this session; the authenticated production flow needs the existing password-unlocked browser. Credentials were not copied to disk or printed. The diagrams are honest layout sketches, not rendered photographs or a claim of a finished model's exact appearance.

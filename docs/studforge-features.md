@@ -12,6 +12,7 @@ Updated 2026-10-13. Recommendations inspired by BrickLink Studio, adapted to Stu
 | 6 | Upload community model files | Queued | Start with LDraw .ldr/.mpd; validate geometry, attribution, and completeness before library inclusion. Later consider Studio .io. |
 | 7 | Improve image / animation exports | Queued | Refine existing share cards and turntables; add assembly animation. |
 | 8 | Unified, prominent kit library | Released and repaired | 169 community kits + 16 starter ideas + local saved/recent builds. Every bundled kit and starter has a linked preview. Broken images have an accessible fallback. Top-level creation dropdown says Get Started; Describe it stays inside. |
+| 9 | Reference-based idea previews | Implemented | Preview ideas offers 1–3 structural sketches before a full build, official Highlands Hawks visual grounding and source links, user-image input, approved-layout protection and an assembly repair pass. Saved designs retain their actual blueprint. See `studforge-concepts.md` for the workflow and limits. |
 
 ## Articulation design
 
