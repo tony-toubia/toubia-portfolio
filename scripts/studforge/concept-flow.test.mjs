@@ -152,6 +152,18 @@ test('approved structure equality ignores object property order but preserves va
     assert.equal(support.followsSelection({ ...reordered, ops: [...reordered.ops].reverse() }, concept), false);
 });
 
+test('flat mosaic refinement preserves every exposed approved color, including raised H details', () => {
+    const support = moduleFrom('src/lib/studforge/concepts.ts', async () => { throw new Error('no network expected'); });
+    const rect = (x0,x1,z0,z1,color,y=1) => ({op:'box',x0,x1,z0,z1,y0:y,y1:y,color});
+    const mosaic = { id:'mosaic', name:'Hawks shirt H', description:'White H on a red shirt', features:['Red shirt','White H'], sketch:{base:{w:10,d:10,color:'BLACK'},ops:[rect(0,9,0,9,'WHITE'),rect(2,7,2,8,'RED'),rect(3,3,3,7,'WHITE'),rect(6,6,3,7,'WHITE'),rect(3,6,5,5,'WHITE')]} };
+    const original = JSON.stringify(mosaic);
+    assert.equal(support.followsSelection(mosaic.sketch,mosaic),true,'untouched mosaic remains approved');
+    assert.equal(support.followsSelection({...mosaic.sketch,ops:[...mosaic.sketch.ops,rect(2,2,2,2,'RED',2),rect(3,3,3,4,'WHITE',2)]},mosaic),true,'raised red shirt and white H details keep their original top colors');
+    assert.equal(support.followsSelection({...mosaic.sketch,ops:[...mosaic.sketch.ops,rect(2,4,3,6,'WHITE',2)]},mosaic),false,'a raised white rectangle must not cover red cells even if it meets old volume allowance');
+    assert.equal(JSON.stringify(mosaic),original,'color checking never mutates the approved mosaic');
+    assert.equal(support.followsSelection({...sketch,ops:[...sketch.ops,rect(4,4,5,5,'RED',9)]},concept),true,'upright models retain their small marking allowance');
+});
+
 function client(mode, answers, faults = [], draftFaults = []) {
     class Element {
         constructor(tag) { this.tag = tag; this.children = []; this.listeners = {}; this.attributes = {}; this.value = ''; this.open = false; this.classList = { add() {}, remove() {} }; }
