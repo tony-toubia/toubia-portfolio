@@ -39,12 +39,12 @@ import { schoolReference, schoolReferenceImage, safeSource, imageInput, digestIm
  */
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const MODEL = process.env.STUDFORGE_MODEL || 'claude-sonnet-5-5';
 const FEATURE_IDS = ['garden', 'flag', 'chimney', 'stories', 'roof', 'minifig'];
 const WINDOW_MS = 10 * 60 * 1000, PER_IP = 20, GLOBAL = 300;
-const TIMEOUT_MS = 8000, BLUEPRINT_TIMEOUT_MS = 45000;
+const TIMEOUT_MS = 8000, BLUEPRINT_TIMEOUT_MS = 110000;
 const BODY_MAX = 16000;
 const NO_STORE = { 'Cache-Control': 'no-store' };
 
@@ -360,7 +360,7 @@ async function askClaude(key: string, a: Ask): Promise<Answer> {
     return { ok: true, text, refused: data.stop_reason === 'refusal', sources };
   } catch (e) {
     console.error('[studforge] idea upstream failed', e instanceof Error ? e.name : 'error');
-    return { ok: false, reason: 'upstream', status: 502 };
+    return { ok: false, reason: ctrl.signal.aborted ? 'timeout' : 'upstream', status: 502 };
   } finally { clearTimeout(timer); }
 }
 
@@ -399,7 +399,7 @@ export async function POST(req: NextRequest) {
         `Colors: ${vocab.colors.join(', ')}. Return only JSON: {identity, requiresReference:boolean, referenceStatus, message:string, sources:[{title,url}], concepts:[{id:"concept-1",name,description,features:[strings],sketch:{base:{w,d,color},ops:[{op:"box",x0,x1,z0,z1,y0,y1,color}|{op:"slab",x0,x1,z0,z1,y,color}]}}]}.`,
       ].join('\n'),
       user: `Idea: ${vocab.prompt}\n${official ? `Exact official identity: ${official.identity}. Official sources: ${JSON.stringify(official.sources)}.${!supplied ? " The attached image is rasterized from the school's genuine vector logo: white cartoon hawk, black outlines, red shirt with white H, upright striding pose and left-pointing beak. Preserve these cues; do not use another Highlands school or a generic spread-wing eagle." : ' The user supplied a different visual reference; prioritize that actual image and do not claim it is the official logo.'}` : ''}\n${supplied ? 'The attached image is the user-selected real visual reference.' : ''}`,
-      image, search: !official && !supplied, maxTokens: 7000, effort: 'high', timeoutMs: 48000,
+      image, search: !official && !supplied, maxTokens: 7000, effort: 'high', timeoutMs: 110000,
     });
     if (!ans.ok) return local(ans.reason, ans.status);
     const raw = rec(parseJson(ans.text));

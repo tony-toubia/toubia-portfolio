@@ -108,7 +108,7 @@
         /** The route's answer, or null for "forge locally"; marks the session offline when the route cannot help at all. */
         async function call(payload, field) {
             lastReason = '';
-            const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 70000);
+            const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 130000);
             try {
                 const res = await fetch(ROUTE, { method: 'POST', signal: controller.signal, headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
                 // 404/405/501...: no such route on this server (static hosting); stop asking for the session.
@@ -160,7 +160,7 @@
         document.body.appendChild(dialog);
         const edit = dialog.querySelector('textarea'), upload = dialog.querySelector('input'), cards = dialog.querySelector('.sfconcept-cards'), reference = dialog.querySelector('.sfconcept-reference'), status = dialog.querySelector('.sfconcept-status'), build = dialog.querySelector('.sfconcept-build'), revise = dialog.querySelector('.sfconcept-revise');
         let revision = 0, selection = null, referenceImage = '', conceptPrompt = '', conceptVariant = 0;
-        const message = () => ({ 'no-key': 'AI design is unavailable here. Your current kit is still open; you can use Quick for a local idea.', locked: 'Unlock the AI engine to plan this idea.', 'rate-limited': 'The designer is busy. Please try again shortly.', 'reference-unavailable': 'The official reference image could not be loaded. Add the actual image or try again.', 'concept-drift': 'The design changed the approved look. Please try this concept again.' }[lastReason] || 'I could not finish this design. Try again or revise the idea; your current kit is still open.');
+        const message = () => ({ 'no-key': 'AI design is unavailable here. Your current kit is still open; you can use Quick for a local idea.', locked: 'Unlock the AI engine to plan this idea.', 'rate-limited': 'The designer is busy. Please try again shortly.', timeout: 'This design took too long to finish. Try again or simplify the idea; your current kit is still open.', 'reference-unavailable': 'The official reference image could not be loaded. Add the actual image or try again.', 'concept-drift': 'The design changed the approved look. Please try this concept again.' }[lastReason] || 'I could not finish this design. Try again or revise the idea; your current kit is still open.');
         function controls(working) { revise.disabled = working; upload.disabled = working; edit.disabled = working; build.disabled = working || !selection; cards.querySelectorAll('button').forEach(b => b.disabled = working); }
         function closeConcepts() { revision++; selection = null; busy = false; controls(false); restore(); if (dialog.open) dialog.close(); }
         dialog.querySelector('.sfconcept-close').addEventListener('click', closeConcepts);
