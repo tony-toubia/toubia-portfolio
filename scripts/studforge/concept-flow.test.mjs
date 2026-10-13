@@ -164,6 +164,21 @@ test('flat mosaic refinement preserves every exposed approved color, including r
     assert.equal(support.followsSelection({...sketch,ops:[...sketch.ops,rect(4,4,5,5,'RED',9)]},concept),true,'upright models retain their small marking allowance');
 });
 
+test('signed flat mascot mosaic builds its exact approved recipe without another upstream call', async () => {
+    const rect=(x0,x1,z0,z1,color)=>({op:'box',x0,x1,z0,z1,y0:1,y1:1,color});
+    const flat={...concept,name:'Approved Hawks mosaic',sketch:{base:{w:10,d:10,color:'LIGHT_GREY'},ops:[rect(0,9,0,9,'WHITE'),rect(2,7,2,8,'RED'),rect(3,3,3,7,'WHITE'),rect(6,6,3,7,'WHITE'),rect(3,6,5,5,'WHITE')]}};
+    const e=endpoint([{concepts:[flat]}]),plan=await e.post({mode:'concepts',prompt,...vocab});
+    assert.equal(e.calls.length,1);
+    const built=await e.post({mode:'blueprint',prompt,...vocab,selection:plan.data.concepts[0].selection});
+    assert.equal(built.status,200); assert.equal(built.data.approvedMosaic,true);
+    assert.deepEqual(built.data.blueprint.base,flat.sketch.base);
+    assert.deepEqual(built.data.blueprint.ops,flat.sketch.ops);
+    assert.equal(e.calls.length,1,'approved flat artwork must not be redesigned upstream');
+    const unsigned=await e.post({mode:'blueprint',prompt,...vocab}); assert.equal(unsigned.status,400);
+    const forged=await e.post({mode:'blueprint',prompt,...vocab,selection:plan.data.concepts[0].selection+'x'}); assert.equal(forged.status,400);
+    assert.equal(e.calls.length,1,'missing or forged approvals cannot reach upstream generation');
+});
+
 function client(mode, answers, faults = [], draftFaults = []) {
     class Element {
         constructor(tag) { this.tag = tag; this.children = []; this.listeners = {}; this.attributes = {}; this.value = ''; this.open = false; this.classList = { add() {}, remove() {} }; }

@@ -5,6 +5,8 @@ export type ReferenceSource = { title: string; url: string };
 export type Concept = { id: string; name: string; description: string; features: string[]; sketch: { base: { w: number; d: number; color: string }; ops: Record<string, unknown>[] } };
 export type ConceptSelection = { prompt: string; concept: Concept; sources: ReferenceSource[]; identity: string; referenceStatus: string; imageDigest: string; expires: number };
 
+export const isFlatMosaic = (concept: Concept) => concept.sketch.ops.length > 0 && concept.sketch.ops.every(op => op.op === 'box' && op.y0 === 1 && op.y1 === 1);
+
 /** Anthropic's supported JSON Schema subset: no maxItems/range constraints or open objects. */
 export function conceptSchema(colors: string[]) {
   const object = (properties: Record<string, unknown>) => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
@@ -115,7 +117,7 @@ export function followsSelection(bp: Concept['sketch'], concept: Concept): boole
   for (const op of concept.sketch.ops) for (const cell of cells(op)) structure.set(cell, op.color);
   // A flat artwork's identity lives in its top colors. Raised details must not cover
   // approved letters/eyes even when their volume fits the general detail allowance.
-  const mosaic = concept.sketch.ops.length > 0 && concept.sketch.ops.every(op => op.op === 'box' && op.y0 === 1 && op.y1 === 1);
+  const mosaic = isFlatMosaic(concept);
   if (mosaic) {
     const top = new Map<string, { y: number; color: unknown }>();
     for (let x = 0; x < bp.base.w; x++) for (let z = 0; z < bp.base.d; z++) top.set(`${x},${z}`, { y: 0, color: bp.base.color });
