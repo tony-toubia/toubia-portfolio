@@ -330,11 +330,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // The one-line summary on the phone sheet at peek height.
-    let peekText = null;
+    const peekers = [];
     function paintPeek() {
         const p = $('sheet-peek'); if (!currentModel) return;
         const names = { build: '🔨', parts: '🧱', style: '🎨', learn: '📚' };
-        const custom = peekText && peekText(currentTab);
+        let custom = null;
+        for (const fn of peekers) { try { custom = fn(currentTab); } catch { custom = null; } if (custom) break; }
         p.innerHTML = custom || `<span>${names[currentTab] || '🔨'}</span><span class="pk-main">Step ${viewer.currentStep + 1} of ${viewer.maxLayer + 1}</span><span class="pk-sub">+${viewer.stepCount(viewer.currentStep)} pieces · ${pieceCount(currentModel)} in all</span>`;
     }
 
@@ -509,8 +510,8 @@ document.addEventListener('DOMContentLoaded', () => {
         viewer, generator, forge, reforge, on, emit, registerPanel, dock, widget, showPanel, showTab, goStep, state,
         addSource, showSource, openMake, closeMake, registerEngine, setEngine, shareItem, headerAction, summarySlot, toast, isPhone,
         setExplode: (v) => setExplode(v, { user: true }),
-        /** fn(tab) → HTML for the phone sheet's peek line, or null for the default step line. */
-        setPeek(fn) { peekText = fn; paintPeek(); },
+        /** fn(tab) → HTML for the phone sheet's peek line, or null to pass. The first non-null answer wins; all null → the default step line. */
+        setPeek(fn) { if (fn && !peekers.includes(fn)) peekers.push(fn); paintPeek(); },
         get engine() { return engines[engine] ? engine : 'quick'; },
         get model() { return currentModel; }, get bom() { return bomParts; }, promptInput,
         setPrompt(p) { promptInput.value = p; forgeLabel(); },

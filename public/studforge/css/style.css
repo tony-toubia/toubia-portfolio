@@ -437,7 +437,7 @@ body.sfi-booklet-open .create-bar, body.sfi-booklet-open .tabbar { display: none
     .viewport-card .step-scrub { right: 70px; }
     .viewport-hint { display: none; }
     .vc-label { display: none; }
-    .summary-meta { display: none; }
+    #model-step-count, .summary-meta > .dot { display: none; }
 }
 
 /* ── phones ─────────────────────────────────────────────── */
