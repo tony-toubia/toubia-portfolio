@@ -12,38 +12,6 @@
       "models": 1
     },
     {
-      "setNumber": "75980-1",
-      "omrId": 1220,
-      "name": "Attack on The Burrow",
-      "theme": "Harry Potter",
-      "year": 2020,
-      "models": 1
-    },
-    {
-      "setNumber": "76161-1",
-      "omrId": 1226,
-      "name": "1989 Batwing",
-      "theme": "Super Heroes DC > Batman > UCS",
-      "year": 2020,
-      "models": 1
-    },
-    {
-      "setNumber": "77904-1",
-      "omrId": 1214,
-      "name": "Nebulon-B Frigate",
-      "theme": "Star Wars",
-      "year": 2020,
-      "models": 1
-    },
-    {
-      "setNumber": "21318-1",
-      "omrId": 1286,
-      "name": "Tree House",
-      "theme": "LEGO Ideas and CUUSOO",
-      "year": 2019,
-      "models": 2
-    },
-    {
       "setNumber": "40335-1",
       "omrId": 1147,
       "name": "Space Rocket Ride",
@@ -60,28 +28,12 @@
       "models": 2
     },
     {
-      "setNumber": "75892-1",
-      "omrId": 1117,
-      "name": "McLaren Senna",
-      "theme": "Speed Champions",
-      "year": 2019,
-      "models": 1
-    },
-    {
       "setNumber": "75893-1",
       "omrId": 1297,
       "name": "2018 Dodge Challenger SRT Demon and 1970 Dodge Charger R/T",
       "theme": "Speed Champions",
       "year": 2019,
       "models": 1
-    },
-    {
-      "setNumber": "21311-1",
-      "omrId": 1188,
-      "name": "Voltron",
-      "theme": "LEGO Ideas and CUUSOO",
-      "year": 2018,
-      "models": 2
     },
     {
       "setNumber": "75181-1",
@@ -95,14 +47,6 @@
       "setNumber": "75953-1",
       "omrId": 1215,
       "name": "Hogwarts Whomping Willow",
-      "theme": "Harry Potter",
-      "year": 2018,
-      "models": 1
-    },
-    {
-      "setNumber": "75954-1",
-      "omrId": 1216,
-      "name": "Hogwarts Great Hall",
       "theme": "Harry Potter",
       "year": 2018,
       "models": 1
@@ -124,22 +68,6 @@
       "models": 1
     },
     {
-      "setNumber": "21307-1",
-      "omrId": 933,
-      "name": "Caterham Seven 620R",
-      "theme": "LEGO Ideas and CUUSOO",
-      "year": 2016,
-      "models": 1
-    },
-    {
-      "setNumber": "75155-1",
-      "omrId": 899,
-      "name": "Rebel U-Wing Fighter",
-      "theme": "Star Wars",
-      "year": 2016,
-      "models": 1
-    },
-    {
       "setNumber": "75870-1",
       "omrId": 1295,
       "name": "Chevrolet Corvette Z06",
@@ -151,14 +79,6 @@
       "setNumber": "21302-1",
       "omrId": 1285,
       "name": "The Big Bang Theory",
-      "theme": "LEGO Ideas and CUUSOO",
-      "year": 2015,
-      "models": 1
-    },
-    {
-      "setNumber": "21303-1",
-      "omrId": 940,
-      "name": "WALL•E [Original Version]",
       "theme": "LEGO Ideas and CUUSOO",
       "year": 2015,
       "models": 1
@@ -180,25 +100,9 @@
       "models": 1
     },
     {
-      "setNumber": "76042-1",
-      "omrId": 1202,
-      "name": "The SHIELD Helicarrier",
-      "theme": "Super Heroes Marvel > Avengers",
-      "year": 2015,
-      "models": 1
-    },
-    {
       "setNumber": "21107-1",
       "omrId": 361,
       "name": "Micro World - The End",
-      "theme": "Minecraft",
-      "year": 2014,
-      "models": 1
-    },
-    {
-      "setNumber": "21113-1",
-      "omrId": 298,
-      "name": "The Cave",
       "theme": "Minecraft",
       "year": 2014,
       "models": 1
@@ -300,25 +204,9 @@
       "models": 1
     },
     {
-      "setNumber": "9470-1",
-      "omrId": 28,
-      "name": "Shelob Attacks",
-      "theme": "The Hobbit and Lord of the Rings > The Lord of the Rings",
-      "year": 2012,
-      "models": 1
-    },
-    {
       "setNumber": "9471-1",
       "omrId": 29,
       "name": "Uruk-hai Army",
-      "theme": "The Hobbit and Lord of the Rings > The Lord of the Rings",
-      "year": 2012,
-      "models": 1
-    },
-    {
-      "setNumber": "9476-1",
-      "omrId": 30,
-      "name": "The Orc Forge",
       "theme": "The Hobbit and Lord of the Rings > The Lord of the Rings",
       "year": 2012,
       "models": 1
@@ -1045,7 +933,170 @@
       "triangles": 98376,
       "missing": [],
       "durationSeconds": 5
+    },
+    {
+      "setNumber": "21311-1",
+      "name": "Voltron",
+      "theme": "LEGO Ideas and CUUSOO",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1188",
+      "status": "imported",
+      "pieces": 2317,
+      "triangles": 1193396,
+      "missing": [
+        "Stickers"
+      ],
+      "durationSeconds": 33
+    },
+    {
+      "setNumber": "21303-1",
+      "name": "WALL•E [Original Version]",
+      "theme": "LEGO Ideas and CUUSOO",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/940",
+      "status": "imported",
+      "pieces": 778,
+      "triangles": 460058,
+      "missing": [],
+      "durationSeconds": 21
+    },
+    {
+      "setNumber": "21318-1",
+      "name": "Tree House",
+      "theme": "LEGO Ideas and CUUSOO",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1286",
+      "status": "skipped",
+      "reason": "Source geometry is not assigned to a physical part",
+      "durationSeconds": 43
+    },
+    {
+      "setNumber": "75980-1",
+      "name": "Attack on The Burrow",
+      "theme": "Harry Potter",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1220",
+      "status": "imported",
+      "pieces": 1008,
+      "triangles": 480493,
+      "missing": [
+        "Parts",
+        "Stickers"
+      ],
+      "durationSeconds": 19
+    },
+    {
+      "setNumber": "77904-1",
+      "name": "Nebulon-B Frigate",
+      "theme": "Star Wars",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1214",
+      "status": "imported",
+      "pieces": 458,
+      "triangles": 192257,
+      "missing": [
+        "Stickers"
+      ],
+      "durationSeconds": 6
+    },
+    {
+      "setNumber": "76161-1",
+      "name": "1989 Batwing",
+      "theme": "Super Heroes DC > Batman > UCS",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1226",
+      "status": "skipped",
+      "reason": "Model exceeds interactive budget of 2000000 triangles",
+      "durationSeconds": 3
+    },
+    {
+      "setNumber": "76042-1",
+      "name": "The SHIELD Helicarrier",
+      "theme": "Super Heroes Marvel > Avengers",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1202",
+      "status": "skipped",
+      "reason": "Model exceeds interactive budget of 2000000 triangles",
+      "durationSeconds": 4
+    },
+    {
+      "setNumber": "9470-1",
+      "name": "Shelob Attacks",
+      "theme": "The Hobbit and Lord of the Rings > The Lord of the Rings",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/28",
+      "status": "imported",
+      "pieces": 242,
+      "triangles": 156742,
+      "missing": [],
+      "durationSeconds": 7
+    },
+    {
+      "setNumber": "21113-1",
+      "name": "The Cave",
+      "theme": "Minecraft",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/298",
+      "status": "imported",
+      "pieces": 262,
+      "triangles": 127016,
+      "missing": [
+        "Parts",
+        "Patterns"
+      ],
+      "durationSeconds": 7
+    },
+    {
+      "setNumber": "75892-1",
+      "name": "McLaren Senna",
+      "theme": "Speed Champions",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1117",
+      "status": "imported",
+      "pieces": 228,
+      "triangles": 101565,
+      "missing": [
+        "Stickers"
+      ],
+      "durationSeconds": 6
+    },
+    {
+      "setNumber": "21307-1",
+      "name": "Caterham Seven 620R",
+      "theme": "LEGO Ideas and CUUSOO",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/933",
+      "status": "imported",
+      "pieces": 814,
+      "triangles": 444016,
+      "missing": [],
+      "durationSeconds": 14
+    },
+    {
+      "setNumber": "9476-1",
+      "name": "The Orc Forge",
+      "theme": "The Hobbit and Lord of the Rings > The Lord of the Rings",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/30",
+      "status": "skipped",
+      "reason": "Source geometry is not assigned to a physical part",
+      "durationSeconds": 11
+    },
+    {
+      "setNumber": "75155-1",
+      "name": "Rebel U-Wing Fighter",
+      "theme": "Star Wars",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/899",
+      "status": "imported",
+      "pieces": 649,
+      "triangles": 562962,
+      "missing": [
+        "Parts"
+      ],
+      "durationSeconds": 16
+    },
+    {
+      "setNumber": "75954-1",
+      "name": "Hogwarts Great Hall",
+      "theme": "Harry Potter",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1216",
+      "status": "imported",
+      "pieces": 821,
+      "triangles": 505595,
+      "missing": [
+        "Parts",
+        "Stickers"
+      ],
+      "durationSeconds": 31
     }
   ],
-  "updatedAt": "2026-10-13T03:04:31.419Z"
+  "updatedAt": "2026-10-13T04:03:15.107Z"
 }
