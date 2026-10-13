@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 import * as THREE from '../../public/studforge/vendor/three.module.js';
 import {loadPackedModel} from '../../public/studforge/js/ldraw-model.js';
 import {renderThumbnail} from './thumbnail.mjs';
-import {countBundleTriangles} from './pipeline-core.mjs';
+import {countBundleTriangles,isVisualSegment} from './pipeline-core.mjs';
 globalThis.ProgressEvent ||= class { constructor(type,values){this.type=type;Object.assign(this,values);} };
 export function readPalette(config) {
 const palette={};
@@ -25,7 +25,7 @@ const known=new Map();
 function physical(object,result=[]) {
  if(['Part','Unofficial_Part'].includes(object.userData.type)) {
   const name=metadata[object.userData.fileName?.toLowerCase()]?.name || '';
-  result.push({object,segment:/^~.*\b(segment|section)\b|^~?lsynth/i.test(name)});
+  result.push({object,segment:isVisualSegment(name)});
  } else {
   // LDCad strings and hand-authored surfaces belong to the scene, not its stock list.
   // Bake only this group's own meshes so standard pieces below it remain separate.

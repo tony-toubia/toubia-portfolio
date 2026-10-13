@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-10-13T04:39:10.017Z",
+  "checkedAt": "2026-10-13T16:13:14.204Z",
   "rankingSource": "https://brickranker.com/hall-of-fame/sets/top",
   "method": "Exact set-number matches first; other licensed/theme community models are supplemental picks, never substitutes for exact ranked versions.",
   "targets": [
@@ -2215,32 +2215,269 @@
           "reason": "Model exceeds interactive budget of 2000000 triangles"
         }
       ]
+    },
+    {
+      "setNumber": "75969-1",
+      "name": "Hogwarts Astronomy Tower",
+      "theme": "Harry Potter",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1218",
+      "status": "imported",
+      "pieces": 925,
+      "triangles": 483027,
+      "sourceTriangles": 483027,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "missing": [
+        "Stickers"
+      ],
+      "durationSeconds": 9
+    },
+    {
+      "setNumber": "40335-1",
+      "name": "Space Rocket Ride",
+      "theme": "LEGO Ideas and CUUSOO",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1147",
+      "status": "imported",
+      "pieces": 158,
+      "triangles": 77194,
+      "sourceTriangles": 77194,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "missing": [],
+      "durationSeconds": 3
+    },
+    {
+      "setNumber": "75893-1",
+      "name": "2018 Dodge Challenger SRT Demon and 1970 Dodge Charger R/T",
+      "theme": "Speed Champions",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1297",
+      "status": "imported",
+      "pieces": 483,
+      "triangles": 242124,
+      "sourceTriangles": 242124,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "missing": [],
+      "durationSeconds": 5
+    },
+    {
+      "setNumber": "75181-1",
+      "name": "Y-Wing Starfighter",
+      "theme": "Star Wars > Ultimate Collector Series",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1093",
+      "status": "imported",
+      "pieces": 1928,
+      "triangles": 777203,
+      "sourceTriangles": 1228971,
+      "primitiveReplacements": 95,
+      "visualComponents": 0,
+      "missing": [
+        "Patterns",
+        "Stickers"
+      ],
+      "durationSeconds": 11
+    },
+    {
+      "setNumber": "75953-1",
+      "name": "Hogwarts Whomping Willow",
+      "theme": "Harry Potter",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1215",
+      "status": "imported",
+      "pieces": 720,
+      "triangles": 387725,
+      "sourceTriangles": 387725,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "missing": [
+        "Parts",
+        "Stickers"
+      ],
+      "durationSeconds": 9
+    },
+    {
+      "setNumber": "75144-1",
+      "name": "Snowspeeder",
+      "theme": "Star Wars > Ultimate Collector Series",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/482",
+      "status": "imported",
+      "pieces": 1713,
+      "triangles": 751422,
+      "sourceTriangles": 1241850,
+      "primitiveReplacements": 82,
+      "visualComponents": 2,
+      "missing": [
+        "Parts",
+        "Stickers"
+      ],
+      "durationSeconds": 16
+    },
+    {
+      "setNumber": "75878-1",
+      "name": "Bugatti Chiron",
+      "theme": "Speed Champions",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1296",
+      "status": "imported",
+      "pieces": 198,
+      "triangles": 106455,
+      "sourceTriangles": 106194,
+      "primitiveReplacements": 0,
+      "visualComponents": 1,
+      "missing": [],
+      "durationSeconds": 5
+    },
+    {
+      "setNumber": "75870-1",
+      "name": "Chevrolet Corvette Z06",
+      "theme": "Speed Champions",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1295",
+      "status": "imported",
+      "pieces": 384,
+      "triangles": 213243,
+      "sourceTriangles": 213243,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "missing": [],
+      "durationSeconds": 4
+    },
+    {
+      "setNumber": "21302-1",
+      "name": "The Big Bang Theory",
+      "theme": "LEGO Ideas and CUUSOO",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1285",
+      "status": "imported",
+      "pieces": 456,
+      "triangles": 216017,
+      "sourceTriangles": 216017,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "missing": [
+        "Parts"
+      ],
+      "durationSeconds": 4
+    },
+    {
+      "setNumber": "75102-1",
+      "name": "Poe's X-Wing Fighter",
+      "theme": "Star Wars",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/898",
+      "status": "imported",
+      "pieces": 730,
+      "triangles": 417615,
+      "sourceTriangles": 417604,
+      "primitiveReplacements": 0,
+      "visualComponents": 4,
+      "missing": [
+        "Parts"
+      ],
+      "durationSeconds": 9
+    },
+    {
+      "setNumber": "21107-1",
+      "name": "Micro World - The End",
+      "theme": "Minecraft",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/361",
+      "status": "imported",
+      "pieces": 430,
+      "triangles": 91202,
+      "sourceTriangles": 91202,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "missing": [],
+      "durationSeconds": 3
+    },
+    {
+      "setNumber": "30300-1",
+      "name": "The Batman Tumbler",
+      "theme": "Super Heroes DC > Batman",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/839",
+      "status": "imported",
+      "pieces": 57,
+      "triangles": 26964,
+      "sourceTriangles": 26964,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "missing": [],
+      "durationSeconds": 2
+    },
+    {
+      "setNumber": "75033-1",
+      "name": "Star Destroyer",
+      "theme": "Star Wars",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/996",
+      "status": "imported",
+      "pieces": 100,
+      "triangles": 37526,
+      "sourceTriangles": 37526,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "missing": [
+        "Parts"
+      ],
+      "durationSeconds": 2
+    },
+    {
+      "setNumber": "75253-1",
+      "name": "Droid Commander",
+      "theme": "Star Wars",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1116",
+      "history": [
+        {
+          "setNumber": "75253-1",
+          "name": "Droid Commander",
+          "theme": "Star Wars",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1116",
+          "sourceTriangles": 370892,
+          "triangles": 370892,
+          "primitiveReplacements": 0,
+          "status": "skipped",
+          "reason": "Invalid placement of 3460.dat",
+          "durationSeconds": 3
+        }
+      ],
+      "status": "imported",
+      "pieces": 553,
+      "triangles": 370780,
+      "sourceTriangles": 370892,
+      "primitiveReplacements": 0,
+      "visualComponents": 380,
+      "missing": [],
+      "durationSeconds": 10,
+      "degenerateVisualSegments": 1,
+      "legacyColors": 3
+    },
+    {
+      "setNumber": "75075-1",
+      "name": "AT-AT",
+      "theme": "Star Wars",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1205",
+      "history": [
+        {
+          "setNumber": "75075-1",
+          "name": "AT-AT",
+          "theme": "Star Wars",
+          "sourceUrl": "https://library.ldraw.org/omr/sets/1205",
+          "sourceTriangles": 41186,
+          "triangles": 41186,
+          "primitiveReplacements": 0,
+          "status": "skipped",
+          "reason": "Unknown color 361",
+          "durationSeconds": 3
+        }
+      ],
+      "status": "imported",
+      "pieces": 85,
+      "triangles": 41186,
+      "sourceTriangles": 41186,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "missing": [
+        "Parts"
+      ],
+      "durationSeconds": 2,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 1
     }
   ],
-  "summary": {
-    "status": "selected batch complete",
-    "rankedTargets": 100,
-    "exactCommunityMatches": 7,
-    "attempted": 41,
-    "imported": 40,
-    "skipped": 1,
-    "initialTrialImports": 1,
-    "totalNewSets": 35,
-    "totalLibrary": 151,
-    "remainingInInitialBatch": 65
-  },
-  "latestBatch": {
-    "completedAt": "2026-10-13T04:39:28.495Z",
-    "selected": [
-      "6073-1",
-      "6685-1",
-      "6061-1",
-      "10294-1"
-    ],
-    "imported": 3,
-    "skipped": 1,
-    "durationSeconds": 19
-  },
   "geometryRepair": {
     "completedAt": "2026-10-13T04:41:12.456Z",
     "previouslySkipped": [
@@ -2449,5 +2686,43 @@
     ],
     "recovered": 10,
     "remainingSkipped": 1
+  },
+  "summary": {
+    "status": "selected batch complete",
+    "rankedTargets": 100,
+    "exactCommunityMatches": 7,
+    "attempted": 56,
+    "imported": 55,
+    "skipped": 1,
+    "initialTrialImports": 1,
+    "totalNewSets": 50,
+    "totalLibrary": 166,
+    "remainingInInitialBatch": 50
+  },
+  "latestBatch": {
+    "completedAt": "2026-10-13T16:13:27.065Z",
+    "selected": [
+      "75969-1",
+      "40335-1",
+      "75253-1",
+      "75893-1",
+      "75181-1",
+      "75953-1",
+      "75144-1",
+      "75878-1",
+      "75870-1",
+      "21302-1",
+      "75075-1",
+      "75102-1",
+      "21107-1",
+      "30300-1",
+      "75033-1"
+    ],
+    "imported": 15,
+    "skipped": 0,
+    "durationSeconds": 100,
+    "processingAttempts": 17,
+    "initialPassImported": 13,
+    "initialPassSkipped": 2
   }
 }

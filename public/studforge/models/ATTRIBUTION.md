@@ -2,7 +2,7 @@
 
 These are community LDraw recreations of existing sets, sourced from the [LDraw Official Model Repository](https://library.ldraw.org/omr). They are not official LEGO digital models. Character names and trademarks belong to their respective owners.
 
-Modifications: embedded file names were normalized to lowercase with forward slashes, and required LDraw parts were bundled into each MPD. Bundled MPDs preserve source geometry, colors, placements, patterns, author notices, and STEP records. Detailed interactive models use official lower-resolution LDraw primitive equivalents; curved surfaces and studs may have fewer facets. Thumbnails are rendered from the interactive geometry. Piece counts exclude spares and render-only strings, generated hose segments, and custom scenery; identified physical LEGO parts remain in inventory. Model steps follow the contributor's file; models without STEP records offer layer inspection instead.
+Modifications: embedded file names were normalized to lowercase with forward slashes, and required LDraw parts were bundled into each MPD. Bundled MPDs preserve source geometry, colors, placements, patterns, author notices, and STEP records. Detailed interactive models use official lower-resolution LDraw primitive equivalents; curved surfaces and studs may have fewer facets. Zero-area generated cable endpoints are excluded only from rendering, and obsolete blended colors follow LDraw’s documented RGB blending rules. Thumbnails are rendered from the interactive geometry. Piece counts exclude spares and render-only strings, generated hose segments, and custom scenery; identified physical LEGO parts remain in inventory. Model steps follow the contributor's file; models without STEP records offer layer inspection instead.
 
 | Set | Community model | Author | Model license |
 |---|---|---|---|
@@ -63,6 +63,21 @@ Modifications: embedded file names were normalized to lowercase with forward sla
 | 6073-1 | [Knight's Castle](https://library.ldraw.org/omr/sets/1303) · [original MPD](https://library.ldraw.org/library/omr/6073-1.mpd) | Stefan Frenz [smf] | Redistributable under CCAL version 2.0 |
 | 6685-1 | [Fire Copter 1](https://library.ldraw.org/omr/sets/688) · [original MPD](https://library.ldraw.org/library/omr/6685-1.mpd) | Robert Paciorek [bercik] | Redistributable under CCAL version 2.0 |
 | 6061-1 | [Siege Tower](https://library.ldraw.org/omr/sets/1032) · [original MPD](https://library.ldraw.org/library/omr/6061-1.mpd) | Stefan Frenz [smf] | Redistributable under CCAL version 2.0 |
+| 75969-1 | [Hogwarts Astronomy Tower](https://library.ldraw.org/omr/sets/1218) · [original MPD](https://library.ldraw.org/library/omr/75969-1.mpd) | Stefan Frenz [smf] | Redistributable under CCAL version 2.0 |
+| 40335-1 | [Space Rocket Ride](https://library.ldraw.org/omr/sets/1147) · [original MPD](https://library.ldraw.org/library/omr/40335-1.mpd) | Marc Giraudet [Mad_Marc] | Redistributable under CCAL version 2.0 |
+| 75893-1 | [2018 Dodge Challenger SRT Demon and 1970 Dodge Charger R/T](https://library.ldraw.org/omr/sets/1297) · [original MPD](https://library.ldraw.org/library/omr/75893-1.mpd) | Magnus Forsberg [MagFors] | Redistributable under CCAL version 2.0 |
+| 75181-1 | [Y-Wing Starfighter](https://library.ldraw.org/omr/sets/1093) · [original MPD](https://library.ldraw.org/library/omr/75181-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
+| 75953-1 | [Hogwarts Whomping Willow](https://library.ldraw.org/omr/sets/1215) · [original MPD](https://library.ldraw.org/library/omr/75953-1.mpd) | Stefan Frenz [smf] | Redistributable under CCAL version 2.0 |
+| 75144-1 | [Snowspeeder](https://library.ldraw.org/omr/sets/482) · [original MPD](https://library.ldraw.org/library/omr/75144-1.mpd) | Roland Dahl [RolandD] | Redistributable under CCAL version 2.0 |
+| 75878-1 | [Bugatti Chiron](https://library.ldraw.org/omr/sets/1296) · [original MPD](https://library.ldraw.org/library/omr/75878-1.mpd) | Magnus Forsberg [MagFors] | Redistributable under CCAL version 2.0 |
+| 75870-1 | [Chevrolet Corvette Z06](https://library.ldraw.org/omr/sets/1295) · [original MPD](https://library.ldraw.org/library/omr/75870-1.mpd) | Magnus Forsberg [MagFors] | Redistributable under CCAL version 2.0 |
+| 21302-1 | [The Big Bang Theory](https://library.ldraw.org/omr/sets/1285) · [original MPD](https://library.ldraw.org/library/omr/21302-1.mpd) | Vincent Messenet [Cheenzo] | Redistributable under CCAL version 2.0 |
+| 75102-1 | [Poe's X-Wing Fighter](https://library.ldraw.org/omr/sets/898) · [original MPD](https://library.ldraw.org/library/omr/75102-1.mpd) | Evert Jan Boer [ejboer] | Redistributable under CCAL version 2.0 |
+| 21107-1 | [Micro World - The End](https://library.ldraw.org/omr/sets/361) · [original MPD](https://library.ldraw.org/library/omr/21107-1.mpd) | Merlijn Wissink [Legolijntje] | Redistributable under CCAL version 2.0 |
+| 30300-1 | [The Batman Tumbler](https://library.ldraw.org/omr/sets/839) · [original MPD](https://library.ldraw.org/library/omr/30300-1.mpd) | Massimo Maso [Sirio] | Redistributable under CCAL version 2.0 |
+| 75033-1 | [Star Destroyer](https://library.ldraw.org/omr/sets/996) · [original MPD](https://library.ldraw.org/library/omr/75033-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
+| 75253-1 | [Droid Commander](https://library.ldraw.org/omr/sets/1116) · [original MPD](https://library.ldraw.org/library/omr/75253-1.mpd) | Philippe Hurbain [Philo] | Redistributable under CCAL version 2.0 |
+| 75075-1 | [AT-AT](https://library.ldraw.org/omr/sets/1205) · [original MPD](https://library.ldraw.org/library/omr/75075-1.mpd) | folkoluck | Redistributable under CCAL version 2.0 |
 
 Individual model and part files retain their !LICENSE and author headers. Official part definitions may use CC BY 2.0 or CC BY 4.0; the applicable license is identified in each embedded file. Full notices: [LDraw CAreadme](CAreadme.txt), [CC BY 2.0](CAlicense.txt), [CC BY 4.0](CAlicense4.txt). Attribution metadata for parts is also available in parts.json.
 
