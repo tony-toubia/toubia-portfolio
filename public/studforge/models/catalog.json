@@ -939,5 +939,402 @@
     "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
     "pieceCount": 821,
     "sourceStepCount": 228
+  },
+  {
+    "id": "set-6285-1",
+    "setNumber": "6285-1",
+    "name": "Black Seas Barracuda",
+    "category": "Pirates",
+    "theme": "Pirates > Pirates I",
+    "subject": "pirateShip",
+    "year": 1989,
+    "format": "ldraw",
+    "modelUrl": "models/6285-1.mpd",
+    "thumbnail": "thumbnails/6285-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1209",
+    "originalUrl": "https://library.ldraw.org/library/omr/6285-1.mpd",
+    "author": "Philippe Hurbain [Philo]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/6285",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 973,
+    "sourceStepCount": 42
+  },
+  {
+    "id": "set-21318-1",
+    "setNumber": "21318-1",
+    "name": "Tree House",
+    "category": "LEGO Ideas and CUUSOO",
+    "theme": "LEGO Ideas and CUUSOO",
+    "subject": "house",
+    "year": 2019,
+    "format": "ldraw",
+    "modelUrl": "models/21318-1.mpd",
+    "thumbnail": "thumbnails/21318-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1286",
+    "originalUrl": "https://library.ldraw.org/library/omr/21318-1.mpd",
+    "author": "Orion Pobursky [OrionP]",
+    "missing": [
+      "Parts"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/21318",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 2996,
+    "sourceStepCount": 1040
+  },
+  {
+    "id": "set-9476-1",
+    "setNumber": "9476-1",
+    "name": "The Orc Forge",
+    "category": "Lord of the Rings",
+    "theme": "The Hobbit and Lord of the Rings > The Lord of the Rings",
+    "subject": "character",
+    "year": 2012,
+    "format": "ldraw",
+    "modelUrl": "models/9476-1.mpd",
+    "thumbnail": "thumbnails/9476-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/30",
+    "originalUrl": "https://library.ldraw.org/library/omr/9476-1.mpd",
+    "author": "Philippe Hurbain [Philo]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/9476",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 391,
+    "sourceStepCount": 2
+  },
+  {
+    "id": "set-76161-1",
+    "setNumber": "76161-1",
+    "name": "1989 Batwing",
+    "category": "DC",
+    "theme": "Super Heroes DC > Batman > UCS",
+    "subject": "spaceship",
+    "year": 2020,
+    "format": "ldraw",
+    "modelUrl": "models/76161-1.mpd",
+    "thumbnail": "thumbnails/76161-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1226",
+    "originalUrl": "https://library.ldraw.org/library/omr/76161-1.mpd",
+    "author": "Orion Pobursky [OrionP]",
+    "missing": [
+      "Parts",
+      "Patterns",
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/76161",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 2402,
+    "sourceStepCount": 697
+  },
+  {
+    "id": "set-76042-1",
+    "setNumber": "76042-1",
+    "name": "The SHIELD Helicarrier",
+    "category": "Marvel",
+    "theme": "Super Heroes Marvel > Avengers",
+    "subject": "car",
+    "year": 2015,
+    "format": "ldraw",
+    "modelUrl": "models/76042-1.mpd",
+    "thumbnail": "thumbnails/76042-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1202",
+    "originalUrl": "https://library.ldraw.org/library/omr/76042-1.mpd",
+    "author": "Marc Giraudet [Mad_Marc]",
+    "missing": [
+      "Parts",
+      "Patterns",
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/76042",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 3084,
+    "sourceStepCount": 875
+  },
+  {
+    "id": "set-75060-1",
+    "setNumber": "75060-1",
+    "name": "Slave I",
+    "category": "Star Wars",
+    "theme": "Star Wars > Ultimate Collector Series",
+    "subject": "spaceship",
+    "year": 2015,
+    "format": "ldraw",
+    "modelUrl": "models/75060-1.mpd",
+    "thumbnail": "thumbnails/75060-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1000",
+    "originalUrl": "https://library.ldraw.org/library/omr/75060-1.mpd",
+    "author": "Orion Pobursky [OrionP]",
+    "missing": [
+      "Parts",
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75060",
+    "collections": [
+      "popular-picks"
+    ],
+    "rank": 81,
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 2018,
+    "sourceStepCount": 571
+  },
+  {
+    "id": "set-76139-1",
+    "setNumber": "76139-1",
+    "name": "1989 Batmobile",
+    "category": "DC",
+    "theme": "Super Heroes DC > Batman > UCS",
+    "subject": "car",
+    "year": 2019,
+    "format": "ldraw",
+    "modelUrl": "models/76139-1.mpd",
+    "thumbnail": "thumbnails/76139-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1094",
+    "originalUrl": "https://library.ldraw.org/library/omr/76139-1.mpd",
+    "author": "Orion Pobursky [OrionP]",
+    "missing": [
+      "Parts",
+      "Patterns",
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/76139",
+    "collections": [
+      "popular-picks"
+    ],
+    "rank": 87,
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 3292,
+    "sourceStepCount": 651
+  },
+  {
+    "id": "set-10297-1",
+    "setNumber": "10297-1",
+    "name": "Boutique Hotel",
+    "category": "Modular Buildings",
+    "theme": "Modular Buildings",
+    "subject": "house",
+    "year": 2022,
+    "format": "ldraw",
+    "modelUrl": "models/10297-1.mpd",
+    "thumbnail": "thumbnails/10297-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1447",
+    "originalUrl": "https://library.ldraw.org/library/omr/10297-1.mpd",
+    "author": "Philippe Hurbain [Philo]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/10297",
+    "collections": [
+      "popular-picks"
+    ],
+    "rank": 90,
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 3114,
+    "sourceStepCount": 329
+  },
+  {
+    "id": "set-10212-1",
+    "setNumber": "10212-1",
+    "name": "Imperial Shuttle",
+    "category": "Star Wars",
+    "theme": "Star Wars > Ultimate Collector Series",
+    "subject": "spaceship",
+    "year": 2010,
+    "format": "ldraw",
+    "modelUrl": "models/10212-1.mpd",
+    "thumbnail": "thumbnails/10212-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/323",
+    "originalUrl": "https://library.ldraw.org/library/omr/10212-1.mpd",
+    "author": "Roland Dahl [RolandD]",
+    "missing": [
+      "Patterns",
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/10212",
+    "collections": [
+      "popular-picks"
+    ],
+    "rank": 100,
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 2526,
+    "sourceStepCount": 787
+  },
+  {
+    "id": "set-21325-1",
+    "setNumber": "21325-1",
+    "name": "Medieval Blacksmith",
+    "category": "LEGO Ideas and CUUSOO",
+    "theme": "LEGO Ideas and CUUSOO",
+    "subject": "character",
+    "year": 2021,
+    "format": "ldraw",
+    "modelUrl": "models/21325-1.mpd",
+    "thumbnail": "thumbnails/21325-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1289",
+    "originalUrl": "https://library.ldraw.org/library/omr/21325-1.mpd",
+    "author": "Vincent Messenet [Cheenzo]",
+    "missing": [
+      "Parts",
+      "Patterns"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/21325",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 2134,
+    "sourceStepCount": 550
+  },
+  {
+    "id": "set-21323-1",
+    "setNumber": "21323-1",
+    "name": "Grand Piano",
+    "category": "LEGO Ideas and CUUSOO",
+    "theme": "LEGO Ideas and CUUSOO",
+    "subject": "character",
+    "year": 2020,
+    "format": "ldraw",
+    "modelUrl": "models/21323-1.mpd",
+    "thumbnail": "thumbnails/21323-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1288",
+    "originalUrl": "https://library.ldraw.org/library/omr/21323-1.mpd",
+    "author": "Orion Pobursky [OrionP]",
+    "missing": [
+      "Patterns"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/21323",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 3674,
+    "sourceStepCount": 1158
+  },
+  {
+    "id": "set-6286-1",
+    "setNumber": "6286-1",
+    "name": "Skull's Eye Schooner",
+    "category": "Pirates",
+    "theme": "Pirates > Pirates I",
+    "subject": "pirateShip",
+    "year": 1993,
+    "format": "ldraw",
+    "modelUrl": "models/6286-1.mpd",
+    "thumbnail": "thumbnails/6286-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1210",
+    "originalUrl": "https://library.ldraw.org/library/omr/6286-1.mpd",
+    "author": "Philippe Hurbain [Philo]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/6286",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 1006,
+    "sourceStepCount": 61
+  },
+  {
+    "id": "set-10124-1",
+    "setNumber": "10124-1",
+    "name": "Wright Flyer",
+    "category": "Creator",
+    "theme": "Creator > Creator Expert",
+    "subject": "plane",
+    "year": 2003,
+    "format": "ldraw",
+    "modelUrl": "models/10124-1.mpd",
+    "thumbnail": "thumbnails/10124-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1145",
+    "originalUrl": "https://library.ldraw.org/library/omr/10124-1.mpd",
+    "author": "Marc Giraudet [Mad_Marc]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/10124",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 677,
+    "sourceStepCount": 111
+  },
+  {
+    "id": "set-6073-1",
+    "setNumber": "6073-1",
+    "name": "Knight's Castle",
+    "category": "Castle",
+    "theme": "Castle > Black Falcons",
+    "subject": "castle",
+    "year": 1984,
+    "format": "ldraw",
+    "modelUrl": "models/6073-1.mpd",
+    "thumbnail": "thumbnails/6073-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1303",
+    "originalUrl": "https://library.ldraw.org/library/omr/6073-1.mpd",
+    "author": "Stefan Frenz [smf]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/6073",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 453,
+    "sourceStepCount": 36
+  },
+  {
+    "id": "set-6685-1",
+    "setNumber": "6685-1",
+    "name": "Fire Copter 1",
+    "category": "Town",
+    "theme": "Town > Classic Town",
+    "subject": "helicopter",
+    "year": 1982,
+    "format": "ldraw",
+    "modelUrl": "models/6685-1.mpd",
+    "thumbnail": "thumbnails/6685-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/688",
+    "originalUrl": "https://library.ldraw.org/library/omr/6685-1.mpd",
+    "author": "Robert Paciorek [bercik]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/6685",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 104,
+    "sourceStepCount": 23
+  },
+  {
+    "id": "set-6061-1",
+    "setNumber": "6061-1",
+    "name": "Siege Tower",
+    "category": "Castle",
+    "theme": "Castle > Lion Knights",
+    "subject": "tower",
+    "year": 1984,
+    "format": "ldraw",
+    "modelUrl": "models/6061-1.mpd",
+    "thumbnail": "thumbnails/6061-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1032",
+    "originalUrl": "https://library.ldraw.org/library/omr/6061-1.mpd",
+    "author": "Stefan Frenz [smf]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/6061",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 239,
+    "sourceStepCount": 37
   }
 ]

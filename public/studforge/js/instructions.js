@@ -124,6 +124,7 @@ body.sfi-booklet-open .top-nav, body.sfi-booklet-open .app-layout { display: non
         const steps = [];
         for (let i = 0; i <= viewer.maxLayer; i++) steps.push({ index: i, count: 0, parts: new Map() });
         for (const m of viewer.brickMeshes) {
+            if (m.userData.segment) continue;
             const st = steps[m.userData.layer || 0];
             if (!st) continue;
             st.count++;
@@ -435,7 +436,7 @@ body.sfi-booklet-open .top-nav, body.sfi-booklet-open .app-layout { display: non
 
         function buildBooklet(shots) {
             const model = sf.model, bom = sf.bom || [];
-            const total = model.bricks.length;
+            const total = model.bricks.filter(b => !b.segment).length;
             const dims = model.dims ? `${model.dims.w}×${model.dims.d}×${model.dims.h} STUDS` : '';
             let html = `<section class="sfi-page sfi-cover">
                 <div class="sfi-cover-brand"><i class="sfi-logo"><s></s><s></s><s></s><s></s></i>STUDFORGE · BUILD INSTRUCTIONS</div>

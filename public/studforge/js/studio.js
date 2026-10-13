@@ -110,7 +110,7 @@
             if (!r.width || !r.height) return null;
             ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
             raycaster.setFromCamera(ndc, viewer.camera);
-            const hits = raycaster.intersectObjects(viewer.brickMeshes.filter((m) => m.visible), false);
+            const hits = raycaster.intersectObjects(viewer.brickMeshes.filter((m) => m.visible && !m.userData.segment), false);
             return hits.length ? hits[0].object : null;
         }
 
@@ -205,7 +205,8 @@
 
         /** Lay the bricks out in a tray: blocks of identical pieces, flowing in rows, big elements first. */
         function layoutTray() {
-            const meshes = viewer.brickMeshes;
+            const meshes = viewer.brickMeshes.filter(m => !m.userData.segment);
+            for (const m of viewer.brickMeshes) if (m.userData.segment) m.visible = false;
             disposeLabels();
             if (!meshes.length) { trayExtent = 0; trayGroups = []; return; }
             const groups = new Map();
@@ -259,6 +260,7 @@
 
         function gatherTray() {
             const meshes = viewer.brickMeshes;
+            for (const m of meshes) if (m.userData.segment) m.visible = (m.userData.layer || 0) <= viewer.currentStep;
             disposeLabels();
             // Where the bricks belong now (home, or exploded) is whatever the viewer's own explode puts them at.
             const cur = meshes.map((m) => m.position.clone());
@@ -580,6 +582,9 @@
 
         /* ── keep up with new models ───────────────────────────────── */
         sf.on('forging', () => closeCard());
+        sf.on('step', () => {
+            if (trayOn) for (const mesh of viewer.brickMeshes) if (mesh.userData.segment) mesh.visible = false;
+        });
         sf.on('model', () => {
             closeCard();
             if (trayOn) { layoutTray(); trayRadius0 = viewer.spherical.radius; glideRadius(Math.max(viewer.spherical.radius, Math.min(viewer.home.radius * 3, trayExtent * 1.35)), 950); }

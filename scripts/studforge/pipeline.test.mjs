@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {packModel,validateBundle,countBundleTriangles,parseSetPage,parseRanking,selectQueuedSets} from './pipeline-core.mjs';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import {publishFile} from './publish-file.mjs';
+import {packModel,optimizeBundle,validateBundle,countBundleTriangles,parseSetPage,parseRanking,selectQueuedSets} from './pipeline-core.mjs';
 const placement = ref => `1 4 0 0 0 1 0 0 0 1 0 0 0 1 ${ref}`;
 const licensed = body => `0 Test\n0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt\n${body}`;
 
@@ -44,4 +47,32 @@ test('preflight counts repeated nested geometry and rejects cyclic models before
     const text=`0 FILE main.ldr\n${placement('part.dat')}\n${placement('part.dat')}\n0 FILE part.dat\n3 16 0 0 0 1 0 0 0 1 0\n4 16 0 0 0 1 0 0 1 1 0 0 1 0`;
     assert.equal(countBundleTriangles(text),6);
     assert.throws(()=>countBundleTriangles(`0 FILE cycle.ldr\n${placement('cycle.ldr')}`),/Cyclic/);
+});
+
+test('interactive optimization substitutes licensed primitives while retaining physical parts and full source',async()=>{
+    const face='3 16 0 0 0 1 0 0 0 1 0\n';
+    const files={'part.dat':licensed('0 !LDRAW_ORG Part\n'+placement('curve.dat')),'curve.dat':licensed('0 !LDRAW_ORG Primitive\n'+face.repeat(8)),'8/curve.dat':licensed('0 !LDRAW_ORG 8_Primitive\n'+face.repeat(4))};
+    const read=async ref=>{if(!files[ref])throw Object.assign(new Error('missing'),{code:'ENOENT'});return files[ref];};
+    const full=await packModel(licensed(placement('part.dat')),'main.ldr',read);
+    const reduced=await optimizeBundle(full,read);
+    assert.equal(countBundleTriangles(full.packed),8);
+    assert.equal(countBundleTriangles(reduced.packed),4);
+    assert.equal(reduced.replacements,1);
+    assert.ok(reduced.metadata['part.dat']);
+    assert.ok(reduced.packed.includes('CCAL version 2.0'));
+    assert.equal(validateBundle(reduced.packed),3);
+});
+
+test('catalog publication keeps complete JSON visible to concurrent readers',async()=>{
+    const cache=path.resolve('scripts/studforge/.cache');await fs.mkdir(cache,{recursive:true});
+    const directory=await fs.mkdtemp(path.join(cache,'publication-test-')),file=path.join(directory,'index.json');
+    try {
+        await publishFile(file,JSON.stringify({revision:0,payload:'x'.repeat(50000)}));
+        await Promise.all([
+            (async()=>{for(let revision=1;revision<=12;revision++)await publishFile(file,JSON.stringify({revision,payload:'x'.repeat(50000)}));})(),
+            (async()=>{for(let read=0;read<40;read++){const value=JSON.parse(await fs.readFile(file,'utf8'));assert.equal(value.payload.length,50000);assert.ok(Number.isInteger(value.revision));}})(),
+        ]);
+        assert.equal(JSON.parse(await fs.readFile(file,'utf8')).revision,12);
+        assert.deepEqual(await fs.readdir(directory),['index.json']);
+    } finally {assert.ok(directory.startsWith(cache+path.sep));await fs.rm(directory,{recursive:true,force:true});}
 });

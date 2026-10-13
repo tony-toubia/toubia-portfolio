@@ -1,7 +1,8 @@
 import { LDrawLoader } from '../vendor/LDrawLoader.js';
 
-export async function loadPackedModel(text, colors) {
+export async function loadPackedModel(text, colors, options = {}) {
     const loader = new LDrawLoader();
+    if (options.smoothNormals === false) loader.smoothNormals = false;
     const colorFile = new Blob([colors], { type: 'text/plain' });
     const colorUrl = URL.createObjectURL(colorFile);
     try { await loader.preloadMaterials(colorUrl); }

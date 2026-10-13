@@ -1,6 +1,7 @@
 // One command discovers, validates, renders and publishes community models. Failures stay out of the library.
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import {publishFile} from './publish-file.mjs';
 import {spawn,spawnSync} from 'node:child_process';
 import {parseRanking,parseSetPage,plain,selectQueuedSets} from './pipeline-core.mjs';
 const args=process.argv.slice(2),arg=(name,fallback)=>{const i=args.indexOf(`--${name}`);return i<0?fallback:args[i+1];};
@@ -56,11 +57,21 @@ for(const target of report.targets){const old=report.attempts.find(row=>row.setN
 let palette={};
 try{const text=await fs.readFile(`${root}/js/ldraw-palette.js`,'utf8');palette=JSON.parse(text.slice(text.indexOf(',')+1,text.lastIndexOf(')')));}catch{throw new Error('Existing LDraw palette is invalid');}
 const categoryOf=s=>/^Star Wars/.test(s.theme)?'Star Wars':/^Harry Potter/.test(s.theme)?'Harry Potter':/Super Heroes DC/.test(s.theme)?'DC':/Super Heroes Marvel/.test(s.theme)?'Marvel':/Hobbit|Lord of the Rings/.test(s.theme)?'Lord of the Rings':s.theme.split(' > ')[0];
-const subjectOf=s=>/X-wing|TIE|Falcon|Shuttle|Ghost|fighter|starship|Slave|Destroyer|wing|space/i.test(s.name)?'spaceship':/AT-|walker|droid|robot/i.test(s.name)?'robot':/Batmobile|Tumbler|McLaren|Porsche|Ferrari|car/i.test(s.name)?'car':/Hogwarts|Tower|Fortress|castle/i.test(s.name)?'castle':/Hotel|Station|House|Hall|Shop/i.test(s.name)?'house':'character';
-async function checkpoint(){await fs.writeFile(`${root}/data/omr/index.json`,JSON.stringify(index));await fs.writeFile(`${root}/data/ldraw/manifest.json`,JSON.stringify(manifest));await fs.writeFile(`${root}/models/catalog.json`,JSON.stringify(catalog,null,2)+'\n');await fs.writeFile(`${root}/models/parts.json`,JSON.stringify(metadata));await fs.writeFile(`${root}/js/ldraw-palette.js`,`Object.assign(window.LEGO_COLORS,${JSON.stringify(palette)});\n`);await fs.mkdir('docs',{recursive:true});await fs.writeFile('docs/studforge-backfill-report.json',JSON.stringify(report,null,2)+'\n');}
+const subjectOf=s=>/Pirates/.test(s.theme)&&/Barracuda|Schooner|ship/i.test(s.name)?'pirateShip':/X-wing|TIE|Falcon|Shuttle|Ghost|fighter|starship|Slave|Destroyer|wing|space/i.test(s.name)?'spaceship':/AT-|walker|droid|robot/i.test(s.name)?'robot':/Batmobile|Tumbler|McLaren|Porsche|Ferrari|car/i.test(s.name)?'car':/Hogwarts|Tower|Fortress|castle/i.test(s.name)?'castle':/Hotel|Station|House|Hall|Shop/i.test(s.name)?'house':'character';
+async function checkpoint(){
+    await publishFile(root+'/data/ldraw/manifest.json',JSON.stringify(manifest));
+    await publishFile(root+'/models/parts.json',JSON.stringify(metadata));
+    await publishFile(root+'/js/ldraw-palette.js','Object.assign(window.LEGO_COLORS,'+JSON.stringify(palette)+');\n');
+    await publishFile(root+'/models/catalog.json',JSON.stringify(catalog,null,2)+'\n');
+    await publishFile(root+'/data/omr/index.json',JSON.stringify(index));
+    await fs.mkdir('docs',{recursive:true});
+    await publishFile('docs/studforge-backfill-report.json',JSON.stringify(report,null,2)+'\n');
+}
 for(const [position,set] of candidates.entries()) {
     const startedAt=Date.now();
-    const attempt={setNumber:set.number,name:set.name,theme:set.theme,rank:ranks.get(set.number)?.rank,sourceUrl:`https://library.ldraw.org/omr/sets/${set.omrId}`};report.attempts.push(attempt);
+    const attempt={setNumber:set.number,name:set.name,theme:set.theme,rank:ranks.get(set.number)?.rank,sourceUrl:`https://library.ldraw.org/omr/sets/${set.omrId}`};const prior=previousReport?.attempts.find(row=>row.setNumber===set.number);
+    if(prior)attempt.history=[...(prior.history||[]),Object.fromEntries(Object.entries(prior).filter(([key])=>key!=='history'))];
+    report.attempts.push(attempt);
     console.log(`[${position+1}/${candidates.length}] ${set.number} ${set.name}`);
     try {
         const models=parseSetPage(await cachedFetch(attempt.sourceUrl,`${cache}/omr/html/set-${set.omrId}.html`));
@@ -70,7 +81,7 @@ for(const [position,set] of candidates.entries()) {
         const original=`${cache}/batch/${set.number}.source`;
         await cachedFetch(match.url,original);
         const previous=catalog.find(e=>e.setNumber===set.number);
-        const entry={...previous,id:`set-${set.number}`,setNumber:set.number,name:set.name,category:previous?.category || categoryOf(set),theme:set.theme,subject:subjectOf(set),year:set.year,format:'ldraw',modelUrl:`models/${set.number}.mpd`,thumbnail:`thumbnails/${set.number}.png`,sourceUrl:attempt.sourceUrl,originalUrl:match.url,author:match.author,missing:match.missing,instructionsUrl:`https://www.lego.com/en-us/service/building-instructions/${set.number.split('-')[0]}`,collections:['popular-picks'],rank:attempt.rank};
+        const entry={...previous,id:`set-${set.number}`,setNumber:set.number,name:set.name,category:previous?.category || categoryOf(set),theme:set.theme,subject:index.models.find(row=>row.id===set.number)?.subject || subjectOf(set),year:set.year,format:'ldraw',modelUrl:`models/${set.number}.mpd`,thumbnail:`thumbnails/${set.number}.png`,sourceUrl:attempt.sourceUrl,originalUrl:match.url,author:match.author,missing:match.missing,instructionsUrl:`https://www.lego.com/en-us/service/building-instructions/${set.number.split('-')[0]}`,collections:['popular-picks'],rank:attempt.rank};
         const output=`${cache}/batch/${set.number}`,result=`${cache}/batch/${set.number}.result.json`,taskFile=`${cache}/batch/${set.number}.task.json`;
         await fs.mkdir(output,{recursive:true});await fs.rm(result,{force:true});
         await fs.writeFile(taskFile,JSON.stringify({entry,original,output,result,library:`${cache}/ldraw`}));
@@ -78,23 +89,28 @@ for(const [position,set] of candidates.entries()) {
         if(exit.timeout)throw new Error('Conversion exceeded the 300-second model budget');
         if(exit.error)throw new Error(exit.error);
         const converted=await readJSON(result);
-        if(exit.code||converted.status!=='imported')throw new Error(converted.reason||'Model conversion failed');
+        if(exit.code||converted.status!=='imported'){
+            Object.assign(attempt,{sourceTriangles:converted.sourceTriangles,triangles:converted.renderTriangles,primitiveReplacements:converted.primitiveReplacements});
+            throw new Error(converted.reason||'Model conversion failed');
+        }
         for(const id of Object.keys(converted.manifest))await fs.copyFile(`${output}/parts/${id}.json`,`${root}/data/ldraw/parts/${id}.json`);
         await fs.copyFile(`${output}/model.json`,`${root}/data/omr/${set.number}.json`);await fs.copyFile(`${output}/packed.mpd`,`${root}/models/${set.number}.mpd`);await fs.copyFile(`${output}/thumbnails/${set.number}.png`,`${root}/thumbnails/${set.number}.png`);
         index.models=index.models.filter(e=>e.id!==set.number);index.models.push(converted.row);
         const oldEntry=catalog.findIndex(e=>e.setNumber===set.number);if(oldEntry>=0)catalog[oldEntry]=converted.entry;else catalog.push(converted.entry);
         Object.assign(manifest.parts,converted.manifest);Object.assign(metadata,converted.metadata);Object.assign(palette,converted.palette);
-        Object.assign(attempt,{status:'imported',pieces:converted.pieceCount,triangles:converted.model.stats.triangles,missing:entry.missing});
+        Object.assign(attempt,{status:'imported',pieces:converted.pieceCount,triangles:converted.model.stats.triangles,sourceTriangles:converted.model.stats.sourceTriangles,primitiveReplacements:converted.model.stats.primitiveReplacements,visualComponents:converted.model.stats.visualComponents,missing:entry.missing});
         console.log(`  imported ${attempt.pieces} pieces; ${converted.model.steps} ${converted.model.stepKind}`);
     }catch(error){Object.assign(attempt,{status:'skipped',reason:error.message});console.log(`  skipped: ${error.message}`);}
     attempt.durationSeconds=Math.round((Date.now()-startedAt)/1000);
     console.log(`  finished in ${attempt.durationSeconds}s`);
     const target=report.targets.find(r=>r.setNumber===set.number);if(target)Object.assign(target,{status:attempt.status,reason:attempt.reason});
+    // Keep provenance and counts in intermediate checkpoints if a process is interrupted.
+    report.summary={...previousReport?.summary,status:'selected batch in progress',attempted:report.attempts.length,imported:report.attempts.filter(a=>a.status==='imported').length,skipped:report.attempts.filter(a=>a.status==='skipped').length,totalNewSets:index.models.length-116,totalLibrary:index.models.length,remainingInInitialBatch:queue?.pending.length??previousReport?.summary?.remainingInInitialBatch};
     await checkpoint();
-    if(queue){queue.pending=queue.pending.filter(row=>(typeof row==='string'?row:row.setNumber)!==set.number&&!existing.has(typeof row==='string'?row:row.setNumber));queue.completed=[...(queue.completed||[]),attempt];queue.updatedAt=new Date().toISOString();await fs.writeFile(queueFile,JSON.stringify(queue,null,2)+'\n');}
+    if(queue){queue.pending=queue.pending.filter(row=>(typeof row==='string'?row:row.setNumber)!==set.number&&!existing.has(typeof row==='string'?row:row.setNumber));queue.completed=[...(queue.completed||[]),attempt];queue.updatedAt=new Date().toISOString();await publishFile(queueFile,JSON.stringify(queue,null,2)+'\n');}
 }
 const selectedAttempts=report.attempts.filter(a=>candidates.some(s=>s.number===a.setNumber));
-report.summary={status:'selected batch complete',rankedTargets:100,exactCommunityMatches:exact.length,attempted:report.attempts.length,imported:report.attempts.filter(a=>a.status==='imported').length,skipped:report.attempts.filter(a=>a.status==='skipped').length,initialTrialImports:previousReport?.summary?.initialTrialImports||0,totalNewSets:index.models.length-116,totalLibrary:index.models.length,remainingInInitialBatch:queue?.pending.length};
+report.summary={status:'selected batch complete',rankedTargets:100,exactCommunityMatches:exact.length,attempted:report.attempts.length,imported:report.attempts.filter(a=>a.status==='imported').length,skipped:report.attempts.filter(a=>a.status==='skipped').length,initialTrialImports:previousReport?.summary?.initialTrialImports||0,totalNewSets:index.models.length-116,totalLibrary:index.models.length,remainingInInitialBatch:queue?.pending.length??previousReport?.summary?.remainingInInitialBatch};
 report.latestBatch={completedAt:new Date().toISOString(),selected:candidates.map(s=>s.number),imported:selectedAttempts.filter(a=>a.status==='imported').length,skipped:selectedAttempts.filter(a=>a.status==='skipped').length,durationSeconds:selectedAttempts.reduce((total,a)=>total+a.durationSeconds,0)};
 await checkpoint();
 const credits=spawnSync(process.execPath,['scripts/studforge/prepare-models.mjs','--credits-only'],{stdio:'inherit',windowsHide:true});

@@ -3,15 +3,15 @@
 Adding a supported community model now takes a set number, rather than set-specific application code:
 
 ```powershell
-npm run studforge:import -- --only 75053-1
-npm run studforge:backfill -- --limit 100
+node scripts/studforge/backfill-library.mjs --only 75053-1
+node scripts/studforge/backfill-library.mjs --limit 100
 npm run studforge:test
 ```
 
-The first batch stopped after 15 candidates at the user's request: eight imported and seven skipped, plus The Ghost imported in the initial trial. The second batch imported six personally selected sets in 72 seconds. A third batch added ten varied sets in 221 seconds of processing, including four automatically skipped candidates and their replacements. The library now has 141 sets. The next 65 candidates remain in [the saved queue](../../docs/studforge-import-queue.json); its reserve list contains additional candidates beyond the original 100. Nothing is scheduled to run automatically. To process the next small batch:
+The first batch stopped after 15 candidates at the user's request: eight imported and seven skipped, plus The Ghost imported in the initial trial. The second batch imported six personally selected sets in 72 seconds. A third batch added ten varied sets in 221 seconds of processing, including four automatically skipped candidates and their replacements. The geometry repair pass recovered 10 of the 11 skipped sets and rebuilt six older models with missing strings or custom surfaces. The library now has 151 sets. The next 65 candidates remain in [the saved queue](../../docs/studforge-import-queue.json); its reserve list contains additional candidates beyond the original 100. Nothing is scheduled to run automatically. To process the next small batch:
 
 ```powershell
-npm run studforge:backfill -- --queue docs/studforge-import-queue.json --limit 15
+node scripts/studforge/backfill-library.mjs --queue docs/studforge-import-queue.json --limit 15
 ```
 
 To choose specific pending entries rather than the next ones in order, combine `--queue` with `--only 75969-1,75253-1` (replace these example IDs with pending set numbers).
@@ -44,3 +44,13 @@ Inventories describe the community recreation, not the official boxed-set invent
 Source STEP records drive assembly mode. Models without them provide inspection layers and a link to LEGO's original instructions. The library surfaces missing parts, patterns and stickers reported by each contributor. Favorites and step/checklist progress are stored locally and are not account synced.
 
 Original model and embedded part author/license headers are retained in bundled MPDs. Applicable LDraw notices and generated attribution are published with the library. Geometry, placements, source colors and prints are preserved; unsupported or unresolved files are skipped rather than guessed. Tests verify packed dependency graphs, finite geometry and placements, palette coverage, inventories, thumbnails and unique catalog IDs.
+
+## Flexible geometry and large models
+
+The converter separates physical Part records from supplemental surfaces in Model groups. Generated strings, hose sections and custom scenery render at their source transforms and steps, but are excluded from stock counts, prices, CSV exports, checklists and the parts tray. Identified physical string or rigging parts remain in inventory. Mixed assemblies retain their own surface meshes alongside their ordinary bricks without counting or baking children twice.
+
+Models above one million source triangles use available official LDraw 8-segment primitive equivalents before the two-million-triangle limit is applied. Physical part IDs, placement matrices, source colors and printed face colors remain unchanged; full-detail packed source files and their author/license notices are retained. Loader edge geometry and normal smoothing are bypassed only during baking because the viewer reconstructs normals from the indexed output.
+
+Ten previously skipped models now load automatically. Titanic remains above the interactive budget: 4,700,775 source triangles become 2,745,665 triangles after primitive reduction. Enabling it needs another measured optimization, such as rendering sections separately or instancing repeated parts, with desktop and phone validation. The importer reports exact source and optimized counts rather than raising its limit silently. Detailed outcomes and prior failure history are in the backfill report.
+
+Publication uses temporary files and atomic replacement with bounded retries for transient Windows locks. This prevents readers from observing partially written catalogs. Use the direct Node command shown above on PowerShell; some npm versions consume importer flags such as --only instead of forwarding them.
