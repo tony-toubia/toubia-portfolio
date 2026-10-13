@@ -11,7 +11,8 @@
     let pending = null;   // one dialog at a time; concurrent requests share its answer
 
     const css = `
-.sfg-overlay { position: fixed; inset: 0; z-index: 10050; display: flex; align-items: center; justify-content: center; background: rgba(8, 11, 18, 0.72); backdrop-filter: blur(3px); padding: 16px; }
+.sfg-overlay { position: fixed; inset: 0; z-index: 10050; display: flex; align-items: center; justify-content: center; background: rgba(8, 11, 18, 0.72); backdrop-filter: blur(3px); padding: 16px; width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; border: 0; box-sizing: border-box; }
+.sfg-overlay:not([open]) { display: none; }
 .sfg-card { width: min(380px, 100%); background: var(--bg-card, #151a26); border: 1px solid var(--lego-yellow, #ffd500); border-radius: 12px; padding: 18px 18px 16px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6); font-family: var(--font-body, sans-serif); color: var(--text-secondary, #cfd6e4); }
 .sfg-card h3 { margin: 0 0 6px; font-family: var(--font-heading, sans-serif); font-size: 13px; letter-spacing: 1.2px; color: var(--lego-yellow, #ffd500); }
 .sfg-card p { margin: 0 0 12px; font-size: 13px; line-height: 1.45; }
@@ -33,7 +34,9 @@
         if (pending) return pending;
         pending = new Promise((resolve) => {
             if (!document.getElementById('sfg-style')) { const s = document.createElement('style'); s.id = 'sfg-style'; s.textContent = css; document.head.appendChild(s); }
-            const overlay = document.createElement('div'); overlay.className = 'sfg-overlay'; overlay.id = 'sfg-gate';
+            // Stay visible above an already-open idea preview dialog. A body div
+            // is inert underneath the browser's modal top layer regardless of z-index.
+            const overlay = document.createElement('dialog'); overlay.className = 'sfg-overlay'; overlay.id = 'sfg-gate';
             overlay.innerHTML = `<form class="sfg-card" autocomplete="off">
                 <h3>🔒 CLAUDE IS PASSWORD-PROTECTED</h3>
                 <p>Designs from Claude cost real API credit, so they need the StudForge password.</p>
@@ -45,7 +48,8 @@
             const form = overlay.querySelector('form'), input = overlay.querySelector('input'), btn = overlay.querySelector('.sfg-btn'), msg = overlay.querySelector('.sfg-msg');
             const done = (ok) => { overlay.remove(); pending = null; resolve(ok); };
             overlay.querySelector('.sfg-cancel').addEventListener('click', () => done(false));
-            overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') done(false); });
+            overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(false); } });
+            overlay.addEventListener('cancel', (e) => { e.preventDefault(); done(false); });
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const password = input.value;
@@ -61,6 +65,7 @@
                 finally { btn.disabled = false; }
             });
             document.body.appendChild(overlay);
+            overlay.showModal();
             setTimeout(() => input.focus(), 50);
         });
         return pending;

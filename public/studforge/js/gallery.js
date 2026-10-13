@@ -28,28 +28,53 @@
         encode(obj) { return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); },
         decode(s) { try { s = s.replace(/-/g, '+').replace(/_/g, '/'); return JSON.parse(decodeURIComponent(escape(atob(s + '='.repeat((4 - s.length % 4) % 4))))); } catch (e) { return null; } },
     };
-    /** Only the parts of opts worth putting in a link (colours, scale, features); nothing empty. */
+    /** A safe local recipe. Approved designs must retain their actual blueprint when reopened. */
     const compactOpts = (opts) => {
         const o = {};
         if (!opts) return o;
         if (opts.colors && Object.keys(opts.colors).length) o.colors = opts.colors;
         if (typeof opts.scale === 'number') o.scale = opts.scale;
         if (opts.features && Object.keys(opts.features).length) o.features = opts.features;
+        if (opts.blueprint && window.FORGE?.blueprint) {
+            const checked = window.FORGE.blueprint.validate(opts.blueprint);
+            if (checked.ok) o.blueprint = checked.bp;
+        }
+        if (o.blueprint && opts.concept && typeof opts.concept === 'object') {
+            const c = opts.concept, text = (v, n) => typeof v === 'string' ? v.slice(0, n) : '';
+            // Never persist approval tokens or uploaded image bytes. Sources are descriptive metadata.
+            o.concept = { id: text(c.id, 40), name: text(c.name, 60), identity: text(c.identity, 180), referenceStatus: text(c.referenceStatus, 24), sources: (Array.isArray(c.sources) ? c.sources : []).slice(0, 5).flatMap(s => {
+                try { const url = new URL(s.url); return url.protocol === 'https:' && !url.username && !url.password ? [{ title: text(s.title, 160), url: url.href.slice(0, 1600) }] : []; } catch { return []; }
+            }) };
+            if (c.sketch) { const sketch = window.FORGE.blueprint.validate({ ...c.sketch, name: c.name }); if (sketch.ok) o.concept.sketch = { base: sketch.bp.base, ops: sketch.bp.ops }; }
+        }
         return o;
+    };
+    const resumeId = (model, opts) => {
+        let hash = 2166136261;
+        for (const char of JSON.stringify(compactOpts(opts))) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+        return `${model.id}-${(hash >>> 0).toString(36)}`;
     };
     // A real set shown by reference.js has no idea to re-forge: its address is the set number.
     const refOf = () => { const m = window.studForge && window.studForge.model; return m && m.kind === 'reference' && m.reference ? String(m.reference.setId) : null; };
     const shareQuery = (prompt, variant, opts, ref = null) => {
         if (ref) return `ref=${encodeURIComponent(ref)}`;
+        // Full custom recipes are larger than dependable share URLs. A prompt-only URL would
+        // rebuild a different generic model, so custom designs use local resume + image export.
+        if (opts && opts.blueprint) return null;
         let q = `idea=${encodeURIComponent(prompt)}&v=${variant | 0}`;
         const o = compactOpts(opts);
         if (Object.keys(o).length) q += `&o=${b64url.encode(o)}`;
         return q;
     };
     /** The standalone app URL (works locally and at tonytoubia.com/studforge/index.html, also from inside the portfolio iframe). */
-    const shareLink = (prompt, variant, opts, ref) => `${location.origin}${location.pathname}?${shareQuery(prompt, variant, opts, ref)}`;
+    const shareLink = (prompt, variant, opts, ref) => { const query = shareQuery(prompt, variant, opts, ref); return query === null ? null : `${location.origin}${location.pathname}?${query}`; };
     const parseShare = () => {
         const sp = new URLSearchParams(location.search);
+        const localId = sp.get('build');
+        if (localId) {
+            const entry = [...store.get(KEY_GALLERY, []), ...store.get(KEY_RECENT, [])].find(e => e && (e.resumeId || e.id) === localId && e.opts?.blueprint);
+            return entry ? { prompt: entry.prompt, variant: entry.variant | 0, opts: compactOpts(entry.opts) } : null;
+        }
         const prompt = (sp.get('idea') || '').trim();
         if (!prompt) return null;
         const variant = Math.max(0, parseInt(sp.get('v') || '0', 10) || 0);
@@ -60,9 +85,10 @@
     const syncUrl = (prompt, variant, opts, ref) => {
         try {
             const sp = new URLSearchParams(location.search);
-            sp.delete('idea'); sp.delete('v'); sp.delete('o'); sp.delete('ref');
+            sp.delete('idea'); sp.delete('v'); sp.delete('o'); sp.delete('ref'); sp.delete('build');
             const rest = sp.toString();
-            history.replaceState(history.state, '', `${location.pathname}?${rest ? rest + '&' : ''}${shareQuery(prompt, variant, opts, ref)}${location.hash}`);
+            const query = shareQuery(prompt, variant, opts, ref) ?? `build=${encodeURIComponent(resumeId(window.studForge.model, opts))}`;
+            history.replaceState(history.state, '', `${location.pathname}?${rest ? rest + '&' : ''}${query}${location.hash}`);
         } catch (e) { /* sandboxed iframe or file:// */ }
     };
 
@@ -221,6 +247,7 @@
             sharing = true;
             try {
                 const url = currentLink();
+                if (!url) { say('Custom builds cannot be shared by link yet. Use Download card to share this exact model, or Save to reopen it here.'); return; }
                 const copied = await copyText(url);
                 if (copied) say('Link copied. Anyone can open this build.'); else toast(url);
                 // Phones and tablets get the native share sheet too (with the card image when files are allowed).
@@ -276,6 +303,7 @@
         const saveCurrent = () => {
             const m = sf.model; if (!m) return null;
             const entry = { id: m.id, name: m.name, prompt: sf.state.prompt, variant: sf.state.variant | 0, opts: compactOpts(sf.state.opts), pieces: pieceCount(m), dims: m.dims, category: m.category, icon: m.icon, savedAt: Date.now(), thumb: thumbOf() };
+            if (entry.opts.blueprint) entry.resumeId = resumeId(m, entry.opts);
             if (refOf()) entry.ref = refOf();
             saved = [entry, ...saved.filter((e) => !sameBuild(e, entry))].slice(0, MAX_SAVED);
             persistSaved();
@@ -284,7 +312,7 @@
         const noteRecent = () => {
             if (refOf() || !sf.state.prompt) return;   // reference progress is tracked separately
             const m = sf.model, prompt = sf.state.prompt, variant = sf.state.variant | 0;
-            recent = [{ prompt, variant, opts: compactOpts(sf.state.opts), at: Date.now(), name: m && m.name, icon: m && m.icon, pieces: m && pieceCount(m), category: m && m.category }, ...recent.filter(r => !sameBuild(r, currentKey()))].slice(0, MAX_RECENT);
+            recent = [{ id: m && m.id, resumeId: m?.blueprint ? resumeId(m, sf.state.opts) : undefined, prompt, variant, opts: compactOpts(sf.state.opts), at: Date.now(), name: m && m.name, icon: m && m.icon, pieces: m && pieceCount(m), category: m && m.category }, ...recent.filter(r => !sameBuild(r, currentKey()))].slice(0, MAX_RECENT);
             if (canStore) store.set(KEY_RECENT, recent);
         };
 
@@ -329,6 +357,7 @@
         };
         const copyEntry = async e => {
             const url = shareLink(e.prompt, e.variant, e.opts, e.ref);
+            if (!url) { say('Custom builds cannot be shared by link yet. Open it and use Download card to share this exact model.'); return; }
             if (await copyText(url)) say('Link copied'); else toast(url);
         };
 
