@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { trackAxoEvent } from '@/lib/axo-events';
 
 interface ContactWindowProps {
   initialSubject?: string;
@@ -16,6 +17,9 @@ export default function ContactWindow({ initialSubject = 'General Inquiry' }: Co
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // The subject is a fixed dropdown value, so it is safe to report. Name,
+    // email and message never leave the form.
+    trackAxoEvent('contact_submit', { subject: formData.subject });
     const mailtoLink = `mailto:tony@tonytoubia.com?subject=${encodeURIComponent(
       `[${formData.subject}] From ${formData.name}`
     )}&body=${encodeURIComponent(formData.message)}`;
