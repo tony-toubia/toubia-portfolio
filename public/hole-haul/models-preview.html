@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hole Haul models preview</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #e8ecef; font: 12px/1.3 system-ui, sans-serif; color: #223; }
+  #bar { position: fixed; top: 8px; left: 8px; z-index: 3; display: flex; gap: 6px; flex-wrap: wrap; }
+  #bar a { background: #fff; padding: 4px 8px; border-radius: 6px; color: #223; text-decoration: none; box-shadow: 0 1px 3px #0002; }
+  #bar a.on { background: #223; color: #fff; }
+  #labels { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
+  #labels div { position: absolute; transform: translate(-50%, 0); text-align: center; white-space: nowrap; font-size: 11px; background: #ffffffd0; padding: 1px 4px; border-radius: 4px; }
+  #labels b { font-size: 12px; }
+  #report { position: fixed; right: 8px; bottom: 8px; z-index: 3; max-width: 46vw; max-height: 22vh; overflow: auto; background: #fff; padding: 6px 8px; border-radius: 6px; box-shadow: 0 1px 3px #0002; font: 11px/1.35 ui-monospace, monospace; white-space: pre-wrap; margin: 0; }
+  #report.ok { color: #186a3b; }
+  #report.bad { color: #b00020; }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<div id="labels"></div>
+<pre id="report"></pre>
+<script src="vendor/three.min.js"></script>
+<script src="js/models.js"></script>
+<script>
+(function () {
+  const M = window.HH_MODELS;
+  const THEMES = ['picnic', 'kitchen', 'toys', 'garden', 'beach', 'city'];
+  const qs = new URLSearchParams(location.search);
+  const theme = qs.get('theme') || 'all';
+  const maxR = parseFloat(qs.get('maxr') || '99');
+  const minR = parseFloat(qs.get('minr') || '0');
+  const only = qs.get('only') ? qs.get('only').split(',') : null;
+  const fit = qs.get('fit') === '1'; // scale every kind to the same footprint for close inspection
+  const F = (id) => (fit ? Math.min(1 / M.kinds[id].r, 2.4 / M.kinds[id].h) : 1);
+  const R = (id) => M.kinds[id].r * F(id);
+
+  // ---- nav
+  const bar = document.getElementById('bar');
+  for (const t of ['all', ...THEMES]) {
+    const a = document.createElement('a');
+    a.href = '?theme=' + t; a.textContent = t; if (t === theme) a.className = 'on';
+    bar.appendChild(a);
+  }
+  const fitA = document.createElement('a');
+  fitA.href = '?theme=' + theme + (fit ? '' : '&fit=1'); fitA.textContent = 'fit (normalised)'; if (fit) fitA.className = 'on';
+  bar.appendChild(fitA);
+  const small = document.createElement('a');
+  small.href = '?theme=' + theme + '&maxr=0.5'; small.textContent = 'small only'; if (maxR < 99) small.className = 'on';
+  bar.appendChild(small);
+
+  // ---- automated checks (all kinds, regardless of view)
+  function check() {
+    const results = [], tol = 0.01;
+    for (const id of Object.keys(M.kinds)) {
+      const k = M.kinds[id], errs = [], warns = [];
+      for (const f of ['name', 'emoji']) if (typeof k[f] !== 'string' || !k[f]) errs.push('missing ' + f);
+      if (!Array.isArray(k.themes) || !k.themes.length) errs.push('missing themes');
+      for (const f of ['r', 'h', 'xp']) if (!(k[f] > 0)) errs.push('bad ' + f);
+      if (!/^[a-z][a-z0-9_]*$/.test(id)) errs.push('id not snake_case');
+      let g;
+      try { g = k.build(); } catch (e) { errs.push('build threw ' + e.message); results.push({ id, errs, warns }); continue; }
+      if (!(g instanceof THREE.BufferGeometry)) errs.push('not a BufferGeometry');
+      if (g.index) errs.push('indexed');
+      const p = g.attributes.position, n = g.attributes.normal, c = g.attributes.color;
+      if (!p || !n || !c) { errs.push('missing attribute'); results.push({ id, errs, warns }); continue; }
+      if (p.count !== n.count || p.count !== c.count) errs.push('attribute counts differ');
+      if (p.count % 3) errs.push('vertex count not a multiple of 3');
+      const tris = p.count / 3;
+      if (tris >= 600) errs.push('tris ' + tris);
+      let minY = Infinity, maxY = -Infinity, maxRad = 0, nan = 0, badN = 0, badC = 0, inv = 0, live = 0;
+      const a = new THREE.Vector3(), b = new THREE.Vector3(), cc = new THREE.Vector3(), fn = new THREE.Vector3(), vn = new THREE.Vector3();
+      for (let i = 0; i < p.count; i++) {
+        const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+        if (!isFinite(x + y + z)) nan++;
+        minY = Math.min(minY, y); maxY = Math.max(maxY, y); maxRad = Math.max(maxRad, Math.hypot(x, z));
+        const l = Math.hypot(n.getX(i), n.getY(i), n.getZ(i));
+        if (!(Math.abs(l - 1) < 0.02)) badN++;
+        for (const v of [c.getX(i), c.getY(i), c.getZ(i)]) if (!(v >= 0 && v <= 1)) badC++;
+      }
+      for (let i = 0; i < p.count; i += 3) {
+        a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); cc.fromBufferAttribute(p, i + 2);
+        fn.subVectors(b, a).cross(cc.clone().sub(a));
+        if (fn.length() < 1e-9) continue;
+        live++;
+        let neg = 0;
+        for (let j = 0; j < 3; j++) { vn.fromBufferAttribute(n, i + j); if (vn.dot(fn) < 0) neg++; }
+        if (neg >= 2) inv++;
+      }
+      if (nan) errs.push(nan + ' NaN positions');
+      if (badN) errs.push(badN + ' non-unit normals');
+      if (badC) errs.push(badC + ' colour values out of 0..1');
+      if (inv) errs.push(inv + '/' + live + ' triangles wound against their normals');
+      if (Math.abs(minY) > 0.005) errs.push('minY ' + minY.toFixed(3));
+      if (maxRad > k.r + tol) errs.push('radius ' + maxRad.toFixed(3) + ' > r ' + k.r);
+      if (maxY > k.h + tol) errs.push('height ' + maxY.toFixed(3) + ' > h ' + k.h);
+      if (maxRad < k.r * 0.85) warns.push('r loose (' + maxRad.toFixed(3) + ')');
+      if (maxY < k.h * 0.9) warns.push('h loose (' + maxY.toFixed(3) + ')');
+      if (k.build() !== g && !(k.build() instanceof THREE.BufferGeometry)) errs.push('build not repeatable');
+      results.push({ id, tris, rad: +maxRad.toFixed(3), hgt: +maxY.toFixed(3), r: k.r, h: k.h, xp: k.xp, themes: k.themes, errs, warns });
+    }
+    const themeSummary = {};
+    for (const t of THEMES) {
+      const ids = Object.keys(M.kinds).filter((id) => M.kinds[id].themes.includes(t));
+      themeSummary[t] = { count: ids.length, small: ids.filter((id) => M.kinds[id].r <= 0.35).length };
+    }
+    const failed = results.filter((r) => r.errs.length);
+    return { ok: failed.length === 0, total: results.length, failed: failed.length, results, themeSummary };
+  }
+  const CHECK = check();
+  window.HH_CHECK = CHECK;
+  const rep = document.getElementById('report');
+  rep.className = CHECK.ok ? 'ok' : 'bad';
+  rep.textContent = (CHECK.ok ? 'ALL CHECKS PASS' : CHECK.failed + ' KIND(S) FAIL') + ' - ' + CHECK.total + ' kinds\n' +
+    THEMES.map((t) => t + ': ' + CHECK.themeSummary[t].count + ' kinds, ' + CHECK.themeSummary[t].small + ' small').join('\n') + '\n' +
+    CHECK.results.filter((r) => r.errs.length || r.warns.length).map((r) => r.id + ': ' + r.errs.concat(r.warns).join('; ')).join('\n');
+
+  // ---- scene
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.body.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xe8ecef);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x9aa6b2, 0.75));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+  scene.add(sun, sun.target);
+
+  // ---- layout rows
+  const rows = theme === 'all' ? THEMES.map((t) => [t, M.themes[t]]) : [[theme, M.themes[theme] || []]];
+  const gap = 0.45;
+  const placed = [];
+  let z = 0, maxW = 0;
+  const rowWidth = theme === 'all' ? 30 : (fit ? 12 : 14);
+  for (const [t, ids] of rows) {
+    const list = ids.filter((id) => (!only || only.includes(id)) && M.kinds[id].r <= maxR && M.kinds[id].r >= minR)
+      .sort((p, q) => M.kinds[p].r - M.kinds[q].r);
+    let x = 0, rowR = 0, line = [];
+    const flush = () => {
+      for (const it of line) { it.z = z + rowR; placed.push(it); }
+      z += rowR * 2 + gap + 0.5; maxW = Math.max(maxW, x); x = 0; rowR = 0; line = [];
+    };
+    for (const id of list) {
+      const r = R(id);
+      if (x > 0 && x + 2 * r > rowWidth) flush();
+      line.push({ id, x: x + r, theme: t });
+      x += 2 * r + gap; rowR = Math.max(rowR, r);
+    }
+    if (line.length) flush();
+  }
+  const cx = maxW / 2, cz = z / 2;
+  // ?floor=1 tints the floor like the theme board (grass, tiles, wood, sand, asphalt) to check contrast
+  const FLOORS = { picnic: 0x8fd16a, garden: 0x7cc35a, kitchen: 0xeae3d6, toys: 0xd9a86c, beach: 0xf3dfa8, city: 0x5b6068 };
+  const floorColor = qs.get('floor') === '1' && FLOORS[theme] ? FLOORS[theme] : 0xf4f1ea;
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(maxW + 6, z + 6), new THREE.MeshStandardMaterial({ color: new THREE.Color(floorColor).convertSRGBToLinear(), roughness: 1 }));
+  floor.rotation.x = -Math.PI / 2; floor.position.set(cx, 0, cz); floor.receiveShadow = true;
+  scene.add(floor);
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65, metalness: 0 });
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0xd0342c });
+  for (const it of placed) {
+    const k = M.kinds[it.id];
+    const mesh = new THREE.Mesh(k.build(), mat);
+    mesh.position.set(it.x, 0, it.z); mesh.castShadow = true; mesh.receiveShadow = true;
+    mesh.scale.setScalar(F(it.id));
+    scene.add(mesh);
+    const rr = R(it.id);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(rr - Math.max(0.012, rr * 0.02), rr, 64), ringMat);
+    ring.rotation.x = -Math.PI / 2; ring.position.set(it.x, 0.004, it.z);
+    scene.add(ring);
+  }
+  // hole reference (radius 0.6) at the start of the layout
+  const holeRef = new THREE.Mesh(new THREE.CircleGeometry(0.6, 48), new THREE.MeshBasicMaterial({ color: 0x1b1f2a }));
+  holeRef.rotation.x = -Math.PI / 2; holeRef.position.set(-1.0, 0.003, 0.6);
+  if (!fit) { scene.add(holeRef); placed.push({ id: '__hole', x: -1.0, z: 0.6 }); }
+
+  // ---- camera: 55 degrees elevation looking toward -Z
+  const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.1, 500);
+  const el = 55 * Math.PI / 180, dir = new THREE.Vector3(0, Math.sin(el), Math.cos(el));
+  const target = new THREE.Vector3(cx - 0.5, 0.3, cz);
+  const corners = [];
+  for (const it of placed) { const r = it.id === '__hole' ? 0.6 : R(it.id), h = it.id === '__hole' ? 0 : M.kinds[it.id].h * F(it.id); for (const dx of [-r, r]) for (const dz of [-r, r]) for (const y of [0, h]) corners.push(new THREE.Vector3(it.x + dx, y, it.z + dz)); }
+  let dist = 5;
+  for (let iter = 0; iter < 40; iter++) {
+    camera.position.copy(target).addScaledVector(dir, dist); camera.lookAt(target); camera.updateMatrixWorld(); camera.updateProjectionMatrix();
+    let m = 0; for (const c of corners) { const v = c.clone().project(camera); m = Math.max(m, Math.abs(v.x), Math.abs(v.y) * 1.08); }
+    dist *= m / 0.86;
+  }
+  camera.position.copy(target).addScaledVector(dir, dist); camera.lookAt(target);
+  camera.updateMatrixWorld();
+  const span = Math.max(maxW, z) + 4;
+  sun.position.set(cx + span * 0.3, span * 0.9, cz + span * 0.5); sun.target.position.set(cx, 0, cz);
+  sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -span, right: span, top: span, bottom: -span, near: 0.1, far: span * 4 });
+  sun.shadow.bias = -0.0005;
+
+  // ---- labels
+  const labels = document.getElementById('labels');
+  for (const it of placed) {
+    const r = it.id === '__hole' ? 0.6 : R(it.id);
+    const v = new THREE.Vector3(it.x, 0, it.z + r + 0.05).project(camera);
+    const d = document.createElement('div');
+    d.style.left = ((v.x + 1) / 2 * innerWidth) + 'px';
+    d.style.top = ((1 - v.y) / 2 * innerHeight) + 'px';
+    if (it.id === '__hole') d.innerHTML = '<b>hole start</b><br>r 0.6';
+    else { const k = M.kinds[it.id]; d.innerHTML = '<b>' + k.emoji + ' ' + it.id + '</b><br>r ' + k.r + ' h ' + k.h + ' xp ' + k.xp; }
+    labels.appendChild(d);
+  }
+  renderer.render(scene, camera);
+  window.HH_PREVIEW_READY = true;
+})();
+</script>
+</body>
+</html>
