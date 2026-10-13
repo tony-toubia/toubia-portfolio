@@ -2,10 +2,11 @@
 //
 //  1. In step mode the pieces added by the current step glow and older ones dim a touch,
 //     so the 3D view reads like an instruction page.
-//  2. A "STEPS" side panel: the current step, the parts it adds, prev/next, and a compact
-//     list of every step you can jump to.
+//  2. A "STEP BY STEP" section in the Build tab: the current step (synced with the canvas
+//     scrubber, the one step control), the pieces it adds, and every step to jump to. A real
+//     set's steps carry their sub-assembly names (also on the phone sheet's peek line).
 //  3. A printable booklet (cover + one page per step with a render and a parts table),
-//     opened from a dock chip or the PRINT button in the parts panel.
+//     opened from the section's "Instructions booklet" button or the PRINT LIST button.
 //
 // Everything is prefixed `sfi-` and hangs off window.studForge; viewer.js is untouched.
 (function () {
@@ -15,39 +16,47 @@
 
     /* ── theme ──────────────────────────────────────────────────── */
     const CSS = `
-.sfi-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-.sfi-step-num { font-family: var(--font-heading); font-size: 15px; font-weight: 800; color: #fff; letter-spacing: 1px; line-height: 1.1; }
-.sfi-step-num small { display: block; font-family: var(--font-mono); font-size: 10px; color: var(--lego-yellow); font-weight: 700; letter-spacing: 0; margin-top: 3px; }
-.sfi-nav { display: flex; gap: 4px; flex-shrink: 0; }
-.sfi-btn { background: rgba(255,255,255,0.08); border: 1px solid var(--border-main); color: var(--text-primary); font-family: var(--font-heading); font-size: 9px; font-weight: 700; padding: 6px 9px; border-radius: 4px; cursor: pointer; white-space: nowrap; }
-.sfi-btn:hover { background: rgba(255,255,255,0.15); border-color: var(--lego-yellow); }
-.sfi-btn:disabled { opacity: 0.35; cursor: default; }
-.sfi-btn.primary { background: linear-gradient(135deg, var(--lego-yellow) 0%, #d4a017 100%); color: #0c0f17; border: none; }
-.sfi-progress { height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; margin-bottom: 10px; }
+/* the Build tab's STEP BY STEP section */
+.sfi-cur-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.sfi-num { font-family: var(--font-heading); font-size: 17px; font-weight: 800; color: #fff; letter-spacing: 0.8px; white-space: nowrap; }
+.sfi-num span { font-size: 11px; color: var(--text-muted); font-weight: 700; letter-spacing: 0.5px; }
+.sfi-added { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.sfi-added b { color: var(--lego-yellow); font-weight: 700; }
+.sfi-name { margin-top: 4px; font-size: 14px; font-weight: 700; color: var(--lego-yellow); line-height: 1.25; }
+.sfi-progress { height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; margin: 9px 0 12px; }
 .sfi-progress i { display: block; height: 100%; background: var(--lego-yellow); transition: width 0.2s ease; }
-.sfi-sub { font-family: var(--font-heading); font-size: 9px; letter-spacing: 1px; color: var(--text-muted); margin: 10px 0 4px; }
-.sfi-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.sfi-table td { padding: 5px 4px; border-bottom: 1px solid rgba(255,255,255,0.05); vertical-align: middle; }
-.sfi-table td.q { text-align: right; width: 42px; }
-.sfi-table .part-name { font-size: 12px; }
-.sfi-table .part-meta { font-size: 9px; }
-.sfi-empty { color: var(--text-muted); padding: 8px 2px; font-style: italic; }
-.sfi-steps { display: flex; flex-direction: column; gap: 2px; }
-.sfi-row { display: grid; grid-template-columns: 52px 1fr auto; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 4px; background: transparent; border: 1px solid transparent; color: var(--text-secondary); cursor: pointer; font-family: var(--font-body); font-size: 11px; font-weight: 600; text-align: left; width: 100%; }
-.sfi-row:hover { background: rgba(255,255,255,0.06); color: #fff; }
-.sfi-row.on { border-color: var(--lego-yellow); background: rgba(242,205,55,0.12); color: var(--lego-yellow); }
-.sfi-row.done { color: var(--text-muted); }
-.sfi-row b { font-family: var(--font-mono); font-size: 10px; }
-.sfi-row i { height: 4px; background: rgba(255,255,255,0.12); border-radius: 2px; overflow: hidden; display: block; }
-.sfi-row i b { display: block; height: 100%; background: currentColor; }
-.sfi-row em { font-family: var(--font-mono); font-style: normal; font-size: 10px; }
-.sfi-foot { margin-top: 12px; display: flex; gap: 6px; }
-.sfi-foot .sfi-btn { flex: 1; padding: 8px; font-size: 10px; }
+.sfi-k { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-family: var(--font-heading); font-size: 9px; letter-spacing: 1.2px; color: var(--text-muted); font-weight: 700; margin: 0 0 7px; }
+.sfi-k small { font-family: var(--font-body); font-size: 12px; letter-spacing: 0; font-weight: 500; }
+.sfi-adds { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px; }
+.sfi-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 8px 3px 6px; border-radius: 7px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-main); font-size: 13px; font-weight: 600; color: #e2e8f0; line-height: 1.3; }
+.sfi-chip i { width: 11px; height: 11px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3); flex: none; }
+.sfi-chip span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sfi-chip b { font-family: var(--font-mono); font-size: 11px; color: var(--lego-yellow); flex: none; }
+.sfi-empty { color: var(--text-muted); font-size: 13px; }
+.sfi-booklet-btn { margin: 0 0 14px; min-height: 36px; font-size: 10px; }
+.sfi-booklet-btn small { font-family: var(--font-body); font-size: 12px; font-weight: 500; letter-spacing: 0; color: var(--text-secondary); }
+.sfi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 4px; }
+.sfi-tile { position: relative; min-height: 38px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 3px 0; border-radius: 6px; border: 1px solid var(--border-main); background: rgba(255,255,255,0.03); color: var(--text-secondary); cursor: pointer; font-family: var(--font-mono); line-height: 1; }
+.sfi-tile b { font-size: 12px; font-weight: 700; }
+.sfi-tile em { font-style: normal; font-size: 9px; color: var(--text-muted); }
+.sfi-tile:hover { border-color: rgba(242,205,55,0.5); color: #fff; }
+.sfi-tile.done { background: rgba(242,205,55,0.07); color: #cbd5e1; }
+.sfi-tile.done em { color: rgba(242,205,55,0.55); }
+.sfi-tile.on { background: var(--lego-yellow); border-color: var(--lego-yellow); color: #0c0f17; box-shadow: 0 0 0 2px rgba(242,205,55,0.25); }
+.sfi-tile.on em { color: rgba(12,15,23,0.7); }
+.sfi-tile.named::after { content: ''; position: absolute; top: 3px; right: 3px; width: 4px; height: 4px; border-radius: 50%; background: #00e5ff; opacity: 0.7; }
+.sfi-glabel { grid-column: 1 / -1; font-size: 12px; font-weight: 700; color: var(--text-secondary); margin: 6px 0 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sfi-glabel:first-child { margin-top: 0; }
+@media (max-width: 767px) { .sfi-grid { grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); } .sfi-tile { min-height: 40px; } }
+.sfi-btn { background: rgba(255,255,255,0.08); border: 1px solid var(--border-main); color: var(--text-primary); font-family: var(--font-heading); font-size: 9px; font-weight: 700; padding: 6px 9px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.sfi-btn:hover { background: rgba(255,255,255,0.15); border-color: var(--lego-yellow); }
+.sfi-btn.primary { background: linear-gradient(135deg, var(--lego-yellow) 0%, #d4a017 100%); color: #0c0f17; border: none; }
 
 /* the booklet overlay: dark on white, so it prints as it looks */
 .sfi-booklet { position: fixed; inset: 0; z-index: 10000; background: #e9ecf1; color: #111827; overflow-y: auto; -webkit-overflow-scrolling: touch; font-family: var(--font-body); display: none; }
 .sfi-booklet.open { display: block; }
 body.sfi-booklet-open { overflow: hidden; }
+body.sfi-booklet-open .top-nav, body.sfi-booklet-open .app-layout { display: none !important; }
 .sfi-bar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 14px; background: #0c0f17; color: #fff; border-bottom: 2px solid var(--lego-yellow); }
 .sfi-bar .sfi-brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-heading); font-size: 13px; font-weight: 900; letter-spacing: 1.5px; }
 .sfi-bar .sfi-brand span { font-size: 9px; color: var(--lego-yellow); letter-spacing: 1px; font-weight: 600; display: block; }
@@ -71,6 +80,7 @@ body.sfi-booklet-open { overflow: hidden; }
 .sfi-ptable { width: 100%; border-collapse: collapse; font-size: 13px; }
 .sfi-ptable th { text-align: left; font-family: var(--font-heading); font-size: 9px; letter-spacing: 1px; color: #64748b; padding: 6px 6px; border-bottom: 1px solid #cbd5e1; }
 .sfi-ptable td { padding: 6px 6px; border-bottom: 1px solid #e2e8f0; color: #111827; vertical-align: middle; }
+.sfi-ptable th.q { text-align: right; }
 .sfi-ptable td.q { text-align: right; font-family: var(--font-mono); font-weight: 700; white-space: nowrap; }
 .sfi-ptable td.m { font-family: var(--font-mono); font-size: 11px; color: #64748b; white-space: nowrap; }
 .sfi-dot { display: inline-block; width: 13px; height: 13px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.3); vertical-align: -2px; margin-right: 7px; }
@@ -83,7 +93,7 @@ body.sfi-booklet-open { overflow: hidden; }
     .sfi-page { padding: 16px 14px; border-radius: 8px; }
     .sfi-cover h1 { font-size: 22px; }
     .sfi-cols { columns: 1; }
-    .sfi-ptable td.m { display: none; }
+    .sfi-ptable .m { display: none; }
     .sfi-pages { padding: 10px 8px 30px; }
 }
 @media print {
@@ -198,77 +208,126 @@ body.sfi-booklet-open { overflow: hidden; }
         }
         const restoreHighlight = () => applyHighlight(null);
 
-        /* ── 2. the STEPS panel ────────────────────────────────────── */
+        /* ── 2. the STEP BY STEP section (Build tab) ───────────────── */
+        // The canvas scrubber is the one step control; this section follows it, says what the
+        // current step adds, and lists every step to jump to.
         let steps = [];
         let current = 0;
-        const panel = sf.registerPanel({ id: 'steps', title: '📋 STEPS' });
+        let names = [];          // sub-assembly name per step (real sets), or null
+        const panel = sf.registerPanel({ id: 'steps', title: 'STEP BY STEP', group: 'build', order: 10 });
         const body = panel.body;
         body.innerHTML = `
-            <div class="sfi-head">
-                <div class="sfi-step-num"><span id="sfi-num">STEP 1 / 1</span><small id="sfi-added">+0 PIECES THIS STEP</small></div>
-                <div class="sfi-nav"><button class="sfi-btn" id="sfi-prev" title="Previous step">◀ PREV</button><button class="sfi-btn" id="sfi-next" title="Next step">NEXT ▶</button></div>
+            <div class="sfi-cur">
+                <div class="sfi-cur-top"><div class="sfi-num" id="sfi-num">Step 1 <span>of 1</span></div><div class="sfi-added" id="sfi-added"></div></div>
+                <div class="sfi-name" id="sfi-name" hidden></div>
+                <div class="sfi-progress"><i id="sfi-bar"></i></div>
             </div>
-            <div class="sfi-progress"><i id="sfi-bar"></i></div>
-            <div class="sfi-sub">PIECES ADDED THIS STEP</div>
-            <table class="sfi-table"><tbody id="sfi-parts"></tbody></table>
-            <div class="sfi-sub">ALL STEPS · TAP TO JUMP</div>
-            <div class="sfi-steps" id="sfi-list"></div>
-            <div class="sfi-foot"><button class="sfi-btn" id="sfi-first">⏮ START</button><button class="sfi-btn primary" id="sfi-booklet-btn">📘 BOOKLET</button></div>`;
-        const numEl = body.querySelector('#sfi-num'), addedEl = body.querySelector('#sfi-added'), barEl = body.querySelector('#sfi-bar');
+            <div class="sfi-k">THIS STEP ADDS</div>
+            <div class="sfi-adds" id="sfi-parts"></div>
+            <button class="action-btn secondary sfi-booklet-btn" id="sfi-booklet-btn" type="button" title="Every step on its own page, ready to print or save as a PDF">📘 Instructions booklet <small>print or PDF</small></button>
+            <div class="sfi-k">ALL STEPS <small>tap one to jump to it</small></div>
+            <div class="sfi-grid" id="sfi-list"></div>`;
+        const numEl = body.querySelector('#sfi-num'), addedEl = body.querySelector('#sfi-added'), barEl = body.querySelector('#sfi-bar'), nameEl = body.querySelector('#sfi-name');
         const partsEl = body.querySelector('#sfi-parts'), listEl = body.querySelector('#sfi-list');
-        const prevBtn = body.querySelector('#sfi-prev'), nextBtn = body.querySelector('#sfi-next');
 
-        prevBtn.addEventListener('click', () => sf.goStep(current - 1));
-        nextBtn.addEventListener('click', () => sf.goStep(current + 1));
-        body.querySelector('#sfi-first').addEventListener('click', () => sf.goStep(0));
         body.querySelector('#sfi-booklet-btn').addEventListener('click', () => openBooklet());
-        listEl.addEventListener('click', (e) => { const r = e.target.closest('.sfi-row'); if (r) sf.goStep(+r.dataset.step); });
+        listEl.addEventListener('click', (e) => { const r = e.target.closest('.sfi-tile'); if (r) sf.goStep(+r.dataset.step); });
 
-        const partRows = (rows, cls) => rows.map((p) => `<tr><td><div class="part-preview-cell"><span class="color-dot" style="background-color:${p.colorHex}"></span><div class="part-info"><span class="part-name">${esc(p.partName)}</span><span class="part-meta">ID: ${esc(p.partId)} | ${esc(p.colorName)}</span></div></div></td><td class="q"><span class="qty-badge">x${p.quantity}</span></td></tr>`).join('');
+        /** Sub-assembly names per step for a real set (from its bricks' `sub`), null where it builds the main model. */
+        const prettySub = (name) => {
+            const parts = String(name).replace(/\.(ldr|dat|mpd)$/i, '').replace(/^\d+(-\d+)?\s*[-–]\s*/, '').split(/\s+[-–]\s+/);
+            const s = (parts.length > 1 ? parts.slice(1) : parts).join(' ').replace(/[_-]+/g, ' ').replace(/([a-z])(\d+)$/i, '$1 $2').trim();
+            return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+        };
+        function stepNames(model) {
+            if (!model || !model.bricks.some((b) => b.sub != null)) return [];
+            const subs = Array.isArray(model.submodels) ? model.submodels : [];
+            const layers = [...new Set(model.bricks.map((b) => b.layer || 0))].sort((a, b) => a - b);
+            const at = new Map(layers.map((l, i) => [l, i]));
+            const nameOf = (b) => (typeof b.sub === 'string' ? b.sub : subs[b.sub]);
+            // A sub-model holding most of the set is the model itself: not worth naming.
+            const size = new Map();
+            for (const b of model.bricks) if (b.sub != null) size.set(nameOf(b), (size.get(nameOf(b)) || 0) + 1);
+            const per = layers.map(() => new Map());
+            for (const b of model.bricks) {
+                if (b.sub == null) continue;
+                const name = nameOf(b);
+                if (!name || b.sub === 0 || name === subs[0] || /^main\b/i.test(name) || size.get(name) >= model.bricks.length * 0.5) continue;
+                const m = per[at.get(b.layer || 0)];
+                m.set(name, (m.get(name) || 0) + 1);
+            }
+            const out = per.map((m) => (m.size ? prettySub([...m.entries()].sort((a, b) => b[1] - a[1])[0][0]) || null : null));
+            return out.some(Boolean) ? out : [];
+        }
+        const nameAt = (i) => names[i] || null;
 
         function renderList() {
-            const total = steps.reduce((n, s) => n + s.count, 0) || 1;
-            let run = 0;
-            listEl.innerHTML = steps.map((s) => {
-                run += s.count;
-                return `<button class="sfi-row" data-step="${s.index}"><b>STEP ${s.index + 1}</b><i><b style="width:${Math.round((run / total) * 100)}%"></b></i><em>+${s.count}</em></button>`;
-            }).join('');
+            let html = '', last;
+            const grouped = names.length > 0;
+            steps.forEach((s) => {
+                const n = nameAt(s.index);
+                if (grouped && n !== last) { html += `<div class="sfi-glabel">${n ? `⚙️ ${esc(n)}` : '🏗️ Main model'}</div>`; last = n; }
+                html += `<button class="sfi-tile${n ? ' named' : ''}" type="button" data-step="${s.index}" title="Step ${s.index + 1}${n ? ` · ${esc(n)}` : ''} · +${s.count} piece${s.count === 1 ? '' : 's'}" aria-label="Step ${s.index + 1}"><b>${s.index + 1}</b><em>+${s.count}</em></button>`;
+            });
+            listEl.innerHTML = html;
         }
-        function renderCurrent() {
+        const chips = (rows) => rows.map((p) => `<span class="sfi-chip" title="${esc(p.partName)} · ${esc(p.colorName)} · #${esc(p.partId)}"><i style="background:${p.colorHex}"></i><span>${esc(p.partName)}</span><b>×${p.quantity}</b></span>`).join('');
+        /** Keep the current tile in view, but only while the step list itself is on screen (never scroll the page). */
+        function followTile(tile) {
+            const sc = body.closest('.tab-scroll');
+            if (!sc || !tile || !sc.offsetParent || !sc.clientHeight) return;
+            const s = sc.getBoundingClientRect(), g = listEl.getBoundingClientRect(), r = tile.getBoundingClientRect();
+            if (g.bottom < s.top || g.top > s.bottom) return;
+            if (r.top < s.top) sc.scrollTop -= s.top - r.top + 8;
+            else if (r.bottom > s.bottom) sc.scrollTop += r.bottom - s.bottom + 8;
+        }
+        function renderCurrent(follow) {
             const st = steps[current] || { count: 0, rows: [] };
             const n = steps.length || 1;
-            numEl.textContent = `STEP ${current + 1} / ${n}`;
-            addedEl.textContent = `+${st.count} PIECES THIS STEP`;
+            const placed = steps.slice(0, current + 1).reduce((k, s) => k + s.count, 0), total = steps.reduce((k, s) => k + s.count, 0);
+            numEl.innerHTML = `Step ${current + 1} <span>of ${n}</span>`;
+            addedEl.innerHTML = `<b>+${st.count}</b> · ${placed} of ${total} placed`;
+            const name = nameAt(current);
+            nameEl.hidden = !name; nameEl.textContent = name ? `⚙️ ${name}` : '';
             barEl.style.width = `${Math.round(((current + 1) / n) * 100)}%`;
-            partsEl.innerHTML = st.rows.length ? partRows(st.rows) : '<tr><td class="sfi-empty">Nothing yet. Forge an idea first.</td></tr>';
-            prevBtn.disabled = current <= 0;
-            nextBtn.disabled = current >= n - 1;
-            for (const r of listEl.querySelectorAll('.sfi-row')) {
+            partsEl.innerHTML = st.rows.length ? chips(st.rows) : '<span class="sfi-empty">Nothing in this step.</span>';
+            let onTile = null;
+            for (const r of listEl.querySelectorAll('.sfi-tile')) {
                 const i = +r.dataset.step;
                 r.classList.toggle('on', i === current);
                 r.classList.toggle('done', i < current);
+                if (i === current) { onTile = r; r.setAttribute('aria-current', 'step'); } else r.removeAttribute('aria-current');
             }
-            const onRow = listEl.querySelector('.sfi-row.on');
-            if (onRow && onRow.scrollIntoView && body.offsetParent) onRow.scrollIntoView({ block: 'nearest' });
+            if (follow) followTile(onTile);
+        }
+
+        // Phones: the sheet's peek line names the step's sub-assembly when it has one.
+        if (sf.setPeek) {
+            sf.setPeek((tab) => {
+                if (tab !== 'build' || !sf.model) return null;
+                const name = nameAt(current), st = steps[current];
+                if (!name || !st) return null;
+                return `<span>🔨</span><span class="pk-main">Step ${current + 1} of ${steps.length}</span><span class="pk-sub">· ${esc(name)} · +${st.count}</span>`;
+            });
         }
 
         function onModel() {
             steps = stepParts(viewer);
+            names = stepNames(sf.model);
             current = viewer.maxLayer;
             hiCache.clear(); dimCache.clear(); printCache.clear();   // the builder may hand out new base materials
             restoreHighlight();
             renderList();
-            renderCurrent();
+            renderCurrent(false);
         }
         function onStep(i) {
             current = i;
             applyHighlight(i);
-            renderCurrent();
+            renderCurrent(true);
         }
         sf.on('model', onModel);
         sf.on('step', onStep);
         if (sf.model) onModel();
-
         /* ── 3. the booklet ────────────────────────────────────────── */
         const CAP_W = 640, CAP_H = 480;
         /**
@@ -368,9 +427,11 @@ body.sfi-booklet-open { overflow: hidden; }
             if (!booklet) return;
             booklet.classList.remove('open');
             document.body.classList.remove('sfi-booklet-open');
+            // The canvas was hidden behind the booklet: let the viewer pick its size up again.
+            requestAnimationFrame(() => { try { viewer.resize(); } catch (e) { /* fine */ } });
         }
 
-        const ptable = (rows, withMeta = true) => `<table class="sfi-ptable"><thead><tr><th>PART</th>${withMeta ? '<th>ID</th>' : ''}<th class="q">QTY</th></tr></thead><tbody>${rows.map((p) => `<tr><td><span class="sfi-dot" style="background:${p.colorHex}"></span>${esc(p.partName)} <span style="color:#64748b">· ${esc(p.colorName)}</span></td>${withMeta ? `<td class="m">#${esc(p.partId)}</td>` : ''}<td class="q">x${p.quantity}</td></tr>`).join('')}</tbody></table>`;
+        const ptable = (rows, withMeta = true) => `<table class="sfi-ptable"><thead><tr><th>PART</th>${withMeta ? '<th class="m">ID</th>' : ''}<th class="q">QTY</th></tr></thead><tbody>${rows.map((p) => `<tr><td><span class="sfi-dot" style="background:${p.colorHex}"></span>${esc(p.partName)} <span style="color:#64748b">· ${esc(p.colorName)}</span></td>${withMeta ? `<td class="m">#${esc(p.partId)}</td>` : ''}<td class="q">x${p.quantity}</td></tr>`).join('')}</tbody></table>`;
 
         function buildBooklet(shots) {
             const model = sf.model, bom = sf.bom || [];
@@ -425,13 +486,7 @@ body.sfi-booklet-open { overflow: hidden; }
             }, 30));
         }
 
-        // The dock chip and the PRINT button in the parts panel both open the booklet.
-        const chip = document.createElement('button');
-        chip.className = 'tool-chip'; chip.id = 'sfi-booklet-chip'; chip.type = 'button';
-        chip.title = 'Printable step-by-step instruction booklet';
-        chip.innerHTML = '📘 BOOKLET';
-        chip.addEventListener('click', () => openBooklet());
-        sf.dock(chip);
+        // The booklet button in the section and the core's PRINT LIST button both open the booklet.
         sf.on('print', () => { openBooklet(); return true; });
 
         // A small public surface, handy for tests and other features.
