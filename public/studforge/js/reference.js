@@ -352,6 +352,7 @@
             const state = window.StudForgeLibraryState ||= core.readState(storage);
             entries = core.combineEntries(index || [], window.INSPIRATION_MODELS || [], sf.gallery?.list() || [], sf.gallery?.recent() || [], state.favorites);
             for (const entry of entries) {
+                if (entry.ref && window.StudForgeArticulation?.hasProfile(entry.ref)) entry.tags.push('Movable');
                 if (!entry.ref && !entry.thumb && ['rocket', 'castle', 'sportscar', 'lighthouse', 'mech', 'pagoda', 'espresso', 'arcade'].includes(entry.id)) entry.thumb = `thumbnails/${entry.id}.png`;
                 const theme = entry.category || String(entry.theme || '').split(' > ')[0];
                 const kind = KINDS.find(([, subjects]) => subjects.includes(entry.subject))?.[0];
@@ -382,7 +383,7 @@
                 tile.appendChild(favorite);
             }
             const button = tile.querySelector(`.${PRE}-card`);
-            button.insertAdjacentHTML('beforeend', `<span class="${PRE}-labels">${e.tags.filter(tag => ['Real set', 'Generated', 'Saved', 'Recent', 'Starter idea'].includes(tag)).map(tag => `<span>${esc(tag)}</span>`).join('')}</span>`);
+            button.insertAdjacentHTML('beforeend', `<span class="${PRE}-labels">${e.tags.filter(tag => ['Real set', 'Generated', 'Saved', 'Recent', 'Starter idea', 'Movable'].includes(tag)).map(tag => `<span>${esc(tag)}</span>`).join('')}</span>`);
             if (e.savedEntry) {
                 const actions = el('div', `${PRE}-saved-actions`);
                 const copy = el('button', '', '🔗'); copy.type = 'button'; copy.setAttribute('aria-label', `Copy link to ${e.name || e.prompt}`); copy.addEventListener('click', () => sf.gallery.copy(e.savedEntry));
