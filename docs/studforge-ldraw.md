@@ -25,7 +25,9 @@ of the downloaded files (6285-1, 6286-1 and two 31066-1 alternates) also embed c
 `Free for non-commercial use` LDCad header; the converter never uses an embedded copy of a part that exists in the
 official library: it references the official part instead (`stats.embeddedOfficial`, 151 references in all), so nothing
 derived from those embedded sections ships. Set numbers and names appear as plain text only; no logos, box art or
-sticker artwork are used (printed parts are mapped to their plain base part, stickers are dropped).
+sticker artwork are used (printed parts are mapped to their plain base part, stickers are dropped). A moulded part with
+a small embossed logo sub-file (`logo*.dat`, e.g. the 4480c01 motorbike frame) is baked with `bake.mjs --strip-logos`,
+which leaves the logo out of the geometry; parts whose description mentions a logo (prints, stickers) are still skipped.
 
 **Attribution text** (shown with every model; `index.json` carries the general form in `licence`):
 
@@ -119,6 +121,18 @@ tower or lighthouse.
   internals untouched). Several angled items (a train on curved track: Metroliner) are a deliberate arrangement and
   are left alone. A whole-model tilt (every part sharing one off-lattice rotation) would be undone too; none of the
   100 needed it (6679-2's 17° is a real tilted tow boom).
+- **Ground.** OMR main files place each vehicle, figure and prop by eye, and their heights do not always agree
+  (6346-1 put its motorbikes 38 LDU below the trucks, so the viewer, lifting the lowest part onto the floor, left every
+  truck hovering). Top-level placements whose boxes touch form a cluster (a rider and the bike, a shuttle on its
+  trailer); the biggest cluster's bottom is the floor; a cluster below it is lifted onto it, and one above it is lowered
+  only when nothing is under it (cargo on a trailer stays put). 27 sets had a cluster moved, mostly by under half a
+  plate; `stats.grounded` counts them.
+- **Split steps.** Some files build a whole sub-assembly in one step (6346-1: a 97-piece truck), which makes the step
+  scrubber and the exploded view useless for it. A file step adding more than 14 pieces is laid out bottom-up in steps
+  of about 8: grid parts by their bottom plate, off-grid parts (wheels, angled pieces) at the height of their centre, so
+  a wheel follows the plate it hangs from; a step's minifigures stay together as a step of their own. Empty file steps
+  are dropped. `steps` is the result and `stats.fileSteps` the file's own count, and the model's description says so
+  when they differ (6346-1: 11 → 53, Metroliner 23 → 103, most sets unchanged).
 - **Colours.** `LDConfig.ldr` code → our 21 `window.LEGO_COLORS`: LEGO colour id (LDConfig's `// LEGOID` comment)
   match, then name, then a few overrides (metallic silvers → LIGHT_GREY, Trans_Brown → TRANS_CLEAR, medium/light/sky
   blues → BLUE, Dark_Tan → TAN), then nearest in CIELAB within solid vs transparent. Direct colours (`0x2RRGGBB`) go

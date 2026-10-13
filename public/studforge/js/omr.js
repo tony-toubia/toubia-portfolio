@@ -58,7 +58,9 @@
         const description = `${data.name}: the real ${data.year} ${data.theme.split(' > ')[0]} set ${data.id.replace(/-[a-z].*$/, '')}, ${pieces} pieces in ${data.steps} steps`
             + (subs > 0 ? ` with ${subs} sub-assembl${subs === 1 ? 'y' : 'ies'}` : '')
             + `, rebuilt from the LDraw OMR file by ${authorsText(authors)}.`
-            + (data.dims ? ` ${data.dims.w}×${data.dims.d} studs, ${data.dims.h} bricks tall.` : '');
+            + (data.dims ? ` ${data.dims.w}×${data.dims.d} studs, ${data.dims.h} bricks tall.` : '')
+            // The file's big steps (a whole sub-assembly at once) are split bottom-up by the converter: say so.
+            + (data.stats && data.stats.fileSteps && data.stats.fileSteps < data.steps ? ` The file builds some sub-assemblies in one go, so those steps are split into layers (${data.stats.fileSteps} steps in the file).` : '');
         return {
             id: data.id, name: data.name, category: CATEGORY[data.subject] || 'Custom Creation', icon: '🏷️',
             difficulty: difficultyOf(pieces), estTime: `${mins} mins`, description, kind: 'reference', prompt: '', variant: 0,

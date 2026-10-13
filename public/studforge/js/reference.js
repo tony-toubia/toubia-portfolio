@@ -214,8 +214,7 @@
                 current = { model, pristine: model.bricks.map((b) => b.color), stepSubs: stepSubsOf(model) };
                 sf.state.prompt = model.prompt; sf.state.variant = 0; sf.state.opts = {};
                 loading = null; status = '';
-                sf.load(model);
-                sf.goStep(0);   // build it from the first real step
+                sf.load(model);   // shown complete, like a forged idea; ◀ / ▶ step through the build from there
                 click();
             } catch (e) {
                 if (my !== token) return;

@@ -452,6 +452,42 @@ function convertModel(sel) {
     return { pi, ci: colorIdx.get(ck), pos, R, wb, lattice, step: p.step, sub: p.sub, grp: p.grp, minifig: p.minifig };
   });
 
+  // --- ground: every free-standing assembly stands on the same floor
+  // OMR main files place each vehicle, figure and prop by eye, and their heights do not always agree (6346-1 puts its
+  // motorbikes 38 LDU below the trucks). Top-level placements whose boxes touch form one cluster (a rider and the bike,
+  // a shuttle on its trailer); the biggest cluster's bottom is the floor. A cluster below the floor is lifted onto it;
+  // one above it is lowered only when nothing is under it (so a cargo on a trailer keeps its place).
+  let grounded = 0;
+  {
+    const finite = items.filter(i => isFinite(i.wb[0]));
+    const groups = new Map();
+    for (const it of finite) {
+      const g = groups.get(it.grp) || { box: [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity], items: [] };
+      for (let k = 0; k < 3; k++) { g.box[k] = Math.min(g.box[k], it.wb[k]); g.box[k + 3] = Math.max(g.box[k + 3], it.wb[k + 3]); }
+      g.items.push(it); groups.set(it.grp, g);
+    }
+    const gs = [...groups.values()];
+    const touch = (a, b, m = 0.05) => [0, 1, 2].every(k => a[k] <= b[k + 3] + m && b[k] <= a[k + 3] + m);
+    const parent = gs.map((_, i) => i);
+    const find = (i) => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+    for (let i = 0; i < gs.length; i++) for (let j = i + 1; j < gs.length; j++) if (touch(gs[i].box, gs[j].box)) parent[find(i)] = find(j);
+    const clusters = new Map();
+    gs.forEach((g, i) => { const r = find(i); const c = clusters.get(r) || { box: [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity], items: [] }; for (let k = 0; k < 3; k++) { c.box[k] = Math.min(c.box[k], g.box[k]); c.box[k + 3] = Math.max(c.box[k + 3], g.box[k + 3]); } c.items.push(...g.items); clusters.set(r, c); });
+    const cl = [...clusters.values()];
+    if (cl.length > 1) {
+      const floor = cl.reduce((a, b) => (b.items.length > a.items.length ? b : a)).box[1];
+      const overlapXZ = (a, b) => a[0] < b[3] - 0.05 && b[0] < a[3] - 0.05 && a[2] < b[5] - 0.05 && b[2] < a[5] - 0.05;
+      for (const c of cl) {
+        const dy = floor - c.box[1];
+        if (Math.abs(dy) < 0.05) continue;
+        if (dy < 0 && cl.some(o => o !== c && o.box[1] < c.box[1] - 0.05 && overlapXZ(o.box, c.box))) continue;
+        for (const it of c.items) { it.pos[1] += dy; it.wb[1] += dy; it.wb[4] += dy; }
+        grounded++;
+        if (process.env.GROUND_LOG) console.log(`  ground ${sel.id}: ${dy > 0 ? 'lift' : 'drop'} ${Math.abs(dy).toFixed(2)} · ${c.items.length} parts (${[...new Set(c.items.map(i => subNames[i.sub]))].join(', ')})`);
+      }
+    }
+  }
+
   // --- grid phase: the model's own half-stud / plate offset, from the most common fraction among lattice parts
   const mode = (vals, period) => {
     const h = new Map();
@@ -508,6 +544,44 @@ function convertModel(sel) {
     if (!pt[3] && minifigParts.has(k)) pt[3] = 'minifig';
     while (pt.length > 2 && pt[pt.length - 1] == null) pt.pop(); // trim trailing nulls: [rid, cid] stays the common case
   }
+  // --- split big steps: some OMR files build a whole sub-assembly in one step (6346-1: a 97-piece truck). A step that
+  // adds more than SPLIT_OVER pieces is laid out bottom-up in steps of about SPLIT_TARGET: grid parts by their bottom
+  // plate, off-grid parts (wheels, angled pieces) at the height of their centre, so a wheel follows the plate it hangs
+  // from. Minifigures in such a step stay together as one step of their own.
+  const SPLIT_OVER = 14, SPLIT_TARGET = 8;
+  const isSegItem = (i) => parts[i.pi][3] === 'segment';
+  const fileSteps = gstep;
+  {
+    const byStep = new Map();
+    for (const it of items) { const a = byStep.get(it.step) || []; a.push(it); byStep.set(it.step, a); }
+    let next = 0;
+    for (let s0 = 0; s0 < fileSteps; s0++) {
+      const its = byStep.get(s0) || [];
+      const body = its.filter(i => !i.minifig), figs = its.filter(i => i.minifig);
+      if (its.filter(i => !isSegItem(i)).length <= SPLIT_OVER) { for (const it of its) it.step = next; if (its.length) next++; continue; }
+      const level = (i) => (i.fp ? i.fp[2] : isFinite(i.wb[1]) ? Math.floor(((i.wb[1] + i.wb[4]) / 2 + 1e-6) / 0.4) : 0);
+      const levels = new Map();
+      for (const it of body) { const l = level(it); const a = levels.get(l) || []; a.push(it); levels.set(l, a); }
+      const chunks = []; let cur = [];
+      for (const l of [...levels.keys()].sort((a, b) => a - b)) {
+        const layer = levels.get(l).sort((a, b) => a.wb[0] - b.wb[0] || a.wb[2] - b.wb[2]);
+        if (layer.length > SPLIT_OVER) {
+          if (cur.length) { chunks.push(cur); cur = []; }
+          const n = Math.ceil(layer.length / SPLIT_TARGET), per = Math.ceil(layer.length / n);
+          for (let k = 0; k < layer.length; k += per) chunks.push(layer.slice(k, k + per));
+          continue;
+        }
+        if (cur.length && cur.length + layer.length > SPLIT_OVER) { chunks.push(cur); cur = []; }
+        cur.push(...layer);
+        if (cur.length >= SPLIT_TARGET) { chunks.push(cur); cur = []; }
+      }
+      if (cur.length) { if (chunks.length && cur.length < 3 && chunks[chunks.length - 1].length + cur.length <= SPLIT_OVER + 2) chunks[chunks.length - 1].push(...cur); else chunks.push(cur); }
+      if (figs.length) chunks.push(figs);
+      for (const c of chunks) { for (const it of c) it.step = next; next++; }
+    }
+    gstep = next;
+  }
+
   const r4 = (v) => { const r = Math.round(v * 10000) / 10000; return Object.is(r, -0) ? 0 : r; };
   const r3 = (v) => { const r = Math.round(v * 1000) / 1000; return Object.is(r, -0) ? 0 : r; };
   const bricks = items.map(it => [it.pi, it.ci, r3(it.pos[0]), r3(it.pos[1]), r3(it.pos[2]), ...it.R.map(r4), it.step, it.sub, ...(it.fp || [null, null, null, null, null, null])]);
@@ -534,7 +608,7 @@ function convertModel(sel) {
     format: 'studforge-omr-1', steps: gstep, pieces: items.filter(i => !isSeg(i)).length, dims, submodels: subNames, parts, colors, bricks,
     minifigParts: [...minifigParts].sort((a, b) => a - b),
     stats: { catalogShare: r3(catalogShare), offGridShare: r3(offGridShare), minifigPieces: items.filter(i => i.minifig && !isSeg(i)).length, hoseSegments: items.filter(isSeg).length, stickersDropped: stickers, lsynthSegmentsDropped: lsynth, embeddedOfficial,
-      droppedRefs: Object.values(dropped).reduce((a, b) => a + b, 0), overlapPairs: pairs.size, overlapParts: overlapParts.size },
+      droppedRefs: Object.values(dropped).reduce((a, b) => a + b, 0), overlapPairs: pairs.size, overlapParts: overlapParts.size, fileSteps, grounded },
   };
   const diag = { expectedSteps, rawStepLines, squared, untilted, dropped, phase: [phX, phY, phZ], overlapSamples: [...pairs].slice(0, 8).map(p => p.split('-').map(i => parts[items[+i].pi][0] + '@' + (items[+i].fp || []).join(','))) };
   return { model, diag, rawIds: raw.map(r => r.id), items };
@@ -575,7 +649,7 @@ for (const sel of selection) {
   });
   index.push({ id: model.id, name: model.name, year: model.year, theme: model.theme, subject: model.subject, pieces: model.pieces, steps: model.steps,
     file: `${model.id}.json`, authors: model.source.authors, licence: model.source.licence, url: model.source.url, dims: model.dims });
-  const flag = diag.expectedSteps === model.steps ? '' : `  STEP MISMATCH expected ${diag.expectedSteps}`;
+  const flag = diag.expectedSteps === model.stats.fileSteps ? '' : `  STEP MISMATCH expected ${diag.expectedSteps}`;
   console.log(`${model.id.padEnd(12)} ${model.subject.padEnd(12)} ${String(model.pieces).padStart(5)}pc ${String(model.steps).padStart(4)} steps  cat ${(model.stats.catalogShare * 100).toFixed(0)}%  off ${(model.stats.offGridShare * 100).toFixed(0)}%  ovl ${model.stats.overlapPairs}  ${(json.length / 1024).toFixed(0)}KB  ${model.name}${flag}`);
   if (VERIFY.has(model.id)) {
     console.log('  VERIFY', JSON.stringify({ dims: model.dims, submodels: model.submodels.length, subNames: model.submodels.slice(0, 12), colors: model.colors, minifig: model.stats.minifigPieces,

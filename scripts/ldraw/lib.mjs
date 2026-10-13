@@ -162,7 +162,9 @@ const inheritColour = (code, parent) => (code === '16' || code === '24') ? paren
 /**
  * Load and flatten a part. `id`: an LDraw file name with or without ".dat" ("3001", "s\\3001s01.dat"), or a baked
  * part id ("/" written as "_" is accepted when the plain name does not resolve).
- * opts: { lib, lowRes: false | 'studs' | true, skipStuds }. With `skipStuds`, top-stud primitives are listed in
+ * opts: { lib, lowRes: false | 'studs' | true, skipStuds, stripLogos }. With `stripLogos`, sub-files whose name mentions
+ * a logo (the small brand logo embossed on some moulded parts) are left out of the geometry; they are still listed in `logos`.
+ * With `skipStuds`, top-stud primitives are listed in
  * `studs` (with a kind: 0 solid, 1 hollow, 2 other) but left out of the triangles, so a renderer can instance them.
  * Returns { id, file, title, name, license, author, movedTo, positions, colors, bbox, tris, studs, logos, missing }, or
  * null when the file is unknown. `studs`: [x, y, z, dx, dy, dz] per stud primitive (base centre and the direction it
@@ -172,7 +174,8 @@ export function loadPart(id, opts = {}) {
     const L = library(opts.lib);
     const lowRes = opts.lowRes ?? false;
     const skipStuds = !!opts.skipStuds;
-    const key = String(id).toLowerCase() + '|' + lowRes + (skipStuds ? '|nostuds' : '');
+    const stripLogos = !!opts.stripLogos;
+    const key = String(id).toLowerCase() + '|' + lowRes + (skipStuds ? '|nostuds' : '') + (stripLogos ? '|nologos' : '');
     if (L.flat.has(key)) return L.flat.get(key);
 
     let abs = resolve(L, id, lowRes);
@@ -239,7 +242,7 @@ export function loadPart(id, opts = {}) {
                 const sub = resolve(L, r.file, lowRes);
                 if (!sub) { missing.add(r.file); invertNext = false; continue; }
                 const W = mul(M, r.m);
-                if (/logo/i.test(r.file)) logos.add(r.file);
+                if (/logo/i.test(r.file)) { logos.add(r.file); if (stripLogos) { invertNext = false; continue; } }
                 if (STUD_RE.test(r.file)) {
                     // A stud's origin is the centre of its base and it rises along local -Y: record base + direction.
                     const len = Math.hypot(W[4], W[7], W[10]) || 1;
