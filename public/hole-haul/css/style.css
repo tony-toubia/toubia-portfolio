@@ -58,9 +58,9 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--ink); outline-o
 .booster.empty .b-ico { opacity: 0.55; }
 .booster.empty .b-n { background: var(--sun); color: var(--ink); font-size: 12px; }
 
-.joy { position: fixed; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%; background: rgba(255, 255, 255, 0.22); border: 3px solid rgba(255, 255, 255, 0.6); opacity: 0; transition: opacity 0.12s; pointer-events: none; }
+.joy { position: fixed; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; background: rgba(255, 255, 255, 0.35); border: 3px solid rgba(255, 255, 255, 0.8); opacity: 0; transition: opacity 0.12s; pointer-events: none; }
 .joy.on { opacity: 1; }
-.joy-knob { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; border-radius: 50%; background: #fff; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2); transform: translate(-50%, -50%); }
+.joy-knob { display: none; }
 .hint { position: absolute; left: 50%; bottom: calc(var(--safe-b) + 100px); transform: translateX(-50%); background: rgba(43, 33, 64, 0.8); color: #fff; padding: 6px 16px; border-radius: 999px; font-weight: 700; font-size: 16px; opacity: 0; transition: opacity 0.3s; white-space: nowrap; }
 .hint.on { opacity: 1; animation: hint 1.6s ease-in-out infinite; }
 @keyframes hint { 50% { transform: translateX(-50%) translateY(-6px); } }
