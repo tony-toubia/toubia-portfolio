@@ -4,7 +4,7 @@
 // A curated set of them is converted into StudForge models (data/omr/, loaded and expanded by
 // FORGE.omr in omr.js) whose bricks carry their LDraw part id, a 3x3 rotation and their real
 // instruction step. This feature adds:
-//   - a "start from" source in Make, 🏷️ A real set (showPanel('realsets-browse')): every converted set,
+//   - one unified Library source (showPanel('library')): every converted set and local build,
 //     searchable, filtered by kind (vehicles, space, buildings...), as cards (name, set number, year, theme,
 //     pieces, steps). Picking one loads it and closes Make.
 //   - in the LEARN tab: the real-set card while one is shown (set, attribution, ⚒️ FORGE ONE LIKE THIS,
@@ -21,6 +21,7 @@
 // `?ref=<setId>` opens a set on load; the gallery writes that link for a reference.
 (() => {
     const PRE = 'sfref';
+    const storage = { getItem: key => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) };
     const CSS = `
 .${PRE}-browser { display: flex; flex-direction: column; gap: 10px; }
 .${PRE}-intro { margin: 0; font-size: 14px; color: var(--text-secondary); line-height: 1.4; }
@@ -43,7 +44,7 @@
 .${PRE}-card.busy .${PRE}-meta::after { content: ' · LOADING…'; color: var(--lego-yellow); }
 .${PRE}-tile { position: relative; min-width: 0; }
 .${PRE}-tile .${PRE}-card { width: 100%; height: 100%; padding-top: 38px; }
-.${PRE}-thumb { width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 8px; }
+.${PRE}-thumb { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; border-radius: 8px; }
 .${PRE}-favorite { position: absolute; top: 5px; right: 5px; width: 32px; height: 32px; border: 1px solid var(--border-main); border-radius: 8px; background: var(--bg-panel); color: var(--lego-yellow); cursor: pointer; font-size: 18px; }
 .${PRE}-top { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 10px; color: var(--lego-yellow); letter-spacing: 0.3px; }
 .${PRE}-top .ico { font-size: 15px; line-height: 1; }
@@ -51,6 +52,14 @@
 .${PRE}-name { font-family: var(--font-body); font-size: 15px; font-weight: 700; color: #fff; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .${PRE}-theme { font-size: 12px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .${PRE}-meta { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); letter-spacing: 0.3px; }
+.${PRE}-labels { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.${PRE}-labels > span { font-size: 11px; border-radius: 4px; background: rgba(242,205,55,.12); color: var(--lego-yellow); padding: 2px 5px; }
+.${PRE}-filter-more > summary { cursor: pointer; font-size: 13px; color: var(--text-secondary); padding: 5px 0; }
+.${PRE}-filter-more .${PRE}-chips { margin-top: 7px; }
+.${PRE}-idea-icon { display: grid; place-items: center; aspect-ratio: 4 / 3; font-size: 52px; background: rgba(255,255,255,.03); border-radius: 8px; }
+.${PRE}-saved-actions { display: flex; gap: 5px; padding: 6px; }
+.${PRE}-saved-actions button { border: 1px solid var(--border-main); background: var(--bg-panel); color: var(--text-secondary); border-radius: 6px; min-width: 32px; min-height: 32px; cursor: pointer; }
+.${PRE}-tile:has(.${PRE}-saved-actions) .${PRE}-card { height: calc(100% - 44px); }
 .${PRE}-empty { grid-column: 1 / -1; font-size: 14px; color: var(--text-muted); padding: 14px 0; text-align: center; }
 .${PRE}-foot { margin: 2px 0 0; font-size: 11px; color: var(--text-muted); line-height: 1.4; }
 .${PRE}-hint { font-size: 13px; color: var(--text-secondary); line-height: 1.45; margin: 0 0 10px; }
@@ -282,15 +291,15 @@
         const themeText = (t) => String(t || '').split(' > ').join(' · ');
         const shownId = () => (isRef() ? sf.model.reference.setId : null);
         const setCard = (e) => {
-            const library = window.StudForgeLibraryState ||= window.StudForgeLibrary.readState(localStorage);
+            const library = window.StudForgeLibraryState ||= window.StudForgeLibrary.readState(storage);
             const tile = el('div', `${PRE}-tile`);
-            const b = el('button', `${PRE}-card${e.id === shownId() ? ' on' : ''}${loading === e.id ? ' busy' : ''}`);
+            const b = el('button', `${PRE}-card${e.id === shownId() ? ' on' : ''}${loading === e.id ? ' busy' : ''}`); b.disabled = loading === e.id;
             b.type = 'button'; b.dataset.set = e.id; b.title = `Build ${e.name} (${e.id}) step by step`;
             b.innerHTML = (e.thumbnail ? `<img class="${PRE}-thumb" src="${esc(e.thumbnail)}" alt="" loading="lazy">` : '') + `<span class="${PRE}-top"><span class="ico" aria-hidden="true">${iconOf(e.subject)}</span>#${esc(e.id)}${e.year ? `<span class="yr">${esc(e.year)}</span>` : ''}</span>`
                 + `<span class="${PRE}-name">${esc(e.name)}</span>`
                 + (e.theme ? `<span class="${PRE}-theme">${esc(themeText(e.theme))}</span>` : '')
                 + (e.missing && e.missing.length ? `<span class="${PRE}-meta">Source omits ${esc(e.missing.join(', ').toLowerCase())}</span>` : '')
-                + `<span class="${PRE}-meta">${esc(e.pieces || '?')} PCS${e.steps ? ` · ${esc(e.steps)} ${e.stepKind === 'layers' ? 'LAYERS' : 'STEPS'}` : ''}</span>`;
+                + `<span class="${PRE}-meta">${esc(e.pieces || '?')} PCS${e.steps ? ` · ${esc(e.steps)} ${e.stepKind === 'layers' ? 'LAYERS' : 'STEPS'}` : ''} · OPEN KIT →</span>`;
             b.addEventListener('click', () => loadSet(e.id));
             const favorite = el('button', `${PRE}-favorite`); favorite.type = 'button';
             const paintFavorite = () => {
@@ -302,7 +311,7 @@
                 const on = library.favorites.includes(e.id) || library.favorites.includes(`set-${e.id}`);
                 library.favorites = library.favorites.filter(id => id !== e.id && id !== `set-${e.id}`);
                 if (!on) library.favorites.push(e.id);
-                window.StudForgeLibrary.saveState(localStorage, library);
+                window.StudForgeLibrary.saveState(storage, library);
                 paintFavorite(); paintBrowser(); paintReal();
             });
             tile.append(b, favorite); return tile;
@@ -310,66 +319,100 @@
         /** Loading and "now showing" marks on every card, and the status lines, without re-rendering. */
         function refresh() {
             const on = shownId();
-            for (const c of document.querySelectorAll(`.${PRE}-card[data-set]`)) { c.classList.toggle('busy', c.dataset.set === loading); c.classList.toggle('on', c.dataset.set === on); }
+            for (const c of document.querySelectorAll(`.${PRE}-card[data-set]`)) { c.classList.toggle('busy', c.dataset.set === loading); c.classList.toggle('on', c.dataset.set === on); c.disabled = c.dataset.set === loading; }
             for (const s of document.querySelectorAll(`.${PRE}-status`)) { s.textContent = status; s.classList.toggle('err', statusErr); }
         }
 
-        /* ── Make → 🏷️ A real set: the browser ─────────────────── */
-        const SOURCE = 'realsets-browse';
+        /* ── One library: community sets, starter ideas, and local builds ── */
+        const SOURCE = 'library';
         const KINDS = [
-            ['vehicles', '🚗 Vehicles', ['fireTruck', 'policeCar', 'ambulance', 'car', 'truck', 'monsterTruck', 'garbageTruck', 'bus', 'tractor', 'construction', 'motorcycle', 'tank']],
-            ['trains', '🚂 Trains', ['train']],
-            ['airsea', '✈️ Air & sea', ['plane', 'helicopter', 'boat', 'ship', 'pirateShip', 'submarine']],
-            ['space', '🚀 Space', ['rocket', 'spaceship', 'rover', 'spaceStation', 'robot']],
-            ['buildings', '🏠 Buildings', ['house', 'tower', 'lighthouse', 'windmill', 'bridge', 'shop', 'station', 'farm']],
-            ['castle', '🏰 Castles & dragons', ['castle', 'dragon']],
-            ['nature', '🐾 Animals', ['animal', 'bird', 'seaCreature', 'dinosaur', 'tree', 'flower', 'insect']],
+            ['Vehicles', ['fireTruck', 'policeCar', 'ambulance', 'car', 'truck', 'monsterTruck', 'garbageTruck', 'bus', 'tractor', 'construction', 'motorcycle', 'tank']],
+            ['Trains', ['train']],
+            ['Air & sea', ['plane', 'helicopter', 'boat', 'ship', 'pirateShip', 'submarine']],
+            ['Space', ['rocket', 'spaceship', 'rover', 'spaceStation', 'robot']],
+            ['Buildings', ['house', 'tower', 'lighthouse', 'windmill', 'bridge', 'shop', 'station', 'farm']],
+            ['Castles & dragons', ['castle', 'dragon']],
+            ['Animals & nature', ['animal', 'bird', 'seaCreature', 'dinosaur', 'tree', 'flower', 'insect']],
         ];
-        let query = '', kind = 'all';
-        const src = sf.addSource({ id: SOURCE, icon: '🏷️', label: 'A real set', hint: 'Real sets and character builds', order: 10 });
+        const core = window.StudForgeLibrary;
+        let query = '', selectedTags = [], entries = [];
+        const src = sf.addSource({ id: SOURCE, icon: '🧱', label: 'Browse library', hint: 'Sets, starter ideas and your builds', order: 5 });
         const sb = src.body;
         sb.innerHTML = `<div class="${PRE}-browser">
-  <p class="${PRE}-intro">Explore community recreations of LEGO sets, including Star Wars, Marvel and more. Save favorites and continue where you left off.</p>
-  <input type="search" class="${PRE}-search" placeholder="Search by name, set number, theme or year" aria-label="Search real sets" enterkeyhint="search" autocomplete="off" spellcheck="false">
-  <div class="${PRE}-chips" role="group" aria-label="Filter by kind"></div>
-  <div class="${PRE}-bar"><span class="${PRE}-count"></span><span class="${PRE}-status" role="status"></span></div>
-  <div class="${PRE}-grid"><p class="${PRE}-empty">Loading the real sets…</p></div>
-  <p class="${PRE}-foot">Community models by the LDraw OMR authors named on each set. <a href="models/ATTRIBUTION.md" target="_blank" rel="noopener">Model credits and licenses</a>. LEGO is a trademark of the LEGO Group, which does not sponsor or endorse this project.</p>
+  <p class="${PRE}-intro">Pick a kit and start building. Real sets, generated ideas and your saved builds, together.</p>
+  <input type="search" class="${PRE}-search" placeholder="Search kits, themes, set numbers or ideas" aria-label="Search library" enterkeyhint="search" autocomplete="off" spellcheck="false">
+  <div class="${PRE}-chips" role="group" aria-label="Filter library by labels"></div>
+  <details class="${PRE}-filter-more"><summary>Themes & more labels</summary><div class="${PRE}-chips ${PRE}-themes" role="group" aria-label="Filter library by theme"></div></details>
+  <div class="${PRE}-bar"><span class="${PRE}-count" role="status"></span><span class="${PRE}-status" role="status"></span></div>
+  <div class="${PRE}-grid"><p class="${PRE}-empty">Loading the library…</p></div>
+  <p class="${PRE}-foot">Your saved and recent builds stay in this browser. Community sets credit their LDraw OMR authors. <a href="models/ATTRIBUTION.md" target="_blank" rel="noopener">Model credits and licenses</a>. LEGO is a trademark of the LEGO Group, which does not sponsor or endorse this project.</p>
 </div>`;
-        const search = sb.querySelector(`.${PRE}-search`), chips = sb.querySelector(`.${PRE}-chips`), grid = sb.querySelector(`.${PRE}-grid`), count = sb.querySelector(`.${PRE}-count`);
-        const kindOf = (subject) => (KINDS.find(([, , subs]) => subs.includes(subject)) || [])[0] || null;
-        function paintChips() {
-            const all = index || [];
-            const subject = subjectOf(sf.model);
-            const mine = subject ? all.filter((e) => e.subject === subject).length : 0;
-            const library = window.StudForgeLibraryState ||= window.StudForgeLibrary.readState(localStorage);
-            const list = [['all', 'All', all.length], ['popular', '✨ Popular picks', all.filter(e => e.collections?.includes('popular-picks')).length], ['favorites', '♥ Favorites', all.filter(e => library.favorites.includes(e.id) || library.favorites.includes(`set-${e.id}`)).length]];
-            for (const theme of ['Star Wars', 'Marvel', 'DC', 'Harry Potter', 'Disney', 'Lord of the Rings', 'Indiana Jones', 'Minecraft', 'LEGO Ideas and CUUSOO', 'Speed Champions']) {
-                const n = all.filter(e => e.category === theme || String(e.theme).split(' > ')[0] === theme).length;
-                if (n) list.push([`t:${theme}`, theme, n]);
+        const search = sb.querySelector(`.${PRE}-search`), chips = sb.querySelector(`.${PRE}-chips`), themes = sb.querySelector(`.${PRE}-themes`), grid = sb.querySelector(`.${PRE}-grid`), count = sb.querySelector(`.${PRE}-count`);
+        function buildEntries() {
+            const state = window.StudForgeLibraryState ||= core.readState(storage);
+            entries = core.combineEntries(index || [], window.INSPIRATION_MODELS || [], sf.gallery?.list() || [], sf.gallery?.recent() || [], state.favorites);
+            for (const entry of entries) {
+                if (!entry.ref && !entry.thumb && ['rocket', 'castle', 'sportscar', 'lighthouse', 'mech', 'pagoda', 'espresso', 'arcade'].includes(entry.id)) entry.thumb = `thumbnails/${entry.id}.png`;
+                const theme = entry.category || String(entry.theme || '').split(' > ')[0];
+                const kind = KINDS.find(([, subjects]) => subjects.includes(entry.subject))?.[0];
+                for (const tag of [theme, kind].filter(Boolean)) if (!entry.tags.includes(tag)) entry.tags.push(tag);
             }
-            // The current model's subject first, when real sets of it exist.
-            if (mine) list.push([`s:${subject}`, `${iconOf(subject)} Like this ${isRef() ? 'set' : 'model'}`, mine]);
-            for (const [id, label, subs] of KINDS) { const n = all.filter((e) => subs.includes(e.subject)).length; if (n) list.push([id, label, n]); }
-            if (!list.some(([id]) => id === kind)) kind = 'all';
-            chips.innerHTML = list.map(([id, label, n]) => `<button type="button" class="tool-chip${id === kind ? ' on' : ''}" data-kind="${esc(id)}" aria-pressed="${id === kind}">${esc(label)} <i>${n}</i></button>`).join('');
+        }
+        function paintChips() {
+            const labels = ['Real set', 'Generated', 'Saved', 'Recent', 'Favorites', 'Popular picks', 'Starter idea'];
+            const extra = [...new Set(entries.flatMap(e => e.tags).filter(tag => !labels.includes(tag)))].sort();
+            const chip = ([tag, n]) => `<button type="button" class="tool-chip${(tag === 'All' ? !selectedTags.length : selectedTags.includes(tag)) ? ' on' : ''}" data-tag="${esc(tag)}" aria-pressed="${tag === 'All' ? !selectedTags.length : selectedTags.includes(tag)}">${esc(tag)} <i>${n}</i></button>`;
+            chips.innerHTML = [['All', entries.length], ...labels.map(tag => [tag, entries.filter(e => e.tags.includes(tag)).length])].map(chip).join('');
+            themes.innerHTML = [...new Set([...extra, ...selectedTags.filter(tag => !labels.includes(tag))])].map(tag => [tag, entries.filter(e => e.tags.includes(tag)).length]).map(chip).join('');
+            sb.querySelector(`.${PRE}-filter-more summary`).textContent = selectedTags.some(tag => !labels.includes(tag)) ? `Themes & more labels · ${selectedTags.filter(tag => !labels.includes(tag)).join(', ')}` : 'Themes & more labels';
+        }
+        function libraryCard(e) {
+            const tile = e.ref ? setCard(e) : el('div', `${PRE}-tile`);
+            if (!e.ref) {
+                const button = el('button', `${PRE}-card`); button.type = 'button'; button.dataset.build = e.key;
+                button.title = `Open ${e.name || e.prompt}`;
+                button.innerHTML = (e.thumb ? `<img class="${PRE}-thumb" alt="" src="${esc(e.thumb)}" loading="lazy">` : `<span class="${PRE}-idea-icon" aria-hidden="true">${esc(e.icon || '🧱')}</span>`)
+                    + `<span class="${PRE}-name">${esc(e.name || e.prompt)}</span><span class="${PRE}-meta">${e.pieces ? `${esc(e.pieces)} PCS · ` : ''}OPEN BUILD →</span>`;
+                button.addEventListener('click', () => sf.gallery.open(e.savedEntry || e)); tile.appendChild(button);
+                const favorite = el('button', `${PRE}-favorite`); favorite.type = 'button';
+                const state = window.StudForgeLibraryState;
+                const on = state.favorites.includes(e.key);
+                favorite.textContent = on ? '♥' : '♡'; favorite.setAttribute('aria-label', `Favorite ${e.name || e.prompt}`); favorite.setAttribute('aria-pressed', String(on));
+                favorite.addEventListener('click', () => { state.favorites = state.favorites.filter(key => key !== e.key); if (!on) state.favorites.push(e.key); core.saveState(storage, state); paintBrowser(); });
+                tile.appendChild(favorite);
+            }
+            const button = tile.querySelector(`.${PRE}-card`);
+            button.insertAdjacentHTML('beforeend', `<span class="${PRE}-labels">${e.tags.filter(tag => ['Real set', 'Generated', 'Saved', 'Recent', 'Starter idea'].includes(tag)).map(tag => `<span>${esc(tag)}</span>`).join('')}</span>`);
+            if (e.savedEntry) {
+                const actions = el('div', `${PRE}-saved-actions`);
+                const copy = el('button', '', '🔗'); copy.type = 'button'; copy.setAttribute('aria-label', `Copy link to ${e.name || e.prompt}`); copy.addEventListener('click', () => sf.gallery.copy(e.savedEntry));
+                const remove = el('button', '', '✕'); remove.type = 'button'; remove.setAttribute('aria-label', `Remove saved ${e.name || e.prompt}`); remove.addEventListener('click', () => sf.gallery.remove(e.savedEntry));
+                actions.append(copy, remove); tile.appendChild(actions);
+            }
+            return tile;
         }
         function paintGrid() {
-            if (!index) return;
-            const q = query.trim().toLowerCase();
-            const library = window.StudForgeLibraryState ||= window.StudForgeLibrary.readState(localStorage);
-            const hits = index.filter((e) => (kind === 'all' || (kind === 'popular' ? e.collections?.includes('popular-picks') : kind === 'favorites' ? library.favorites.includes(e.id) || library.favorites.includes(`set-${e.id}`) : kind.startsWith('t:') ? (e.category || String(e.theme).split(' > ')[0]) === kind.slice(2) : kind.startsWith('s:') ? e.subject === kind.slice(2) : kindOf(e.subject) === kind))
-                && (!q || [e.name, e.id, e.theme, e.year, e.subject && subjectWords(e.subject)].some((f) => String(f || '').toLowerCase().includes(q))))
-                .sort((a, b) => String(a.theme || '').localeCompare(String(b.theme || '')) || (a.year || 0) - (b.year || 0) || a.name.localeCompare(b.name));
+            const hits = core.searchEntries(entries, query, selectedTags);
             grid.innerHTML = '';
-            if (!hits.length) grid.appendChild(el('p', `${PRE}-empty`, index.length ? `No real set matches${q ? ` “${esc(query)}”` : ''}${kind !== 'all' ? ' in this kind' : ''}.` : 'No real sets yet.'));
-            for (const e of hits) grid.appendChild(setCard(e));
-            count.textContent = hits.length === index.length ? `${index.length} SETS` : `${hits.length} OF ${index.length} SETS`;
+            if (!hits.length) {
+                const empty = el('div', `${PRE}-empty`, 'No kits match these labels and search.');
+                const reset = el('button', 'tool-chip', 'Clear filters'); reset.type = 'button';
+                reset.addEventListener('click', () => { selectedTags = []; query = ''; search.value = ''; paintBrowser(); }); empty.appendChild(reset); grid.appendChild(empty);
+            }
+            for (const e of hits) grid.appendChild(libraryCard(e));
+            count.textContent = `${hits.length} OF ${entries.length} KITS & IDEAS`;
         }
-        const paintBrowser = () => { if (!index) return; paintChips(); paintGrid(); refresh(); };
+        const paintBrowser = () => { if (!index) return; buildEntries(); paintChips(); paintGrid(); refresh(); };
         search.addEventListener('input', () => { query = search.value; paintGrid(); });
-        chips.addEventListener('click', (e) => { const c = e.target.closest('[data-kind]'); if (!c) return; kind = c.dataset.kind; paintChips(); paintGrid(); });
-        sf.on('source', (id) => { if (id === SOURCE) paintBrowser(); });
+        sb.addEventListener('click', event => {
+            const tag = event.target.closest('[data-tag]')?.dataset.tag; if (!tag) return;
+            selectedTags = tag === 'All' ? [] : selectedTags.includes(tag) ? selectedTags.filter(t => t !== tag) : [...selectedTags, tag]; paintChips(); paintGrid();
+        });
+        sf.on('source', id => { if (id === SOURCE) paintBrowser(); });
+        sf.on('library:change', paintBrowser);
+        sf.library = { browse: () => sf.showSource(SOURCE), entries: () => entries.slice() };
+        const browse = document.getElementById('btn-library');
+        if (browse) browse.addEventListener('click', () => sf.library.browse());
 
         /* ── LEARN: the real set on show, and BUILD A REAL ONE ──── */
         const nowP = sf.registerPanel({ id: 'realsets-now', title: null, group: 'learn', order: 5 });
@@ -415,7 +458,7 @@
                     const st = el('div', `${PRE}-status`); st.setAttribute('role', 'status'); st.style.marginTop = '8px'; st.style.textAlign = 'left';
                     body.appendChild(st);
                 }
-                const more = el('button', `action-btn tertiary ${PRE}-more`, `🏷️ BROWSE ALL ${index.length} REAL SETS`); more.type = 'button';
+                const more = el('button', `action-btn tertiary ${PRE}-more`, `🧱 BROWSE LIBRARY`); more.type = 'button';
                 more.addEventListener('click', () => sf.showSource(SOURCE));
                 body.appendChild(more);
                 refresh();
