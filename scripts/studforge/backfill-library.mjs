@@ -52,6 +52,7 @@ if(args.includes('--dry-run')){console.log(JSON.stringify({candidates:candidates
 const report={checkedAt:new Date().toISOString(),rankingSource:rankingUrl,method:'Exact set-number matches first; other licensed/theme community models are supplemental picks, never substitutes for exact ranked versions.',targets:ranking.map(r=>({...r,omrId:sets.find(s=>s.number===r.setNumber)?.omrId||null,status:existing.has(r.setNumber)?'already in library':sets.some(s=>s.number===r.setNumber)?'available community file':'no community model found'})),attempts:[]};
 let previousReport=null;
 try{previousReport=await readJSON('docs/studforge-backfill-report.json');}catch(error){if(error.code!=='ENOENT')throw error;}
+if(previousReport?.geometryRepair)report.geometryRepair=previousReport.geometryRepair;
 report.attempts=(previousReport?.attempts || []).filter(row=>!candidates.some(s=>s.number===row.setNumber));
 for(const target of report.targets){const old=report.attempts.find(row=>row.setNumber===target.setNumber);if(old&&!existing.has(target.setNumber))Object.assign(target,{status:old.status,reason:old.reason});}
 let palette={};
@@ -98,7 +99,7 @@ for(const [position,set] of candidates.entries()) {
         index.models=index.models.filter(e=>e.id!==set.number);index.models.push(converted.row);
         const oldEntry=catalog.findIndex(e=>e.setNumber===set.number);if(oldEntry>=0)catalog[oldEntry]=converted.entry;else catalog.push(converted.entry);
         Object.assign(manifest.parts,converted.manifest);Object.assign(metadata,converted.metadata);Object.assign(palette,converted.palette);
-        Object.assign(attempt,{status:'imported',pieces:converted.pieceCount,triangles:converted.model.stats.triangles,sourceTriangles:converted.model.stats.sourceTriangles,primitiveReplacements:converted.model.stats.primitiveReplacements,visualComponents:converted.model.stats.visualComponents,missing:entry.missing});
+        Object.assign(attempt,{status:'imported',pieces:converted.pieceCount,triangles:converted.model.stats.triangles,sourceTriangles:converted.model.stats.sourceTriangles,primitiveReplacements:converted.model.stats.primitiveReplacements,visualComponents:converted.model.stats.visualComponents,degenerateVisualSegments:converted.model.stats.degenerateVisualSegments,legacyColors:converted.model.stats.legacyColors,missing:entry.missing});
         console.log(`  imported ${attempt.pieces} pieces; ${converted.model.steps} ${converted.model.stepKind}`);
     }catch(error){Object.assign(attempt,{status:'skipped',reason:error.message});console.log(`  skipped: ${error.message}`);}
     attempt.durationSeconds=Math.round((Date.now()-startedAt)/1000);

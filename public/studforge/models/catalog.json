@@ -1336,5 +1336,369 @@
     "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
     "pieceCount": 239,
     "sourceStepCount": 37
+  },
+  {
+    "id": "set-75969-1",
+    "setNumber": "75969-1",
+    "name": "Hogwarts Astronomy Tower",
+    "category": "Harry Potter",
+    "theme": "Harry Potter",
+    "subject": "castle",
+    "year": 2020,
+    "format": "ldraw",
+    "modelUrl": "models/75969-1.mpd",
+    "thumbnail": "thumbnails/75969-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1218",
+    "originalUrl": "https://library.ldraw.org/library/omr/75969-1.mpd",
+    "author": "Stefan Frenz [smf]",
+    "missing": [
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75969",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 925,
+    "sourceStepCount": 256
+  },
+  {
+    "id": "set-40335-1",
+    "setNumber": "40335-1",
+    "name": "Space Rocket Ride",
+    "category": "LEGO Ideas and CUUSOO",
+    "theme": "LEGO Ideas and CUUSOO",
+    "subject": "spaceship",
+    "year": 2019,
+    "format": "ldraw",
+    "modelUrl": "models/40335-1.mpd",
+    "thumbnail": "thumbnails/40335-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1147",
+    "originalUrl": "https://library.ldraw.org/library/omr/40335-1.mpd",
+    "author": "Marc Giraudet [Mad_Marc]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/40335",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 158,
+    "sourceStepCount": 53
+  },
+  {
+    "id": "set-75893-1",
+    "setNumber": "75893-1",
+    "name": "2018 Dodge Challenger SRT Demon and 1970 Dodge Charger R/T",
+    "category": "Speed Champions",
+    "theme": "Speed Champions",
+    "subject": "house",
+    "year": 2019,
+    "format": "ldraw",
+    "modelUrl": "models/75893-1.mpd",
+    "thumbnail": "thumbnails/75893-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1297",
+    "originalUrl": "https://library.ldraw.org/library/omr/75893-1.mpd",
+    "author": "Magnus Forsberg [MagFors]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75893",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 483,
+    "sourceStepCount": 129
+  },
+  {
+    "id": "set-75181-1",
+    "setNumber": "75181-1",
+    "name": "Y-Wing Starfighter",
+    "category": "Star Wars",
+    "theme": "Star Wars > Ultimate Collector Series",
+    "subject": "spaceship",
+    "year": 2018,
+    "format": "ldraw",
+    "modelUrl": "models/75181-1.mpd",
+    "thumbnail": "thumbnails/75181-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1093",
+    "originalUrl": "https://library.ldraw.org/library/omr/75181-1.mpd",
+    "author": "Orion Pobursky [OrionP]",
+    "missing": [
+      "Patterns",
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75181",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 1928,
+    "sourceStepCount": 366
+  },
+  {
+    "id": "set-75953-1",
+    "setNumber": "75953-1",
+    "name": "Hogwarts Whomping Willow",
+    "category": "Harry Potter",
+    "theme": "Harry Potter",
+    "subject": "castle",
+    "year": 2018,
+    "format": "ldraw",
+    "modelUrl": "models/75953-1.mpd",
+    "thumbnail": "thumbnails/75953-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1215",
+    "originalUrl": "https://library.ldraw.org/library/omr/75953-1.mpd",
+    "author": "Stefan Frenz [smf]",
+    "missing": [
+      "Parts",
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75953",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 720,
+    "sourceStepCount": 232
+  },
+  {
+    "id": "set-75144-1",
+    "setNumber": "75144-1",
+    "name": "Snowspeeder",
+    "category": "Star Wars",
+    "theme": "Star Wars > Ultimate Collector Series",
+    "subject": "character",
+    "year": 2017,
+    "format": "ldraw",
+    "modelUrl": "models/75144-1.mpd",
+    "thumbnail": "thumbnails/75144-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/482",
+    "originalUrl": "https://library.ldraw.org/library/omr/75144-1.mpd",
+    "author": "Roland Dahl [RolandD]",
+    "missing": [
+      "Parts",
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75144",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 1713,
+    "sourceStepCount": 605
+  },
+  {
+    "id": "set-75878-1",
+    "setNumber": "75878-1",
+    "name": "Bugatti Chiron",
+    "category": "Speed Champions",
+    "theme": "Speed Champions",
+    "subject": "character",
+    "year": 2017,
+    "format": "ldraw",
+    "modelUrl": "models/75878-1.mpd",
+    "thumbnail": "thumbnails/75878-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1296",
+    "originalUrl": "https://library.ldraw.org/library/omr/75878-1.mpd",
+    "author": "Magnus Forsberg [MagFors]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75878",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 198,
+    "sourceStepCount": 63
+  },
+  {
+    "id": "set-75870-1",
+    "setNumber": "75870-1",
+    "name": "Chevrolet Corvette Z06",
+    "category": "Speed Champions",
+    "theme": "Speed Champions",
+    "subject": "character",
+    "year": 2016,
+    "format": "ldraw",
+    "modelUrl": "models/75870-1.mpd",
+    "thumbnail": "thumbnails/75870-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1295",
+    "originalUrl": "https://library.ldraw.org/library/omr/75870-1.mpd",
+    "author": "Magnus Forsberg [MagFors]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75870",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 384,
+    "sourceStepCount": 119
+  },
+  {
+    "id": "set-21302-1",
+    "setNumber": "21302-1",
+    "name": "The Big Bang Theory",
+    "category": "LEGO Ideas and CUUSOO",
+    "theme": "LEGO Ideas and CUUSOO",
+    "subject": "character",
+    "year": 2015,
+    "format": "ldraw",
+    "modelUrl": "models/21302-1.mpd",
+    "thumbnail": "thumbnails/21302-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1285",
+    "originalUrl": "https://library.ldraw.org/library/omr/21302-1.mpd",
+    "author": "Vincent Messenet [Cheenzo]",
+    "missing": [
+      "Parts"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/21302",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 456,
+    "sourceStepCount": 140
+  },
+  {
+    "id": "set-75102-1",
+    "setNumber": "75102-1",
+    "name": "Poe's X-Wing Fighter",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "spaceship",
+    "year": 2015,
+    "format": "ldraw",
+    "modelUrl": "models/75102-1.mpd",
+    "thumbnail": "thumbnails/75102-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/898",
+    "originalUrl": "https://library.ldraw.org/library/omr/75102-1.mpd",
+    "author": "Evert Jan Boer [ejboer]",
+    "missing": [
+      "Parts"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75102",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 730,
+    "sourceStepCount": 259
+  },
+  {
+    "id": "set-21107-1",
+    "setNumber": "21107-1",
+    "name": "Micro World - The End",
+    "category": "Minecraft",
+    "theme": "Minecraft",
+    "subject": "character",
+    "year": 2014,
+    "format": "ldraw",
+    "modelUrl": "models/21107-1.mpd",
+    "thumbnail": "thumbnails/21107-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/361",
+    "originalUrl": "https://library.ldraw.org/library/omr/21107-1.mpd",
+    "author": "Merlijn Wissink [Legolijntje]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/21107",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 430,
+    "sourceStepCount": 1
+  },
+  {
+    "id": "set-30300-1",
+    "setNumber": "30300-1",
+    "name": "The Batman Tumbler",
+    "category": "DC",
+    "theme": "Super Heroes DC > Batman",
+    "subject": "car",
+    "year": 2014,
+    "format": "ldraw",
+    "modelUrl": "models/30300-1.mpd",
+    "thumbnail": "thumbnails/30300-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/839",
+    "originalUrl": "https://library.ldraw.org/library/omr/30300-1.mpd",
+    "author": "Massimo Maso [Sirio]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/30300",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 57,
+    "sourceStepCount": 13
+  },
+  {
+    "id": "set-75033-1",
+    "setNumber": "75033-1",
+    "name": "Star Destroyer",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "spaceship",
+    "year": 2014,
+    "format": "ldraw",
+    "modelUrl": "models/75033-1.mpd",
+    "thumbnail": "thumbnails/75033-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/996",
+    "originalUrl": "https://library.ldraw.org/library/omr/75033-1.mpd",
+    "author": "Orion Pobursky [OrionP]",
+    "missing": [
+      "Parts"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75033",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 100,
+    "sourceStepCount": 34
+  },
+  {
+    "id": "set-75253-1",
+    "setNumber": "75253-1",
+    "name": "Droid Commander",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "robot",
+    "year": 2019,
+    "format": "ldraw",
+    "modelUrl": "models/75253-1.mpd",
+    "thumbnail": "thumbnails/75253-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1116",
+    "originalUrl": "https://library.ldraw.org/library/omr/75253-1.mpd",
+    "author": "Philippe Hurbain [Philo]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75253",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 553,
+    "sourceStepCount": 103
+  },
+  {
+    "id": "set-75075-1",
+    "setNumber": "75075-1",
+    "name": "AT-AT",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "robot",
+    "year": 2015,
+    "format": "ldraw",
+    "modelUrl": "models/75075-1.mpd",
+    "thumbnail": "thumbnails/75075-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1205",
+    "originalUrl": "https://library.ldraw.org/library/omr/75075-1.mpd",
+    "author": "folkoluck",
+    "missing": [
+      "Parts"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75075",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 85,
+    "sourceStepCount": 29
   }
 ]

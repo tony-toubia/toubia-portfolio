@@ -3,9 +3,29 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {publishFile} from './publish-file.mjs';
-import {packModel,optimizeBundle,validateBundle,countBundleTriangles,parseSetPage,parseRanking,selectQueuedSets} from './pipeline-core.mjs';
+import {packModel,optimizeBundle,validateBundle,countBundleTriangles,parseSetPage,parseRanking,selectQueuedSets,prepareVisualReferences,completeLegacyColors} from './pipeline-core.mjs';
 const placement = ref => `1 4 0 0 0 1 0 0 0 1 0 0 0 1 ${ref}`;
 const licensed = body => `0 Test\n0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt\n${body}`;
+
+test('only zero-area generated segments are omitted from interactive geometry',()=>{
+    const collapsed=ref=>`1 16 0 8 33.55 0 0 0 0 0 0 0 4 0 ${ref}`;
+    const original=[collapsed('cable.dat'),placement('cable.dat'),collapsed('part.dat'),'1 16 0 0 0 1 0 0 0 1 0 0 0 0 cable.dat'].join('\n');
+    const prepared=prepareVisualReferences(original,{'cable.dat':{name:'~Electric Ribbon Cable Segment'},'part.dat':{name:'Plate'}});
+    assert.equal(prepared.degenerateVisualSegments,1);
+    assert.ok(prepared.text.includes(placement('cable.dat')));
+    assert.ok(prepared.text.includes(collapsed('part.dat')));
+    assert.ok(prepared.text.includes('1 16 0 0 0 1 0 0 0 1 0 0 0 0 cable.dat'));
+    assert.ok(original.includes(collapsed('cable.dat')));
+});
+
+test('legacy blended colors use documented original RGB values and preserve defined colors',()=>{
+    const config='0 !COLOUR Dark_Blue CODE 272 VALUE #0A3463 EDGE #333333';
+    const result=completeLegacyColors(config,[placement('part.dat').replace('1 4','1 361'),placement('part.dat').replace('1 4','1 272')].join('\n'));
+    assert.equal(result.legacyColors,1);
+    assert.ok(result.config.includes('CODE 361 VALUE #335A80'));
+    assert.equal([...result.config.matchAll(/CODE 272/g)].length,1);
+    assert.equal(completeLegacyColors(config,placement('part.dat').replace('1 4','1 999')).legacyColors,0);
+});
 
 test('personal queue selections preserve requested order and never import unselected entries',()=>{
     const pending=[{setNumber:'75969-1'},{setNumber:'21319-1'},{setNumber:'40433-1'}];

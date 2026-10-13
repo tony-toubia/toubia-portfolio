@@ -43,6 +43,40 @@ export function countBundleTriangles(text) {
     }
     return count(files.keys().next().value);
 }
+export const isVisualSegment = name => /^~.*\b(segment|section)\b|^~?lsynth/i.test(name || '');
+// A generated cable endpoint can collapse to a line or point. It has no surface
+// area, but Three's matrix decomposition would produce NaNs for its zero axes.
+// Keep the full archived source and remove only these invisible visual references.
+export function prepareVisualReferences(text, metadata) {
+    let degenerateVisualSegments=0;
+    const prepared=text.replace(/^1\s+\S+(?:\s+[-+\d.eE]+){12}\s+(.+)$/gm,(line,ref)=>{
+        if(!isVisualSegment(metadata[normalize(ref)]?.name))return line;
+        const n=line.trim().split(/\s+/).slice(5,14).map(Number);
+        if(n.length!==9||n.some(value=>!Number.isFinite(value)))return line;
+        const columns=[[n[0],n[3],n[6]],[n[1],n[4],n[7]],[n[2],n[5],n[8]]];
+        const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+        if([[0,1],[0,2],[1,2]].every(([a,b])=>cross(columns[a],columns[b]).every(value=>value===0))) {
+            degenerateVisualSegments++;
+            return '0 // Zero-area generated visual segment retained in archived source';
+        }
+        return line;
+    });
+    return {text:prepared,degenerateVisualSegments};
+}
+// Obsolete blended colors use the original ldraw.exe palette, as specified by LDraw.
+// Official/current definitions always take precedence over the legacy number range.
+export function completeLegacyColors(config, text) {
+    const defined=new Set([...`${config}\n${text}`.matchAll(/^0 !COLOUR .*?\bCODE (\d+)\b/gm)].map(match=>Number(match[1])));
+    const original=[[51,51,51],[0,51,178],[0,127,51],[0,181,166],[204,0,0],[255,51,153],[102,51,0],[153,153,153],[102,102,88],[0,128,255],[51,255,102],[171,253,249],[255,0,0],[255,176,204],[255,229,0],[255,255,255]];
+    const used=new Set([...text.matchAll(/^[134]\s+(\d+)\s/gm)].map(match=>Number(match[1])));
+    const additions=[];
+    for(const code of used)if(code>=256&&code<=511&&!defined.has(code)) {
+        const a=Math.floor((code-256)/16),b=(code-256)%16;
+        const hex=original[a].map((value,i)=>Math.round((value+original[b][i])/2).toString(16).padStart(2,'0')).join('').toUpperCase();
+        additions.push(`0 !COLOUR Legacy_Blend_${a}_${b} CODE ${code} VALUE #${hex} EDGE #333333`);
+    }
+    return {config:config+'\n'+additions.join('\n')+'\n',legacyColors:additions.length};
+}
 // Use official lower-resolution equivalents only for primitives, never replace a part.
 // The archived packed model remains the full source; this bundle is for interactive baking.
 export async function optimizeBundle(bundle, readPart) {
