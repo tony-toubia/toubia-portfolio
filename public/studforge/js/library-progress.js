@@ -16,6 +16,7 @@
             const rows = core.inventory(model.bricks.filter(b => !b.segment && b.layer === step));
             const completed = saved.checked || {};
             panel.body.innerHTML = `<p class="sfref-hint">${noun} ${step + 1} of ${sf.viewer.maxLayer + 1} · saved on this device.</p>`
+                + (model.reference.missing?.length ? `<p class="sfref-hint">Source omissions: ${esc(model.reference.missing.join(', ').toLowerCase())}. This checklist covers the community recreation.</p>` : '')
                 + (model.stepKind === 'layers' ? '<p class="sfref-hint">These are inspection layers. Use the original instructions for the assembly sequence.</p>' : '')
                 + '<div class="sfref-row"><button type="button" class="action-btn secondary" data-progress="start">⏮ START OVER</button><button type="button" class="action-btn secondary" data-progress="full">SHOW ALL</button></div>'
                 + rows.map(b => {

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import {validateBundle} from './pipeline-core.mjs';
 const root = new URL('../../public/studforge/', import.meta.url);
 const json = path => JSON.parse(fs.readFileSync(new URL(path, root), 'utf8'));
 const catalog = json('models/catalog.json');
@@ -9,21 +10,29 @@ const index = json('data/omr/index.json');
 const manifest = json('data/ldraw/manifest.json');
 const context = { window: {} }; vm.createContext(context);
 for (const file of ['colors.js', 'ldraw-palette.js', 'omr.js']) vm.runInContext(fs.readFileSync(new URL(`js/${file}`, root), 'utf8'), context);
-test('all character sets expand with complete geometry and valid source inventory', () => {
-    assert.equal(index.models.length, 116);
-    assert.equal(new Set(index.models.map(m => m.id)).size, 116);
+test('all bundled sets expand with complete geometry, thumbnails and valid source inventory', () => {
+    assert.ok(index.models.length >= 116);
+    const baseline = JSON.parse(fs.readFileSync(new URL('./baseline-sets.json', import.meta.url), 'utf8'));
+    for (const id of baseline) assert.ok(index.models.some(row => row.id === id), `Existing set removed: ${id}`);
+    assert.equal(new Set(index.models.map(m => m.id)).size, index.models.length);
     for (const entry of catalog) {
         const row = index.models.find(m => m.id === entry.setNumber);
         assert.ok(row, entry.name);
+        validateBundle(fs.readFileSync(new URL(entry.modelUrl, root), 'utf8'));
+        assert.ok(fs.statSync(new URL(entry.thumbnail, root)).size > 1000);
         const data = json(`data/omr/${row.file}`), model = context.window.FORGE.omr.expand(data);
         assert.equal(model.bricks.length, entry.pieceCount);
+        assert.deepEqual(data.source.missing, entry.missing);
         assert.equal(data.stats.droppedRefs, 0);
         assert.ok(['steps', 'layers'].includes(model.stepKind));
+        const checked = new Set();
         for (const brick of model.bricks) {
             assert.ok(context.window.LEGO_COLORS[brick.color]);
             assert.ok([brick.x, brick.y, brick.z, ...brick.matrix].every(Number.isFinite));
             assert.ok(brick.layer >= 0 && brick.layer < data.steps);
             assert.ok(manifest.parts[brick.geometryId]);
+            if (checked.has(brick.geometryId)) continue;
+            checked.add(brick.geometryId);
             const part = json(`data/ldraw/parts/${brick.geometryId}.json`);
             assert.equal(part.i.length, part.tris * 3);
             assert.equal(part.c.length, part.tris);

@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "studforge:import": "node scripts/studforge/backfill-library.mjs",
+    "studforge:backfill": "node scripts/studforge/backfill-library.mjs",
+    "studforge:test": "node --test scripts/studforge/pipeline.test.mjs scripts/studforge/library.test.mjs scripts/studforge/integration.test.mjs scripts/studforge/converter.test.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
