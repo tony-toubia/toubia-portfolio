@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { AI_COOKIE, tokenValid } from '@/lib/studforge/gate';
 import { blueprintUserMessage, exampleFor, withCredit, type DesignSubject } from '@/lib/studforge/omr-examples';
-import { schoolReference, schoolReferenceImage, safeSource, imageInput, digestImage, signSelection, readSelection, followsSelection, type Concept, type ReferenceSource } from '@/lib/studforge/concepts';
+import { schoolReference, schoolReferenceImage, safeSource, imageInput, digestImage, signSelection, readSelection, followsSelection, conceptSchema, type Concept, type ReferenceSource } from '@/lib/studforge/concepts';
 
 /**
  * POST /api/studforge/idea
@@ -336,8 +336,8 @@ function parseJson(text: string): unknown {
   try { return JSON.parse(inner.slice(a, z + 1)); } catch { return null; }
 }
 
-type Ask = { system: string; user: string; maxTokens: number; effort: 'low' | 'medium' | 'high'; timeoutMs: number; cache?: boolean; search?: boolean; image?: ReturnType<typeof imageInput> | { type: 'url'; url: string } };
-type Answer = { ok: true; text: string; refused: boolean; sources: ReferenceSource[] } | { ok: false; reason: string; status: number };
+type Ask = { system: string; user: string; maxTokens: number; effort: 'low' | 'medium' | 'high'; timeoutMs: number; cache?: boolean; search?: boolean; schema?: Record<string, unknown>; image?: ReturnType<typeof imageInput> | { type: 'url'; url: string } };
+type Answer = { ok: true; text: string; refused: boolean; sources: ReferenceSource[]; stopReason: string } | { ok: false; reason: string; status: number };
 async function askClaude(key: string, a: Ask): Promise<Answer> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), a.timeoutMs);
@@ -346,7 +346,10 @@ async function askClaude(key: string, a: Ask): Promise<Answer> {
       method: 'POST', signal: ctrl.signal,
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
-        model: MODEL, max_tokens: a.maxTokens, output_config: { effort: a.effort },
+        model: MODEL, max_tokens: a.maxTokens, output_config: { effort: a.effort, ...(a.schema && !a.search ? { format: { type: 'json_schema', schema: a.schema } } : {}) },
+        // Sonnet5.5 otherwise spends the output budget on up-front reasoning, leaving sketches
+        // truncated. Its documented between_tools mode retains reasoning between search tools.
+        ...(!a.search && a.effort === 'high' && MODEL === 'claude-sonnet-5-5' ? { thinking: { type: 'between_tools' } } : {}),
         // The long design lesson is identical on every request: mark it cacheable so only the idea costs full price.
         system: a.cache ? [{ type: 'text', text: a.system, cache_control: { type: 'ephemeral' } }] : a.system,
         messages: [{ role: 'user', content: a.image ? [{ type: 'image', source: a.image }, { type: 'text', text: a.user }] : a.user }],
@@ -357,7 +360,9 @@ async function askClaude(key: string, a: Ask): Promise<Answer> {
     const data = (await res.json()) as { stop_reason?: string; content?: { type: string; text?: string; content?: unknown }[] };
     const text = (data.content ?? []).filter((c) => c.type === 'text').map((c) => c.text ?? '').join('\n');
     const sources = (data.content ?? []).filter(c => c.type === 'web_search_tool_result').flatMap(c => Array.isArray(c.content) ? c.content : []).map(safeSource).filter((s): s is ReferenceSource => !!s);
-    return { ok: true, text, refused: data.stop_reason === 'refusal', sources };
+    const stopReason = data.stop_reason || 'unknown';
+    console.info('[studforge] idea response', JSON.stringify({ stopReason, textLength: text.length, sourceCount: sources.length, structured: !!a.schema && !a.search }));
+    return { ok: true, text, refused: data.stop_reason === 'refusal', sources, stopReason };
   } catch (e) {
     console.error('[studforge] idea upstream failed', e instanceof Error ? e.name : 'error');
     return { ok: false, reason: ctrl.signal.aborted ? 'timeout' : 'upstream', status: 502 };
@@ -398,11 +403,16 @@ export async function POST(req: NextRequest) {
         'Sketch coordinates: x left/right, z back/front, studs; y upward in plates (3 plates=one brick; 2.5 plates=one stud). Inclusive ranges. Base 6–32 studs wide/deep, max y 48. Use only box or slab ops, 12–32 ops per sketch. Slab is two plate layers. Begin at y=1 above the base. All shapes stand on the base or overlap an already supported shape: no floating islands. Use stepped/tapered silhouettes, distinct silhouette and palette for the actual subject, recognizable heads/wings/arches. The finished design will copy these exact structural ops then add catalog parts, so these shapes must be accurate and buildable. Avoid arbitrary circles or icons, all geometry must describe a brick model. For an emblem/mascot, a shallow relief faithfully matching the logo is often better than a generic statue: include the face, beak, shirt marking and legs visibly in the sketch itself.',
         `Colors: ${vocab.colors.join(', ')}. Return only JSON: {identity, requiresReference:boolean, referenceStatus, message:string, sources:[{title,url}], concepts:[{id:"concept-1",name,description,features:[strings],sketch:{base:{w,d,color},ops:[{op:"box",x0,x1,z0,z1,y0,y1,color}|{op:"slab",x0,x1,z0,z1,y,color}]}}]}.`,
       ].join('\n'),
-      user: `Idea: ${vocab.prompt}\n${official ? `Exact official identity: ${official.identity}. Official sources: ${JSON.stringify(official.sources)}.${!supplied ? " The attached image is rasterized from the school's genuine vector logo: white cartoon hawk, black outlines, red shirt with white H, upright striding pose and left-pointing beak. Preserve these cues; do not use another Highlands school or a generic spread-wing eagle." : ' The user supplied a different visual reference; prioritize that actual image and do not claim it is the official logo.'}` : ''}\n${supplied ? 'The attached image is the user-selected real visual reference.' : ''}`,
-      image, search: !official && !supplied, maxTokens: 7000, effort: 'high', timeoutMs: 110000,
+      user: `Idea: ${vocab.prompt}\n${official ? `Exact official identity: ${official.identity}. Official sources: ${JSON.stringify(official.sources)}.${!supplied ? " The attached image is rasterized from the school's genuine vector logo: white cartoon hawk, black outlines, red shirt with white H, upright striding pose and left-pointing beak. Preserve these cues; do not use another Highlands school or a generic spread-wing eagle." : ' The user supplied a different visual reference; prioritize that actual image and do not claim it is the official logo.'}` : ''}\n${supplied ? 'The attached image is the user-selected real visual reference.' : ''}\n${str(rec(body).correction, 1800)}`,
+      image, search: !official && !supplied, schema: conceptSchema(vocab.colors), maxTokens: 7000, effort: 'high', timeoutMs: 110000,
     });
     if (!ans.ok) return local(ans.reason, ans.status);
-    const raw = rec(parseJson(ans.text));
+    if (ans.refused) return local('concept-refused');
+    if (ans.stopReason === 'max_tokens') return local('concept-truncated');
+    if (ans.stopReason === 'pause_turn') return local('concept-search-incomplete');
+    const parsed = parseJson(ans.text);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return local('concept-malformed');
+    const raw = rec(parsed);
     const available = official?.sources || ans.sources;
     const sources = supplied ? [] : (Array.isArray(raw.sources) ? raw.sources : []).map(safeSource).filter((s): s is ReferenceSource => !!s && available.some(a => a.url === s.url));
     // A model may omit its JSON citations even though the server tool returned genuine results.
@@ -412,16 +422,21 @@ export async function POST(req: NextRequest) {
     const needsReference = !!official || raw.requiresReference === true || /\b(mascot|elementary|school|university|logo|highlands?\s+hawks?)\b/i.test(vocab.prompt);
     const status = image ? 'image' : needsReference && !sources.length ? 'unresolved' : sources.length ? 'sources' : 'imagined';
     if (needsReference && status === 'unresolved') return NextResponse.json({ source: 'claude', concepts: [], referenceStatus: status, message: 'I could not confirm the exact subject. Add a reference image so I can match its actual appearance.' }, { headers: NO_STORE });
+    const rejected: { index: number; errors: string[]; opCount: number | null }[] = [];
     const concepts = (Array.isArray(raw.concepts) ? raw.concepts : []).slice(0, 3).flatMap((item, i) => {
       const r = rec(item), sketch = rec(r.sketch);
-      if (!Array.isArray(sketch.ops) || sketch.ops.length < 3 || sketch.ops.length > 32 || sketch.ops.some(o => !['box', 'slab'].includes(String(rec(o).op)))) return [];
-      const checked = validateBlueprint({ ...sketch, name: r.name, description: r.description }, vocab);
-      if (!checked.ok) return [];
+      if (!Array.isArray(sketch.ops) || sketch.ops.length < 3 || sketch.ops.length > 32 || sketch.ops.some(o => !['box', 'slab'].includes(String(rec(o).op).toLowerCase()))) { rejected.push({ index: i, errors: ['sketch requires 3–32 box/slab operations'], opCount: Array.isArray(sketch.ops) ? sketch.ops.length : null }); return []; }
+      // The provider documents enum capitalization as a possible deviation even in strict output.
+      const color = (value: unknown) => typeof value === 'string' ? vocab.colors.find(c => c.toLowerCase() === value.toLowerCase()) || value : value;
+      const normalized = { ...sketch, base: { ...rec(sketch.base), color: color(rec(sketch.base).color) }, ops: sketch.ops.map(o => ({ ...rec(o), op: String(rec(o).op).toLowerCase(), color: color(rec(o).color) })) };
+      const checked = validateBlueprint({ ...normalized, name: r.name, description: r.description }, vocab);
+      if (!checked.ok) { rejected.push({ index: i, errors: checked.errors.slice(0, 5).map(error => error.replace(/unknown colour .*/, 'unknown colour').replace(/unknown op .*/, 'unknown op')), opCount: sketch.ops.length }); return []; }
       const concept: Concept = { id: `concept-${i + 1}`, name: checked.bp.name, description: checked.bp.description, features: strList(r.features, 5, 100), sketch: { base: checked.bp.base, ops: checked.bp.ops } };
       const identity = official?.identity || str(raw.identity, 180) || vocab.prompt;
       return [{ ...concept, selection: signSelection({ prompt: vocab.prompt, concept, sources, identity, referenceStatus: status, imageDigest: digestImage(rec(body).referenceImage) }, key) }];
     });
-    if (!concepts.length) return local('no-concepts');
+    if (rejected.length) console.warn('[studforge] concept validation rejected', JSON.stringify({ rejected, stopReason: ans.stopReason, textLength: ans.text.length }));
+    if (!concepts.length) return local(Array.isArray(raw.concepts) && !raw.concepts.length ? 'concept-empty' : 'concept-invalid');
     return NextResponse.json({ source: 'claude', concepts, identity: official?.identity || str(raw.identity, 180), sources, referenceStatus: status, referenceImage: !supplied ? official?.image || null : null, message: status === 'sources' ? 'Identity found from sources; exact visual unconfirmed. Add an image for a closer match, or choose a source-inspired sketch.' : str(raw.message, 200) }, { headers: NO_STORE });
   }
 
@@ -452,6 +467,7 @@ export async function POST(req: NextRequest) {
     const ans = await askClaude(key, { system: blueprintSystemPrompt(vocab), user, image: reference, maxTokens: 7000, effort: 'high', timeoutMs: BLUEPRINT_TIMEOUT_MS, cache: true });
     if (!ans.ok) return local(ans.reason, ans.status);
     if (ans.refused) return local('no-blueprint');
+    if (ans.stopReason === 'max_tokens') return local('blueprint-truncated');
     const checked = validateBlueprint(parseJson(ans.text), vocab);
     if (!checked.ok) { console.warn('[studforge] blueprint rejected:', checked.errors.slice(0, 5).join('; ')); return local('no-blueprint'); }
     if (selected && !followsSelection(checked.bp, selected.concept)) return local('concept-drift');

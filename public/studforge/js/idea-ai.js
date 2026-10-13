@@ -18,8 +18,8 @@
 (() => {
     const KEY = 'studforge.ai.v1', ROUTE = '/api/studforge/idea';
     const MODES = ['off', 'brief', 'design'];
-    // 'on' is what the older two-state chip saved: it means BRIEF.
-    const readPref = () => { try { const v = localStorage.getItem(KEY); return v === 'on' || v === 'brief' ? 'brief' : v === 'design' ? 'design' : 'off'; } catch { return 'off'; } };
+    // Existing AI preferences migrate to the common preview-first designer.
+    const readPref = () => { try { const v = localStorage.getItem(KEY); return v === 'on' || v === 'brief' || v === 'design' ? 'design' : 'off'; } catch { return 'off'; } };
     const savePref = (mode) => { try { localStorage.setItem(KEY, mode === 'brief' ? 'on' : mode); } catch { /* private mode */ } };
 
     const css = `
@@ -73,11 +73,10 @@
         /* ── the engine picker: Quick (the core's) · Claude plans it · Claude designs it ── */
         // Engine ids map onto the modes: quick → off, plan → brief, design → design. Picking a Claude engine on a
         // browser that has not unlocked asks for the password straight away; cancelling goes back to Quick.
-        const ENGINE_MODE = { quick: 'off', plan: 'brief', design: 'design' }, MODE_ENGINE = { off: 'quick', brief: 'plan', design: 'design' };
-        const plan = sf.registerEngine({ id: 'plan', icon: '✨', label: 'Preview ideas', short: 'Preview ideas', hint: 'Find the reference and choose a sketch before building', tiny: 'Reference → sketch → build', order: 10 });
-        const designE = sf.registerEngine({ id: 'design', icon: '✨', label: 'Claude designs it', short: 'Claude: design', hint: 'Choose a reference-based sketch, then build the details', tiny: 'Choose a look first', order: 20 });
+        const ENGINE_MODE = { quick: 'off', plan: 'design', design: 'design' }, MODE_ENGINE = { off: 'quick', brief: 'design', design: 'design' };
+        const designE = sf.registerEngine({ id: 'design', icon: '✨', label: 'Preview ideas', short: 'Preview ideas', hint: 'Choose a reference-based sketch, then build the details', tiny: 'Reference → sketch → build', order: 10 });
         let unlocked = false;
-        const paintLock = () => { plan.setLocked(!unlocked && !offline); designE.setLocked(!unlocked && !offline); };
+        const paintLock = () => { designE.setLocked(!unlocked && !offline); };
         const gate = window.studForgeGate;
         if (gate) gate.isUnlocked().then((u) => { unlocked = u; paintLock(); });
         paintLock();
@@ -178,19 +177,25 @@
             }
             const note = document.createElement('p'); note.textContent = data.referenceStatus === 'image' ? 'Based on the actual reference image.' : data.referenceStatus === 'sources' ? 'Source-inspired: exact visual not yet confirmed. Add an image for a closer match.' : data.referenceStatus === 'unresolved' ? 'Exact reference needed.' : 'An original interpretation of your idea.'; text.appendChild(note); reference.appendChild(text);
         }
-        async function previewConcepts(prompt, variant = 0) {
+        async function previewConcepts(prompt, variant = 0, correction = '') {
             const mine = ++revision; conceptPrompt = prompt; conceptVariant = variant; selection = null; cards.replaceChildren(); reference.replaceChildren();
             controls(true); wait('FINDING THE LOOK…'); status.textContent = 'Finding references and sketching a few directions…';
             try {
                 const B = window.FORGE && window.FORGE.blueprint;
-                const data = await call({ mode: 'concepts', prompt, variant, colors: Object.keys(window.LEGO_COLORS || {}), referenceImage: referenceImage || undefined }, 'concepts');
+                const data = await call({ mode: 'concepts', prompt, variant, colors: Object.keys(window.LEGO_COLORS || {}), referenceImage: referenceImage || undefined, correction }, 'concepts');
                 if (mine !== revision || !dialog.open) return;
                 if (!data || !B || !window.StudForgeConcept) { status.textContent = message(); return; }
                 paintReference(data);
                 status.textContent = data.message || 'Choose a sketch to continue.';
+                const rejected = [];
                 for (const concept of data.concepts.slice(0, 3)) {
                     const checked = B.validate({ ...concept.sketch, name: concept.name });
                     if (!checked.ok || !concept.selection) continue;
+                    // The small structural sketch must already connect properly. A full design may
+                    // only refine this approved structure, so floating sketches cannot be choices.
+                    const draft = sf.generator.generateFromPrompt(prompt, variant, { blueprint: checked.bp, concept: { id: concept.id, name: concept.name }, previewConcept: true });
+                    const faults = window.StudForgeConcept.quality(draft);
+                    if (faults.length) { rejected.push(`${concept.id}: ${faults.join('; ')}`); continue; }
                     const card = document.createElement('button'); card.type = 'button'; card.className = 'sfconcept-card'; card.setAttribute('aria-pressed', 'false');
                     card.innerHTML = window.StudForgeConcept.diagram(concept, window.LEGO_COLORS || {});
                     const title = document.createElement('strong'); title.textContent = concept.name; card.appendChild(title);
@@ -199,7 +204,11 @@
                     card.addEventListener('click', () => { selection = { ...concept, identity: data.identity, sources: data.sources, referenceStatus: data.referenceStatus }; cards.querySelectorAll('button').forEach(c => c.setAttribute('aria-pressed', String(c === card))); build.disabled = false; status.textContent = `${concept.name} selected. We’ll keep this shape and add the details.`; });
                     cards.appendChild(card);
                 }
-                if (!cards.childElementCount && data.concepts.length) status.textContent = 'The sketches could not be displayed. Please try again.';
+                if (!cards.childElementCount && rejected.length && !correction) {
+                    status.textContent = 'Refining the layouts so their pieces connect cleanly…';
+                    return previewConcepts(prompt, variant, `Structural sketch assembly checks failed: ${rejected.join(' | ')}. Return corrected recognizable sketches with every shape supported. Use a continuous backing panel for reliefs and overlapping slabs for necks, limbs and beaks; do not depend on side adjacency or rescue supports.`);
+                }
+                if (!cards.childElementCount && data.concepts.length) status.textContent = 'These layouts still need refinement before they can be built. Try different looks or revise the idea.';
             } catch { if (mine === revision) status.textContent = message(); }
             finally { if (mine === revision) { busy = false; restore(); controls(false); } }
         }

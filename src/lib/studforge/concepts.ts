@@ -5,6 +5,23 @@ export type ReferenceSource = { title: string; url: string };
 export type Concept = { id: string; name: string; description: string; features: string[]; sketch: { base: { w: number; d: number; color: string }; ops: Record<string, unknown>[] } };
 export type ConceptSelection = { prompt: string; concept: Concept; sources: ReferenceSource[]; identity: string; referenceStatus: string; imageDigest: string; expires: number };
 
+/** Anthropic's supported JSON Schema subset: no maxItems/range constraints or open objects. */
+export function conceptSchema(colors: string[]) {
+  const object = (properties: Record<string, unknown>) => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
+  const string = { type: 'string' }, coord = { type: 'integer', description: 'Integer grid coordinate; x/z within base, y 1–48 plates.' }, color = { type: 'string', enum: [...new Set(colors)] };
+  const base = object({ w: { type: 'integer', description: '6–32 studs wide' }, d: { type: 'integer', description: '6–32 studs deep' }, color });
+  const box = object({ op: { type: 'string', const: 'box' }, x0: coord, x1: coord, z0: coord, z1: coord, y0: coord, y1: coord, color });
+  const slab = object({ op: { type: 'string', const: 'slab' }, x0: coord, x1: coord, z0: coord, z1: coord, y: coord, color });
+  return object({
+    identity: string, requiresReference: { type: 'boolean' }, referenceStatus: { type: 'string', enum: ['image', 'sources', 'imagined', 'unresolved'] }, message: string,
+    sources: { type: 'array', items: object({ title: string, url: string }) },
+    concepts: { type: 'array', description: 'Return 1–3 recognizable options, or empty only for an unresolved reference.', items: object({
+      id: string, name: string, description: string, features: { type: 'array', items: string, description: '3–5 visible distinguishing features' },
+      sketch: object({ base, ops: { type: 'array', description: '12–32 operations, never more than 32. Preserve room for details within the final 60-operation limit.', items: { anyOf: [box, slab] } } }),
+    }) },
+  });
+}
+
 // This is the school identified by the user, not the similarly named schools in other states.
 // Both assets are linked by the school's official homepage, checked 13 October 2026.
 export function schoolReference(prompt: string) {

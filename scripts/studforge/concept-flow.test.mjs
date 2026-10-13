@@ -29,6 +29,7 @@ function endpoint(answers) {
         calls.push(JSON.parse(options.body));
         const answer = answers.shift();
         assert.ok(answer, 'unexpected extra AI request');
+        if (answer.response) return Response.json(answer.response);
         return Response.json({ content: [{ type: 'text', text: JSON.stringify(answer.raw || answer) }, ...(answer.sources ? [{ type: 'web_search_tool_result', content: answer.sources.map(s => ({ ...s, type: 'web_search_result' })) }] : [])] });
     };
     const support = moduleFrom('src/lib/studforge/concepts.ts', fetcher);
@@ -51,6 +52,12 @@ test('official named mascot is imaged; approved sketch is bound into the subsequ
     assert.ok(planned.data.sources.every(s => s.url.startsWith('https://highlands.smsd.org/')));
     assert.equal(e.calls.length, 1, 'planning must not request the full build yet');
     assert.equal(e.calls[0].messages[0].content[0].source.media_type, 'image/png');
+    const format = e.calls[0].output_config.format;
+    assert.equal(format.type, 'json_schema');
+    assert.deepEqual(format.schema.properties.concepts.items.properties.sketch.properties.ops.items.anyOf.map(s => s.properties.op.const), ['box', 'slab']);
+    assert.deepEqual(format.schema.properties.concepts.items.properties.sketch.properties.base.properties.color.enum, vocab.colors);
+    assert.equal(format.schema.additionalProperties, false);
+    assert.equal(e.calls[0].thinking.type, 'between_tools');
     assert.match(e.calls[0].messages[0].content[1].text, /red shirt with white H/);
     const built = await e.post({ mode: 'blueprint', prompt, ...vocab, selection: planned.data.concepts[0].selection });
     assert.equal(built.data.source, 'claude');
@@ -64,6 +71,7 @@ test('named subject never quietly substitutes a generic model; fabricated source
     assert.equal(result.data.referenceStatus, 'unresolved');
     assert.deepEqual(result.data.concepts, []);
     assert.ok(e.calls[0].tools.some(t => t.name === 'web_search'));
+    assert.equal(e.calls[0].output_config.format, undefined, 'web search citations must not conflict with strict JSON output');
 });
 
 test('concept drift and forged/reused approvals are rejected', async () => {
@@ -111,6 +119,30 @@ test('user-uploaded mascot image takes priority without claiming it is the offic
     assert.equal(result.data.referenceImage, null);
 });
 
+test('malformed, truncated, refused and invalid concept answers produce distinct safe errors', async () => {
+    const responses = [
+        { response: { stop_reason: 'end_turn', content: [{ type: 'text', text: 'This is not JSON.' }] } },
+        { response: { stop_reason: 'max_tokens', content: [{ type: 'text', text: '{"concepts":[' }] } },
+        { response: { stop_reason: 'refusal', content: [{ type: 'text', text: 'No.' }] } },
+        { concepts: [{ ...concept, sketch: { ...sketch, ops: sketch.ops.map(o => ({ ...o, color: 'UNKNOWN_COLOR' })) } }] },
+    ];
+    const total = responses.length, e = endpoint(responses);
+    const reasons = [];
+    for (let i = 0; i < total; i++) reasons.push((await e.post({ mode: 'concepts', prompt, ...vocab })).data.reason);
+    assert.deepEqual(reasons, ['concept-malformed', 'concept-truncated', 'concept-refused', 'concept-invalid']);
+});
+
+test('documented enum case deviations normalize while 32-op practical cap leaves detail budget', async () => {
+    const lower = { ...concept, sketch: { base: { ...sketch.base, color: 'light_grey' }, ops: sketch.ops.map(o => ({ ...o, op: 'Box', color: o.color.toLowerCase() })) } };
+    const thirtyTwo = { ...concept, sketch: { ...sketch, ops: Array.from({ length: 32 }, (_, i) => sketch.ops[i % 3]) } };
+    const tooMany = { ...concept, sketch: { ...sketch, ops: [...thirtyTwo.sketch.ops, sketch.ops[0]] } };
+    const e = endpoint([{ concepts: [lower] }, { concepts: [thirtyTwo] }, { concepts: [tooMany] }]);
+    const first = await e.post({ mode: 'concepts', prompt, ...vocab });
+    assert.deepEqual(first.data.concepts[0].sketch, sketch);
+    const valid = await e.post({ mode: 'concepts', prompt, ...vocab }); assert.equal(valid.data.concepts[0].sketch.ops.length, 32);
+    const invalid = await e.post({ mode: 'concepts', prompt, ...vocab }); assert.equal(invalid.data.reason, 'concept-invalid');
+});
+
 test('approved structure equality ignores object property order but preserves values and operation order', () => {
     const support = moduleFrom('src/lib/studforge/concepts.ts', async () => { throw new Error('no network expected'); });
     const reordered = { base: { color: sketch.base.color, d: sketch.base.d, w: sketch.base.w }, ops: sketch.ops.map(op => Object.fromEntries(Object.entries(op).reverse())) };
@@ -120,7 +152,7 @@ test('approved structure equality ignores object property order but preserves va
     assert.equal(support.followsSelection({ ...reordered, ops: [...reordered.ops].reverse() }, concept), false);
 });
 
-function client(mode, answers, faults = []) {
+function client(mode, answers, faults = [], draftFaults = []) {
     class Element {
         constructor(tag) { this.tag = tag; this.children = []; this.listeners = {}; this.attributes = {}; this.value = ''; this.open = false; this.classList = { add() {}, remove() {} }; }
         setAttribute(k, v) { this.attributes[k] = v; }
@@ -137,7 +169,7 @@ function client(mode, answers, faults = []) {
     }
     const body = new Element('body'), head = new Element('head'), btn = new Element('button'), input = new Element('input'), events = {}, requests = [], forged = [];
     input.value = prompt;
-    const sf = { engine: 'quick', state: { prompt: 'existing kit', variant: 0 }, promptInput: input, model: {}, generator: { generateFromPrompt: () => ({ kind: 'blueprint', bricks: Array(80).fill({}), anchor: faults.shift() || {}, warnings: [] }) }, forge: (...args) => { forged.push(args); return {}; }, setPrompt: p => input.value = p, setEngine(id) { this.engine = id; }, registerEngine: () => ({ setLocked() {} }), on() {}, toast() {} };
+    const sf = { engine: 'quick', state: { prompt: 'existing kit', variant: 0 }, promptInput: input, model: {}, generator: { generateFromPrompt: (_prompt, _variant, opts) => ({ kind: 'blueprint', bricks: Array(80).fill({}), anchor: (opts.previewConcept ? draftFaults.shift() : faults.shift()) || {}, warnings: [] }) }, forge: (...args) => { forged.push(args); return {}; }, setPrompt: p => input.value = p, setEngine(id) { this.engine = id; }, registerEngine: () => ({ setLocked() {} }), on() {}, toast() {} };
     const document = { head, body, createElement: tag => new Element(tag), createTextNode: s => s, getElementById: id => id === 'btn-generate' ? btn : id === 'model-desc' ? null : new Element(id), addEventListener: (name, cb) => events[name] = cb };
     const context = { document, console, setTimeout, clearTimeout, AbortController, localStorage: { getItem: () => mode, setItem() {} }, fetch: async (url, options) => { requests.push(JSON.parse(options.body)); return { ok: true, status: 200, json: async () => answers.shift() }; }, window: { studForge: sf, LEGO_COLORS: { RED: { hex: '#ff0000' }, WHITE: { hex: '#ffffff' }, LIGHT_GREY: { hex: '#aabbcc' } }, FORGE: { blueprint: { validate: bp => ({ ok: true, bp }), vocab: () => vocab } } } };
     vm.createContext(context);
@@ -185,4 +217,15 @@ test('closing a pending chooser or revising prompt cannot build a stale concept'
     assert.equal(c.dialog.querySelector('.sfconcept-build').disabled, true);
     await c.dialog.querySelector('.sfconcept-build').listeners.click(); assert.equal(c.forged.length, 0);
     c.dialog.querySelector('.sfconcept-close').listeners.click(); assert.equal(c.dialog.open, false);
+});
+
+test('floating structural sketches cannot become enabled choices and get one preflight repair', async () => {
+    const c = client('design', [planAnswer, planAnswer], [], [{ struts: 3 }, { struts: 2 }]);
+    clickGenerate(c); await settle();
+    assert.equal(c.requests.length, 2);
+    assert.match(c.requests[1].correction, /3 rescue supports/);
+    assert.equal(c.dialog.querySelector('.sfconcept-cards').childElementCount, 0);
+    assert.equal(c.dialog.querySelector('.sfconcept-build').disabled, true);
+    assert.equal(c.forged.length, 0);
+    assert.match(c.dialog.querySelector('.sfconcept-status').textContent, /still need refinement/);
 });

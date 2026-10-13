@@ -8,6 +8,8 @@ The server signs each concept with its prompt, reference-image digest, sources a
 
 Before displaying a model, the browser runs the real generator and measures assembly faults. Skipped operations, unsupported assemblies, any gravity movement or rescue support, and trivially small results trigger one corrective AI request. A second failure stays in the chooser with a useful message. This does not prove physical stability or guarantee artistic fidelity; full collision/connectivity simulation and visual comparison of the finished model remain future work.
 
+The same assembly checks now run on the small structural sketches before selection. Unsupported choices are withheld, with one corrected planning request when every sketch fails. Image-backed requests use the provider's structured JSON schema for box/slab shapes and valid colors, with up to 32 sketch operations. Native web-search requests omit strict JSON because the provider's search citations are incompatible with that format. Sonnet 5.5 uses its documented between-tools thinking mode for non-search design requests so the response budget remains available for the actual model. Safe diagnostics record completion status, text length, source counts and rejection categories, without logging prompts, images or credentials.
+
 ## Actual mascot grounding
 
 The user's Fairway-area example resolves to **Highlands Hawks, Highlands Elementary, Shawnee Mission School District, Kansas**. The [official principal's welcome](https://highlands.smsd.org/about/principalmission) identifies the Hawks; the [official school homepage](https://highlands.smsd.org/) links its actual vector logo and lists the school at 6200 Roe Avenue, Mission, Kansas.
