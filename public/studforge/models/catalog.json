@@ -692,5 +692,252 @@
     "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
     "pieceCount": 177,
     "sourceStepCount": 65
+  },
+  {
+    "id": "set-21311-1",
+    "setNumber": "21311-1",
+    "name": "Voltron",
+    "category": "LEGO Ideas and CUUSOO",
+    "theme": "LEGO Ideas and CUUSOO",
+    "subject": "character",
+    "year": 2018,
+    "format": "ldraw",
+    "modelUrl": "models/21311-1.mpd",
+    "thumbnail": "thumbnails/21311-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1188",
+    "originalUrl": "https://library.ldraw.org/library/omr/21311-1.mpd",
+    "author": "Orion Pobursky [OrionP]",
+    "missing": [
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/21311",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 2317,
+    "sourceStepCount": 798
+  },
+  {
+    "id": "set-21303-1",
+    "setNumber": "21303-1",
+    "name": "WALL•E [Original Version]",
+    "category": "LEGO Ideas and CUUSOO",
+    "theme": "LEGO Ideas and CUUSOO",
+    "subject": "character",
+    "year": 2015,
+    "format": "ldraw",
+    "modelUrl": "models/21303-1.mpd",
+    "thumbnail": "thumbnails/21303-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/940",
+    "originalUrl": "https://library.ldraw.org/library/omr/21303-1.mpd",
+    "author": "Christophe Mitillo [Christophe_Mitillo]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/21303",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 778,
+    "sourceStepCount": 123
+  },
+  {
+    "id": "set-75980-1",
+    "setNumber": "75980-1",
+    "name": "Attack on The Burrow",
+    "category": "Harry Potter",
+    "theme": "Harry Potter",
+    "subject": "character",
+    "year": 2020,
+    "format": "ldraw",
+    "modelUrl": "models/75980-1.mpd",
+    "thumbnail": "thumbnails/75980-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1220",
+    "originalUrl": "https://library.ldraw.org/library/omr/75980-1.mpd",
+    "author": "Stefan Frenz [smf]",
+    "missing": [
+      "Parts",
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75980",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 1008,
+    "sourceStepCount": 263
+  },
+  {
+    "id": "set-77904-1",
+    "setNumber": "77904-1",
+    "name": "Nebulon-B Frigate",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "character",
+    "year": 2020,
+    "format": "ldraw",
+    "modelUrl": "models/77904-1.mpd",
+    "thumbnail": "thumbnails/77904-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1214",
+    "originalUrl": "https://library.ldraw.org/library/omr/77904-1.mpd",
+    "author": "Orion Pobursky [OrionP]",
+    "missing": [
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/77904",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 458,
+    "sourceStepCount": 233
+  },
+  {
+    "id": "set-9470-1",
+    "setNumber": "9470-1",
+    "name": "Shelob Attacks",
+    "category": "Lord of the Rings",
+    "theme": "The Hobbit and Lord of the Rings > The Lord of the Rings",
+    "subject": "character",
+    "year": 2012,
+    "format": "ldraw",
+    "modelUrl": "models/9470-1.mpd",
+    "thumbnail": "thumbnails/9470-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/28",
+    "originalUrl": "https://library.ldraw.org/library/omr/9470-1.mpd",
+    "author": "Christian Neumann [Wesley]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/9470",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 242,
+    "sourceStepCount": 1
+  },
+  {
+    "id": "set-21113-1",
+    "setNumber": "21113-1",
+    "name": "The Cave",
+    "category": "Minecraft",
+    "theme": "Minecraft",
+    "subject": "character",
+    "year": 2014,
+    "format": "ldraw",
+    "modelUrl": "models/21113-1.mpd",
+    "thumbnail": "thumbnails/21113-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/298",
+    "originalUrl": "https://library.ldraw.org/library/omr/21113-1.mpd",
+    "author": "Merlijn Wissink [legolijntje]",
+    "missing": [
+      "Parts",
+      "Patterns"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/21113",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 262,
+    "sourceStepCount": 1
+  },
+  {
+    "id": "set-75892-1",
+    "setNumber": "75892-1",
+    "name": "McLaren Senna",
+    "category": "Speed Champions",
+    "theme": "Speed Champions",
+    "subject": "car",
+    "year": 2019,
+    "format": "ldraw",
+    "modelUrl": "models/75892-1.mpd",
+    "thumbnail": "thumbnails/75892-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1117",
+    "originalUrl": "https://library.ldraw.org/library/omr/75892-1.mpd",
+    "author": "Adrien Pennamen [AdrienPennamen]",
+    "missing": [
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75892",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 228,
+    "sourceStepCount": 77
+  },
+  {
+    "id": "set-21307-1",
+    "setNumber": "21307-1",
+    "name": "Caterham Seven 620R",
+    "category": "LEGO Ideas and CUUSOO",
+    "theme": "LEGO Ideas and CUUSOO",
+    "subject": "character",
+    "year": 2016,
+    "format": "ldraw",
+    "modelUrl": "models/21307-1.mpd",
+    "thumbnail": "thumbnails/21307-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/933",
+    "originalUrl": "https://library.ldraw.org/library/omr/21307-1.mpd",
+    "author": "Orion Pobursky [OrionP]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/21307",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 814,
+    "sourceStepCount": 248
+  },
+  {
+    "id": "set-75155-1",
+    "setNumber": "75155-1",
+    "name": "Rebel U-Wing Fighter",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "spaceship",
+    "year": 2016,
+    "format": "ldraw",
+    "modelUrl": "models/75155-1.mpd",
+    "thumbnail": "thumbnails/75155-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/899",
+    "originalUrl": "https://library.ldraw.org/library/omr/75155-1.mpd",
+    "author": "Evert Jan Boer [ejboer]",
+    "missing": [
+      "Parts"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75155",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 649,
+    "sourceStepCount": 276
+  },
+  {
+    "id": "set-75954-1",
+    "setNumber": "75954-1",
+    "name": "Hogwarts Great Hall",
+    "category": "Harry Potter",
+    "theme": "Harry Potter",
+    "subject": "castle",
+    "year": 2018,
+    "format": "ldraw",
+    "modelUrl": "models/75954-1.mpd",
+    "thumbnail": "thumbnails/75954-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1216",
+    "originalUrl": "https://library.ldraw.org/library/omr/75954-1.mpd",
+    "author": "Stefan Frenz [smf]",
+    "missing": [
+      "Parts",
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75954",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 821,
+    "sourceStepCount": 228
   }
 ]

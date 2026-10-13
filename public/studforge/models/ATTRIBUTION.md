@@ -37,6 +37,16 @@ Modifications: embedded file names were normalized to lowercase with forward sla
 | 21309-1 | [NASA Apollo Saturn V](https://library.ldraw.org/omr/sets/875) · [original MPD](https://library.ldraw.org/library/omr/21309-1.mpd) | Jaco van der Molen [Jaco] | Redistributable under CCAL version 2.0 |
 | 30277-1 | [First Order Star Destroyer](https://library.ldraw.org/omr/sets/997) · [original MPD](https://library.ldraw.org/library/omr/30277-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
 | 75895-1 | [1974 Porsche 911 Turbo 3.0](https://library.ldraw.org/omr/sets/1118) · [original MPD](https://library.ldraw.org/library/omr/75895-1.mpd) | Magnus Forsberg [MagFors] | Redistributable under CCAL version 2.0 |
+| 21311-1 | [Voltron](https://library.ldraw.org/omr/sets/1188) · [original MPD](https://library.ldraw.org/library/omr/21311-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
+| 21303-1 | [WALL•E [Original Version]](https://library.ldraw.org/omr/sets/940) · [original MPD](https://library.ldraw.org/library/omr/21303-1.mpd) | Christophe Mitillo [Christophe_Mitillo] | Redistributable under CCAL version 2.0 |
+| 75980-1 | [Attack on The Burrow](https://library.ldraw.org/omr/sets/1220) · [original MPD](https://library.ldraw.org/library/omr/75980-1.mpd) | Stefan Frenz [smf] | Redistributable under CCAL version 2.0 |
+| 77904-1 | [Nebulon-B Frigate](https://library.ldraw.org/omr/sets/1214) · [original MPD](https://library.ldraw.org/library/omr/77904-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
+| 9470-1 | [Shelob Attacks](https://library.ldraw.org/omr/sets/28) · [original MPD](https://library.ldraw.org/library/omr/9470-1.mpd) | Christian Neumann [Wesley] | Redistributable under CCAL version 2.0 |
+| 21113-1 | [The Cave](https://library.ldraw.org/omr/sets/298) · [original MPD](https://library.ldraw.org/library/omr/21113-1.mpd) | Merlijn Wissink [legolijntje] | Redistributable under CCAL version 2.0 |
+| 75892-1 | [McLaren Senna](https://library.ldraw.org/omr/sets/1117) · [original MPD](https://library.ldraw.org/library/omr/75892-1.mpd) | Adrien Pennamen [AdrienPennamen] | Redistributable under CCAL version 2.0 |
+| 21307-1 | [Caterham Seven 620R](https://library.ldraw.org/omr/sets/933) · [original MPD](https://library.ldraw.org/library/omr/21307-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
+| 75155-1 | [Rebel U-Wing Fighter](https://library.ldraw.org/omr/sets/899) · [original MPD](https://library.ldraw.org/library/omr/75155-1.mpd) | Evert Jan Boer [ejboer] | Redistributable under CCAL version 2.0 |
+| 75954-1 | [Hogwarts Great Hall](https://library.ldraw.org/omr/sets/1216) · [original MPD](https://library.ldraw.org/library/omr/75954-1.mpd) | Stefan Frenz [smf] | Redistributable under CCAL version 2.0 |
 
 Individual model and part files retain their !LICENSE and author headers. Official part definitions may use CC BY 2.0 or CC BY 4.0; the applicable license is identified in each embedded file. Full notices: [LDraw CAreadme](CAreadme.txt), [CC BY 2.0](CAlicense.txt), [CC BY 4.0](CAlicense4.txt). Attribution metadata for parts is also available in parts.json.
 
