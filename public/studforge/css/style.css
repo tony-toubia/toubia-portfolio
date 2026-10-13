@@ -502,7 +502,6 @@ body.sfi-booklet-open .create-bar, body.sfi-booklet-open .tabbar { display: none
     .cam-btn { height: 34px; min-width: 34px; padding: 0 9px; justify-content: center; }
     .vc-label, .view-cluster .car { display: none; }
     .view-cluster .sf-menu-list { top: 0; right: calc(100% + 6px); }
-    .viewport-widgets .sfs-label { display: none; }
     .step-scrub { left: 8px; right: 8px; bottom: calc(64px + 8px); padding: 5px 6px; gap: 6px; }
     body[data-sheet="half"] .step-scrub, body[data-sheet="full"] .step-scrub { bottom: 8px; }
     .step-btn { width: 34px; height: 32px; }
