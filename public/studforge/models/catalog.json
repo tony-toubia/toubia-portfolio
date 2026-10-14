@@ -1773,5 +1773,493 @@
     "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
     "pieceCount": 1413,
     "sourceStepCount": 179
+  },
+  {
+    "id": "set-75050-1",
+    "setNumber": "75050-1",
+    "name": "B-Wing",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "spaceship",
+    "year": 2014,
+    "format": "ldraw",
+    "modelUrl": "models/75050-1.mpd",
+    "thumbnail": "thumbnails/75050-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/894",
+    "originalUrl": "https://library.ldraw.org/library/omr/75050-1.mpd",
+    "author": "Roland Dahl [Papacharly]",
+    "missing": [
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75050",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 434,
+    "sourceStepCount": 1
+  },
+  {
+    "id": "set-75054-1",
+    "setNumber": "75054-1",
+    "name": "AT-AT",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "robot",
+    "year": 2014,
+    "format": "ldraw",
+    "modelUrl": "models/75054-1.mpd",
+    "thumbnail": "thumbnails/75054-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/896",
+    "originalUrl": "https://library.ldraw.org/library/omr/75054-1.mpd",
+    "author": "Roland Dahl [Papacharly]",
+    "missing": [
+      "Parts"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75054",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 1105,
+    "sourceStepCount": 1
+  },
+  {
+    "id": "set-75055-1",
+    "setNumber": "75055-1",
+    "name": "Imperial Star Destroyer",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "spaceship",
+    "year": 2014,
+    "format": "ldraw",
+    "modelUrl": "models/75055-1.mpd",
+    "thumbnail": "thumbnails/75055-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/897",
+    "originalUrl": "https://library.ldraw.org/library/omr/75055-1.mpd",
+    "author": "Roland Dahl [Papacharly]",
+    "missing": [
+      "Parts",
+      "Patterns",
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75055",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 1335,
+    "sourceStepCount": 1
+  },
+  {
+    "id": "set-10240-1",
+    "setNumber": "10240-1",
+    "name": "Red Five X-Wing Starfighter",
+    "category": "Star Wars",
+    "theme": "Star Wars > Ultimate Collector Series",
+    "subject": "spaceship",
+    "year": 2013,
+    "format": "ldraw",
+    "modelUrl": "models/10240-1.mpd",
+    "thumbnail": "thumbnails/10240-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/321",
+    "originalUrl": "https://library.ldraw.org/library/omr/10240-1.mpd",
+    "author": "Roland Dahl [RolandD]",
+    "missing": [
+      "Patterns",
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/10240",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 1559,
+    "sourceStepCount": 535
+  },
+  {
+    "id": "set-75010-1",
+    "setNumber": "75010-1",
+    "name": "B-wing Starfighter & Planet Endor",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "spaceship",
+    "year": 2013,
+    "format": "ldraw",
+    "modelUrl": "models/75010-1.mpd",
+    "thumbnail": "thumbnails/75010-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/343",
+    "originalUrl": "https://library.ldraw.org/library/omr/75010-1.mpd",
+    "author": "Merlijn Wissink [Legolijntje]",
+    "missing": [
+      "Patterns"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/75010",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 88,
+    "sourceStepCount": 1
+  },
+  {
+    "id": "set-10227-1",
+    "setNumber": "10227-1",
+    "name": "B-wing Starfighter",
+    "category": "Star Wars",
+    "theme": "Star Wars > Ultimate Collector Series",
+    "subject": "spaceship",
+    "year": 2012,
+    "format": "ldraw",
+    "modelUrl": "models/10227-1.mpd",
+    "thumbnail": "thumbnails/10227-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/319",
+    "originalUrl": "https://library.ldraw.org/library/omr/10227-1.mpd",
+    "author": "Roland Dahl [RolandD]",
+    "missing": [
+      "Parts",
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/10227",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 1483,
+    "sourceStepCount": 419
+  },
+  {
+    "id": "set-30056-1",
+    "setNumber": "30056-1",
+    "name": "Star Destroyer",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "spaceship",
+    "year": 2012,
+    "format": "ldraw",
+    "modelUrl": "models/30056-1.mpd",
+    "thumbnail": "thumbnails/30056-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/998",
+    "originalUrl": "https://library.ldraw.org/library/omr/30056-1.mpd",
+    "author": "Orion Pobursky [OrionP]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/30056",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 38,
+    "sourceStepCount": 11
+  },
+  {
+    "id": "set-30161-1",
+    "setNumber": "30161-1",
+    "name": "Batmobile",
+    "category": "DC",
+    "theme": "Super Heroes DC > Batman",
+    "subject": "car",
+    "year": 2012,
+    "format": "ldraw",
+    "modelUrl": "models/30161-1.mpd",
+    "thumbnail": "thumbnails/30161-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/833",
+    "originalUrl": "https://library.ldraw.org/library/omr/30161-1.mpd",
+    "author": "Massimo Maso [Sirio]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/30161",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 44,
+    "sourceStepCount": 9
+  },
+  {
+    "id": "set-30210-1",
+    "setNumber": "30210-1",
+    "name": "Frodo with Cooking Corner",
+    "category": "Lord of the Rings",
+    "theme": "The Hobbit and Lord of the Rings > The Lord of the Rings",
+    "subject": "character",
+    "year": 2012,
+    "format": "ldraw",
+    "modelUrl": "models/30210-1.mpd",
+    "thumbnail": "thumbnails/30210-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/31",
+    "originalUrl": "https://library.ldraw.org/library/omr/30210-1.mpd",
+    "author": "Stan Isachenko [angmarec]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/30210",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 39,
+    "sourceStepCount": 1
+  },
+  {
+    "id": "set-9469-1",
+    "setNumber": "9469-1",
+    "name": "Gandalf Arrives",
+    "category": "Lord of the Rings",
+    "theme": "The Hobbit and Lord of the Rings > The Lord of the Rings",
+    "subject": "character",
+    "year": 2012,
+    "format": "ldraw",
+    "modelUrl": "models/9469-1.mpd",
+    "thumbnail": "thumbnails/9469-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/27",
+    "originalUrl": "https://library.ldraw.org/library/omr/9469-1.mpd",
+    "author": "Philippe Hurbain [Philo]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/9469",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 98,
+    "sourceStepCount": 11
+  },
+  {
+    "id": "set-9471-1",
+    "setNumber": "9471-1",
+    "name": "Uruk-hai Army",
+    "category": "Lord of the Rings",
+    "theme": "The Hobbit and Lord of the Rings > The Lord of the Rings",
+    "subject": "character",
+    "year": 2012,
+    "format": "ldraw",
+    "modelUrl": "models/9471-1.mpd",
+    "thumbnail": "thumbnails/9471-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/29",
+    "originalUrl": "https://library.ldraw.org/library/omr/9471-1.mpd",
+    "author": "Philippe Hurbain [Philo]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/9471",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 284,
+    "sourceStepCount": 15
+  },
+  {
+    "id": "set-20019-1",
+    "setNumber": "20019-1",
+    "name": "Slave I",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "spaceship",
+    "year": 2011,
+    "format": "ldraw",
+    "modelUrl": "models/20019-1.mpd",
+    "thumbnail": "thumbnails/20019-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/126",
+    "originalUrl": "https://library.ldraw.org/library/omr/20019-1.mpd",
+    "author": "Jude Parrill",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/20019",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 76,
+    "sourceStepCount": 36
+  },
+  {
+    "id": "set-8099-1",
+    "setNumber": "8099-1",
+    "name": "Midi-Scale Imperial Star Destroyer",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "spaceship",
+    "year": 2010,
+    "format": "ldraw",
+    "modelUrl": "models/8099-1.mpd",
+    "thumbnail": "thumbnails/8099-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/999",
+    "originalUrl": "https://library.ldraw.org/library/omr/8099-1.mpd",
+    "author": "Orion Pobursky [OrionP]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/8099",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 418,
+    "sourceStepCount": 116
+  },
+  {
+    "id": "set-20004-1",
+    "setNumber": "20004-1",
+    "name": "Jungle Cruiser",
+    "category": "Indiana Jones",
+    "theme": "Indiana Jones",
+    "subject": "character",
+    "year": 2008,
+    "format": "ldraw",
+    "modelUrl": "models/20004-1.mpd",
+    "thumbnail": "thumbnails/20004-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1427",
+    "originalUrl": "https://library.ldraw.org/library/omr/20004-1.mpd",
+    "author": "TotalyWicked [TotalyWicked]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/20004",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 91,
+    "sourceStepCount": 1
+  },
+  {
+    "id": "set-7667-1",
+    "setNumber": "7667-1",
+    "name": "Imperial Dropship",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "character",
+    "year": 2008,
+    "format": "ldraw",
+    "modelUrl": "models/7667-1.mpd",
+    "thumbnail": "thumbnails/7667-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/119",
+    "originalUrl": "https://library.ldraw.org/library/omr/7667-1.mpd",
+    "author": "Sean Burke [Leftmost]",
+    "missing": [
+      "Patterns",
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/7667",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 104,
+    "sourceStepCount": 25
+  },
+  {
+    "id": "set-7657-1",
+    "setNumber": "7657-1",
+    "name": "AT-ST",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "robot",
+    "year": 2007,
+    "format": "ldraw",
+    "modelUrl": "models/7657-1.mpd",
+    "thumbnail": "thumbnails/7657-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/762",
+    "originalUrl": "https://library.ldraw.org/library/omr/7657-1.mpd",
+    "author": "Evert Jan Boer [ejboer]",
+    "missing": [],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/7657",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 250,
+    "sourceStepCount": 92
+  },
+  {
+    "id": "set-10174-1",
+    "setNumber": "10174-1",
+    "name": "Imperial AT-ST",
+    "category": "Star Wars",
+    "theme": "Star Wars > Ultimate Collector Series",
+    "subject": "robot",
+    "year": 2006,
+    "format": "ldraw",
+    "modelUrl": "models/10174-1.mpd",
+    "thumbnail": "thumbnails/10174-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/310",
+    "originalUrl": "https://library.ldraw.org/library/omr/10174-1.mpd",
+    "author": "Roland Dahl [RolandD]",
+    "missing": [
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/10174",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 1065,
+    "sourceStepCount": 329
+  },
+  {
+    "id": "set-10175-1",
+    "setNumber": "10175-1",
+    "name": "Vader's TIE Advanced",
+    "category": "Star Wars",
+    "theme": "Star Wars > Ultimate Collector Series",
+    "subject": "spaceship",
+    "year": 2006,
+    "format": "ldraw",
+    "modelUrl": "models/10175-1.mpd",
+    "thumbnail": "thumbnails/10175-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/483",
+    "originalUrl": "https://library.ldraw.org/library/omr/10175-1.mpd",
+    "author": "Roland Dahl [RolandD]",
+    "missing": [
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/10175",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 1197,
+    "sourceStepCount": 246
+  },
+  {
+    "id": "set-6208-1",
+    "setNumber": "6208-1",
+    "name": "B-wing Fighter",
+    "category": "Star Wars",
+    "theme": "Star Wars",
+    "subject": "spaceship",
+    "year": 2006,
+    "format": "ldraw",
+    "modelUrl": "models/6208-1.mpd",
+    "thumbnail": "thumbnails/6208-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/342",
+    "originalUrl": "https://library.ldraw.org/library/omr/6208-1.mpd",
+    "author": "Merlijn Wissink [Legolijntje]",
+    "missing": [
+      "Patterns",
+      "Stickers"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/6208",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 449,
+    "sourceStepCount": 1
+  },
+  {
+    "id": "set-7784-1",
+    "setNumber": "7784-1",
+    "name": "The Batmobile Ultimate Collectors' Edition",
+    "category": "DC",
+    "theme": "Super Heroes DC > Batman > UCS",
+    "subject": "car",
+    "year": 2006,
+    "format": "ldraw",
+    "modelUrl": "models/7784-1.mpd",
+    "thumbnail": "thumbnails/7784-1.png",
+    "sourceUrl": "https://library.ldraw.org/omr/sets/1135",
+    "originalUrl": "https://library.ldraw.org/library/omr/7784-1.mpd",
+    "author": "Marc Giraudet [Mad_Marc]",
+    "missing": [
+      "Parts"
+    ],
+    "instructionsUrl": "https://www.lego.com/en-us/service/building-instructions/7784",
+    "collections": [
+      "popular-picks"
+    ],
+    "license": "Redistributable under CCAL version 2.0 : see CAreadme.txt",
+    "pieceCount": 1043,
+    "sourceStepCount": 209
   }
 ]

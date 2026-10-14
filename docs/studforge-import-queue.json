@@ -4,174 +4,6 @@
   "originalBatchSize": 100,
   "pending": [
     {
-      "setNumber": "75050-1",
-      "omrId": 894,
-      "name": "B-Wing",
-      "theme": "Star Wars",
-      "year": 2014,
-      "models": 1
-    },
-    {
-      "setNumber": "75054-1",
-      "omrId": 896,
-      "name": "AT-AT",
-      "theme": "Star Wars",
-      "year": 2014,
-      "models": 1
-    },
-    {
-      "setNumber": "75055-1",
-      "omrId": 897,
-      "name": "Imperial Star Destroyer",
-      "theme": "Star Wars",
-      "year": 2014,
-      "models": 1
-    },
-    {
-      "setNumber": "10240-1",
-      "omrId": 321,
-      "name": "Red Five X-Wing Starfighter",
-      "theme": "Star Wars > Ultimate Collector Series",
-      "year": 2013,
-      "models": 1
-    },
-    {
-      "setNumber": "75010-1",
-      "omrId": 343,
-      "name": "B-wing Starfighter & Planet Endor",
-      "theme": "Star Wars",
-      "year": 2013,
-      "models": 1
-    },
-    {
-      "setNumber": "10227-1",
-      "omrId": 319,
-      "name": "B-wing Starfighter",
-      "theme": "Star Wars > Ultimate Collector Series",
-      "year": 2012,
-      "models": 1
-    },
-    {
-      "setNumber": "30056-1",
-      "omrId": 998,
-      "name": "Star Destroyer",
-      "theme": "Star Wars",
-      "year": 2012,
-      "models": 1
-    },
-    {
-      "setNumber": "30161-1",
-      "omrId": 833,
-      "name": "Batmobile",
-      "theme": "Super Heroes DC > Batman",
-      "year": 2012,
-      "models": 1
-    },
-    {
-      "setNumber": "30210-1",
-      "omrId": 31,
-      "name": "Frodo with Cooking Corner",
-      "theme": "The Hobbit and Lord of the Rings > The Lord of the Rings",
-      "year": 2012,
-      "models": 1
-    },
-    {
-      "setNumber": "9469-1",
-      "omrId": 27,
-      "name": "Gandalf Arrives",
-      "theme": "The Hobbit and Lord of the Rings > The Lord of the Rings",
-      "year": 2012,
-      "models": 1
-    },
-    {
-      "setNumber": "9471-1",
-      "omrId": 29,
-      "name": "Uruk-hai Army",
-      "theme": "The Hobbit and Lord of the Rings > The Lord of the Rings",
-      "year": 2012,
-      "models": 1
-    },
-    {
-      "setNumber": "20019-1",
-      "omrId": 126,
-      "name": "Slave I",
-      "theme": "Star Wars",
-      "year": 2011,
-      "models": 1
-    },
-    {
-      "setNumber": "8099-1",
-      "omrId": 999,
-      "name": "Midi-Scale Imperial Star Destroyer",
-      "theme": "Star Wars",
-      "year": 2010,
-      "models": 1
-    },
-    {
-      "setNumber": "20004-1",
-      "omrId": 1427,
-      "name": "Jungle Cruiser",
-      "theme": "Indiana Jones",
-      "year": 2008,
-      "models": 1
-    },
-    {
-      "setNumber": "7667-1",
-      "omrId": 119,
-      "name": "Imperial Dropship",
-      "theme": "Star Wars",
-      "year": 2008,
-      "models": 1
-    },
-    {
-      "setNumber": "10179-1",
-      "omrId": 320,
-      "name": "Millennium Falcon",
-      "theme": "Star Wars > Ultimate Collector Series",
-      "year": 2007,
-      "models": 1
-    },
-    {
-      "setNumber": "7657-1",
-      "omrId": 762,
-      "name": "AT-ST",
-      "theme": "Star Wars",
-      "year": 2007,
-      "models": 1
-    },
-    {
-      "setNumber": "10174-1",
-      "omrId": 310,
-      "name": "Imperial AT-ST",
-      "theme": "Star Wars > Ultimate Collector Series",
-      "year": 2006,
-      "models": 1
-    },
-    {
-      "setNumber": "10175-1",
-      "omrId": 483,
-      "name": "Vader's TIE Advanced",
-      "theme": "Star Wars > Ultimate Collector Series",
-      "year": 2006,
-      "models": 1
-    },
-    {
-      "setNumber": "6208-1",
-      "omrId": 342,
-      "name": "B-wing Fighter",
-      "theme": "Star Wars",
-      "year": 2006,
-      "models": 1
-    },
-    {
-      "setNumber": "7784-1",
-      "omrId": 1135,
-      "name": "The Batmobile Ultimate Collectors' Edition",
-      "theme": "Super Heroes DC > Batman > UCS",
-      "year": 2006,
-      "models": 1
-    },
-    {
       "setNumber": "10143-1",
       "omrId": 696,
       "name": "Death Star II",
@@ -1772,7 +1604,367 @@
         "Parts"
       ],
       "durationSeconds": 2
+    },
+    {
+      "setNumber": "75050-1",
+      "name": "B-Wing",
+      "theme": "Star Wars",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/894",
+      "status": "imported",
+      "pieces": 434,
+      "triangles": 300050,
+      "sourceTriangles": 300050,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [
+        "Stickers"
+      ],
+      "durationSeconds": 5
+    },
+    {
+      "setNumber": "75054-1",
+      "name": "AT-AT",
+      "theme": "Star Wars",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/896",
+      "status": "imported",
+      "pieces": 1105,
+      "triangles": 689401,
+      "sourceTriangles": 1089667,
+      "primitiveReplacements": 99,
+      "visualComponents": 0,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [
+        "Parts"
+      ],
+      "durationSeconds": 9
+    },
+    {
+      "setNumber": "75055-1",
+      "name": "Imperial Star Destroyer",
+      "theme": "Star Wars",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/897",
+      "status": "imported",
+      "pieces": 1335,
+      "triangles": 744310,
+      "sourceTriangles": 1255984,
+      "primitiveReplacements": 61,
+      "visualComponents": 0,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [
+        "Parts",
+        "Patterns",
+        "Stickers"
+      ],
+      "durationSeconds": 13
+    },
+    {
+      "setNumber": "10240-1",
+      "name": "Red Five X-Wing Starfighter",
+      "theme": "Star Wars > Ultimate Collector Series",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/321",
+      "status": "imported",
+      "pieces": 1559,
+      "triangles": 829968,
+      "sourceTriangles": 1267340,
+      "primitiveReplacements": 90,
+      "visualComponents": 4,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [
+        "Patterns",
+        "Stickers"
+      ],
+      "durationSeconds": 18
+    },
+    {
+      "setNumber": "75010-1",
+      "name": "B-wing Starfighter & Planet Endor",
+      "theme": "Star Wars",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/343",
+      "status": "imported",
+      "pieces": 88,
+      "triangles": 40036,
+      "sourceTriangles": 40036,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [
+        "Patterns"
+      ],
+      "durationSeconds": 4
+    },
+    {
+      "setNumber": "10227-1",
+      "name": "B-wing Starfighter",
+      "theme": "Star Wars > Ultimate Collector Series",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/319",
+      "status": "imported",
+      "pieces": 1483,
+      "triangles": 812008,
+      "sourceTriangles": 1323890,
+      "primitiveReplacements": 91,
+      "visualComponents": 3,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [
+        "Parts",
+        "Stickers"
+      ],
+      "durationSeconds": 17
+    },
+    {
+      "setNumber": "30056-1",
+      "name": "Star Destroyer",
+      "theme": "Star Wars",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/998",
+      "status": "imported",
+      "pieces": 38,
+      "triangles": 16882,
+      "sourceTriangles": 16882,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [],
+      "durationSeconds": 2
+    },
+    {
+      "setNumber": "30161-1",
+      "name": "Batmobile",
+      "theme": "Super Heroes DC > Batman",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/833",
+      "status": "imported",
+      "pieces": 44,
+      "triangles": 19716,
+      "sourceTriangles": 19716,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [],
+      "durationSeconds": 2
+    },
+    {
+      "setNumber": "30210-1",
+      "name": "Frodo with Cooking Corner",
+      "theme": "The Hobbit and Lord of the Rings > The Lord of the Rings",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/31",
+      "status": "imported",
+      "pieces": 39,
+      "triangles": 22582,
+      "sourceTriangles": 22582,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [],
+      "durationSeconds": 2
+    },
+    {
+      "setNumber": "9469-1",
+      "name": "Gandalf Arrives",
+      "theme": "The Hobbit and Lord of the Rings > The Lord of the Rings",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/27",
+      "status": "imported",
+      "pieces": 98,
+      "triangles": 64331,
+      "sourceTriangles": 64331,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [],
+      "durationSeconds": 3
+    },
+    {
+      "setNumber": "9471-1",
+      "name": "Uruk-hai Army",
+      "theme": "The Hobbit and Lord of the Rings > The Lord of the Rings",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/29",
+      "status": "imported",
+      "pieces": 284,
+      "triangles": 218908,
+      "sourceTriangles": 218908,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [],
+      "durationSeconds": 7
+    },
+    {
+      "setNumber": "20019-1",
+      "name": "Slave I",
+      "theme": "Star Wars",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/126",
+      "status": "imported",
+      "pieces": 76,
+      "triangles": 31964,
+      "sourceTriangles": 31964,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [],
+      "durationSeconds": 3
+    },
+    {
+      "setNumber": "8099-1",
+      "name": "Midi-Scale Imperial Star Destroyer",
+      "theme": "Star Wars",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/999",
+      "status": "imported",
+      "pieces": 418,
+      "triangles": 281203,
+      "sourceTriangles": 281203,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [],
+      "durationSeconds": 5
+    },
+    {
+      "setNumber": "20004-1",
+      "name": "Jungle Cruiser",
+      "theme": "Indiana Jones",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1427",
+      "status": "imported",
+      "pieces": 91,
+      "triangles": 40769,
+      "sourceTriangles": 40769,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [],
+      "durationSeconds": 3
+    },
+    {
+      "setNumber": "7667-1",
+      "name": "Imperial Dropship",
+      "theme": "Star Wars",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/119",
+      "status": "imported",
+      "pieces": 104,
+      "triangles": 66440,
+      "sourceTriangles": 66440,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [
+        "Patterns",
+        "Stickers"
+      ],
+      "durationSeconds": 4
+    },
+    {
+      "setNumber": "10179-1",
+      "name": "Millennium Falcon",
+      "theme": "Star Wars > Ultimate Collector Series",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/320",
+      "sourceTriangles": 5158572,
+      "triangles": 3119936,
+      "primitiveReplacements": 89,
+      "status": "skipped",
+      "reason": "Optimized geometry has 3,119,936 triangles (source 5,158,572); interactive limit is 2,000,000",
+      "durationSeconds": 5
+    },
+    {
+      "setNumber": "7657-1",
+      "name": "AT-ST",
+      "theme": "Star Wars",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/762",
+      "status": "imported",
+      "pieces": 250,
+      "triangles": 159303,
+      "sourceTriangles": 159303,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [],
+      "durationSeconds": 4
+    },
+    {
+      "setNumber": "10174-1",
+      "name": "Imperial AT-ST",
+      "theme": "Star Wars > Ultimate Collector Series",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/310",
+      "status": "imported",
+      "pieces": 1065,
+      "triangles": 647303,
+      "sourceTriangles": 1037963,
+      "primitiveReplacements": 101,
+      "visualComponents": 151,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [
+        "Stickers"
+      ],
+      "durationSeconds": 9
+    },
+    {
+      "setNumber": "10175-1",
+      "name": "Vader's TIE Advanced",
+      "theme": "Star Wars > Ultimate Collector Series",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/483",
+      "status": "imported",
+      "pieces": 1197,
+      "triangles": 708343,
+      "sourceTriangles": 1165281,
+      "primitiveReplacements": 65,
+      "visualComponents": 10,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [
+        "Stickers"
+      ],
+      "durationSeconds": 11
+    },
+    {
+      "setNumber": "6208-1",
+      "name": "B-wing Fighter",
+      "theme": "Star Wars",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/342",
+      "status": "imported",
+      "pieces": 449,
+      "triangles": 360774,
+      "sourceTriangles": 360774,
+      "primitiveReplacements": 0,
+      "visualComponents": 1,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [
+        "Patterns",
+        "Stickers"
+      ],
+      "durationSeconds": 6
+    },
+    {
+      "setNumber": "7784-1",
+      "name": "The Batmobile Ultimate Collectors' Edition",
+      "theme": "Super Heroes DC > Batman > UCS",
+      "sourceUrl": "https://library.ldraw.org/omr/sets/1135",
+      "status": "imported",
+      "pieces": 1043,
+      "triangles": 840420,
+      "sourceTriangles": 840420,
+      "primitiveReplacements": 0,
+      "visualComponents": 0,
+      "degenerateVisualSegments": 0,
+      "legacyColors": 0,
+      "missing": [
+        "Parts"
+      ],
+      "durationSeconds": 5
     }
   ],
-  "updatedAt": "2026-10-13T16:27:44.743Z"
+  "updatedAt": "2026-10-13T23:56:40.304Z"
 }

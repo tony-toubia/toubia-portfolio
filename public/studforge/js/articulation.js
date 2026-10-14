@@ -15,7 +15,7 @@
         style.textContent += '.sfpose-controls label{padding:8px;border:1px solid transparent;border-radius:8px;cursor:pointer}.sfpose-controls label.on{border-color:var(--lego-yellow);background:#f2cd3712}.sfpose-controls small{display:block;color:var(--text-secondary);font-size:12px;margin-bottom:6px}';
         const hint = document.createElement('div'); hint.className = 'sfpose-axis'; hint.hidden = true; hint.setAttribute('role', 'status');
         (canvas.closest('.viewport-card') || viewer.container).appendChild(hint);
-        let rig = null, rest = [], values = {}, active = false, drag = null, baseY = 0, highlights = [], selected = null, highlighted = null;
+        let rig = null, rest = [], values = {}, active = false, drag = null, baseY = 0, highlights = [], selected = null, highlighted = null, hovered = null, hoverFrame = 0, hoverEvent = null;
         const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
 
         function clearHighlights() {
@@ -23,9 +23,10 @@
             highlights = []; highlighted = null;
         }
         function showHighlights() {
-            if (highlighted === selected) return;
+            const id = hovered || (active ? selected : null);
+            if (highlighted === id) return;
             clearHighlights();
-            const control = rig.controls.find(c => c.id === selected);
+            const control = rig?.controls.find(c => c.id === id);
             for (const joint of control?.joints || []) for (const index of joint.members) viewer.brickMeshes[index].traverse(mesh => {
                 if (!mesh.isMesh || !mesh.material?.clone) return;
                 const original = mesh.material, material = original.clone();
@@ -33,7 +34,35 @@
                 if (material.emissive) { material.emissive.setHex(0xf2cd37); material.emissiveIntensity = .35; }
                 mesh.material = material; highlights.push({ mesh, original, material });
             });
-            highlighted = selected;
+            highlighted = id;
+        }
+        function canPreview() {
+            return !!rig && !sf.studio?.recording && !sf.studio?.spinning && !sf.studio?.trayOn && !sf.studio?.transitioning && !sf.studio?.inspecting
+                && !viewer.explodeProgress && viewer.currentStep === viewer.maxLayer;
+        }
+        function pickJoint(e) {
+            const rect = canvas.getBoundingClientRect();
+            if (!rect.width || !rect.height) return null;
+            pointer.set((e.clientX - rect.left) / rect.width * 2 - 1, -(e.clientY - rect.top) / rect.height * 2 + 1);
+            viewer.scene.updateMatrixWorld(true); raycaster.setFromCamera(pointer, viewer.camera);
+            // Pick the nearest visible surface, including fixed pieces that can occlude a joint.
+            const hit = raycaster.intersectObjects(viewer.brickMeshes.filter(mesh => mesh.visible), true)[0];
+            if (!hit) return null;
+            const index = core.memberIndex(hit.object, viewer.brickMeshes);
+            for (const control of rig?.controls || []) for (const joint of control.joints) if (joint.members.includes(index)) return { hit, control, joint, rect };
+            return null;
+        }
+        function resetHover() {
+            if (hoverFrame) cancelAnimationFrame(hoverFrame);
+            hoverFrame = 0; hoverEvent = null; hovered = null; viewer.motionHover = false;
+            showHighlights(); updateControls();
+            if (!drag) canvas.style.cursor = '';
+        }
+        function previewHover(e) {
+            if (!canPreview() || viewer.isDragging || viewer.isPanning || e.buttons || e.pointerType === 'touch') { resetHover(); return; }
+            hovered = pickJoint(e)?.control.id || null;
+            viewer.motionHover = !!hovered;
+            showHighlights(); updateControls(); canvas.style.cursor = hovered ? 'grab' : '';
         }
         function apply() {
             if (!active || !rig) return;
@@ -55,9 +84,9 @@
             }
             const toggle = panel.body.querySelector('[data-toggle]');
             if (toggle) { toggle.textContent = active ? '✓ JOINT MOVEMENT ON' : '↻ SHOW MOVABLE ASSEMBLIES'; toggle.setAttribute('aria-pressed', String(active)); }
-            button.classList.toggle('on', active); button.setAttribute('aria-pressed', String(active)); hint.hidden = !active;
-            if (active && !drag) hint.textContent = `${rig.controls.find(c => c.id === selected)?.label} · drag its gold pieces · fixed pieces orbit`;
-            for (const control of rig?.controls || []) panel.body.querySelector(`[data-select="${control.id}"]`).classList.toggle('on', active && control.id === selected);
+            button.classList.toggle('on', active); button.setAttribute('aria-pressed', String(active)); hint.hidden = !active && !hovered;
+            if (!drag && (active || hovered)) hint.textContent = `${rig.controls.find(c => c.id === (hovered || selected))?.label} · drag its gold pieces · fixed pieces orbit`;
+            for (const control of rig?.controls || []) panel.body.querySelector(`[data-select="${control.id}"]`).classList.toggle('on', control.id === (hovered || (active ? selected : null)));
         }
         function endDrag() {
             if (drag && canvas.hasPointerCapture(drag.pointerId)) canvas.releasePointerCapture(drag.pointerId);
@@ -66,6 +95,7 @@
         }
         function setActive(on) {
             if (on && (!rig || sf.studio?.recording)) return;
+            resetHover();
             if (on === active) return;
             endDrag();
             if (on) {
@@ -100,16 +130,17 @@
         }
         function setAngle(control, value) {
             if (sf.studio?.recording) { sf.toast('Finish the recording before changing the pose'); return; }
+            if (hovered || hoverFrame) resetHover();
             if (!active) setActive(true);
             if (!active) { updateControls(); return; }
-            selected = control.id; values[control.id] = core.clamp(value, control); apply(); updateControls();
+            hovered = null; selected = control.id; values[control.id] = core.clamp(value, control); apply(); updateControls();
         }
         function install(model) {
             rig = core.resolve(model); rest = []; values = Object.fromEntries((rig?.controls || []).map(c => [c.id, 0]));
             selected = rig?.controls[0]?.id || null;
             button.hidden = !rig; panel.section.hidden = !rig;
             if (!rig) { panel.body.innerHTML = ''; return; }
-            panel.body.innerHTML = '<p class="sfpose-tip">Only movable assemblies rotate on their joints. Choose a slider to highlight its connected pieces in gold, then adjust the angle or drag those pieces. Fixed bricks stay attached; drag them to rotate the view.</p>'
+            panel.body.innerHTML = '<p class="sfpose-tip">Hover over a movable assembly to see its connected pieces in gold, then drag to rotate its joint. You can also choose an angle slider, or tap Joints on a touch screen. Fixed bricks stay attached; drag them to rotate the view.</p>'
                 + '<button type="button" class="action-btn secondary" data-toggle aria-pressed="false">↻ SHOW MOVABLE ASSEMBLIES</button><div class="sfpose-controls">'
                 + rig.controls.map(c => `<label data-select="${c.id}"><span>${c.label}<output data-value="${c.id}">0°</output></span><small>${c.joints.reduce((n, j) => n + j.members.length, 0)} connected pieces</small><input type="range" min="${c.min}" max="${c.max}" step="1" value="0" data-angle="${c.id}" aria-label="${c.label}"></label>`).join('')
                 + '</div><button type="button" class="action-btn tertiary" data-reset>RESET POSE</button><p class="sfpose-tip">Demonstration poses. Building steps and parts lists use the original assembly.</p>';
@@ -127,25 +158,24 @@
         });
         panel.body.addEventListener('focusin', e => {
             const control = rig?.controls.find(c => c.id === e.target.dataset.angle);
-            if (control && active) { selected = control.id; showHighlights(); updateControls(); }
+            if (control && active) { resetHover(); selected = control.id; showHighlights(); updateControls(); }
         });
 
         canvas.addEventListener('pointerdown', e => {
-            if (!active || sf.studio?.recording || (e.pointerType === 'mouse' && (e.button !== 0 || e.shiftKey))) return;
+            if (sf.studio?.recording || (e.pointerType === 'mouse' && (e.button !== 0 || e.shiftKey))) { resetHover(); return; }
             // A second finger hands control back to the camera for pan/pinch.
             if (drag) { endDrag(); return; }
-            const rect = canvas.getBoundingClientRect();
-            pointer.set((e.clientX - rect.left) / rect.width * 2 - 1, -(e.clientY - rect.top) / rect.height * 2 + 1);
-            viewer.scene.updateMatrixWorld(true); raycaster.setFromCamera(pointer, viewer.camera);
-            const hit = raycaster.intersectObjects(viewer.brickMeshes.filter(mesh => mesh.visible), true)[0];
-            if (!hit) return;
-            const index = core.memberIndex(hit.object, viewer.brickMeshes);
-            let control, joint;
-            for (const c of rig.controls) for (const j of c.joints) if (j.members.includes(index)) { control = c; joint = j; }
-            if (!joint) return;
+            if (!active && (!canPreview() || e.pointerType === 'touch')) { resetHover(); return; }
+            const picked = pickJoint(e);
+            if (!picked) { resetHover(); return; }
+            const { hit, control, joint, rect } = picked;
+            const point = viewer.modelGroup.worldToLocal(hit.point.clone());
+            if (!active) setActive(true);
+            if (!active) return;
+            resetHover();
             selected = control.id; showHighlights(); updateControls();
             sf.studio?.setSpin(false);
-            const point = viewer.modelGroup.worldToLocal(hit.point.clone());
+            viewer.scene.updateMatrixWorld(true);
             const project = p => {
                 const v = viewer.modelGroup.localToWorld(new THREE.Vector3(...p)).project(viewer.camera);
                 return { x: (v.x + 1) * rect.width / 2, y: (1 - v.y) * rect.height / 2 };
@@ -160,18 +190,25 @@
             e.preventDefault(); e.stopImmediatePropagation();
         }, { capture: true });
         canvas.addEventListener('pointermove', e => {
-            if (!drag || e.pointerId !== drag.pointerId) return;
+            if (!drag) {
+                hoverEvent = { clientX: e.clientX, clientY: e.clientY, pointerType: e.pointerType, buttons: e.buttons };
+                if (!hoverFrame) hoverFrame = requestAnimationFrame(() => { hoverFrame = 0; const event = hoverEvent; hoverEvent = null; if (event) previewHover(event); });
+                return;
+            }
+            if (e.pointerId !== drag.pointerId) return;
             const delta = ((e.clientX - drag.x) * drag.dx + (e.clientY - drag.y) * drag.dy) / drag.pixelsPerDegree;
             setAngle(drag.control, drag.angle + delta); hint.textContent = `${drag.control.label}: ${Math.round(values[drag.control.id])}°`;
             e.preventDefault(); e.stopImmediatePropagation();
         }, { capture: true });
         for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) canvas.addEventListener(event, endDrag);
-        window.addEventListener('blur', endDrag);
+        canvas.addEventListener('pointerleave', () => { if (!drag) resetHover(); });
+        window.addEventListener('blur', () => { resetHover(); endDrag(); });
         document.addEventListener('keydown', e => { if (e.key === 'Escape' && active) setActive(false); });
         // Restore the original pose before any feature that owns mesh transforms.
         const loadModel = viewer.loadModel.bind(viewer); viewer.loadModel = model => { setActive(false); return loadModel(model); };
-        const explode = viewer.setExplode.bind(viewer); viewer.setExplode = value => { if (active) setActive(false); return explode(value); };
-        const step = viewer.setStep.bind(viewer); viewer.setStep = value => { if (active) setActive(false); return step(value); };
+        const explode = viewer.setExplode.bind(viewer); viewer.setExplode = value => { setActive(false); return explode(value); };
+        const step = viewer.setStep.bind(viewer); viewer.setStep = value => { setActive(false); return step(value); };
+        sf.on('forging', resetHover);
         sf.on('studio:tray', on => { if (on) setActive(false); });
         sf.on('model', install);
         sf.articulation = { setActive, get active() { return active; }, get supported() { return !!rig; } };

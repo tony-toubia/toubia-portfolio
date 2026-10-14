@@ -598,7 +598,7 @@
         const saved = load();
         setPlate(saved.baseplate || 'none', false);
         applyMood(saved.lighting || 'studio', false);
-        sf.studio = { setTray, setPlate, closeInspector: closeCard, setMood: applyMood, setSpin, turntable: startTurntable, snapshot: () => snapshotPNG(), get trayOn() { return trayOn; }, get transitioning() { return !!activeTween; }, get spinning() { return spinning; }, get recording() { return !!recording; }, get mood() { return mood; }, get baseplate() { return plate.kind; } };
+        sf.studio = { setTray, setPlate, closeInspector: closeCard, setMood: applyMood, setSpin, turntable: startTurntable, snapshot: () => snapshotPNG(), get trayOn() { return trayOn; }, get transitioning() { return !!activeTween; }, get spinning() { return spinning; }, get recording() { return !!recording; }, get inspecting() { return !card.hidden; }, get mood() { return mood; }, get baseplate() { return plate.kind; } };
     }
 
     if (window.studForge) init(); else document.addEventListener('studforge:ready', init, { once: true });

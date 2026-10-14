@@ -453,7 +453,7 @@ class StudForgeViewer {
 
     animate() {
         requestAnimationFrame(this.animate);
-        if (!this.poseActive && !this.isDragging && this.explodeProgress === 0 && !this.isStepMode) { this.spherical.theta += 0.0018; this.updateCameraPosition(); }
+        if (!this.poseActive && !this.motionHover && !this.isDragging && this.explodeProgress === 0 && !this.isStepMode) { this.spherical.theta += 0.0018; this.updateCameraPosition(); }
         this.renderer.render(this.scene, this.camera);
     }
 }
