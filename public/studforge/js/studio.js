@@ -211,7 +211,7 @@
         const navigationHint = viewportCard.querySelector('.viewport-hint'), originalHint = navigationHint?.textContent;
         trayTools.querySelector('[data-tray-fit]').addEventListener('click', () => { closeCard(); fitTray(); });
         style.textContent += '.sfs-tray-tools{position:absolute;top:60px;left:12px;right:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:#e2e8f0;background:#111827eb;border:1px solid var(--border-main);border-radius:8px;padding:6px 8px;pointer-events:none;z-index:6}.sfs-tray-tools[hidden]{display:none}.sfs-tray-tools button{pointer-events:auto;background:var(--bg-main);border:1px solid var(--border-main);color:var(--lego-yellow);padding:6px 10px;border-radius:6px;cursor:pointer}';
-        style.textContent += '@media(max-width:600px){.sfs-tray-tools{top:12px;right:58px;gap:6px;font-size:11px}.sfs-parts-inspect{top:12px!important;left:12px!important;right:58px!important;width:auto}}';
+        style.textContent += '@media(max-width:767px){.sfs-tray-tools{top:12px;right:58px;gap:6px;font-size:11px}.sfs-parts-inspect{top:12px!important;left:12px!important;right:58px!important;width:auto}}';
         const origSetExplode = viewer.setExplode.bind(viewer);
         viewer.setExplode = function (v) {
             if (trayOn) { this.explodeProgress = Math.max(0, Math.min(1, v)); return; }   // the tray owns the positions for now
