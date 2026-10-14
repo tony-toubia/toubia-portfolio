@@ -326,6 +326,7 @@ class StudForgeViewer {
     stepCount(step) { let n = 0; for (const m of this.brickMeshes) if (!m.userData.segment && (m.userData.layer || 0) === step) n++; return n; }
 
     resetView() {
+        if (this.partsTray && window.studForge?.studio?.fitTray) { window.studForge.studio.fitTray(); return; }
         this.spherical.theta = this.home.theta; this.spherical.phi = this.home.phi; this.spherical.radius = this.home.radius;
         this.target.copy(this.homeTarget);
         this.updateCameraPosition();
@@ -348,7 +349,7 @@ class StudForgeViewer {
         this.camera.lookAt(this.target);
     }
 
-    zoomBy(k) { this.spherical.radius = Math.max(6, Math.min(this.home.radius * 3, this.spherical.radius * k)); this.updateCameraPosition(); }
+    zoomBy(k) { this.spherical.radius = Math.max(this.partsTray ? 2 : 6, Math.min((this.partsRadius || this.home.radius) * 3, this.spherical.radius * k)); this.updateCameraPosition(); }
 
     /**
      * Pan: move the focal point by a screen-space delta (pixels) along the camera's right and up
@@ -360,11 +361,12 @@ class StudForgeViewer {
         const perPx = 2 * Math.tan((this.camera.fov * Math.PI / 180) / 2) * this.spherical.radius / h;
         const right = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 0);
         const up = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 1);
+        const floorY = this.target.y;
         this.target.addScaledVector(right, -dxPx * perPx).addScaledVector(up, dyPx * perPx);
-        const lim = Math.max(4, this.extent * 0.75);
+        const lim = Math.max(4, (this.partsExtent || this.extent) * 0.75);
         this.target.x = Math.max(-lim, Math.min(lim, this.target.x));
         this.target.z = Math.max(-lim, Math.min(lim, this.target.z));
-        this.target.y = Math.max(0, Math.min(Math.max(this.height, 1), this.target.y));
+        this.target.y = this.partsTray && !this.partsInspecting ? floorY : Math.max(0, Math.min(Math.max(this.partsTray ? (this.partsHeight || this.height)+8 : this.height, 1), this.target.y));
         this.updateCameraPosition();
     }
 
@@ -373,16 +375,22 @@ class StudForgeViewer {
         if (!w || !h) return;
         this.camera.aspect = w / h;
         if (this.activeModel) {
-            const radius = this.framingRadius();
-            this.spherical.radius *= radius / this.home.radius;
-            this.home.radius = radius;
+            const tools=this.partsTray?this.container.parentElement?.querySelector('.sfs-tray-tools'):null;
+            const padding=this.partsTray?{height:h,top:tools?.offsetHeight?tools.offsetTop+tools.offsetHeight+12:this.partsViewPadding.top,bottom:72}:null;
+            const radius = this.partsTray ? window.StudForgePartsTray.fitRadius(this.partsWidth,this.partsDepth,this.camera,this.partsHeight || 0,padding) : this.framingRadius();
+            this.spherical.radius *= radius / (this.partsTray ? this.partsRadius : this.home.radius);
+            if (this.partsTray) {
+                const offset=window.StudForgePartsTray.offsetZ(radius,this.camera,padding);
+                if (!this.partsInspecting) this.target.z+=offset-(this.partsOffsetZ||0);
+                this.partsOffsetZ=offset;this.partsViewPadding=padding;this.partsRadius=radius;
+            } else this.home.radius = radius;
             if (this.hasBakedModel) {
-                this.scene.fog.near = Math.max(60, radius * 1.3);
+                this.scene.fog.near = Math.max(60, radius * (this.partsTray?2:1.3));
                 this.scene.fog.far = this.scene.fog.near + 80;
             }
             this.updateCameraPosition();
         }
-        this.camera.far = Math.max(500, this.home.radius * 4);
+        this.camera.far = Math.max(500, (this.partsRadius || this.home.radius) * 4);
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(w, h);
     }
@@ -399,7 +407,7 @@ class StudForgeViewer {
             if (this.motionDragging) return;
             if (e.button === 0 || e.button === 1 || e.button === 2) {
                 this.isDragging = true;
-                this.isPanning = e.button !== 0 || e.shiftKey;
+                this.isPanning = (this.partsTray && !this.partsInspecting) || e.button !== 0 || e.shiftKey;
                 this.previousMousePosition = { x: e.clientX, y: e.clientY };
                 if (e.button === 1) e.preventDefault();   // no autoscroll cursor
             }
@@ -420,29 +428,29 @@ class StudForgeViewer {
         const two = (t) => ({ dist: Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY), mid: { x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 } });
         dom.addEventListener('touchstart', (e) => {
             if (this.motionDragging) return;
-            if (e.touches.length === 1) { this.isDragging = true; this.isPanning = false; this.previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }
+            if (e.touches.length === 1) { this.isDragging = true; this.isPanning = !!(this.partsTray && !this.partsInspecting); this.previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }
             else if (e.touches.length === 2) { this.isDragging = true; this.isPanning = true; const t = two(e.touches); pinch = { dist: t.dist, radius: this.spherical.radius, mid: t.mid }; }
         }, { passive: true });
         dom.addEventListener('touchmove', (e) => {
             if (this.motionDragging) { if (e.cancelable) e.preventDefault(); return; }
-            if (e.touches.length === 1 && this.isDragging && !this.isPanning) {
+            if (e.touches.length === 1 && this.isDragging) {
                 if (e.cancelable) e.preventDefault();
-                this.spherical.theta -= (e.touches[0].clientX - this.previousMousePosition.x) * 0.008;
-                this.spherical.phi -= (e.touches[0].clientY - this.previousMousePosition.y) * 0.008;
-                this.updateCameraPosition();
+                const dx=e.touches[0].clientX-this.previousMousePosition.x,dy=e.touches[0].clientY-this.previousMousePosition.y;
+                if (this.isPanning) this.panBy(dx,dy);
+                else { this.spherical.theta -= dx*.008;this.spherical.phi -= dy*.008;this.updateCameraPosition(); }
                 this.previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
             } else if (e.touches.length === 2 && pinch) {
                 if (e.cancelable) e.preventDefault();
                 const t = two(e.touches);
                 // Fingers moving together pan (the midpoint moves); fingers moving apart or together zoom (the spread changes).
                 this.panBy(t.mid.x - pinch.mid.x, t.mid.y - pinch.mid.y);
-                this.spherical.radius = Math.max(6, Math.min(this.home.radius * 3, pinch.radius * (pinch.dist / Math.max(t.dist, 1))));
+                this.spherical.radius = Math.max(this.partsTray?2:6, Math.min((this.partsRadius||this.home.radius) * 3, pinch.radius * (pinch.dist / Math.max(t.dist, 1))));
                 this.updateCameraPosition();
                 pinch.mid = t.mid;
             }
         }, { passive: false });
         window.addEventListener('touchend', (e) => {
-            if (e.touches && e.touches.length === 1) { this.isPanning = false; pinch = null; this.previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }
+            if (e.touches && e.touches.length === 1) { this.isPanning = !!(this.partsTray&&!this.partsInspecting); pinch = null; this.previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }
             else if (!e.touches || e.touches.length === 0) { this.isDragging = false; this.isPanning = false; pinch = null; }
         });
 
@@ -453,7 +461,7 @@ class StudForgeViewer {
 
     animate() {
         requestAnimationFrame(this.animate);
-        if (!this.poseActive && !this.motionHover && !this.isDragging && this.explodeProgress === 0 && !this.isStepMode) { this.spherical.theta += 0.0018; this.updateCameraPosition(); }
+        if (!this.partsTray && !this.poseActive && !this.motionHover && !this.isDragging && this.explodeProgress === 0 && !this.isStepMode) { this.spherical.theta += 0.0018; this.updateCameraPosition(); }
         this.renderer.render(this.scene, this.camera);
     }
 }

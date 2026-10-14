@@ -64,6 +64,7 @@
         const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
         const colorOf = (key) => window.LEGO_COLORS[key] || { name: key, hex: '#cccccc' };
         const partOf = (id) => window.LEGO_PARTS[id] || (window.BrickBuilder && window.BrickBuilder.partInfo(id)) || { id, name: `Element ${id}`, category: 'Misc', width: 1, length: 1, height: 1.2 };
+        const trayCore = window.StudForgePartsTray;
         const isTrans = (key) => { const c = window.LEGO_COLORS[key]; return !!(c && (c.trans || c.category === 'Transparent')) || /^TRANS_/.test(String(key)); };
         const modelId = () => String((sf.model && sf.model.id) || 'model').replace(/[^a-z0-9_-]+/gi, '-');
 
@@ -110,42 +111,74 @@
             if (!r.width || !r.height) return null;
             ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
             raycaster.setFromCamera(ndc, viewer.camera);
-            const hits = raycaster.intersectObjects(viewer.brickMeshes.filter((m) => m.visible && !m.userData.segment), false);
-            return hits.length ? hits[0].object : null;
+            viewer.scene.updateMatrixWorld(true);
+            const hits = raycaster.intersectObjects(viewer.brickMeshes.filter((m) => m.visible && !m.userData.segment), true);
+            if (!hits.length) return null;
+            let mesh = hits[0].object;
+            while (mesh && !viewer.brickMeshes.includes(mesh)) mesh = mesh.parent;
+            return mesh;
         }
 
         // Materials are shared per colour, so highlighted bricks get a private clone to tint.
         let lit = [];
         const clearHighlight = () => { for (const { mesh, orig } of lit) { if (mesh.material !== orig) { mesh.material.dispose(); mesh.material = orig; } } lit = []; };
-        const setHighlight = (meshes) => { clearHighlight(); for (const m of meshes) { lit.push({ mesh: m, orig: m.material }); m.material = m.material.clone(); } };
+        const setHighlight = (meshes) => { clearHighlight(); for (const root of meshes) root.traverse(m => { if (!m.isMesh || !m.material?.clone) return; lit.push({ mesh: m, orig: m.material }); m.material = m.material.clone(); }); };
         frameTasks.add((now) => {
             if (!lit.length) return;
             const k = 0.3 + 0.3 * Math.sin(now / 150);
             for (const { mesh } of lit) { mesh.material.emissive.setHex(GLOW); mesh.material.emissiveIntensity = k; }
         });
 
-        function closeCard() { card.hidden = true; card.innerHTML = ''; clearHighlight(); }
+        let inspection = null;
+        function closeCard(restoreView = true) {
+            card.hidden = true; card.innerHTML = ''; clearHighlight();
+            if (inspection) {
+                inspection.mesh.position.copy(inspection.position); inspection.mesh.updateMatrix();
+                if (restoreView) restoreCamera(inspection.camera);
+                inspection = null; viewer.partsInspecting = false;
+                if (trayLabels) trayLabels.visible = true;
+                trayTools.hidden=!trayOn;
+                if (navigationHint) navigationHint.textContent='Drag to pan · scroll or pinch to zoom · click a piece to lift and inspect it';
+            }
+        }
         function openCard(mesh, clientX, clientY) {
-            const ud = mesh.userData, part = partOf(ud.partId), col = colorOf(ud.colorKey);
+            if (activeTween) return;
+            closeCard();
+            const ud = mesh.userData, part = { ...partOf(ud.partId), name: ud.partName || partOf(ud.partId).name }, col = colorOf(ud.colorKey);
             const step = (ud.layer || 0) + 1;
             const same = viewer.brickMeshes.filter((m) => m.userData.partId === ud.partId && m.userData.colorKey === ud.colorKey);
+            if (trayOn) {
+                const bounds = trayCore.measure(mesh), size = bounds.getSize(new THREE.Vector3());
+                inspection = { mesh, position: mesh.position.clone(), camera: captureCamera() };
+                mesh.position.y += Math.max(2,size.y*.5+1); mesh.updateMatrix();
+                viewer.partsInspecting = true; trayLabels.visible = false;
+                trayTools.hidden=true;
+                if (navigationHint) navigationHint.textContent='Drag to orbit this piece · scroll or pinch to zoom · Back to Parts returns to the tray';
+                viewer.modelGroup.updateMatrixWorld(true);
+                viewer.target.copy(viewer.modelGroup.localToWorld(bounds.getCenter(new THREE.Vector3()).add(mesh.position)));
+                viewer.spherical.theta = Math.PI/4; viewer.spherical.phi = Math.PI/3;
+                glideRadius(Math.max(4,Math.max(size.x,size.z,size.y)*2.3/Math.min(1,viewer.camera.aspect)),300);
+            }
             card.innerHTML = `<button class="sfs-close" aria-label="Close">×</button>
-<div class="sfs-kicker">BRICK INSPECTOR</div>
+<div class="sfs-kicker">${trayOn ? 'PIECE INSPECTOR · DRAG TO ORBIT' : 'BRICK INSPECTOR'}</div>
 <div class="sfs-name">${esc(part.name)}</div>
 <div class="sfs-row"><span class="sfs-dot" style="background:${esc(col.hex)}"></span>${esc(col.name)}</div>
 <div class="sfs-row">DESIGN ID <span class="sfs-mono">#${esc(ud.partId)}</span></div>
 <div class="sfs-row">ADDED IN <span class="sfs-mono">STEP ${step}</span> · <span class="sfs-mono">×${same.length}</span> IN MODEL</div>
-<div class="sfs-actions"><button class="sfs-btn primary" data-act="step">GO TO STEP ${step}</button><button class="sfs-btn" data-act="all">HIGHLIGHT ALL ×${same.length}</button></div>`;
+<div class="sfs-actions">${trayOn ? '<button class="sfs-btn primary" data-act="tray">BACK TO PARTS</button>' : `<button class="sfs-btn primary" data-act="step">GO TO STEP ${step}</button><button class="sfs-btn" data-act="all">HIGHLIGHT ALL ×${same.length}</button>`}</div>`;
             card.hidden = false;
+            card.classList.toggle('sfs-parts-inspect',trayOn);
             // Anchor beside the pointer, flipped and clamped so it never leaves the viewport card.
             const r = viewportCard.getBoundingClientRect(), w = card.offsetWidth, h = card.offsetHeight;
             let x = clientX - r.left + 14, y = clientY - r.top + 14;
             if (x + w > r.width - 8) x = clientX - r.left - w - 14;
             if (y + h > r.height - 8) y = clientY - r.top - h - 14;
-            card.style.left = `${Math.max(8, Math.min(r.width - w - 8, x))}px`;
-            card.style.top = `${Math.max(8, Math.min(r.height - h - 8, y))}px`;
+            card.style.left = trayOn ? '' : `${Math.max(8, Math.min(r.width - w - 8, x))}px`;
+            card.style.right = trayOn ? '12px' : '';
+            card.style.top = trayOn ? '60px' : `${Math.max(8, Math.min(r.height - h - 8, y))}px`;
             setHighlight([mesh]);
             card.querySelector('.sfs-close').addEventListener('click', closeCard);
+            if (trayOn) { card.querySelector('[data-act="tray"]').addEventListener('click', () => closeCard()); return; }
             card.querySelector('[data-act="step"]').addEventListener('click', () => sf.goStep(step - 1));
             const all = card.querySelector('[data-act="all"]');
             all.addEventListener('click', () => { const on = all.classList.toggle('on'); setHighlight(on ? same : [mesh]); });
@@ -171,25 +204,31 @@
            ══════════════════════════════════════════════════════════════ */
         const explodeSlider = document.getElementById('slider-explode');
         const explodeGroup = explodeSlider && (explodeSlider.closest('.explode-pop') || explodeSlider.parentElement);
-        let trayOn = false, trayExtent = 0, trayLabels = null, trayGroups = [], trayRadius0 = null;
+        let trayOn = false, trayExtent = 0, trayLabels = null, trayGroups = [], trayCamera = null, trayLayout = null, samples = new Set();
+        const trayTools = document.createElement('div'); trayTools.className = 'sfs-tray-tools'; trayTools.hidden = true;
+        trayTools.innerHTML = '<span data-tray-count></span><button type="button" data-tray-fit>FIT ALL PIECES</button><span>One sample per type & color · quantities include every piece</span>';
+        viewportCard.appendChild(trayTools);
+        const navigationHint = viewportCard.querySelector('.viewport-hint'), originalHint = navigationHint?.textContent;
+        trayTools.querySelector('[data-tray-fit]').addEventListener('click', () => { closeCard(); fitTray(); });
+        style.textContent += '.sfs-tray-tools{position:absolute;top:60px;left:12px;right:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:#e2e8f0;background:#111827eb;border:1px solid var(--border-main);border-radius:8px;padding:6px 8px;pointer-events:none;z-index:6}.sfs-tray-tools[hidden]{display:none}.sfs-tray-tools button{pointer-events:auto;background:var(--bg-main);border:1px solid var(--border-main);color:var(--lego-yellow);padding:6px 10px;border-radius:6px;cursor:pointer}';
+        style.textContent += '@media(max-width:600px){.sfs-tray-tools{top:12px;right:58px;gap:6px;font-size:11px}.sfs-parts-inspect{top:12px!important;left:12px!important;right:58px!important;width:auto}}';
         const origSetExplode = viewer.setExplode.bind(viewer);
         viewer.setExplode = function (v) {
             if (trayOn) { this.explodeProgress = Math.max(0, Math.min(1, v)); return; }   // the tray owns the positions for now
             return origSetExplode(v);
         };
+        const origSetStep = viewer.setStep.bind(viewer);
+        viewer.setStep = function (v) { const result=origSetStep(v);if(trayOn)for(const mesh of this.brickMeshes)mesh.visible=samples.has(mesh);return result; };
 
-        const CATEGORY_RANK = { Bricks: 0, Plates: 1, Tiles: 2, Slopes: 3, Round: 4, Misc: 5 };
-        // A real-set (baked) part pivots at its LDraw origin, often its top face: in the tray it rests on its lowest point.
-        const floorOf = (m) => { const g = m.geometry; if (!m.userData.baked || !g) return 0; if (!g.boundingBox) g.computeBoundingBox(); return -g.boundingBox.min.y; };
-        const homeOf = (m) => { if (!m.userData.sfsHome) m.userData.sfsHome = { rot: { x: m.rotation.x, y: m.rotation.y, z: m.rotation.z }, centred: !m.userData.baked && !!(m.rotation.x || m.rotation.z), floor: floorOf(m) }; return m.userData.sfsHome; };
+        const homeOf = (m) => { if (!m.userData.sfsHome) m.userData.sfsHome = { rot: { x: m.rotation.x, y: m.rotation.y, z: m.rotation.z } }; return m.userData.sfsHome; };
 
         function labelSprite(name, qty, size) {
             const c = document.createElement('canvas'); c.width = 256; c.height = 128;
             const g = c.getContext('2d');
             g.textAlign = 'center'; g.textBaseline = 'middle';
             g.shadowColor = 'rgba(0,0,0,0.9)'; g.shadowBlur = 8;
-            g.fillStyle = '#f2cd37'; g.font = '800 58px Orbitron, Rajdhani, sans-serif'; g.fillText(`×${qty}`, 128, 44);
-            g.fillStyle = '#e2e8f0'; g.font = '700 26px Rajdhani, sans-serif'; g.fillText(name, 128, 98);
+            g.fillStyle = '#f2cd37'; g.font = '800 46px Rajdhani, sans-serif'; g.fillText(`×${qty}`, 128, 40);
+            g.fillStyle = '#e2e8f0'; g.font = '700 21px Rajdhani, sans-serif'; g.fillText(name, 128, 96, 245);
             const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter;
             const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
             s.scale.set(3.2 * size, 1.6 * size, 1);
@@ -204,64 +243,39 @@
             trayLabels = null;
         }
 
-        /** Lay the bricks out in a tray: blocks of identical pieces, flowing in rows, big elements first. */
+        /** One measured sample per type/color; quantities still include every source piece. */
         function layoutTray() {
-            const meshes = viewer.brickMeshes.filter(m => !m.userData.segment);
-            for (const m of viewer.brickMeshes) if (m.userData.segment) m.visible = false;
-            disposeLabels();
-            if (!meshes.length) { trayExtent = 0; trayGroups = []; return; }
+            closeCard(false); disposeLabels(); samples = new Set();
             const groups = new Map();
-            for (const m of meshes) {
-                const k = `${m.userData.partId}|${m.userData.colorKey}`;
-                if (!groups.has(k)) groups.set(k, { partId: m.userData.partId, colorKey: m.userData.colorKey, part: partOf(m.userData.partId), color: colorOf(m.userData.colorKey), meshes: [] });
-                groups.get(k).meshes.push(m);
+            for (const mesh of viewer.brickMeshes) {
+                homeOf(mesh); mesh.visible = false;
+                if (mesh.userData.segment) continue;
+                const key = `${mesh.userData.partId}|${mesh.userData.colorKey}`;
+                if (!groups.has(key)) groups.set(key, { partId: mesh.userData.partId, part: { ...partOf(mesh.userData.partId), name: mesh.userData.partName || partOf(mesh.userData.partId).name }, meshes: [], bounds: trayCore.measure(mesh) });
+                groups.get(key).meshes.push(mesh);
             }
-            const vol = (p) => p.width * p.length * p.height;
-            trayGroups = [...groups.values()].sort((a, b) => (CATEGORY_RANK[a.part.category] ?? 9) - (CATEGORY_RANK[b.part.category] ?? 9) || vol(b.part) - vol(a.part) || String(a.partId).localeCompare(String(b.partId)) || b.meshes.length - a.meshes.length || a.color.name.localeCompare(b.color.name));
-
-            const gap = 0.45, blockGap = 1.5, rowGap = 2.4, maxW = Math.max(26, viewer.extent * 1.8);
-            const blocks = trayGroups.map((g) => {
-                const n = g.meshes.length, w = g.part.width, l = g.part.length;
-                const cols = Math.min(n, Math.max(1, Math.round(Math.sqrt(n * (l + gap) / (w + gap)))));
-                return { g, cols, w: cols * (w + gap) - gap, d: Math.ceil(n / cols) * (l + gap) - gap };
-            });
-            const lines = [[]]; let x = 0;
-            for (const b of blocks) {
-                const line = lines[lines.length - 1];
-                const extra = !line.length ? 0 : (line[line.length - 1].g.partId === b.g.partId ? blockGap : blockGap * 1.8);
-                if (line.length && x + extra + b.w > maxW) { lines.push([b]); b.x = 0; x = b.w; }
-                else { b.x = x + extra; x += extra + b.w; line.push(b); }
-            }
-            let totalD = 0, totalW = 0;
-            for (const line of lines) { line.depth = Math.max(...line.map((b) => b.d)); line.width = line[line.length - 1].x + line[line.length - 1].w; totalD += line.depth; totalW = Math.max(totalW, line.width); }
-            totalD += rowGap * (lines.length - 1);
-            trayExtent = Math.max(totalW, totalD) + 2;
-
-            const cx = (viewer.centre || { x: 0 }).x, cz = (viewer.centre || { z: 0 }).z, size = Math.max(0.8, Math.min(2.2, viewer.extent / 15));
+            trayGroups = [...groups.values()];
+            trayLayout = trayCore.layout(trayGroups,viewer.camera.aspect);
+            trayExtent = Math.max(trayLayout.width,trayLayout.depth)+4;
+            const cx = viewer.centre.x, cz = viewer.centre.z, items = [];
             trayLabels = new THREE.Group();
-            const items = [];
-            let z = -totalD / 2;
-            lines.forEach((line, li) => {
-                for (const b of line) {
-                    const { part } = b.g, x0 = b.x - line.width / 2 + cx, z0 = z + cz;
-                    b.g.meshes.forEach((m, i) => {
-                        const home = homeOf(m);
-                        const c = i % b.cols, r = Math.floor(i / b.cols);
-                        items.push({ mesh: m, p0: m.position.clone(), p1: new THREE.Vector3(x0 + c * (part.width + gap) + part.width / 2, home.centred ? part.height / 2 : home.floor, z0 + r * (part.length + gap) + part.length / 2), r0: { x: m.rotation.x, y: m.rotation.y, z: m.rotation.z }, r1: { x: 0, y: 0, z: 0 }, delay: Math.min(450, li * 90 + i * 4) });
-                    });
-                    const label = labelSprite(shortName(part), b.g.meshes.length, size);
-                    label.position.set(x0 + b.w / 2, part.height + 1.1 * size, z0 - 0.3);
-                    trayLabels.add(label);
-                }
-                z += line.depth + rowGap;
-            });
+            for (const cell of trayLayout.cells) {
+                const g=cell.group, mesh=g.meshes[0], pos=trayCore.position(cell).add(new THREE.Vector3(cx,0,cz));
+                mesh.visible = true; samples.add(mesh);
+                items.push({mesh,p0:mesh.position.clone(),p1:pos,r0:{x:mesh.rotation.x,y:mesh.rotation.y,z:mesh.rotation.z},r1:{x:0,y:0,z:0},delay:0});
+                const width=Math.min(8,cell.width-.6), label=labelSprite(g.partId+' · '+shortName(g.part),g.meshes.length,width/3.2);
+                label.scale.y=1.6;
+                label.position.set(cell.x+cell.width/2+cx,.15,cell.z+cell.depth-cell.footer/2+cz);
+                trayLabels.add(label);
+            }
             viewer.modelGroup.add(trayLabels);
-            tween(items, 950);
+            trayTools.querySelector('[data-tray-count]').textContent = `${trayGroups.length} types/colors · ${[...groups.values()].reduce((n,g)=>n+g.meshes.length,0)} pieces`;
+            tween(items,550);
         }
 
         function gatherTray() {
             const meshes = viewer.brickMeshes;
-            for (const m of meshes) if (m.userData.segment) m.visible = (m.userData.layer || 0) <= viewer.currentStep;
+            for (const m of meshes) m.visible = (m.userData.layer || 0) <= viewer.currentStep;
             disposeLabels();
             // Where the bricks belong now (home, or exploded) is whatever the viewer's own explode puts them at.
             const cur = meshes.map((m) => m.position.clone());
@@ -272,6 +286,24 @@
 
         // Glide the camera out to take in the whole tray, and back to where it was.
         let zoomTask = null;
+        function captureCamera() { return { theta:viewer.spherical.theta,phi:viewer.spherical.phi,radius:viewer.spherical.radius,target:viewer.target.clone() }; }
+        function restoreCamera(camera) {
+            if (zoomTask) frameTasks.delete(zoomTask); zoomTask = null;
+            Object.assign(viewer.spherical,{theta:camera.theta,phi:camera.phi,radius:camera.radius});viewer.target.copy(camera.target);viewer.updateCameraPosition();
+        }
+        function fitTray() {
+            if (!trayLayout) return;
+            const height=trayGroups.reduce((n,g)=>Math.max(n,g.bounds.max.y-g.bounds.min.y),0);
+            const padding={height:viewer.container.clientHeight,top:trayTools.offsetTop+trayTools.offsetHeight+12,bottom:72};
+            const radius=trayCore.fitRadius(trayLayout.width+2,trayLayout.depth+3,viewer.camera,height,padding);
+            viewer.partsRadius = radius; viewer.partsExtent = trayExtent;
+            viewer.partsHeight = height+viewer.modelGroup.position.y;viewer.partsWidth=trayLayout.width+2;viewer.partsDepth=trayLayout.depth+3;
+            viewer.partsViewPadding=padding;viewer.partsOffsetZ=trayCore.offsetZ(radius,viewer.camera,padding);
+            viewer.target.set(0,viewer.modelGroup.position.y,viewer.partsOffsetZ);viewer.spherical.theta=0;viewer.spherical.phi=.05;
+            viewer.camera.far=Math.max(500,radius*4);viewer.camera.updateProjectionMatrix();
+            scene.fog.near=Math.max(60,radius*2);scene.fog.far=scene.fog.near+80;
+            glideRadius(radius,450);
+        }
         function glideRadius(to, ms) {
             if (zoomTask) frameTasks.delete(zoomTask);
             const from = viewer.spherical.radius, t0 = performance.now();
@@ -286,17 +318,25 @@
         function setTray(on) {
             if (on === trayOn) return;
             sf.emit('studio:tray', on);
-            trayOn = on;
             closeCard();
+            trayOn = on; viewer.partsTray = on; viewer.partsInspecting = false;
+            trayTools.hidden=!on;
             if (on) {
+                setSpin(false); trayCamera=captureCamera();
                 layoutTray();
-                trayRadius0 = viewer.spherical.radius;
-                glideRadius(Math.max(viewer.spherical.radius, Math.min(viewer.home.radius * 3, trayExtent * 1.35)), 950);
+                fitTray();
             } else {
                 gatherTray(); trayExtent = 0;
-                if (trayRadius0 != null) glideRadius(trayRadius0, 850);
-                trayRadius0 = null;
+                const radius=viewer.framingRadius();
+                if (trayCamera) trayCamera.radius*=radius/viewer.home.radius;
+                viewer.home.radius=radius;
+                if (trayCamera) restoreCamera(trayCamera);
+                trayCamera = null; viewer.partsRadius = null; viewer.partsExtent = null; viewer.partsHeight = null;
+                scene.fog.near=viewer.hasBakedModel?Math.max(60,viewer.home.radius*1.3):60;scene.fog.far=scene.fog.near+80;
             }
+            trayTools.hidden=!on;
+            spinBtn.disabled=on;spinBtn.title=on?'Automatic spin is off in parts view':'Spin the model round';
+            if (navigationHint) navigationHint.textContent=on?'Drag to pan · scroll or pinch to zoom · click a piece to lift and inspect it':originalHint;
             if (explodeSlider) explodeSlider.disabled = on;
             if (explodeGroup) explodeGroup.classList.toggle('sfs-explode-off', on);
             trayBtn.classList.toggle('on', on);
@@ -471,7 +511,7 @@
             viewer.spherical.theta += dt * SPIN_RATE; viewer.updateCameraPosition();
         };
         function setSpin(on) {
-            on = !!on;
+            on = !!on && !trayOn;
             if (on === spinning) return;
             spinning = on; spinLast = 0;
             if (on) frameTasks.add(spinTask); else frameTasks.delete(spinTask);
@@ -494,6 +534,7 @@
         }
         const NO_VIDEO = 'Video capture is not available in this browser, so this saved a PNG of the view instead';
         function startTurntable() {
+            if (trayOn) { say('Return to the model before recording a turntable.'); return; }
             if (recording) return;
             let stream = null;
             try { stream = canvas.captureStream ? canvas.captureStream(30) : null; } catch (e) { stream = null; }
@@ -588,17 +629,26 @@
             if (trayOn) for (const mesh of viewer.brickMeshes) if (mesh.userData.segment) mesh.visible = false;
         });
         sf.on('model', () => {
-            closeCard();
-            if (trayOn) { layoutTray(); trayRadius0 = viewer.spherical.radius; glideRadius(Math.max(viewer.spherical.radius, Math.min(viewer.home.radius * 3, trayExtent * 1.35)), 950); }
-            else trayExtent = 0;
+            if (!trayOn) { closeCard(); trayExtent = 0; }
             applyFloor();
             applyMood(mood, false);
         });
+        const originalLoad = viewer.loadModel.bind(viewer);
+        viewer.loadModel = model => {
+            closeCard(false);
+            if (activeTween) frameTasks.delete(activeTween);activeTween=null;
+            if (zoomTask) frameTasks.delete(zoomTask);zoomTask=null;
+            disposeLabels();
+            if (trayOn && trayCamera) { viewer.spherical.theta=trayCamera.theta;viewer.spherical.phi=trayCamera.phi; }
+            const result=originalLoad(model);
+            if (trayOn) { trayCamera=captureCamera();layoutTray();fitTray();applyFloor(); }
+            return result;
+        };
 
         const saved = load();
         setPlate(saved.baseplate || 'none', false);
         applyMood(saved.lighting || 'studio', false);
-        sf.studio = { setTray, setPlate, closeInspector: closeCard, setMood: applyMood, setSpin, turntable: startTurntable, snapshot: () => snapshotPNG(), get trayOn() { return trayOn; }, get transitioning() { return !!activeTween; }, get spinning() { return spinning; }, get recording() { return !!recording; }, get inspecting() { return !card.hidden; }, get mood() { return mood; }, get baseplate() { return plate.kind; } };
+        sf.studio = { setTray, fitTray: () => { closeCard();fitTray(); }, setPlate, closeInspector: closeCard, setMood: applyMood, setSpin, turntable: startTurntable, snapshot: () => snapshotPNG(), get trayOn() { return trayOn; }, get transitioning() { return !!activeTween; }, get spinning() { return spinning; }, get recording() { return !!recording; }, get inspecting() { return !card.hidden; }, get mood() { return mood; }, get baseplate() { return plate.kind; } };
     }
 
     if (window.studForge) init(); else document.addEventListener('studforge:ready', init, { once: true });
