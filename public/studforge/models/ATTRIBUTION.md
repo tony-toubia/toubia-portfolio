@@ -81,6 +81,26 @@ Modifications: embedded file names were normalized to lowercase with forward sla
 | 31084-1 | [Pirate Roller Coaster](https://library.ldraw.org/omr/sets/877) · [original MPD](https://library.ldraw.org/library/omr/31084-1.mpd) | Philippe Hurbain [Philo] | Redistributable under CCAL version 2.0 |
 | 42108-1 | [Mobile Crane](https://library.ldraw.org/omr/sets/1113) · [original MPD](https://library.ldraw.org/library/omr/42108-1.mpd) | MMR1988 [MMR1988] | Redistributable under CCAL version 2.0 |
 | 42042-1 | [Crawler Crane](https://library.ldraw.org/omr/sets/52) · [original MPD](https://library.ldraw.org/library/omr/42042-1.mpd) | Philippe Hurbain [Philo] | Redistributable under CCAL version 2.0 |
+| 75050-1 | [B-Wing](https://library.ldraw.org/omr/sets/894) · [original MPD](https://library.ldraw.org/library/omr/75050-1.mpd) | Roland Dahl [Papacharly] | Redistributable under CCAL version 2.0 |
+| 75054-1 | [AT-AT](https://library.ldraw.org/omr/sets/896) · [original MPD](https://library.ldraw.org/library/omr/75054-1.mpd) | Roland Dahl [Papacharly] | Redistributable under CCAL version 2.0 |
+| 75055-1 | [Imperial Star Destroyer](https://library.ldraw.org/omr/sets/897) · [original MPD](https://library.ldraw.org/library/omr/75055-1.mpd) | Roland Dahl [Papacharly] | Redistributable under CCAL version 2.0 |
+| 10240-1 | [Red Five X-Wing Starfighter](https://library.ldraw.org/omr/sets/321) · [original MPD](https://library.ldraw.org/library/omr/10240-1.mpd) | Roland Dahl [RolandD] | Redistributable under CCAL version 2.0 |
+| 75010-1 | [B-wing Starfighter & Planet Endor](https://library.ldraw.org/omr/sets/343) · [original MPD](https://library.ldraw.org/library/omr/75010-1.mpd) | Merlijn Wissink [Legolijntje] | Redistributable under CCAL version 2.0 |
+| 10227-1 | [B-wing Starfighter](https://library.ldraw.org/omr/sets/319) · [original MPD](https://library.ldraw.org/library/omr/10227-1.mpd) | Roland Dahl [RolandD] | Redistributable under CCAL version 2.0 |
+| 30056-1 | [Star Destroyer](https://library.ldraw.org/omr/sets/998) · [original MPD](https://library.ldraw.org/library/omr/30056-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
+| 30161-1 | [Batmobile](https://library.ldraw.org/omr/sets/833) · [original MPD](https://library.ldraw.org/library/omr/30161-1.mpd) | Massimo Maso [Sirio] | Redistributable under CCAL version 2.0 |
+| 30210-1 | [Frodo with Cooking Corner](https://library.ldraw.org/omr/sets/31) · [original MPD](https://library.ldraw.org/library/omr/30210-1.mpd) | Stan Isachenko [angmarec] | Redistributable under CCAL version 2.0 |
+| 9469-1 | [Gandalf Arrives](https://library.ldraw.org/omr/sets/27) · [original MPD](https://library.ldraw.org/library/omr/9469-1.mpd) | Philippe Hurbain [Philo] | Redistributable under CCAL version 2.0 |
+| 9471-1 | [Uruk-hai Army](https://library.ldraw.org/omr/sets/29) · [original MPD](https://library.ldraw.org/library/omr/9471-1.mpd) | Philippe Hurbain [Philo] | Redistributable under CCAL version 2.0 |
+| 20019-1 | [Slave I](https://library.ldraw.org/omr/sets/126) · [original MPD](https://library.ldraw.org/library/omr/20019-1.mpd) | Jude Parrill | Redistributable under CCAL version 2.0 |
+| 8099-1 | [Midi-Scale Imperial Star Destroyer](https://library.ldraw.org/omr/sets/999) · [original MPD](https://library.ldraw.org/library/omr/8099-1.mpd) | Orion Pobursky [OrionP] | Redistributable under CCAL version 2.0 |
+| 20004-1 | [Jungle Cruiser](https://library.ldraw.org/omr/sets/1427) · [original MPD](https://library.ldraw.org/library/omr/20004-1.mpd) | TotalyWicked [TotalyWicked] | Redistributable under CCAL version 2.0 |
+| 7667-1 | [Imperial Dropship](https://library.ldraw.org/omr/sets/119) · [original MPD](https://library.ldraw.org/library/omr/7667-1.mpd) | Sean Burke [Leftmost] | Redistributable under CCAL version 2.0 |
+| 7657-1 | [AT-ST](https://library.ldraw.org/omr/sets/762) · [original MPD](https://library.ldraw.org/library/omr/7657-1.mpd) | Evert Jan Boer [ejboer] | Redistributable under CCAL version 2.0 |
+| 10174-1 | [Imperial AT-ST](https://library.ldraw.org/omr/sets/310) · [original MPD](https://library.ldraw.org/library/omr/10174-1.mpd) | Roland Dahl [RolandD] | Redistributable under CCAL version 2.0 |
+| 10175-1 | [Vader's TIE Advanced](https://library.ldraw.org/omr/sets/483) · [original MPD](https://library.ldraw.org/library/omr/10175-1.mpd) | Roland Dahl [RolandD] | Redistributable under CCAL version 2.0 |
+| 6208-1 | [B-wing Fighter](https://library.ldraw.org/omr/sets/342) · [original MPD](https://library.ldraw.org/library/omr/6208-1.mpd) | Merlijn Wissink [Legolijntje] | Redistributable under CCAL version 2.0 |
+| 7784-1 | [The Batmobile Ultimate Collectors' Edition](https://library.ldraw.org/omr/sets/1135) · [original MPD](https://library.ldraw.org/library/omr/7784-1.mpd) | Marc Giraudet [Mad_Marc] | Redistributable under CCAL version 2.0 |
 
 Individual model and part files retain their !LICENSE and author headers. Official part definitions may use CC BY 2.0 or CC BY 4.0; the applicable license is identified in each embedded file. Full notices: [LDraw CAreadme](CAreadme.txt), [CC BY 2.0](CAlicense.txt), [CC BY 4.0](CAlicense4.txt). Attribution metadata for parts is also available in parts.json.
 
