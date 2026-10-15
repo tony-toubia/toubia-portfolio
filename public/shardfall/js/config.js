@@ -14,11 +14,14 @@ window.SF_CONFIG = (() => {
         artillery: { range: 10, damage: 60, cooldown: 4.5, projectile: 'arc',    speed: 9,  splash: 1.6, vs: { inf: 1.0, light: 0.7, heavy: 0.6, bld: 1.0 } },
         turretGun: { range: 6.5, damage: 34, cooldown: 1.4, projectile: 'shell', speed: 20, splash: 0.4, vs: { inf: 0.5, light: 1.0, heavy: 1.0, bld: 0.5 } },
         // Hegemony: energy weapons. 'bolt' is a fast projectile; 'beam' is instant and drawn as a beam while it fires.
+        // (Phase 2 balance pass, from AI-vs-AI runs: shock range 4.2→4.8, beam range 4.6→5, phase 46→70 damage,
+        // range 5→6, splash 0.4→0.8; Lancer hp 340→360, Phantom hp 260→380. Without a Phantom that is worth its
+        // slot the Hegemony has no answer to Vanguard artillery and loses about 3 games in 4.)
         pulse:   { range: 4.5, damage: 8,   cooldown: 0.55, projectile: 'bolt',  speed: 22, splash: 0,   vs: { inf: 1.0, light: 0.55, heavy: 0.22, bld: 0.22 } },
-        shock:   { range: 4.2, damage: 30,  cooldown: 1.9, projectile: 'bolt',   speed: 16, splash: 0.5, vs: { inf: 0.4, light: 1.0, heavy: 0.9, bld: 0.6 } },
+        shock:   { range: 4.8, damage: 30,  cooldown: 1.9, projectile: 'bolt',   speed: 16, splash: 0.5, vs: { inf: 0.4, light: 1.0, heavy: 0.9, bld: 0.6 } },
         twinPulse: { range: 4.5, damage: 7, cooldown: 0.3, projectile: 'bolt',   speed: 24, splash: 0,   vs: { inf: 1.0, light: 0.65, heavy: 0.25, bld: 0.2 } },
-        beam:    { range: 4.6, damage: 13,  cooldown: 0.35, projectile: 'beam',  speed: 0,  splash: 0,   vs: { inf: 0.5, light: 0.9, heavy: 1.1, bld: 0.7 } },
-        phase:   { range: 5,   damage: 46,  cooldown: 2.0, projectile: 'bolt',   speed: 20, splash: 0.4, vs: { inf: 0.5, light: 1.0, heavy: 1.0, bld: 0.9 } },
+        beam:    { range: 5,   damage: 13,  cooldown: 0.35, projectile: 'beam',  speed: 0,  splash: 0,   vs: { inf: 0.5, light: 0.9, heavy: 1.1, bld: 0.7 } },
+        phase:   { range: 6,   damage: 70,  cooldown: 2.0, projectile: 'bolt',   speed: 20, splash: 0.8, vs: { inf: 0.5, light: 1.0, heavy: 1.0, bld: 0.9 } },
         spireBeam: { range: 7, damage: 58,  cooldown: 2.2, projectile: 'beam',   speed: 0,  splash: 0,   vs: { inf: 1.0, light: 1.0, heavy: 0.9, bld: 0.5 } },
     };
 
@@ -76,10 +79,10 @@ window.SF_CONFIG = (() => {
         trooper:      { name: 'Pulse Trooper', faction: 'hegemony', from: 'infantry', cost: 120, time: 4, hp: 50, armor: 'inf', speed: 1.9, turn: 10, weapon: 'pulse', sight: 5, radius: 0.22, requires: [] },
         shocktrooper: { name: 'Shock Trooper', faction: 'hegemony', from: 'infantry', cost: 320, time: 6, hp: 55, armor: 'inf', speed: 1.5, turn: 10, weapon: 'shock', sight: 5, radius: 0.22, requires: [] },
         skimmer:      { name: 'Skimmer',       faction: 'hegemony', from: 'vehicle', cost: 420, time: 6, hp: 130, armor: 'light', speed: 4.3, turn: 7, weapon: 'twinPulse', sight: 7, radius: 0.45, requires: [], hover: true },
-        lancer:       { name: 'Lancer',        faction: 'hegemony', from: 'vehicle', cost: 850, time: 9, hp: 340, armor: 'heavy', speed: 2.4, turn: 3.5, weapon: 'beam', sight: 5.5, radius: 0.55, requires: [], turret: true },
+        lancer:       { name: 'Lancer',        faction: 'hegemony', from: 'vehicle', cost: 850, time: 9, hp: 360, armor: 'heavy', speed: 2.4, turn: 3.5, weapon: 'beam', sight: 5.5, radius: 0.55, requires: [], turret: true },
         // Cloaked: enemies cannot see or target it unless one of their units or buildings is within `revealRange`,
         // or it fired in the last `cloakDelay` seconds.
-        phantom:      { name: 'Phantom',       faction: 'hegemony', from: 'vehicle', cost: 1000, time: 11, hp: 260, armor: 'heavy', speed: 2.6, turn: 4, weapon: 'phase', sight: 6, radius: 0.55, requires: ['techlab'],
+        phantom:      { name: 'Phantom',       faction: 'hegemony', from: 'vehicle', cost: 1000, time: 11, hp: 380, armor: 'heavy', speed: 2.6, turn: 4, weapon: 'phase', sight: 6, radius: 0.55, requires: ['techlab'],
                         turret: true, cloak: true, revealRange: 2.5, cloakDelay: 2.5 },
         artillery: { name: 'Artillery',   faction: 'vanguard', from: 'vehicle',  cost: 950,  time: 11, hp: 180, armor: 'light', speed: 1.6, turn: 2.5, weapon: 'artillery', sight: 6, radius: 0.55, requires: ['techlab'], minRange: 3 },
     };

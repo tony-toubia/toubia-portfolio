@@ -2,13 +2,14 @@
 /**
  * Headless tests and balance runs for Shardfall's simulation.
  *
- * config.js, map.js, sim.js and ai.js are plain scripts with no THREE or DOM dependency, so they are loaded
+ * config.js, map.js, sim.js, ai.js and missions.js are plain scripts with no THREE or DOM dependency, so they are loaded
  * into a vm context with a minimal `window` and run at many times real speed.
  *
- *   node scripts/shardfall-sim-test.mjs                  # everything: commands, perf, AI-vs-AI at every difficulty
+ *   node scripts/shardfall-sim-test.mjs                  # everything: commands, factions/weapons/cloak/superweapons,
+ *                                                        # missions, perf, AI-vs-AI at every difficulty, Vanguard vs Hegemony
  *   node scripts/shardfall-sim-test.mjs --games 12       # games per difficulty (default 8)
  *   node scripts/shardfall-sim-test.mjs --diff normal    # only one difficulty
- *   node scripts/shardfall-sim-test.mjs --only commands  # commands | perf | games | mixed
+ *   node scripts/shardfall-sim-test.mjs --only commands  # commands | phase2 | missions | missions-quick | perf | games | mixed | factions
  *   node scripts/shardfall-sim-test.mjs --cap 1800       # game-time cap per game, seconds (default 1800)
  *   node scripts/shardfall-sim-test.mjs --verbose        # build orders and waves for every game
  *
@@ -27,7 +28,7 @@ function load() {
   const ctx = { console, Math, Object, Array, Set, Map, JSON, Number, isFinite, Uint8Array, Int8Array, Int32Array, Uint32Array, Float32Array, Float64Array };
   ctx.window = ctx;
   vm.createContext(ctx);
-  for (const f of ['config.js', 'map.js', 'sim.js', 'ai.js']) vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
+  for (const f of ['config.js', 'map.js', 'sim.js', 'ai.js', 'missions.js']) vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
   return ctx;
 }
 const ctx = load();
@@ -115,7 +116,7 @@ function commandTests() {
   check(opts.find((o) => o.type === 'rifleman').reason === 'Needs Barracks', 'rifleman needs barracks');
   check(opts.find((o) => o.type === 'artillery').reason === 'Needs War Factory', 'artillery needs a factory first');
   check(!opts.some((o) => o.type === 'core'), 'core is not buildable');
-  check(opts.map((o) => o.type).join() === 'reactor,refinery,barracks,factory,radar,turret,techlab,rifleman,rocketeer,harvester,buggy,tank,artillery', 'options in sidebar order');
+  check(opts.map((o) => o.type).join() === 'reactor,refinery,barracks,factory,radar,turret,techlab,uplink,rifleman,rocketeer,harvester,buggy,tank,artillery', 'options in sidebar order (Vanguard)');
   check(sim.command(0, { type: 'queue', item: 'refinery' }) === false, 'cannot queue a locked building');
   check(sim.command(0, { type: 'queue', item: 'nonsense' }) === false, 'unknown item rejected');
   check(sim.command(0, { type: 'queue', item: 'core' }) === false, 'core cannot be queued');
@@ -463,8 +464,8 @@ function perfTest() {
 
 // ---------------------------------------------------------------------------------------------
 // 3. AI vs AI
-function playGame(seed, diffs, cap) {
-  const sim = new SF.Sim({ seed, difficulty: diffs[0], playerTeam: null, aiTeams: [0, 1], aiDifficulty: { 0: diffs[0], 1: diffs[1] } });
+function playGame(seed, diffs, cap, factions) {
+  const sim = new SF.Sim({ seed, difficulty: diffs[0], playerTeam: null, aiTeams: [0, 1], aiDifficulty: { 0: diffs[0], 1: diffs[1] }, factions });
   const r = { seed, diffs, winner: null, time: 0, error: null, peak: [0, 0], ticks: 0, maxTick: 0 };
   let tsum = 0;
   try {
@@ -479,8 +480,9 @@ function playGame(seed, diffs, cap) {
     }
   } catch (err) { r.error = `exception at t=${sim.time.toFixed(1)}: ${err.stack}`; }
   r.winner = sim.winner; r.time = sim.time; r.avgTick = tsum / Math.max(1, r.ticks);
-  r.ais = sim.ais.map((ai) => ({ team: ai.team, peak: ai.peakArmy, log: ai.log, waves: ai.waves, style: ai.style }));
+  r.ais = sim.ais.map((ai) => ({ team: ai.team, peak: ai.peakArmy, log: ai.log, waves: ai.waves, style: ai.style, raids: ai.raidsSent || 0, supers: ai.superLog.length }));
   r.stats = sim.teams.map((t) => t.stats);
+  r.factions = sim.teams.map((t) => t.faction);
   return r;
 }
 function gamesTest(diffList, games, cap) {
@@ -488,7 +490,8 @@ function gamesTest(diffList, games, cap) {
   const summary = {};
   for (const diff of diffList) {
     const res = [];
-    for (let g = 0; g < games; g++) res.push(playGame(1000 + g * 17, [diff, diff], cap));
+    // mirror matches (side balance), alternating Vanguard mirrors and Hegemony mirrors
+    for (let g = 0; g < games; g++) res.push(playGame(1000 + g * 17, [diff, diff], cap, g % 2 ? ['hegemony', 'hegemony'] : ['vanguard', 'vanguard']));
     const done = res.filter((r) => r.winner !== null);
     const wins = [0, 1].map((t) => res.filter((r) => r.winner === t).length);
     const avg = done.length ? done.reduce((a, r) => a + r.time, 0) / done.length : 0;
@@ -496,7 +499,7 @@ function gamesTest(diffList, games, cap) {
     console.log(`\n  ${diff}: ${games} games, winners T0 ${wins[0]} / T1 ${wins[1]}, timeouts ${games - done.length}; avg length ${fmtT(avg)} (min ${fmtT(lens[0] || 0)}, max ${fmtT(lens[lens.length - 1] || 0)})`);
     for (const r of res) {
       const s = r.stats;
-      console.log(`    seed ${r.seed}: ${r.winner === null ? 'timeout' : 'T' + r.winner + ' wins'} at ${fmtT(r.time)}; ${r.ais[0].style} vs ${r.ais[1].style}; peak army ${r.ais[0].peak}/${r.ais[1].peak}; waves ${r.ais[0].waves.length}/${r.ais[1].waves.length}; harvested ${Math.round(s[0].creditsHarvested)}/${Math.round(s[1].creditsHarvested)}; units built ${s[0].unitsBuilt}/${s[1].unitsBuilt}; tick avg ${r.avgTick.toFixed(3)} ms max ${r.maxTick.toFixed(1)} ms${r.error ? '\n      ERROR ' + r.error : ''}`);
+      console.log(`    seed ${r.seed} (${r.factions[0]} mirror): ${r.winner === null ? 'timeout' : 'T' + r.winner + ' wins'} at ${fmtT(r.time)}; ${r.ais[0].style} vs ${r.ais[1].style}; peak army ${r.ais[0].peak}/${r.ais[1].peak}; waves ${r.ais[0].waves.length}/${r.ais[1].waves.length}; harvested ${Math.round(s[0].creditsHarvested)}/${Math.round(s[1].creditsHarvested)}; units built ${s[0].unitsBuilt}/${s[1].unitsBuilt}; tick avg ${r.avgTick.toFixed(3)} ms max ${r.maxTick.toFixed(1)} ms${r.error ? '\n      ERROR ' + r.error : ''}`);
       if (has('--verbose')) for (const a of r.ais) console.log(`      T${a.team} build: ${a.log.map(([t, b]) => `${fmtT(t)} ${b}`).join(', ')}\n      T${a.team} waves: ${a.waves.map((w) => `${fmtT(w.t)}×${w.size}`).join(', ')}`);
       check(!r.error, `${diff} seed ${r.seed}: ${r.error || 'ok'}`);
     }
@@ -537,14 +540,557 @@ function mixedTest(games, cap) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// 4. phase 2: factions, energy weapons, cloak, superweapons
+const ents = (sim, f) => [...sim.entities.values()].filter(f);
+function evs(sim, secs, filter) {
+  const out = [];
+  const n = Math.round(secs / CFG.TICK);
+  for (let i = 0; i < n; i++) { sim.step(); for (const e of sim.drainEvents()) if (!filter || filter(e)) out.push(Object.assign({ t: sim.time }, e)); }
+  return out;
+}
+function factionTests() {
+  console.log('\n== factions ==');
+  const sim = newSim();
+  check(sim.teams[0].faction === 'vanguard' && sim.teams[1].faction === 'hegemony', 'default factions: team 0 Vanguard, team 1 Hegemony');
+  check(sim.teams[0].name === 'Vanguard' && sim.teams[1].name === 'Hegemony', 'team names follow the faction');
+  const o1 = sim.options(1).map((o) => o.type).join();
+  check(o1 === 'reactor,refinery,barracks,factory,radar,spire,techlab,riftsilo,trooper,shocktrooper,harvester,skimmer,lancer,phantom', `Hegemony options in sidebar order (${o1})`);
+  const o0 = sim.options(0).map((o) => o.type);
+  check(!o0.some((t) => ['trooper', 'shocktrooper', 'skimmer', 'lancer', 'phantom', 'spire', 'riftsilo'].includes(t)), 'Vanguard options exclude Hegemony types');
+  check(sim.options(0).find((o) => o.type === 'uplink').reason === 'Needs Tech Lab', 'uplink needs a tech lab');
+  check(sim.options(1).find((o) => o.type === 'phantom').reason === 'Needs War Factory', 'phantom needs a factory first');
+  check(ents(sim, (e) => e.team === 1 && e.kind === 'unit').map((e) => e.type).sort().join() === 'skimmer,trooper,trooper,trooper', 'Hegemony starts with a skimmer and three troopers');
+  // can't build the other side's things
+  buildNow(sim, 0, 'reactor'); buildNow(sim, 0, 'barracks');
+  buildNow(sim, 1, 'reactor'); buildNow(sim, 1, 'barracks');
+  check(sim.command(0, { type: 'queue', item: 'trooper' }) === false, "Vanguard can't queue a Pulse Trooper");
+  check(sim.command(0, { type: 'queue', item: 'spire' }) === false, "Vanguard can't queue a Pulse Spire");
+  check(sim.command(1, { type: 'queue', item: 'rifleman' }) === false, "Hegemony can't queue a Rifleman");
+  check(sim.command(1, { type: 'queue', item: 'turret' }) === false, "Hegemony can't queue a Gun Turret");
+  check(sim.command(1, { type: 'queue', item: 'uplink' }) === false, "Hegemony can't queue an Orbital Uplink");
+  check(sim.command(0, { type: 'queue', item: 'rifleman' }) && sim.command(1, { type: 'queue', item: 'trooper' }), 'each side queues its own infantry');
+  check(sim.command(1, { type: 'queue', item: 'spire' }), 'Hegemony queues a Pulse Spire');
+  check(sim.allowed(0, 'harvester') && sim.allowed(1, 'harvester') && sim.allowed(1, 'radar'), 'shared types are allowed for both');
+  // swapped factions
+  const s2 = newSim({ factions: ['hegemony', 'vanguard'] });
+  check(s2.teams[0].faction === 'hegemony' && s2.options(0).some((o) => o.type === 'lancer') && !s2.options(0).some((o) => o.type === 'tank'), 'the player can pick the Hegemony');
+  const s3 = newSim({ factions: ['hegemony', 'hegemony'] });
+  check(s3.teams[1].faction === 'hegemony', 'mirror factions allowed');
+  const s4 = newSim({ factions: ['nonsense', 'vanguard'] });
+  check(s4.teams[0].faction === 'vanguard', 'unknown faction falls back to a valid one');
+  // AI plans per faction
+  const ai = new SF.AI(newSim({ aiTeams: [] }), 1, 'hard');
+  check(ai.plan.some((p) => p[0] === 'spire') && !ai.plan.some((p) => p[0] === 'turret') && ai.plan.some((p) => p[0] === 'riftsilo'), `Hegemony hard AI plans spires and a Rift Silo (${ai.plan.map((p) => p[0]).join(',')})`);
+  const ai2 = new SF.AI(newSim({ aiTeams: [] }), 0, 'normal');
+  check(!ai2.plan.some((p) => p[0] === 'uplink'), 'normal skirmish AI does not build a superweapon');
+}
+
+function weaponTests() {
+  console.log('\n== energy weapons ==');
+  const sim = newSim({ seed: 3, startUnits: [] });
+  const c = sim.map.starts[0];
+  const x0 = c.tx + 8, z0 = c.tz - 6;
+  // beam: instant, impact in the same tick, damage × vs
+  const tank = sim.spawnUnit(0, 'tank', x0, z0);
+  const lancer = sim.spawnUnit(1, 'lancer', x0 + 4.4, z0);
+  tank.hp = tank.maxHp = 5000;
+  const ev = evs(sim, 6);
+  const beams = ev.filter((e) => e.type === 'shot' && e.from === lancer.id);
+  check(beams.length > 5 && beams.every((e) => e.weapon === 'beam' && e.proj === 'beam' && e.dur === 0), `lancer fires beams (${beams.length}, dur 0)`);
+  const b0 = beams[0];
+  check(ev.some((e) => e.type === 'impact' && e.weapon === 'beam' && e.t === b0.t && Math.abs(e.x - b0.tx) < 1e-9), 'a beam impacts in the same tick, at its end point');
+  const cannonHits = ev.filter((e) => e.type === 'impact' && e.weapon === 'cannon').length;
+  const W = CFG.WEAPONS;
+  const wantLancerHp = lancer.maxHp - cannonHits * W.cannon.damage * W.cannon.vs.heavy;
+  check(Math.abs(5000 - tank.hp - beams.length * W.beam.damage * W.beam.vs.heavy) < 1e-6, `beam damage = ${W.beam.damage} × vs.heavy per shot (${(5000 - tank.hp).toFixed(1)})`);
+  check(Math.abs(lancer.hp - wantLancerHp) < 1e-6 || lancer.dead, 'tank shells hurt the lancer by cannon × vs.heavy');
+  // bolts: projectiles that travel
+  const s2 = newSim({ seed: 3, startUnits: [] });
+  const ri = s2.spawnUnit(0, 'rifleman', x0, z0);
+  const tr = s2.spawnUnit(1, 'trooper', x0 + 4.2, z0);
+  ri.hp = ri.maxHp = 5000; tr.hp = tr.maxHp = 5000;
+  const e2 = evs(s2, 4);
+  const bolts = e2.filter((e) => e.type === 'shot' && e.from === tr.id);
+  check(bolts.length > 3 && bolts.every((e) => e.proj === 'bolt' && e.dur > 0 && e.pid > 0), `pulse troopers fire travelling bolts (${bolts.length})`);
+  const bi = e2.filter((e) => e.type === 'impact' && e.weapon === 'pulse');
+  check(bi.length && bi[0].t > bolts[0].t, 'a bolt impacts after its flight time');
+  check(Math.abs(5000 - ri.hp - bi.length * W.pulse.damage * W.pulse.vs.inf) < 1e-6, `bolt damage = ${W.pulse.damage} × vs.inf per hit`);
+  // a powered Pulse Spire beams an enemy in range
+  const s3 = newSim({ seed: 5 });
+  buildNow(s3, 1, 'reactor'); buildNow(s3, 1, 'barracks');
+  const sp = buildNow(s3, 1, 'spire');
+  check(sp && sp.type === 'spire', 'Pulse Spire built');
+  const vic = s3.spawnUnit(0, 'tank', sp.x - 5, sp.z + 0.01);
+  vic.hp = vic.maxHp = 5000;
+  const e3 = evs(s3, 5);
+  const sb = e3.filter((e) => e.type === 'shot' && e.from === sp.id);
+  check(sb.length >= 2 && sb.every((e) => e.weapon === 'spireBeam' && e.proj === 'beam' && e.dur === 0), `the spire fires beams (${sb.length})`);
+  check(Math.abs(5000 - vic.hp - sb.length * W.spireBeam.damage * W.spireBeam.vs.heavy) < 1e-6, 'spire beam damage × vs');
+  // skimmer: hover, faster over shards
+  check(CFG.UNITS.skimmer.hover === true, 'skimmer is a hover unit');
+}
+
+function cloakTests() {
+  console.log('\n== cloak ==');
+  const sim = newSim({ seed: 3, startUnits: [] });
+  const c = sim.map.starts[0];
+  const x0 = c.tx + 9, z0 = c.tz - 7;
+  const ph = sim.spawnUnit(1, 'phantom', x0 + 4, z0);
+  const ri = sim.spawnUnit(0, 'rifleman', x0, z0);
+  ri.hp = ri.maxHp = 5000;
+  const e0 = evs(sim, 1);
+  check(ph.cloaked === true && e0.some((e) => e.type === 'cloak' && e.id === ph.id && e.on === true), 'a phantom with no enemy close is cloaked (cloak event)');
+  check(sim.visible(0, ph.x, ph.z), "the phantom's tile is in the enemy's sight");
+  check(!sim.isVisible(0, ph), 'but isVisible() is false for the enemy');
+  check(sim.isVisible(1, ph), 'the owner always sees it');
+  check(sim.command(0, { type: 'attack', ids: [ri.id], targetId: ph.id }) === false, 'the enemy cannot order an attack on it');
+  const e1 = evs(sim, 3);
+  check(!e1.some((e) => e.type === 'shot' && e.from === ri.id), 'enemy units do not auto-target it');
+  check(!e1.some((e) => e.type === 'shot' && e.from === ph.id), 'an idle cloaked unit holds its fire (stays hidden)');
+  // firing reveals it for cloakDelay
+  sim.command(1, { type: 'attack', ids: [ph.id], targetId: ri.id });
+  const e2 = evs(sim, 1.5);
+  const fired = e2.find((e) => e.type === 'shot' && e.from === ph.id);
+  check(fired && !ph.cloaked && sim.isVisible(0, ph), 'firing reveals it');
+  check(e2.some((e) => e.type === 'cloak' && e.id === ph.id && e.on === false), 'cloak event on reveal');
+  check(sim.command(0, { type: 'attack', ids: [ri.id], targetId: ph.id }), 'the enemy can target it while revealed');
+  sim.command(1, { type: 'stop', ids: [ph.id] });
+  sim.command(0, { type: 'stop', ids: [ri.id] });
+  ri.x = ri.prevX = ph.x - 8; ri.z = ri.prevZ = ph.z;
+  const last = sim.time;
+  let back = null;
+  for (let i = 0; i < 20 * 5 && back === null; i++) { sim.step(); if (ph.cloaked) back = sim.time; }
+  const delay = CFG.UNITS.phantom.cloakDelay;
+  const lastShot = Math.max(...e2.filter((e) => e.type === 'shot' && e.from === ph.id).map((e) => e.t));
+  check(back !== null && back - lastShot >= delay - 0.06 && back - lastShot <= delay + 0.2, `it cloaks again ${delay} s after its last shot (${back && (back - lastShot).toFixed(2)} s)`);
+  void last;
+  // an enemy within revealRange reveals it
+  const rr = CFG.UNITS.phantom.revealRange;
+  ri.x = ri.prevX = ph.x - (rr - 0.3); ri.z = ri.prevZ = ph.z;
+  run(sim, 0.2);
+  check(!ph.cloaked && sim.isVisible(0, ph), `an enemy unit within ${rr} tiles reveals it`);
+  ri.x = ri.prevX = ph.x - 8;
+  run(sim, 0.2);
+  check(ph.cloaked, 'and it cloaks again when the enemy leaves');
+  // enemy buildings reveal it too; turrets can't shoot it unless revealed
+  const s2 = newSim({ seed: 5 });
+  buildNow(s2, 0, 'reactor'); buildNow(s2, 0, 'barracks');
+  const tur = buildNow(s2, 0, 'turret');
+  const p2 = s2.spawnUnit(1, 'phantom', tur.x + 5, tur.z + 0.01);
+  const e3 = evs(s2, 3);
+  check(p2.cloaked && !e3.some((e) => e.type === 'shot' && e.from === tur.id), 'a turret ignores a cloaked unit in range');
+  p2.x = p2.prevX = tur.x + rr; run(s2, 0.3);
+  check(!p2.cloaked, 'a building within revealRange reveals it');
+  const e4 = evs(s2, 3);
+  check(e4.some((e) => e.type === 'shot' && e.from === tur.id), 'then the turret fires');
+  // splash still hurts a cloaked unit
+  const s3 = newSim({ seed: 3, startUnits: [] });
+  const p3 = s3.spawnUnit(1, 'phantom', x0, z0);
+  run(s3, 0.2);
+  const hp0 = p3.hp;
+  s3._hit(0, 0, 'artillery', CFG.WEAPONS.artillery, null, p3.x + 0.8, p3.z);
+  check(p3.cloaked && p3.hp < hp0, `splash damages a cloaked unit (${hp0} → ${p3.hp.toFixed(1)})`);
+  check(ents(s3, (e) => e.kind === 'unit').every((e) => e.cloaked === false || CFG.UNITS[e.type].cloak), 'only cloak units ever get cloaked');
+}
+
+function superTests() {
+  console.log('\n== superweapons ==');
+  const SW = CFG.SUPERWEAPONS;
+  const sim = newSim({ seed: 9, startUnits: [] });
+  const t0 = sim.teams[0];
+  check(t0.super === null && sim.strikes.length === 0, 'no superweapon at the start');
+  const place = (team, type, built) => {
+    const core = ents(sim, (e) => e.team === team && e.type === 'core')[0];
+    const sp = sim._placeNear(type, core.tx + (team ? -6 : 5), core.tz + (team ? 4 : -5));
+    return sim._addBuilding(team, type, sp.tx, sp.tz, built);
+  };
+  const r1 = place(0, 'reactor', 1), r2 = place(0, 'reactor', 1);
+  const up = place(0, 'uplink', 0);
+  sim._updatePower(true);
+  const ev = evs(sim, 6);
+  check(up.built === 1 && t0.super && t0.super.kind === 'lance' && t0.super.building === up.id && !t0.super.ready, 'a finished uplink gives team.super (lance)');
+  check(ev.some((e) => e.type === 'alert' && e.team === 1 && e.text === 'Enemy superweapon detected'), "the enemy gets 'Enemy superweapon detected'");
+  check(ev.some((e) => e.type === 'alert' && e.team === 0 && e.text === 'Orbital Uplink online'), "the owner gets 'Orbital Uplink online'");
+  const c1 = t0.super.charge;
+  run(sim, 60);
+  check(Math.abs(t0.super.charge - c1 - 60 / SW.lance.charge) < 0.01, `charges over ${SW.lance.charge} s while powered (${t0.super.charge.toFixed(3)})`);
+  // low power pauses
+  sim.command(0, { type: 'sell', id: r1.id }); sim.command(0, { type: 'sell', id: r2.id });
+  run(sim, 0.5);
+  const c2 = t0.super.charge;
+  run(sim, 20);
+  check(t0.lowPower && t0.super.charge === c2 && t0.super.paused, 'charging pauses on low power');
+  place(0, 'reactor', 1); place(0, 'reactor', 1); sim._updatePower(true);
+  run(sim, 10);
+  check(t0.super.charge > c2 + 9 / SW.lance.charge, 'and resumes when power is back');
+  check(sim.command(0, { type: 'superweapon', x: 10, z: 10 }) === false, 'cannot fire before it is charged');
+  up._charge = SW.lance.charge - 1;
+  const e2 = evs(sim, 1.2);
+  check(t0.super.ready && t0.super.charge === 1, 'ready when fully charged');
+  check(e2.some((e) => e.type === 'alert' && e.team === 0 && e.text === 'Orbital Lance ready') && e2.some((e) => e.type === 'alert' && e.team === 1 && e.text === 'Enemy Orbital Lance ready'), "'Orbital Lance ready' alerts for both sides");
+  // explored points only
+  const W = sim.map.w;
+  let unexplored = null;
+  for (let i = 0; i < W * W && !unexplored; i++) if (t0.vis[i] === 0) unexplored = { x: (i % W) + 0.5, z: ((i / W) | 0) + 0.5 };
+  check(sim.command(0, { type: 'superweapon', x: unexplored.x, z: unexplored.z }) === false, 'cannot target unexplored ground');
+  check(sim.command(0, { type: 'superweapon', x: -3, z: 5 }) === false, 'cannot target off the map');
+  // strike: victims at known distances, own units included
+  const tx = sim.map.starts[0].tx + 10.5, tz = sim.map.starts[0].tz - 8.5;
+  sim._explore(0, tx, tz, 6);
+  const R = SW.lance.radius;
+  // unarmed heavy victims (harvesters with nothing to do stay put), at exact distances from the centre
+  const HR = CFG.UNITS.harvester.radius;
+  const mk = (team, dx, dz) => { const u = sim.spawnUnit(team, 'harvester', tx + dx, tz + dz); u.x = u.prevX = tx + dx; u.z = u.prevZ = tz + dz; u.hp = u.maxHp = 5000; return u; };
+  const centre = mk(1, 0, 0), half = mk(1, R / 2 + HR, 0), edge = mk(1, -(R - 0.01 + HR), 0), out = mk(1, 0, R + HR + 0.6), own = mk(0, 0, -(R / 2 + HR));
+  check(sim.command(0, { type: 'superweapon', x: tx, z: tz }), 'fires at an explored point');
+  const st = sim.strikes[0];
+  check(sim.strikes.length === 1 && st.kind === 'lance' && st.team === 0 && Math.abs(st.t - SW.lance.warn) < 1e-9 && st.warn === SW.lance.warn, 'a pending strike with its warning time');
+  check(!t0.super.ready && t0.super.charge === 0 && up._charge === 0, 'charge restarts at 0 after firing');
+  check(sim.command(0, { type: 'superweapon', x: tx, z: tz }) === false, 'cannot fire twice');
+  const fireT = sim.time;
+  const e3 = evs(sim, SW.lance.warn + 0.2);
+  const strikeEv = e3.find((e) => e.type === 'superweapon' && e.phase === 'strike');
+  check(strikeEv && Math.abs(strikeEv.t - fireT - SW.lance.warn) < 0.11, `the strike lands after the ${SW.lance.warn} s warning (${strikeEv && (strikeEv.t - fireT).toFixed(2)} s)`);
+  check(sim.strikes.length === 0, 'strike removed from sim.strikes');
+  const exp = (d) => SW.lance.damage * (1 - (1 - SW.lance.falloff) * Math.max(0, d) / R) * SW.lance.vs.heavy;
+  const near = (a, b) => Math.abs(a - b) < 0.05;
+  check(near(5000 - centre.hp, exp(0)), `full damage at the centre (${(5000 - centre.hp).toFixed(1)} vs ${exp(0)})`);
+  check(near(5000 - half.hp, exp(R / 2)), `linear falloff at half radius (${(5000 - half.hp).toFixed(1)} vs ${exp(R / 2).toFixed(1)})`);
+  check(near(5000 - edge.hp, exp(R - 0.01)), `damage × falloff at the edge (${(5000 - edge.hp).toFixed(1)} vs ${exp(R).toFixed(1)})`);
+  check(out.hp === 5000, 'nothing beyond the radius');
+  check(near(5000 - own.hp, exp(R / 2)), "it hurts the owner's units too");
+  check(Math.abs(sim.strikeDamage('lance', R / 2, 'heavy') - exp(R / 2)) < 1e-9, 'strikeDamage() matches');
+  // the warning is broadcast
+  const sim2 = newSim({ seed: 9, startUnits: [] });
+  const silo = sim2._addBuilding(1, 'riftsilo', sim2._placeNear('riftsilo', sim2.map.starts[1].tx - 5, sim2.map.starts[1].tz + 5).tx, sim2._placeNear('riftsilo', sim2.map.starts[1].tx - 5, sim2.map.starts[1].tz + 5).tz, 1);
+  sim2._addBuilding(1, 'reactor', sim2._placeNear('reactor', sim2.map.starts[1].tx, sim2.map.starts[1].tz + 6).tx, sim2._placeNear('reactor', sim2.map.starts[1].tx, sim2.map.starts[1].tz + 6).tz, 1);
+  sim2._updatePower(true);
+  silo._charge = SW.rift.charge;
+  run(sim2, 0.2);
+  const t1 = sim2.teams[1];
+  check(t1.super && t1.super.kind === 'rift' && t1.super.ready, 'Hegemony Rift Silo charged: team.super kind rift');
+  const own1 = sim2.map.starts[1];
+  const ex = { x: own1.tx + 1.5, z: own1.tz + 6.5 };
+  const v1 = sim2.spawnUnit(0, 'harvester', ex.x, ex.z); v1.x = v1.prevX = ex.x; v1.z = v1.prevZ = ex.z; v1.hp = v1.maxHp = 5000;
+  sim2.drainEvents();
+  check(sim2.command(1, { type: 'superweapon', x: ex.x, z: ex.z }), 'rift bomb fired');
+  const e4 = sim2.drainEvents();
+  check(e4.some((e) => e.type === 'superweapon' && e.phase === 'warn' && e.kind === 'rift' && e.team === 1), "'superweapon' warn event");
+  check([0, 1].every((t) => e4.some((e) => e.type === 'alert' && e.team === t && e.text === 'Superweapon launched' && e.x === ex.x)), "'Superweapon launched' alert with x,z for both sides");
+  run(sim2, SW.rift.warn + 0.2);
+  check(near(5000 - v1.hp, SW.rift.damage * SW.rift.vs.heavy), `rift damage × vs.heavy at the centre (${(5000 - v1.hp).toFixed(1)})`);
+  // destroyed building loses its charge
+  silo._charge = 100; run(sim2, 0.1);
+  sim2._damage(silo, 1e6, 0, 0);
+  run(sim2, 0.2);
+  check(t1.super === null, 'a destroyed superweapon building loses its charge (team.super null)');
+  // the AI fires at the best cluster of known enemy buildings
+  const sim3 = newSim({ seed: 9, startUnits: [], aiTeams: [1], aiDifficulty: { 1: 'hard' } });
+  const s3 = sim3.map.starts[1];
+  const silo3 = sim3._addBuilding(1, 'riftsilo', sim3._placeNear('riftsilo', s3.tx - 5, s3.tz + 5).tx, sim3._placeNear('riftsilo', s3.tx - 5, s3.tz + 5).tz, 1);
+  sim3._addBuilding(1, 'reactor', sim3._placeNear('reactor', s3.tx - 1, s3.tz + 6).tx, sim3._placeNear('reactor', s3.tx - 1, s3.tz + 6).tz, 1);
+  sim3._addBuilding(1, 'reactor', sim3._placeNear('reactor', s3.tx + 3, s3.tz + 6).tx, sim3._placeNear('reactor', s3.tx + 3, s3.tz + 6).tz, 1);
+  const b0 = sim3.map.starts[0];
+  for (const [type, dx, dz] of [['reactor', 4, -1], ['barracks', 4, 2], ['refinery', 0, -5], ['reactor', 6, -4]]) {
+    const sp = sim3._placeNear(type, b0.tx + dx, b0.tz + dz);
+    sim3._addBuilding(0, type, sp.tx, sp.tz, 1);
+  }
+  const spy = sim3.spawnUnit(1, 'phantom', b0.tx + 9, b0.tz - 1);
+  sim3._updatePower(true);
+  silo3._charge = SW.rift.charge;
+  const e5 = evs(sim3, 90, (e) => e.type === 'superweapon');
+  const launch = e5.find((e) => e.phase === 'warn' && e.team === 1);
+  const hitB = launch && ents(sim3, (e) => e.team === 0 && e.kind === 'building').filter((b) => sim3._rangeTo({ x: launch.x, z: launch.z }, b) < SW.rift.radius).length;
+  check(launch && hitB >= 2, `the AI launches its superweapon at a cluster of enemy buildings (${hitB} in the blast)`);
+  check(launch && Math.hypot(launch.x - spy.x, launch.z - spy.z) > 1, 'and not on top of its own unit');
+}
+
+// ---------------------------------------------------------------------------------------------
+// 5. missions
+function missionInvariants(sim) {
+  const bad = invariants(sim);
+  if (bad) return bad;
+  for (const o of sim.mission.objectives) if (typeof o.progress !== 'string') return `objective ${o.id} progress ${o.progress}`;
+  return null;
+}
+function runMission(idx, opts, cap, driver) {
+  const M = SF.MISSIONS[idx];
+  const sim = new SF.Sim(Object.assign({ mission: M }, opts || {}));
+  const log = { objectives: [], messages: 0, events: [], error: null };
+  try {
+    while (sim.mission.status === 'active' && sim.time < cap) {
+      sim.step();
+      for (const e of sim.drainEvents()) {
+        if (e.type === 'objective') log.objectives.push(Object.assign({ t: sim.time }, e));
+        else if (e.type === 'message') log.messages++;
+        else if (e.type === 'mission' || e.type === 'superweapon') log.events.push(Object.assign({ t: sim.time }, e));
+      }
+      if (driver) driver(sim);
+      if (sim.tick % 20 === 0) { const bad = missionInvariants(sim); if (bad) { log.error = `t=${sim.time.toFixed(1)} ${bad}`; break; } }
+    }
+  } catch (err) { log.error = `exception at t=${sim.time.toFixed(1)}: ${err.stack}`; }
+  log.sim = sim;
+  return log;
+}
+function missionTests(full) {
+  console.log('\n== missions ==');
+  check(Array.isArray(SF.MISSIONS) && SF.MISSIONS.length === 5, 'five missions');
+  const ids = new Set();
+  for (const M of SF.MISSIONS) {
+    ids.add(M.id);
+    const ok = M.title && M.summary && Array.isArray(M.briefing) && M.briefing.length >= 2 && M.objectives.length && CFG.FACTIONS[M.faction] && CFG.FACTIONS[M.enemyFaction];
+    check(ok, `${M.id} ${M.title}: has title, summary, briefing, objectives and factions`);
+    const sim = new SF.Sim({ mission: M });
+    check(sim.mission && sim.mission.status === 'active' && sim.mission.objectives.length === M.objectives.length, `${M.id}: loads (${sim.mission.objectives.length} objectives)`);
+    check(sim.teams[0].faction === M.faction && sim.teams[1].faction === M.enemyFaction, `${M.id}: player ${M.faction}, enemy ${M.enemyFaction}`);
+    check(sim.map.w === (M.map.size || 64), `${M.id}: ${sim.map.w}×${sim.map.h} map`);
+    for (const ud of [].concat(M.player.buildings || [], M.enemy.buildings || [])) if (ud.tag) check(sim.tagged(ud.tag).length > 0, `${M.id}: tagged building '${ud.tag}' placed`);
+    if (M.player.allow) {
+      const types = sim.options(0).map((o) => o.type);
+      check(types.every((t) => M.player.allow.includes(t)), `${M.id}: options respect the allow list (${types.join(',')})`);
+    }
+    for (const tr of M.triggers) for (const a of tr.do) if (a.objective) for (const id of [].concat(a.objective)) check(M.objectives.some((o) => o.id === id), `${M.id}: trigger reveals a real objective (${id})`);
+    run(sim, 5);
+    const bad = missionInvariants(sim);
+    check(!bad, `${M.id}: runs (${bad || 'ok'})`);
+  }
+  check(ids.size === 5, 'mission ids are unique');
+  frameworkTests();
+  // 1. First Light: the normal AI plays the tutorial
+  {
+    const L = runMission(0, { aiTeams: [0], aiDifficulty: { 0: 'normal' } }, 1500);
+    const s = L.sim;
+    check(!L.error, `m1: ${L.error || 'no errors'}`);
+    check(s.mission.status === 'won', `m1 First Light won by the AI player (${s.mission.status} at ${fmtT(s.time)})`);
+    const order = L.objectives.filter((o) => o.revealed).map((o) => o.id);
+    check(order.join() === 'refinery,harvest,barracks,riflemen,raid,outpost', `m1: objectives revealed step by step (${order.join(',')})`);
+    check(s.tagged('raid').length === 4 && s.tagged('raid').every((e) => e.dead), 'm1: the scripted raid spawned and was beaten');
+    check(L.messages >= 10, `m1: tutorial messages (${L.messages})`);
+    check(s.teams[0].allow.has('rocketeer'), 'm1: rocketeers unlocked by a trigger');
+    console.log(`    m1: won at ${fmtT(s.time)}, ${L.messages} messages`);
+  }
+  // 2. Hold the Ridge: a defensive AI holds for eight minutes
+  {
+    const L = runMission(1, { aiTeams: [0], aiDifficulty: { 0: 'normal' } }, 700, (sim) => { if (sim.tick === 1) sim.ais[0].passive = true; });
+    const s = L.sim;
+    check(!L.error, `m2: ${L.error || 'no errors'}`);
+    check(s.mission.status === 'won' && s.time >= 480, `m2 Hold the Ridge won by the AI player (${s.mission.status} at ${fmtT(s.time)})`);
+    const waves = [...s._tags.keys()].filter((k) => k.startsWith('wave'));
+    check(waves.length === 11, `m2: all 11 waves spawned (${waves.length})`);
+    const spawned = waves.reduce((a, k) => a + s.tagged(k).length, 0), killed = waves.reduce((a, k) => a + s.tagged(k).filter((e) => e.dead).length, 0);
+    const lostB = s.teams[0].stats.buildingsLost;
+    console.log(`    m2: won at ${fmtT(s.time)}; ${killed}/${spawned} attackers killed; player lost ${lostB} buildings, ${s.teams[0].stats.unitsLost} units`);
+    check(s.teams[0].stats.unitsLost >= 5, `m2: the waves are a real threat (player lost ${s.teams[0].stats.unitsLost} units)`);
+  }
+  // 3. Ghost Protocol: a scripted route
+  {
+    const L = ghostRoute();
+    check(!L.error, `m3: ${L.error || 'no errors'}`);
+    check(L.sim.mission.status === 'won', `m3 Ghost Protocol won by a scripted route (${L.sim.mission.status} at ${fmtT(L.sim.time)}; ${L.note})`);
+    check(L.lowPower, 'm3: destroying the outpost reactors switches the turrets off');
+    check(L.messages >= 8, `m3: mission messages (${L.messages})`);
+  }
+  if (!full) return;
+  // 4. Breakthrough: the AI player reaches a decisive result
+  {
+    const L = runMission(3, { aiTeams: [0, 1], aiDifficulty: { 0: 'hard', 1: 'normal' } }, 3000);
+    const s = L.sim;
+    check(!L.error, `m4: ${L.error || 'no errors'}`);
+    const up = s.mission.objectives.find((o) => o.id === 'uplink');
+    const fired = L.events.filter((e) => e.type === 'superweapon' && e.phase === 'warn' && e.team === 1).length;
+    console.log(`    m4: ${s.mission.status} at ${fmtT(s.time)}; uplink objective ${up.done ? 'done' : up.failed ? 'failed' : 'open'}; enemy strikes ${fired}`);
+    check(s.mission.status !== 'active', `m4 Breakthrough reaches a decisive result (${s.mission.status} at ${fmtT(s.time)})`);
+    check(up.done || up.failed || s.mission.status !== 'active', 'm4: the uplink objective resolves');
+  }
+  // 5. Shardfall: the AI player beats the hard AI on the large map
+  {
+    const L = runMission(4, { aiTeams: [0, 1], aiDifficulty: { 0: 'hard', 1: 'hard' } }, 3600);
+    const s = L.sim;
+    check(!L.error, `m5: ${L.error || 'no errors'}`);
+    const strikes = [0, 1].map((t) => L.events.filter((e) => e.type === 'superweapon' && e.phase === 'warn' && e.team === t).length);
+    console.log(`    m5: ${s.mission.status} at ${fmtT(s.time)}; strikes player ${strikes[0]} enemy ${strikes[1]}; units built ${s.teams[0].stats.unitsBuilt}/${s.teams[1].stats.unitsBuilt}`);
+    check(s.mission.status === 'won', `m5 Shardfall won by the AI player (${s.mission.status} at ${fmtT(s.time)})`);
+    check(s.map.w === 80, 'm5: large 80×80 map');
+  }
+}
+// Mission framework on a small synthetic mission: every trigger kind, objective kind and end condition.
+function frameworkTests() {
+  const M = {
+    id: 'test', title: 'Test', faction: 'vanguard', enemyFaction: 'hegemony', summary: 's', briefing: ['a', 'b'],
+    map: { seed: 77, size: 48, clear: [{ x: 24, z: 24, r: 3 }] },
+    player: { credits: 1234, start: true, allow: ['reactor', 'barracks', 'rifleman'], units: [{ type: 'tank', x: 20, z: 30, tag: 'vip' }] },
+    enemy: { credits: 0, ai: null, start: false, buildings: [{ type: 'reactor', tx: 30, tz: 12, tag: 'target' }], units: [{ type: 'trooper', count: 2, x: 34, z: 14, tag: 'guards' }] },
+    objectives: [
+      { id: 'a', text: 'Build a reactor', kind: 'build', type: 'reactor' },
+      { id: 'b', text: 'Reach the middle', kind: 'reach', area: { x: 24, z: 24, r: 2 }, hidden: true },
+      { id: 'c', text: 'Kill the target', kind: 'destroy', tag: 'target', hidden: true },
+      { id: 'd', text: 'Keep the VIP alive', kind: 'protect', tag: 'vip', optional: true },
+      { id: 'e', text: 'Survive 5 s', kind: 'survive', seconds: 5, hidden: true },
+    ],
+    triggers: [
+      { at: 0.5, do: [{ message: { from: 'X', text: 'hello' } }] },
+      { at: { objective: 'a' }, do: [{ objective: 'b' }, { credits: { team: 'player', amount: 100 } }] },
+      { at: { area: { x: 24, z: 24, r: 2 }, team: 'player' }, do: [{ reveal: { x: 30, z: 12, r: 4 } }, { allow: { team: 'player', add: ['rocketeer'] } }] },
+      { at: { objective: 'b' }, delay: 1, do: [{ objective: 'c' }] },
+      { at: 2, every: 1, count: 3, do: [{ message: { from: 'Y', text: 'tick' } }] },
+      { at: { destroyed: 'target' }, do: [{ objective: 'e' }, { spawn: { team: 'enemy', units: ['skimmer'], at: { x: 40, z: 40 }, attackMove: 'base', tag: 'late' } }] },
+    ],
+    win: 'objectives', lose: ['noBuildings', { protect: 'vip' }],
+  };
+  const sim = new SF.Sim({ mission: M });
+  const tm = sim.teams[0];
+  check(tm.credits === 1234 && sim.teams[1].credits === 0, 'framework: mission credits');
+  check(sim.options(0).map((o) => o.type).join() === 'reactor,barracks,rifleman', 'framework: allow list filters options');
+  check(sim.command(0, { type: 'queue', item: 'refinery' }) === false, 'framework: cannot queue what the mission does not allow');
+  check(!ents(sim, (e) => e.team === 1 && e.type === 'core').length && sim.tagged('guards').length === 2, 'framework: enemy without a start base, with its scripted units');
+  check(sim.mission.objectives.filter((o) => o.hidden).length === 3, 'framework: hidden objectives');
+  const all = [];
+  const go = (secs) => { const e = evs(sim, secs); all.push(...e); return e; };
+  go(1);
+  check(all.some((e) => e.type === 'message' && e.from === 'X' && e.text === 'hello'), 'framework: timed message');
+  buildNow(sim, 0, 'reactor');
+  go(0.5);
+  check(sim.mission.objectives[0].done && all.some((e) => e.type === 'objective' && e.id === 'a' && e.done), "framework: 'build' objective completes (objective event)");
+  check(!sim.mission.objectives[1].hidden && all.some((e) => e.type === 'objective' && e.id === 'b' && e.revealed), 'framework: objective trigger reveals the next objective');
+  check(Math.abs(tm.credits - (1234 + 100 - 0)) < 1e-6 || tm.credits > 1234 - 300 + 99, 'framework: credits action');
+  check(all.filter((e) => e.type === 'message' && e.from === 'Y').length >= 1, "framework: 'every' trigger");
+  const vip = sim.tagged('vip')[0];
+  sim.command(0, { type: 'move', ids: [vip.id], x: 24, z: 24 });
+  for (let i = 0; i < 20 * 30 && !sim.mission.objectives[1].done; i++) { sim.step(); all.push(...sim.drainEvents()); }
+  check(sim.mission.objectives[1].done, "framework: 'reach' objective");
+  check(tm.allow.has('rocketeer') && tm.vis[12 * sim.map.w + 30] >= 1, 'framework: area trigger (reveal + allow actions)');
+  go(0.6);
+  check(sim.mission.objectives[2].hidden, "framework: 'delay' holds a trigger back");
+  go(0.8);
+  check(!sim.mission.objectives[2].hidden, 'framework: delayed trigger fires');
+  check(all.filter((e) => e.type === 'message' && e.from === 'Y').length === 3, "framework: 'every' trigger stops after 'count'");
+  sim._damage(sim.tagged('target')[0], 1e6, 0, 0);
+  go(0.5);
+  check(sim.mission.objectives[2].done && sim.mission.objectives[2].progress === '1/1', "framework: 'destroy' objective");
+  check(sim.tagged('late').length === 1 && sim.tagged('late')[0]._hunt, 'framework: spawn action (hunting the base)');
+  check(!sim.mission.objectives[4].hidden && /^0:0[0-5]$/.test(sim.mission.objectives[4].progress), `framework: 'survive' shows a countdown (${sim.mission.objectives[4].progress})`);
+  check(sim.mission.status === 'active', 'framework: not won while an objective is open');
+  sim._damage(sim.tagged('late')[0], 1e6, 0, 0);
+  go(5.5);
+  check(sim.mission.status === 'won' && sim.winner === 0 && all.some((e) => e.type === 'mission' && e.status === 'won') && all.some((e) => e.type === 'gameover' && e.winner === 0), `framework: all objectives → won (mission + gameover events) (${sim.mission.status})`);
+  check(sim.mission.objectives[3].done, 'framework: a kept protect objective counts as done on victory');
+  // losing: protect target dies
+  const s2 = new SF.Sim({ mission: M });
+  s2._damage(s2.tagged('vip')[0], 1e6, 0, 1);
+  const e2 = evs(s2, 0.5);
+  check(s2.mission.status === 'lost' && s2.winner === 1 && e2.some((e) => e.type === 'mission' && e.status === 'lost'), 'framework: losing a protected unit loses the mission');
+  check(s2.mission.objectives[3].failed, 'framework: protect objective failed');
+  check(s2.command(0, { type: 'queue', item: 'reactor' }) === false, 'framework: no commands after defeat');
+  // losing: no buildings
+  const s3 = new SF.Sim({ mission: M });
+  for (const b of ents(s3, (e) => e.team === 0 && e.kind === 'building')) s3._damage(b, 1e6, 0, 1);
+  evs(s3, 0.5);
+  check(s3.mission.status === 'lost' && /base/.test(s3.mission.reason), `framework: no buildings → lost (${s3.mission.reason})`);
+  // map clear
+  check(s3.map.tiles[24 * s3.map.w + 24] !== 1 && s3.map.tiles[23 * s3.map.w + 25] !== 1, 'framework: map.clear opens rock');
+  // skirmish has no mission
+  check(newSim().mission === null, 'skirmish: sim.mission is null');
+}
+// Mission 3 by a scripted route: sneak in cloaked, cut each outpost's reactor, clear the guards, kill the array.
+function ghostRoute() {
+  const L = { messages: 0, error: null, lowPower: false, note: '' };
+  const sim = new SF.Sim({ mission: SF.MISSIONS[2] });
+  L.sim = sim;
+  const ghosts = () => sim.tagged('ghost').filter((u) => !u.dead);
+  const gids = () => ghosts().map((u) => u.id);
+  const step = (n) => {
+    for (let i = 0; i < n; i++) {
+      sim.step();
+      for (const e of sim.drainEvents()) if (e.type === 'message') L.messages++;
+      if (sim.teams[1].lowPower) L.lowPower = true;
+      if (sim.mission.status !== 'active') return false;
+    }
+    return true;
+  };
+  const go = (x, z) => {
+    if (!sim.command(0, { type: 'move', ids: gids(), x, z })) return;
+    const t0 = sim.time;
+    while (sim.time - t0 < 120 && step(10) && ghosts().some((u) => u._path || u._need));
+  };
+  // walk toward (x, z) until done() (e.g. the target comes into sight), then halt
+  const approach = (x, z, done) => {
+    if (!sim.command(0, { type: 'move', ids: gids(), x, z })) return;
+    const t0 = sim.time;
+    while (sim.time - t0 < 60 && !done() && step(5) && ghosts().some((u) => u._path || u._need));
+    sim.command(0, { type: 'stop', ids: gids() });
+  };
+  const attack = (t) => {
+    if (t && !t.dead && !sim.isKnown(0, t)) approach(t.x, t.z, () => sim.isKnown(0, t));
+    if (!t || t.dead || !sim.command(0, { type: 'attack', ids: gids(), targetId: t.id })) return;
+    const t0 = sim.time;
+    while (!t.dead && sim.time - t0 < 90 && step(5));
+  };
+  const foesNear = (x, z, r) => ents(sim, (e) => !e.dead && e.team === 1 && e.kind === 'unit' && Math.hypot(e.x - x, e.z - z) <= r && sim.isVisible(0, e));
+  const clear = (x, z, r) => {
+    approach(x, z, () => foesNear(x, z, r).length > 0);
+    for (let k = 0; k < 12; k++) {
+      const g = ghosts()[0];
+      if (!g) return;
+      const foes = foesNear(x, z, r);
+      if (!foes.length) return;
+      foes.sort((a, b) => Math.hypot(a.x - g.x, a.z - g.z) - Math.hypot(b.x - g.x, b.z - g.z));
+      attack(foes[0]);
+    }
+  };
+  const tag = (t) => sim.tagged(t).find((e) => !e.dead);
+  const route = [
+    ['go', 16, 52], ['go', 18, 40], ['go', 28, 37], ['go', 34.5, 41], ['kill', 'commsAPower'], ['clear', 29, 47, 7], ['kill', 'commsA'],
+    ['go', 38, 30], ['go', 48, 22], ['go', 57.5, 25.5], ['kill', 'commsBPower'], ['clear', 50, 32, 8], ['kill', 'commsB'],
+    ['go', 52, 18], ['go', 44, 6], ['kill', 'commsCPower'], ['clear', 33, 11, 8], ['kill', 'commsC'],
+    ['go', 24, 17], ['go', 5, 5],
+  ];
+  try {
+    for (const r of route) {
+      if (sim.mission.status !== 'active') break;
+      if (r[0] === 'go') go(r[1], r[2]);
+      else if (r[0] === 'clear') clear(r[1], r[2], r[3]);
+      else attack(tag(r[1]));
+    }
+    step(100);
+  } catch (err) { L.error = err.stack; }
+  L.note = `${ghosts().length} phantoms left`;
+  return L;
+}
+
+// Vanguard vs Hegemony: the factions swap sides every game, so map side and faction are not confounded.
+function factionTest(diff, games, cap, minShare) {
+  console.log(`\n== Vanguard vs Hegemony at ${diff} (sides alternate) ==`);
+  const wins = { vanguard: 0, hegemony: 0 }, t0 = [0, 0];
+  let done = 0, len = 0;
+  for (let g = 0; g < games; g++) {
+    const facs = g % 2 ? ['hegemony', 'vanguard'] : ['vanguard', 'hegemony'];
+    const r = playGame(5000 + g * 7, [diff, diff], cap, facs);
+    check(!r.error, r.error || 'ok');
+    if (r.winner !== null) { wins[r.factions[r.winner]]++; done++; len += r.time; t0[r.winner]++; }
+    const s = r.stats;
+    console.log(`    seed ${r.seed}: T0 ${facs[0]} (${r.ais[0].style}) vs T1 ${facs[1]} (${r.ais[1].style}): ${r.winner === null ? 'timeout' : r.factions[r.winner] + ' wins'} at ${fmtT(r.time)}; peak ${r.ais[0].peak}/${r.ais[1].peak}; harvested ${Math.round(s[0].creditsHarvested)}/${Math.round(s[1].creditsHarvested)}; kills ${s[0].kills}/${s[1].kills}; raids ${r.ais[0].raids}/${r.ais[1].raids}; strikes ${r.ais[0].supers}/${r.ais[1].supers}`);
+  }
+  console.log(`    Vanguard ${wins.vanguard} / Hegemony ${wins.hegemony}, timeouts ${games - done}; by side T0 ${t0[0]} / T1 ${t0[1]}; average length ${fmtT(done ? len / done : 0)}`);
+  check(done >= Math.ceil(games * 0.5), `${diff}: faction games end with a winner (${done}/${games})`);
+  check(Math.min(wins.vanguard, wins.hegemony) >= Math.floor(done * minShare), `${diff}: factions are balanced (Vanguard ${wins.vanguard} / Hegemony ${wins.hegemony})`);
+  return wins;
+}
+
+// ---------------------------------------------------------------------------------------------
 const only = arg('--only');
 const cap = +arg('--cap', 1800);
 const games = +arg('--games', 8);
 const diffs = arg('--diff') ? [arg('--diff')] : ['easy', 'normal', 'hard'];
 const t0 = Date.now();
 if (!only || only === 'commands') commandTests();
+if (!only || only === 'phase2') { factionTests(); weaponTests(); cloakTests(); superTests(); }
+if (!only || only === 'missions' || only === 'missions-quick') missionTests(only !== 'missions-quick');
 if (!only || only === 'perf') perfTest();
 if (!only || only === 'games') gamesTest(diffs, games, cap);
 if (!only || only === 'mixed') mixedTest(Math.max(4, Math.round(games / 2)), cap);
+if (!only || only === 'factions') {
+  factionTest('normal', +arg('--fgames', 16), cap, 0.3);
+  if (!arg('--diff')) factionTest('hard', Math.max(4, Math.round(+arg('--fgames', 16) / 2)), cap, 0.2);
+}
 console.log(`\n${passes} passed, ${failures} failed (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
 process.exit(failures ? 1 : 0);
