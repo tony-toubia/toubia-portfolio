@@ -3,7 +3,7 @@
 // The map is point-symmetric (180° rotation about the centre), so both players get exactly the same
 // terrain: tile (x, z) mirrors to (W-1-x, H-1-z). Team 0 starts bottom-left (low x, high z), team 1 top-right.
 // Layout: each base has two home shard fields (each with a spire that regrows the tiles next to it), an
-// expansion field on its own flank, two corner fields equidistant from both bases, and one large contested
+// expansion field on its own flank (also with a spire), two corner fields equidistant from both bases, and one large contested
 // field in the centre with two spires.
 // Two long ridges with gaps split the map into a centre lane and two flank lanes; a pair of boulders in front
 // of each base makes a chokepoint; random rock clusters add cover. The whole map is flood-checked so every
@@ -78,8 +78,8 @@
             if (mirror) fields.push({ x: W - fx, z: H - fz, r });
         }
         // Two identical home fields (clean discs), each with a spire: one north of the base, one east of it on the
-        // edge. Docks face away from each team's map edge (the sim turns team 1's buildings 180°), so the layout
-        // plays the same for both sides.
+        // edge. The sim turns team 1's buildings 180° (team 0's doors and docks face +Z, team 1's face -Z), so
+        // with this point-symmetric layout both sides get exactly the same base.
         stampField(cA.x, cA.z - 11 * k, 2.6, false, true, 0);
         addSpire(cA.x, cA.z - 11 * k);
         stampField(cA.x + 11 * k, H - 3.5, 2.6, false, true, 0);
