@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>StudForge | 3D LEGO® Blueprint & Idea Maker</title>
-    <link rel="stylesheet" href="css/style.css?v=7">
+    <link rel="stylesheet" href="css/style.css?v=8">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -25,12 +25,13 @@
                 <span class="brand-sub">3D LEGO® IDEA MAKER</span>
             </div>
         </div>
+        <button class="nav-btn lib-back" id="btn-library" type="button" aria-label="Back to the kit library" title="Back to the kit library"><span class="nb-ico">←</span><span class="lib-label">LIBRARY</span></button>
         <button class="model-summary" id="model-summary" type="button" title="About this model">
-            <span id="model-title" class="summary-name">Apollo Micro Rocket</span>
+            <span id="model-title" class="summary-name">Loading kit…</span>
             <span class="summary-meta"><span id="model-piece-count">0 pcs</span><span class="dot">·</span><span id="model-step-count">0 steps</span><span id="summary-slot"></span></span>
         </button>
         <div class="nav-spacer"></div>
-        <button class="nav-btn primary" id="btn-library" type="button" aria-label="Browse library" title="Browse all kits and your builds"><span class="nb-ico">🧱</span><span class="library-wide">BROWSE KITS</span><span class="library-phone">LIBRARY</span></button>
+        <button class="nav-btn primary" id="btn-to-kit" type="button" title="Back to the kit you were building" hidden><span class="to-kit-wide">BACK TO KIT</span><span class="to-kit-phone">KIT</span><span class="nb-ico">→</span></button>
         <div class="nav-actions" id="head-actions"></div>
         <div class="sf-menu" id="share-menu">
             <button class="nav-btn" id="btn-share-menu" type="button" aria-haspopup="true" aria-expanded="false" title="Share this build"><span class="nb-ico">↗</span><span class="nb-label">SHARE</span><span class="car">▾</span></button>
@@ -47,6 +48,30 @@
         </div>
         <a href="/" target="_top" class="back-to-home" id="btn-back-home-wide">← PORTFOLIO</a>
     </header>
+
+    <!-- Home: the kit library, shown on every visit without a share link. reference.js fills #home-library. -->
+    <section class="sf-home" id="sf-home" aria-label="Kit library" hidden>
+        <div class="home-scroll" id="home-scroll">
+            <div class="home-wrap">
+                <div class="home-hero">
+                    <div class="home-intro">
+                        <span class="home-kicker"><span class="hk-dot"></span>KIT LIBRARY</span>
+                        <h2 class="home-title">Pick a kit to build</h2>
+                        <p class="home-sub">Real LEGO® sets rebuilt part for part, starter ideas and your own builds.<span class="hs-more"> Open one in 3D, explode it, lay out its parts and build it step by step.</span></p>
+                    </div>
+                    <form class="home-make" id="home-make" autocomplete="off">
+                        <div class="home-make-top"><label class="home-make-h" for="home-prompt"><span>✨</span> OR MAKE YOUR OWN</label><button type="button" class="home-more" id="home-more">More ways<span class="hm-wide">: AI designer, mosaic</span> <span aria-hidden="true">→</span></button></div>
+                        <div class="home-make-row">
+                            <input type="text" id="home-prompt" placeholder="Describe an idea: a red dragon, a cozy bakery…" spellcheck="false" enterkeyhint="go" aria-label="Describe a LEGO idea to forge">
+                            <button type="submit" class="forge-btn" id="home-forge"><span>⚡</span><span class="hf-label">FORGE</span></button>
+                            <button type="button" class="forge-btn surprise" id="home-surprise" title="Surprise me: a random idea" aria-label="Surprise me">🎲</button>
+                        </div>
+                    </form>
+                </div>
+                <div id="home-library" class="home-library"></div>
+            </div>
+        </div>
+    </section>
 
     <!-- Make: one bar with every way to start a model. On phones it becomes the full-height Make sheet. -->
     <section class="create-bar" id="create-bar" aria-label="Make a model">
@@ -106,19 +131,14 @@
                             <button id="btn-cam-side" class="sf-menu-item" type="button">SIDE</button>
                         </div>
                     </div>
-                    <div class="sf-menu" id="explode-menu">
-                        <button class="cam-btn" id="btn-explode" type="button" aria-haspopup="true" aria-expanded="false" title="Explode the layers (E)"><span class="vc-ico">💥</span><span class="vc-label">EXPLODE</span></button>
-                        <div class="sf-menu-list right explode-pop" id="explode-pop">
-                            <div class="tool-label-row"><span class="tool-name">EXPLODED LAYER VIEW</span><span id="val-explode" class="tool-val">0%</span></div>
-                            <input type="range" id="slider-explode" min="0" max="1" step="0.02" value="0" class="tech-slider" aria-label="Explode layers" />
-                        </div>
-                    </div>
                     <!-- Features add view tools here (spin, by-type tray...) -->
                     <div id="viewport-widgets" class="viewport-widgets"></div>
                     <button id="btn-cam-reset" class="cam-btn" type="button" title="Reset the camera (R)"><span class="vc-ico">⌖</span><span class="vc-label">RESET</span></button>
                 </div>
 
-                <!-- One step scrubber, synced with the Build tab -->
+                <!-- The control dock: the step scrubber (synced with the Build tab) and the explode slider, always in view.
+                     On phones the view cluster above moves into its tools row (camera views, parts layout, spin, reset). -->
+                <div class="ctl-dock" id="ctl-dock">
                 <div class="step-scrub" id="step-scrub">
                     <button id="btn-prev-step" class="step-btn" type="button" title="Previous step (←)" aria-label="Previous step">◀</button>
                     <button id="btn-play-step" class="step-btn play" type="button" title="Play the build" aria-label="Play the build">▶︎</button>
@@ -126,6 +146,20 @@
                     <input type="range" id="slider-step" min="0" max="1" step="1" value="1" class="tech-slider" aria-label="Build step" />
                     <span id="val-step-hint" class="tool-hint"></span>
                     <button id="btn-next-step" class="step-btn" type="button" title="Next step (→)" aria-label="Next step">▶</button>
+                </div>
+                <div class="dock-explode" id="dock-explode" title="Explode the layers (E)">
+                    <label class="dk-label" for="slider-explode"><span class="vc-ico">💥</span><span>EXPLODE</span></label>
+                    <input type="range" id="slider-explode" min="0" max="1" step="0.02" value="0" class="tech-slider" aria-label="Explode layers" />
+                    <span id="val-explode" class="tool-val">0%</span>
+                </div>
+                <div class="dock-tools" id="dock-tools">
+                    <div class="view-seg" id="view-seg" role="group" aria-label="Camera views">
+                        <button type="button" data-view="iso" title="Three-quarter view">ISO</button>
+                        <button type="button" data-view="front" title="Front view">FRONT</button>
+                        <button type="button" data-view="top" title="Plan view">TOP</button>
+                        <button type="button" data-view="side" title="Side view">SIDE</button>
+                    </div>
+                </div>
                 </div>
 
                 <div class="viewport-hint">Drag to rotate · scroll or pinch to zoom · two fingers or right-drag to pan</div>
@@ -192,6 +226,7 @@
 
     <!-- Phones: Make plus the four workbench tabs -->
     <nav class="tabbar" id="tabbar" aria-label="StudForge">
+        <button class="tb lib" data-tab="library" type="button"><i>▦</i><span>LIBRARY</span></button>
         <button class="tb make" data-tab="make" type="button"><i>＋</i><span>MAKE</span></button>
         <button class="tb on" data-tab="build" type="button"><i>🔨</i><span>BUILD</span></button>
         <button class="tb" data-tab="parts" type="button"><i>🧱</i><span>PARTS</span></button>
@@ -207,7 +242,7 @@
     <!-- Modular App Scripts -->
     <script src="js/colors.js?v=3"></script>
     <script src="js/ldraw-palette.js?v=3"></script>
-    <script src="js/library-core.js?v=3"></script>
+    <script src="js/library-core.js?v=4"></script>
     <script src="js/articulation-core.js?v=4"></script>
     <script src="js/parts-catalog.js?v=4"></script>
     <script src="js/brick-builder.js?v=8"></script>
@@ -222,13 +257,13 @@
     <script src="js/construction.js?v=1"></script>
     <script src="js/generator.js?v=8"></script>
     <script src="js/audio.js?v=2"></script>
-    <script src="js/viewer.js?v=11"></script>
-    <script src="js/main.js?v=11"></script>
+    <script src="js/viewer.js?v=12"></script>
+    <script src="js/main.js?v=12"></script>
     <!-- Feature modules register themselves with window.studForge; load them after main.js -->
     <div id="feature-scripts">
     <script src="js/ai-gate.js?v=3"></script>
     <script src="js/parts-tray-core.js?v=1"></script>
-    <script src="js/studio.js?v=8"></script>
+    <script src="js/studio.js?v=9"></script>
     <script src="js/articulation.js?v=5"></script>
     <script src="js/buy.js?v=5"></script>
     <script src="js/gallery.js?v=5"></script>
@@ -238,8 +273,8 @@
     <script src="js/mosaic.js?v=2"></script>
     <script src="js/omr.js?v=6"></script>
     <script src="js/realsets.js?v=5"></script>
-    <script src="js/reference.js?v=11"></script>
-    <script src="js/library-progress.js?v=3"></script>
+    <script src="js/reference.js?v=12"></script>
+    <script src="js/library-progress.js?v=4"></script>
     <script src="js/tweaks.js?v=3"></script>
     </div>
 </body>

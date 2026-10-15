@@ -1,11 +1,15 @@
 // StudForge core: forging, the parts list, the canvas controls, the app shell, and the small
 // platform feature modules plug into.
 //
-// The shell has two places plus the canvas:
+// The shell has a home screen, two places, and the canvas:
+//   HOME       the kit library, full screen. Every visit without a share link opens on it; picking a kit (or forging
+//              an idea from its "make your own" card) opens the kit view. ← LIBRARY in the header and the phone tab
+//              bar's LIBRARY tab come back to it. Nothing is forged behind it: the viewer sleeps while it shows.
 //   MAKE       the create bar (desktop) / the Make sheet (phones): the prompt, the engine picker, suggestions,
 //              and the "start from" sources (the library and mosaics) features add.
 //   WORKBENCH  four tabs about the current model: build, parts, style, learn. Features add sections to them.
-//   CANVAS     view tools (views, explode, reset, plus features' widgets) and one step scrubber.
+//   CANVAS     view tools (views, reset, plus features' widgets) and the control dock: the step scrubber and the
+//              explode slider, always in view. On phones the view tools join the dock as a labelled row.
 //
 // Features (instructions, tweaks, gallery, studio, buying help, the AI idea service...) live in their own
 // files, loaded after this one. They use:
@@ -21,8 +25,11 @@
 //                                            parts list is 50, the build tab's model header is 0). Returns { body, section, show }.
 //   studForge.showPanel(id)                  open a tab ('build'...) or the tab holding section `id`, scrolled to it;
 //                                            also 'make' or a source id
-//   studForge.addSource({ id, icon, label, hint, order, render(el) })
+//   studForge.addSource({ id, icon, label, hint, order, render(el), open })
 //                                            a "start from" source in Make (library, mosaic). Returns { body, show }.
+//                                            With `open`, picking it calls open() instead of showing a panel in Make.
+//   studForge.openHome() / .closeHome()      show / leave the home screen (the kit library); .isHome; #home-library
+//                                            is where the library renders; 'home' event (open?)
 //   studForge.showSource(id) / .closeMake()  open Make on a source's panel / close Make
 //   studForge.registerEngine({ id, icon, label, hint, order })
 //                                            a choice in the engine picker (the core has 'quick'). Returns { setLocked(bool) }.
@@ -30,7 +37,7 @@
 //   studForge.shareItem({ id, icon, label, hint, order, onClick })   an item in the header Share menu
 //   studForge.headerAction(el)               a button in the header next to Share (Save)
 //   studForge.summarySlot(el)                an extra bit of the header's model summary (the price)
-//   studForge.widget(el)                     a view tool on the canvas (spin, by-type tray)
+//   studForge.widget(el)                     a view tool on the canvas (spin, parts layout); on phones it joins the dock
 //   studForge.dock(el)                       legacy: an item in the ⋯ menu
 //   studForge.toast(text)                    a short status message
 //   studForge.isPhone()                      the phone layout is showing
@@ -63,6 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const explodeSlider = $('slider-explode'), explodeVal = $('val-explode'), stepSlider = $('slider-step'), stepVal = $('val-step'), stepHint = $('val-step-hint');
     const bomTableBody = $('bom-table-body');
     const body = document.body;
+    body.classList.add('no-model');   // until the first model shows: the kit-only controls stay hidden
 
     const SURPRISES = ['haunted lighthouse', 'giant purple octopus', 'cozy bakery with a garden', 'steampunk airship', 'neon cyberpunk arcade cabinet', 'red fire truck', 'medieval watchtower', 'tropical island with a hut', 'green t-rex', 'white space shuttle', 'pink cupcake', 'a knight with a shield', 'winter cabin in the snow', 'yellow school bus', 'blue whale', 'royal throne', 'pirate galleon', 'desert pyramid', 'moon lander', 'orange tractor', 'christmas tree', 'black police car', 'a cat', 'volcano', 'retro flying saucer', 'golden trophy', 'bonsai tree', 'tie fighter', 'a cheeseburger', 'pagoda shrine'];
 
@@ -84,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let toastTimer = 0;
     const toast = (text, ms = 2200) => { const t = $('sf-toast'); t.textContent = text; t.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), ms); };
 
-    /* ── menus (Share, ⋯, source, engine, view, explode) ──────── */
+    /* ── menus (Share, ⋯, source, engine, view) ──────────────── */
     const menus = [...document.querySelectorAll('.sf-menu')];
     const closeMenus = (except) => { for (const m of menus) if (m !== except && m.classList.contains('open')) { m.classList.remove('open'); const b = m.querySelector(':scope > button'); if (b) b.setAttribute('aria-expanded', 'false'); } };
     for (const m of menus) {
@@ -112,9 +120,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Phones: the workbench is a bottom sheet with three heights. Tablets: a drawer over the canvas.
     let sheet = 'peek';
+    let homeOpen = false;
     const setSheet = (s) => {
         sheet = s; body.dataset.sheet = s;
-        for (const b of document.querySelectorAll('#tabbar .tb')) b.classList.toggle('on', b.dataset.tab === (body.classList.contains('make-open') ? 'make' : s === 'peek' ? '' : currentTab));
+        for (const b of document.querySelectorAll('#tabbar .tb')) b.classList.toggle('on', b.dataset.tab === (homeOpen ? 'library' : body.classList.contains('make-open') ? 'make' : s === 'peek' ? '' : currentTab));
+        requestAnimationFrame(updateDockCover);
     };
     const setBenchOpen = (open) => { body.classList.toggle('bench-open', open); };
 
@@ -199,6 +209,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     function openMake(source) {
         closeMenus();
+        if (homeOpen) closeHome();
+        if (!currentModel) modelTitle.innerText = 'Make something';
         if (isPhone()) { body.classList.add('make-open'); setSheet(sheet); }
         setSource(source || null);
         openCreatePop();
@@ -211,9 +223,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (activeSource) setSource(null);
         if (isPhone()) setSheet(sheet);
         if (was) emit('make', false);
+        // Nothing to look at yet (Make opened from the home screen and closed without forging): back home.
+        if (was) setTimeout(() => { if (!currentModel && !homeOpen && !makeIsOpen() && !kitPending()) openHome(); }, 0);
     }
-    const showSource = (id) => openMake(id);
-    const addSource = ({ id, icon = '•', label, hint = '', order = 100, render }) => {
+    const showSource = (id) => { if (sources[id] && sources[id].open) { closeMake(); sources[id].open(); return; } openMake(id); };
+    const addSource = ({ id, icon = '•', label, hint = '', order = 100, render, open }) => {
         const b = el('div', 'source-body'); b.dataset.source = id; b.hidden = true;
         $('cp-source-body').appendChild(b);
         const tile = el('button', 'start-tile', `<span class="st-ico">${icon}</span><span class="st-label">${esc(label)}</span>${hint ? `<small>${esc(hint)}</small>` : ''}`); tile.type = 'button';
@@ -222,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const item = menuItem({ icon, label, hint }); item.type = 'button';
         item.addEventListener('click', () => showSource(id));
         insertOrdered($('source-list'), item, order);
-        sources[id] = { id, icon, label, body: b };
+        sources[id] = { id, icon, label, body: b, open };
         if (render) render(b);
         return { body: b, show: () => showSource(id) };
     };
@@ -309,7 +323,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function loadBlueprint(model) {
         stopPlay();
+        if (homeOpen) closeHome();
         currentModel = model;
+        body.classList.remove('no-model');
         viewer.loadModel(model);
         modelTitle.innerText = model.name;
         modelDesc.innerText = model.description;
@@ -409,7 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
         explodeSlider.value = val;
         explodeVal.innerText = `${Math.round(val * 100)}%`;
         explodeSlider.style.setProperty('--fill', `${val * 100}%`);
-        $('btn-explode').classList.toggle('on', val > 0);
+        $('dock-explode').classList.toggle('on', val > 0);
         viewer.setExplode(val);
         if (user) { window.studForgeAudio.playRatchetClick(); emit('explode', val); }
     }
@@ -435,6 +451,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     for (const v of ['iso', 'front', 'top', 'side']) $(`btn-cam-${v}`).addEventListener('click', () => viewer.setPresetView(v));
+    $('view-seg').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-view]'); if (!b) return;
+        viewer.setPresetView(b.dataset.view);
+        for (const x of $('view-seg').children) x.classList.toggle('on', x === b);
+    });
+    // A preset stays marked until the camera is moved by hand.
+    viewer.renderer.domElement.addEventListener('pointerdown', () => { for (const x of $('view-seg').children) x.classList.remove('on'); });
     $('btn-cam-reset').addEventListener('click', () => viewer.resetView());
     const paintAudio = (muted) => { $('btn-audio').innerHTML = `<span class="mi-ico">${muted ? '🔇' : '🔊'}</span><span class="mi-text">${muted ? 'Sound off' : 'Sound on'}<small>${muted ? 'Click to turn on' : 'Click to mute'}</small></span>`; };
     $('btn-audio').addEventListener('click', () => paintAudio(window.studForgeAudio.toggleMute()));
@@ -444,7 +467,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keydown', (e) => {
         const t = e.target, typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
         if (e.key === 'Escape') { closeMenus(); closeMake(); return; }
-        if (typing || e.metaKey || e.ctrlKey || e.altKey || !currentModel) return;
+        if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+        if (homeOpen) { if (e.key === '/') { e.preventDefault(); $('home-prompt').focus(); } return; }
+        if (!currentModel) return;
         if (e.key === '/') { e.preventDefault(); promptInput.focus(); promptInput.select(); }
         else if (e.key === 'ArrowLeft') { e.preventDefault(); stopPlay(); goStep(viewer.currentStep - 1); }
         else if (e.key === 'ArrowRight') { e.preventDefault(); stopPlay(); nextStep(); }
@@ -456,6 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('tabbar').addEventListener('click', (e) => {
         const b = e.target.closest('.tb'); if (!b) return;
         const tab = b.dataset.tab;
+        if (tab === 'library') { openHome(); return; }
         if (tab === 'make') { if (body.classList.contains('make-open')) closeMake(); else openMake(); return; }
         // Tapping the open tab again drops the sheet back to peek.
         if (!body.classList.contains('make-open') && sheet !== 'peek' && tab === currentTab) { setSheet('peek'); return; }
@@ -488,10 +514,81 @@ document.addEventListener('DOMContentLoaded', () => {
         closeMenus();
         if (!isPhone()) { body.classList.remove('make-open'); }
         if (!isDrawer()) setBenchOpen(false);
+        placeControls();
         setSheet(sheet);
     };
     phoneMQ.addEventListener('change', onLayout);
     drawerMQ.addEventListener('change', onLayout);
+
+    /* ── the control dock: on phones the view tools join it ───── */
+    const cluster = $('view-cluster'), ctlDock = $('ctl-dock'), dockTools = $('dock-tools'), vpCard = $('viewport-card');
+    // How much of the canvas the dock (and, on phones, the sheet's peek line) covers from the bottom; the parts
+    // layout frames itself above it and overlays (the joints hint) sit on top of it.
+    function updateDockCover() {
+        const r = vpCard.getBoundingClientRect(), d = ctlDock.getBoundingClientRect();
+        if (!r.height || !d.height) return;
+        const cover = Math.max(0, Math.round(r.bottom - d.top));
+        viewer.bottomPad = cover + 12;
+        viewer.viewShift = isPhone() ? Math.round(cover / 2) : 0;
+        vpCard.style.setProperty('--dock-cover', `${cover}px`);
+    }
+    const resetBtn = $('btn-cam-reset');
+    function placeControls() {
+        // Phones: the views, parts layout and spin become the dock's tools row, and reset sits by the explode slider.
+        if (isPhone()) {
+            if (cluster.parentElement !== dockTools) dockTools.appendChild(cluster);
+            if (resetBtn.parentElement !== $('dock-explode')) $('dock-explode').appendChild(resetBtn);
+        } else {
+            if (cluster.parentElement !== vpCard) vpCard.insertBefore(cluster, ctlDock);
+            if (resetBtn.parentElement !== cluster) cluster.appendChild(resetBtn);
+        }
+        requestAnimationFrame(updateDockCover);
+    }
+    if (window.ResizeObserver) new ResizeObserver(() => updateDockCover()).observe(ctlDock);
+    placeControls();
+
+    /* ── home: the kit library ────────────────────────────────── */
+    const home = $('sf-home'), homeScroll = $('home-scroll');
+    let homeScrollTop = 0;
+    const paintHomeChrome = () => { $('btn-to-kit').hidden = !(homeOpen && currentModel); };
+    // A share link to a real set is still loading: the kit view waits for it instead of bouncing home.
+    let kitPendingUntil = 0;
+    const kitPending = () => Date.now() < kitPendingUntil;
+    function openHome() {
+        closeMenus();
+        if (makeIsOpen()) { body.classList.remove('make-open'); createBar.classList.remove('pop-open'); if (activeSource) setSource(null); emit('make', false); }
+        stopPlay();
+        homeOpen = true; home.hidden = false; body.classList.add('home-open');
+        homeScroll.scrollTop = homeScrollTop;
+        viewer.paused = true;   // nothing to draw behind the library
+        paintHomeChrome(); setSheet(sheet);
+        document.title = 'Kit library | StudForge';
+        emit('home', true);
+    }
+    function closeHome() {
+        if (!homeOpen) return;
+        homeScrollTop = homeScroll.scrollTop;
+        homeOpen = false; home.hidden = true; body.classList.remove('home-open');
+        viewer.paused = false;
+        if (currentModel) document.title = `${currentModel.name} | StudForge`;
+        paintHomeChrome(); setSheet(sheet); placeControls();
+        emit('home', false);
+    }
+    $('btn-library').addEventListener('click', () => openHome());
+    $('btn-to-kit').addEventListener('click', () => { if (currentModel) closeHome(); });
+    // Make your own, from the home screen: the built-in engine forges at once; Make has the other ways.
+    const homePrompt = $('home-prompt');
+    $('home-make').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const q = homePrompt.value.trim();
+        if (!q) { homePrompt.focus(); return; }
+        homePrompt.blur();
+        promptInput.value = q;
+        forge(q, 0, {});
+        forgeLabel();
+    });
+    $('home-surprise').addEventListener('click', () => { homePrompt.blur(); btnSurprise.click(); });
+    $('home-more').addEventListener('click', () => openMake());
 
     /* ── exports ──────────────────────────────────────────────── */
     $('btn-copy-bom').addEventListener('click', () => {
@@ -527,7 +624,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /* ── the platform object, then start ──────────────────────── */
     window.studForge = {
         viewer, generator, forge, reforge, on, emit, registerPanel, dock, widget, showPanel, showTab, goStep, state,
-        addSource, showSource, openMake, closeMake, registerEngine, setEngine, shareItem, headerAction, summarySlot, toast, isPhone,
+        addSource, showSource, openMake, closeMake, openHome, closeHome, get isHome() { return homeOpen; }, registerEngine, setEngine, shareItem, headerAction, summarySlot, toast, isPhone,
         setExplode: (v) => setExplode(v, { user: true }),
         /** fn(tab) → HTML for the phone sheet's peek line, or null to pass. The first non-null answer wins; all null → the default step line. */
         setPeek(fn) { if (fn && !peekers.includes(fn)) peekers.push(fn); paintPeek(); },
@@ -539,17 +636,22 @@ document.addEventListener('DOMContentLoaded', () => {
     populateInspirations();
     showTab(currentTab, { reveal: false });
     setSheet('peek');
-    const browseOnStart = window.StudForgeLibrary.shouldBrowseOnStart(initialSearch, store.get('studforge.seen'), window.StudForgeLibrary.readState({ getItem: key => store.get(key) }).lastModel);
+    // Every visit opens on the kit library unless the address names a model (a share link).
+    const browseOnStart = window.StudForgeLibrary.shouldBrowseOnStart(initialSearch);
+    const refLink = new URLSearchParams(initialSearch).has('ref');
+    if (refLink) kitPendingUntil = Date.now() + 20000;
     document.dispatchEvent(new CustomEvent('studforge:ready'));
-    // Features may have claimed the first forge (e.g. a share link); otherwise show the first inspiration,
-    // and on a first visit open the suggestions so newcomers see where to start.
+    // Features may have claimed the first model (an idea or local build link forges at once; a real-set link
+    // loads in a moment). Otherwise: the library, with nothing forged behind it.
     if (!currentModel) {
-        const first = window.INSPIRATION_MODELS[0];
-        promptInput.value = first.prompt;
-        forge(first.prompt, 0, {});
-        if (inspoContainer.firstChild) inspoContainer.firstChild.classList.add('active');
-        forgeLabel();
-        if (!store.get('studforge.seen')) store.set('studforge.seen', '1');
-        if (browseOnStart) setTimeout(() => { if (window.studForge.library && !makeIsOpen()) window.studForge.library.browse(); }, 400);
+        if (browseOnStart) openHome();
+        else if (refLink) { modelTitle.innerText = 'Loading kit…'; modelPieceCount.innerText = ''; modelStepCount.innerText = ''; }
+        else {
+            // A link this build cannot open by itself: show the first idea rather than an empty canvas.
+            const first = window.INSPIRATION_MODELS[0];
+            promptInput.value = first.prompt;
+            forge(first.prompt, 0, {});
+            forgeLabel();
+        }
     }
 });

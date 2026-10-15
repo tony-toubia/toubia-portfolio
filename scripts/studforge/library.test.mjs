@@ -65,9 +65,9 @@ test('mixed search intersects labels and finds source, theme, number and prompt 
  assert.equal(core.searchEntries(entries,'',['Real set','Generated']).length,0);
  assert.equal(core.searchEntries(entries,'',['Saved','Generated']).length,1);
 });
-test('first-visit library never overrides a deep link or a locally resumed model',()=>{
- assert.equal(core.shouldBrowseOnStart('?standalone=1',null,null),true);
- for(const search of ['?ref=6285-1','?idea=car&v=1','?mosaic=example'])assert.equal(core.shouldBrowseOnStart(search,null,null),false);
- assert.equal(core.shouldBrowseOnStart('', '1',null),false);
- assert.equal(core.shouldBrowseOnStart('',null,'6285-1'),false);
+test('the library is the home screen on every visit unless a share link names a model',()=>{
+ for(const search of ['','?standalone=1','?t=1&quality=lite'])assert.equal(core.shouldBrowseOnStart(search),true);
+ for(const search of ['?ref=6285-1','?idea=car&v=1','?mosaic=example','?build=abc','?standalone=1&ref=6285-1'])assert.equal(core.shouldBrowseOnStart(search),false);
+ // Earlier visits and a saved last kit no longer skip the library; the last kit is offered there instead.
+ assert.equal(core.shouldBrowseOnStart('', '1','6285-1'),true);
 });

@@ -376,7 +376,7 @@ class StudForgeViewer {
         this.camera.aspect = w / h;
         if (this.activeModel) {
             const tools=this.partsTray?this.container.parentElement?.querySelector('.sfs-tray-tools'):null;
-            const padding=this.partsTray?{height:h,top:tools?.offsetHeight?tools.offsetTop+tools.offsetHeight+12:this.partsViewPadding.top,bottom:72}:null;
+            const padding=this.partsTray?{height:h,top:tools?.offsetHeight?tools.offsetTop+tools.offsetHeight+12:this.partsViewPadding.top,bottom:this.bottomPad||72}:null;
             const radius = this.partsTray ? window.StudForgePartsTray.fitRadius(this.partsWidth,this.partsDepth,this.camera,this.partsHeight || 0,padding) : this.framingRadius();
             this.spherical.radius *= radius / (this.partsTray ? this.partsRadius : this.home.radius);
             if (this.partsTray) {
@@ -391,6 +391,7 @@ class StudForgeViewer {
             this.updateCameraPosition();
         }
         this.camera.far = Math.max(500, (this.partsRadius || this.home.radius) * 4);
+        if (this.appliedShift) this.camera.setViewOffset(w, h, 0, this.appliedShift, w, h);   // the dock shift, at the new size
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(w, h);
     }
@@ -461,6 +462,16 @@ class StudForgeViewer {
 
     animate() {
         requestAnimationFrame(this.animate);
+        if (this.paused) return;   // the home screen covers the canvas
+        // `viewShift` (px, set by the shell on phones): the control dock covers the bottom of the canvas, so the
+        // picture is drawn that much higher to centre the model in what stays visible. Not while the parts tray
+        // is out: it frames itself between its own overlays.
+        const shift = this.partsTray ? 0 : (this.viewShift || 0);
+        if (shift !== (this.appliedShift || 0)) {
+            this.appliedShift = shift;
+            const w = this.container.clientWidth || 1, h = this.container.clientHeight || 1;
+            if (shift) this.camera.setViewOffset(w, h, 0, shift, w, h); else this.camera.clearViewOffset();
+        }
         if (!this.partsTray && !this.poseActive && !this.motionHover && !this.isDragging && this.explodeProgress === 0 && !this.isStepMode) { this.spherical.theta += 0.0018; this.updateCameraPosition(); }
         this.renderer.render(this.scene, this.camera);
     }

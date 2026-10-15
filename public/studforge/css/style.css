@@ -1,6 +1,10 @@
 /* StudForge — 3D LEGO Idea Maker Stylesheet
  *
- * Layout: header (brand, model summary, Save/Share, ⋯) → create bar (Make) → canvas + workbench (4 tabs).
+ * Layout: header (brand, ← LIBRARY, model summary, Save/Share, ⋯) → create bar (Make) → canvas + workbench (4 tabs).
+ *   The home screen (.sf-home, body.home-open) is the kit library, full screen under the header; the create bar,
+ *   the canvas and the phone tab bar stay out of sight while it shows.
+ *   The canvas has a control dock at the bottom: the step scrubber and the explode slider (plus, on phones, a
+ *   labelled row of views, parts layout and spin).
  *   ≥1101px  canvas and a fixed workbench column side by side
  *   768–1100 the workbench is a drawer over the canvas, opened from a rail of tab icons
  *   ≤767px   the canvas fills the screen; the workbench is a bottom sheet (peek / half / full) driven by a
@@ -115,8 +119,11 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 .nav-btn.primary .car { color: rgba(0, 0, 0, 0.55); }
 .nav-btn.primary:hover { filter: brightness(1.08); }
 .nb-ico { font-size: 13px; }
-.library-phone { display: none; }
-#btn-library { white-space: nowrap; }
+.lib-back { background: transparent; border-color: rgba(242, 205, 55, 0.6); color: var(--lego-yellow); flex: none; }
+.lib-back:hover { background: rgba(242, 205, 55, 0.1); }
+.lib-back .nb-ico { font-size: 14px; line-height: 1; }
+.to-kit-phone { display: none; }
+#btn-to-kit .nb-ico { font-size: 14px; line-height: 1; }
 .nav-icon-btn {
     background: var(--bg-card); border: 1px solid var(--border-main); color: var(--text-primary);
     width: 32px; height: 32px; border-radius: 7px; cursor: pointer;
@@ -135,6 +142,48 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 body:not(.in-iframe) .back-to-home { display: inline-flex; }
 body.in-iframe #btn-back-home { display: none; }
 @media (max-width: 1240px) { body:not(.in-iframe) .back-to-home { display: none; } }
+
+/* ── home screen: the kit library ───────────────────────── */
+body.home-open #model-summary, body.home-open #btn-library, body.home-open #head-actions, body.home-open #share-menu { display: none; }
+body.home-open .create-bar, body.home-open .tabbar, body.home-open .bom-card { display: none !important; }
+.sf-home {
+    position: fixed; left: 0; right: 0; top: var(--head-h); bottom: 0; z-index: 28;
+    display: flex; flex-direction: column;
+    background: var(--bg-main);
+}
+.home-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.home-wrap { max-width: 1280px; margin: 0 auto; padding: 30px 24px 44px; }
+.home-hero {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 430px); gap: 32px; align-items: end;
+    padding-bottom: 6px;
+}
+.home-kicker { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-heading); font-size: 10px; font-weight: 800; letter-spacing: 2px; color: var(--lego-yellow); }
+.hk-dot { width: 8px; height: 8px; border-radius: 2px; background: var(--lego-red); box-shadow: 0 0 10px rgba(201, 26, 9, 0.7); }
+.home-title { font-family: var(--font-heading); font-size: 32px; font-weight: 900; letter-spacing: 0.5px; color: #fff; line-height: 1.1; margin: 10px 0 8px; }
+.home-sub { font-size: 16px; font-weight: 500; line-height: 1.45; color: var(--text-secondary); max-width: 600px; }
+.home-make {
+    display: flex; flex-direction: column; gap: 9px;
+    background: linear-gradient(180deg, rgba(25, 32, 46, 0.9), rgba(19, 24, 34, 0.9)); border: 1px solid var(--border-main); border-radius: 14px; padding: 13px 14px 12px;
+}
+.home-make-h { font-family: var(--font-heading); font-size: 9px; font-weight: 700; letter-spacing: 1.4px; color: var(--text-secondary); display: flex; gap: 6px; align-items: center; }
+.home-make-row { display: flex; gap: 8px; }
+.home-make-row input {
+    flex: 1; min-width: 0; height: 42px; padding: 0 12px;
+    background: var(--bg-main); border: 1px solid var(--border-main); border-radius: 9px; outline: none;
+    color: #fff; font-family: var(--font-body); font-size: 16px; font-weight: 600;
+}
+.home-make-row input::placeholder { color: var(--text-muted); font-weight: 500; }
+.home-make-row input:focus { border-color: var(--lego-yellow); box-shadow: 0 0 0 3px rgba(242, 205, 55, 0.12); }
+.home-make .forge-btn { height: 42px; padding: 0 16px; }
+.home-make .forge-btn.surprise { width: 42px; padding: 0; }
+.home-make-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.home-more { background: none; border: none; padding: 0; cursor: pointer; color: var(--text-secondary); font-family: var(--font-body); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.home-more:hover { color: var(--lego-yellow); }
+.home-library { margin-top: 8px; }
+
+/* No model yet (Make opened from home, or a share link still loading): hide the kit-only controls. */
+body.no-model .summary-meta, body.no-model #head-actions, body.no-model #share-menu,
+body.no-model .ctl-dock, body.no-model .view-cluster, body.no-model .viewport-hint, body.no-model .side-panels, body.no-model .sheet-peek { visibility: hidden; }
 
 /* ── menus and popovers ─────────────────────────────────── */
 .sf-menu { position: relative; flex: none; }
@@ -290,13 +339,29 @@ body.in-iframe #btn-back-home { display: none; }
 .tech-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%; background: var(--lego-yellow); border: 2px solid #0c0f17; box-shadow: 0 0 0 1px var(--lego-yellow); }
 .tech-slider::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--lego-yellow); border: 2px solid #0c0f17; }
 
-.step-scrub {
+/* the control dock: steps and explode, always in view */
+.ctl-dock {
     position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 6;
-    display: flex; align-items: center; gap: 8px;
+    display: flex; align-items: center; gap: 12px;
     background: rgba(19, 24, 34, 0.9); border: 1px solid var(--border-main); border-radius: 11px;
     padding: 6px 8px; backdrop-filter: blur(8px);
 }
+.step-scrub { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
 .step-scrub .tech-slider { flex: 1; min-width: 60px; }
+.dock-explode { display: flex; align-items: center; gap: 8px; flex: 0 1 300px; min-width: 190px; padding-left: 12px; border-left: 1px solid var(--border-main); }
+.dk-label { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-heading); font-size: 9px; font-weight: 700; letter-spacing: 0.8px; color: var(--text-secondary); white-space: nowrap; cursor: pointer; }
+.dock-explode.on .dk-label { color: var(--lego-yellow); }
+.dock-explode .tech-slider { flex: 1; min-width: 60px; }
+#val-explode { min-width: 34px; text-align: right; }
+/* While the parts layout is out the explode slider sleeps (studio.js); reset beside it on phones stays awake. */
+.dock-explode.sfs-explode-off { opacity: 1; }
+.dock-explode.sfs-explode-off > :not(#btn-cam-reset) { opacity: 0.45; }
+.dock-tools { display: none; }
+.view-seg { display: flex; flex: none; border: 1px solid var(--border-main); border-radius: 8px; overflow: hidden; background: rgba(9, 12, 19, 0.82); }
+.view-seg button { height: 32px; padding: 0 9px; background: none; border: none; color: var(--text-secondary); font-family: var(--font-heading); font-size: 9px; font-weight: 700; letter-spacing: 0.6px; cursor: pointer; }
+.view-seg button + button { border-left: 1px solid var(--border-main); }
+.view-seg button:active, .view-seg button.on { color: var(--lego-yellow); background: rgba(242, 205, 55, 0.12); }
+.viewport-card .sfpose-axis { bottom: calc(var(--dock-cover, 56px) + 8px); }
 .step-btn {
     width: 32px; height: 30px; flex: none;
     display: inline-flex; align-items: center; justify-content: center;
@@ -307,7 +372,7 @@ body.in-iframe #btn-back-home { display: none; }
 .step-btn.play.on { color: var(--lego-yellow); border-color: var(--lego-yellow); }
 #val-step { min-width: 92px; }
 .viewport-hint {
-    position: absolute; left: 50%; bottom: 62px; transform: translateX(-50%);
+    position: absolute; left: 50%; bottom: calc(var(--dock-cover, 56px) + 6px); transform: translateX(-50%);
     font-size: 11px; color: var(--text-muted); white-space: nowrap; pointer-events: none;
     background: rgba(9, 12, 19, 0.5); padding: 2px 10px; border-radius: 999px;
 }
@@ -437,9 +502,13 @@ body.sfi-booklet-open .create-bar, body.sfi-booklet-open .tabbar { display: none
     body.bench-open .bom-card .side-panels { display: flex; }
     body.bench-open .bench-close { display: flex; align-items: center; justify-content: center; background: none; border: none; color: var(--text-secondary); font-size: 15px; cursor: pointer; }
     .viewport-card .view-cluster { right: 70px; }
-    .viewport-card .step-scrub { right: 70px; }
+    .viewport-card .ctl-dock { right: 70px; }
     .viewport-hint { display: none; }
-    .vc-label { display: none; }
+    #view-menu .vc-label, #btn-cam-reset .vc-label, #btn-spin .vc-label { display: none; }
+    .dock-explode { flex-basis: 220px; min-width: 170px; }
+    body.home-open .brand-text { display: block; }
+    .home-hero { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+    .home-make { max-width: 620px; }
     #model-step-count, .summary-meta > .dot { display: none; }
 }
 
@@ -455,8 +524,13 @@ body.sfi-booklet-open .create-bar, body.sfi-booklet-open .tabbar { display: none
     .nav-spacer { display: none; }
     .nav-btn, .nav-actions > button { height: 32px; padding: 0 9px; }
     .nav-btn .nb-label, .nav-btn .car, .nav-actions .nb-label { display: none; }
-    .library-wide { display: none; }
-    .library-phone { display: inline; font-size: 9px; }
+    .lib-back { padding: 0 9px 0 7px; gap: 4px; }
+    .lib-back .lib-label { font-size: 9px; }
+    body:not(.home-open) .nav-brand { display: none; }
+    body.home-open .brand-text { display: block; }
+    body.home-open .nav-spacer { display: block; }
+    .to-kit-wide { display: none; }
+    .to-kit-phone { display: inline; }
     .back-to-home, body:not(.in-iframe) .back-to-home { display: none; }
     #btn-keys { display: none; }
 
@@ -503,15 +577,36 @@ body.sfi-booklet-open .create-bar, body.sfi-booklet-open .tabbar { display: none
     .viewport-card { position: absolute; inset: 0; border-radius: 0; border: none; }
     body[data-sheet="half"] .viewport-card { bottom: calc(46vh - var(--tabbar-h) - var(--safe-b) - 2px); }
     body[data-sheet="full"] .viewport-card { bottom: 0; }
-    .view-cluster { top: 8px; right: 8px; flex-direction: column; align-items: flex-end; }
-    .viewport-widgets { flex-direction: column; align-items: flex-end; }
-    .cam-btn { height: 34px; min-width: 34px; padding: 0 9px; justify-content: center; }
-    .vc-label, .view-cluster .car { display: none; }
-    .view-cluster .sf-menu-list { top: 0; right: calc(100% + 6px); }
-    .step-scrub { left: 8px; right: 8px; bottom: calc(64px + 8px); padding: 5px 6px; gap: 6px; }
-    body[data-sheet="half"] .step-scrub, body[data-sheet="full"] .step-scrub { bottom: 8px; }
-    .step-btn { width: 34px; height: 32px; }
+    /* The control dock: steps; explode + reset; then a labelled row of views, parts layout and spin. */
+    .ctl-dock {
+        left: 8px; right: 8px; bottom: calc(64px + 8px);
+        flex-direction: column; align-items: stretch; gap: 0;
+        padding: 5px 6px 6px; border-radius: 14px; background: rgba(15, 19, 28, 0.92);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+    body[data-sheet="half"] .ctl-dock, body[data-sheet="full"] .ctl-dock { bottom: 8px; }
+    body[data-sheet="half"] .dock-tools { display: none; }
+    .step-scrub { gap: 6px; padding-bottom: 5px; }
+    .step-btn { width: 36px; height: 34px; font-size: 12px; }
     #val-step { min-width: 0; font-size: 10px; }
+    .dock-explode { flex: none; min-width: 0; gap: 8px; padding: 5px 0 5px 4px; border-left: none; border-top: 1px solid var(--border-main); }
+    .dock-explode .tech-slider { height: 30px; }
+    .dock-explode .tech-slider::-webkit-slider-thumb { width: 20px; height: 20px; margin-top: -8px; }
+    .dock-explode #btn-cam-reset { flex: none; }
+    .dock-tools {
+        display: flex; gap: 6px; padding-top: 6px; border-top: 1px solid var(--border-main);
+        overflow-x: auto; scrollbar-width: none; -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent);
+    }
+    .dock-tools::-webkit-scrollbar { display: none; }
+    .dock-tools .view-cluster, .dock-tools .viewport-widgets { display: contents; }
+    .dock-tools #view-menu { display: none; }
+    .ctl-dock .cam-btn { height: 34px; flex: none; padding: 0 10px; background: rgba(255, 255, 255, 0.05); color: var(--text-primary); font-size: 9px; }
+    .ctl-dock .cam-btn.on { color: var(--lego-yellow); border-color: var(--lego-yellow); background: rgba(242, 205, 55, 0.12); }
+    .dock-tools #btn-parts-layout { order: 1; }
+    .dock-tools .view-seg { order: 2; }
+    .dock-tools #btn-spin { order: 3; }
+    .dock-tools #btn-pose { order: 4; }
+    .dock-tools .view-seg button { height: 34px; padding: 0 9px; }
     .tool-hint { display: none; }
     .viewport-hint { display: none; }
 
@@ -535,7 +630,7 @@ body.sfi-booklet-open .create-bar, body.sfi-booklet-open .tabbar { display: none
     body[data-sheet="peek"] .side-panels { display: none; }
 
     .tabbar {
-        display: grid; grid-template-columns: repeat(5, 1fr);
+        display: grid; grid-template-columns: repeat(6, 1fr);
         position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
         height: calc(var(--tabbar-h) + var(--safe-b)); padding-bottom: var(--safe-b);
         background: #0b0e16; border-top: 1px solid var(--border-main);
@@ -547,15 +642,30 @@ body.sfi-booklet-open .create-bar, body.sfi-booklet-open .tabbar { display: none
     .tb.make i { display: inline-flex; width: 34px; height: 24px; align-items: center; justify-content: center; border-radius: 9px; background: var(--lego-yellow); color: #111; filter: none; font-size: 16px; font-weight: 700; }
     .tb.make { color: var(--lego-yellow); }
     .tb.make.on i { box-shadow: 0 0 0 2px rgba(242, 205, 55, 0.35); }
+    .tb.lib { color: var(--text-secondary); }
+    .tb.lib i { font-size: 19px; filter: none; color: var(--lego-yellow); }
 
     .bom-actions { grid-template-columns: 1fr 1fr; }
-    .sf-toast { bottom: calc(var(--tabbar-h) + var(--safe-b) + 76px); }
+    .sf-toast { top: calc(var(--head-h) + 10px); bottom: auto; transform: translate(-50%, -12px); }
+    .sf-toast.on { transform: translate(-50%, 0); }
+
+    /* Home: one column, the kits close to the top. */
+    .home-wrap { padding: 16px 16px 28px; }
+    .home-hero { grid-template-columns: minmax(0, 1fr); gap: 12px; padding-bottom: 2px; }
+    .home-kicker { font-size: 9px; letter-spacing: 1.6px; }
+    .home-title { font-size: 22px; margin: 6px 0 4px; }
+    .home-sub { font-size: 14px; line-height: 1.35; }
+    .hs-more, .hm-wide { display: none; }
+    .home-make { padding: 9px 10px 10px; gap: 7px; border-radius: 12px; }
+    .home-make .forge-btn { padding: 0 13px; }
+    .home-more { font-size: 13px; color: var(--lego-yellow); }
+    .home-library { margin-top: 4px; }
 }
 
 /* Print: the parts list */
 @media print {
     body { background: #fff !important; color: #000 !important; display: block; }
-    .top-nav, .create-bar, .viewport-card, .side-tabs, .bom-actions, .tabbar, .sheet-handle, .sheet-peek, .side-panel:not(#tab-parts) { display: none !important; }
+    .top-nav, .sf-home, .create-bar, .viewport-card, .side-tabs, .bom-actions, .tabbar, .sheet-handle, .sheet-peek, .side-panel:not(#tab-parts) { display: none !important; }
     html, body, .app-layout, .studio-grid, .bom-card, .side-panels, #tab-parts, .tab-scroll { display: block !important; height: auto !important; overflow: visible !important; position: static !important; }
     .bom-card { border: 1px solid #ccc !important; background: #fff !important; color: #000 !important; }
     .bom-table th, .bom-table td { color: #000 !important; border-bottom: 1px solid #eee !important; }
