@@ -2,8 +2,9 @@
 //
 // The map is point-symmetric (180° rotation about the centre), so both players get exactly the same
 // terrain: tile (x, z) mirrors to (W-1-x, H-1-z). Team 0 starts bottom-left (low x, high z), team 1 top-right.
-// Layout: each base has two home shard fields (one with a spire that regrows it), an expansion field on its
-// own flank, two corner fields equidistant from both bases, and one large contested field in the centre.
+// Layout: each base has two home shard fields (each with a spire that regrows the tiles next to it), an
+// expansion field on its own flank, two corner fields equidistant from both bases, and one large contested
+// field in the centre with two spires.
 // Two long ridges with gaps split the map into a centre lane and two flank lanes; a pair of boulders in front
 // of each base makes a chokepoint; random rock clusters add cover. The whole map is flood-checked so every
 // field and both bases are reachable; sealed pockets are filled with rock.
@@ -76,13 +77,11 @@
             fields.push({ x: fx, z: fz, r });
             if (mirror) fields.push({ x: W - fx, z: H - fz, r });
         }
-        // Two identical home fields, each with a spire: one "north" of the base and one "east" of it. Refinery docks
-        // always face +Z (south), so a field is easiest to serve from the north; with one field on each axis, each
-        // team has exactly one dock-friendly home field (team 0: east, team 1: its south = the mirror of team 0's
-        // north) and one awkward one, which keeps the economies even despite the fixed dock direction.
+        // Two identical home fields (clean discs), each with a spire: one north of the base, one east of it on the
+        // edge. Docks face away from each team's map edge (the sim turns team 1's buildings 180°), so the layout
+        // plays the same for both sides.
         stampField(cA.x, cA.z - 11 * k, 2.6, false, true, 0);
         addSpire(cA.x, cA.z - 11 * k);
-        // (the east field hugs the bottom edge, so its mirror hugs the top edge and can't be docked from the north)
         stampField(cA.x + 11 * k, H - 3.5, 2.6, false, true, 0);
         addSpire(cA.x + 11 * k, H - 3.5);
         // flank expansion
