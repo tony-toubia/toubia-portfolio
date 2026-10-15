@@ -1,15 +1,73 @@
 // Shardfall: boot + game controller. Owns the frame loop, the selection, placement and command glue between the
-// simulation (SF.Sim), the renderer, input, UI and audio. Exposed as window.SF.game for debugging and tests.
+// simulation (SF.Sim), the renderer, input, UI and audio; skirmish and campaign flow, campaign progress and the
+// superweapon targeting mode. Exposed as window.SF.game for debugging and tests.
 (function () {
     'use strict';
     const SF = window.SF = window.SF || {};
     const C = window.SF_CONFIG;
+    const PROGRESS_KEY = 'shardfall.campaign.v1';
+    const otherFaction = (f) => (f === 'hegemony' ? 'vanguard' : 'hegemony');
+    const FACTIONS = (C && C.FACTIONS) || { vanguard: { name: 'Vanguard', superweapon: 'uplink' }, hegemony: { name: 'Hegemony', superweapon: 'riftsilo' } };
 
     const G = {
         team: 0, sim: null, render: null, input: null, ui: null, audio: SF.Audio,
         sel: [], selSet: new Set(), mode: null, placing: null, ghost: null,
         state: 'boot', paused: false, difficulty: 'normal', groups: {}, stats: null, overAt: 0,
-        stageEl: null,
+        stageEl: null, faction: 'vanguard', mission: null, missionIndex: -1, lastStart: null, superAim: null,
+
+        // ------------------------------------------------------------ factions, missions, campaign progress
+        missions() { return Array.isArray(SF.MISSIONS) ? SF.MISSIONS : []; },
+        factionOf(team) { const T = this.sim && this.sim.teams[team]; return (T && T.faction) || (team === this.team ? this.faction : otherFaction(this.faction)); },
+        factionName(team) { const f = FACTIONS[this.factionOf(team)]; return f ? f.name : (C.TEAMS[team] || {}).name; },
+        progress() {
+            let p = null;
+            try { p = JSON.parse(localStorage.getItem(PROGRESS_KEY) || 'null'); } catch (e) { p = null; }
+            return p && typeof p === 'object' && p.done && typeof p.done === 'object' ? p : { done: {} };
+        },
+        saveProgress(p) { try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(p)); } catch (e) { /* storage blocked */ } },
+        missionDone(id) { return !!(id && this.progress().done[id]); },
+        missionUnlocked(i) { const L = this.missions(); if (i < 0 || i >= L.length) return false; return i === 0 || this.missionDone(L[i - 1].id) || this.missionDone(L[i].id); },
+        markMissionDone(m) {
+            const p = this.progress(), prev = p.done[m.id], t = Math.round(this.sim ? this.sim.time : 0);
+            p.done[m.id] = { t, best: prev && prev.best ? Math.min(prev.best, t) : t };
+            this.saveProgress(p);
+        },
+
+        // ------------------------------------------------------------ superweapon
+        superState() { const T = this.sim && this.sim.teams[this.team]; return (T && T.super) || null; },
+        superDef(s) { s = s || this.superState(); return s && C.SUPERWEAPONS ? C.SUPERWEAPONS[s.type] : null; },
+        superClick() {
+            if (!this.canInteract()) return;
+            const s = this.superState(); if (!s) return;
+            const d = this.superDef(s) || { name: 'Superweapon' };
+            if (!s.ready) { this.ui.toast(d.name + ' charging: ' + Math.floor((s.charge || 0) * 100) + '%', 'info'); this.audio.play('error'); return; }
+            this.setMode(this.mode === 'super' ? null : 'super');
+        },
+        // where the strike would land: { x, z, ok } (ok = explored ground on the map)
+        aimSuper(x, z) {
+            if (this.mode !== 'super' || !this.sim) return;
+            const T = this.sim.teams[this.team], m = this.sim.map;
+            const tx = Math.floor(x), tz = Math.floor(z);
+            const inside = tx >= 0 && tz >= 0 && tx < m.w && tz < m.h;
+            const ok = inside && (!T.vis || T.vis[tz * m.w + tx] >= 1);
+            this.superAim = { x: Math.max(0, Math.min(m.w, x)), z: Math.max(0, Math.min(m.h, z)), ok };
+            const d = this.superDef();
+            this.render.setAim({ x: this.superAim.x, z: this.superAim.z, r: d ? d.radius : 3, ok, kind: (this.superState() || {}).type });
+            this.ui.modeBar();
+        },
+        fireSuper(x, z) {
+            const s = this.superState();
+            if (!s || !s.ready) { this.setMode(null); return false; }
+            if (x == null) { if (!this.superAim) { this.denied('Pick a target first'); return false; } x = this.superAim.x; z = this.superAim.z; }
+            this.aimSuper(x, z);
+            if (!this.superAim || !this.superAim.ok) { this.denied('Target must be on explored ground'); return false; }
+            if (this.sim.command(this.team, { type: 'superweapon', x, z })) {
+                this.setMode(null);
+                return true;
+            }
+            this.denied('Cannot fire there');
+            return false;
+        },
 
         canInteract() { return this.state === 'playing' && !this.paused; },
         ent(id) { return this.sim && this.sim.entities.get(id); },
@@ -33,13 +91,22 @@
             this.render.setSelection(next);
             if (this.mode === 'attackMove' && !this.selUnits().length) this.mode = null;
             if (this.mode === 'rally' && !this.selBuilding()) this.mode = null;
+            if (this.mode !== 'super' && this.superAim) { this.superAim = null; this.render.setAim(null); }
             if (changed && next.length) this.audio.play('select');
             this.ui.updateSelection(true);
         },
         setMode(m) {
             if (m === 'attackMove' && !this.selUnits().length) { this.denied('Select units first'); return; }
             if (m === 'rally' && !this.selBuilding()) return;
+            if (m === 'super') { const s = this.superState(); if (!s || !s.ready) return; if (this.placing) this.cancelPlacing(); }
             this.mode = m;
+            this.superAim = null; this.render.setAim(null);
+            if (m === 'super') {
+                this.audio.play('click');
+                // desktop: start the reticle under the mouse; touch: wait for the first tap
+                const h = this.input && this.input.hoverPos, g = h && this.render.screenToGround(h.x, h.y);
+                if (g && !this.ui.touch) this.aimSuper(g.x, g.z);
+            }
             this.ui.modeBar(); this.ui.updateSelection();
         },
         stop() { const ids = this.selUnits().map((u) => u.id); if (ids.length) { this.sim.command(this.team, { type: 'stop', ids }); this.audio.play('order'); } this.setMode(null); },
@@ -135,6 +202,7 @@
         // ------------------------------------------------------------ flow
         escape() {
             if (this.ui && document.getElementById('scr-howto').classList.contains('show')) { this.ui.hide('howto'); return; }
+            if (this.ui && this.ui.escapeTitle && this.state === 'title' && this.ui.escapeTitle()) return;
             if (this.state !== 'playing') return;
             if (this.paused) { this.togglePause(false); return; }
             if (this.placing) { this.cancelPlacing(); return; }
@@ -149,48 +217,82 @@
             if (this.paused) this.input.reset();
         },
         toggleSound() { this.audio.unlock(); this.audio.setMuted(!this.audio.isMuted()); this.ui.setSound(this.audio.isMuted()); },
-        start(diff) {
-            this.difficulty = diff || this.difficulty;
-            this.ui.loading(true, 'Deploying…');
+        // opts: { kind: 'skirmish', faction, difficulty } | { kind: 'mission', index }
+        start(opts) {
+            opts = opts || this.lastStart || { kind: 'skirmish' };
+            if (typeof opts === 'string') opts = { kind: 'skirmish', difficulty: opts };
+            this.lastStart = opts;
+            const mission = opts.kind === 'mission' ? this.missions()[opts.index] : null;
+            if (opts.kind === 'mission' && !mission) { this.ui.toast('Mission not available', 'warn'); return; }
+            this.mission = mission; this.missionIndex = mission ? opts.index : -1;
+            if (!mission) { this.difficulty = opts.difficulty || this.difficulty; this.faction = opts.faction || this.faction; }
+            else this.faction = mission.faction || 'vanguard';
+            const enemyF = mission ? (mission.enemyFaction || otherFaction(this.faction)) : otherFaction(this.faction);
+            this.ui.loading(true, mission ? 'Mission ' + (opts.index + 1) + ': ' + mission.title + '\u2026' : 'Deploying\u2026');
             setTimeout(() => {
                 let sim;
-                try { sim = new SF.Sim({ seed: (Math.random() * 1e9) | 0, size: 64, difficulty: this.difficulty, playerTeam: this.team }); }
+                const facs = this.team === 0 ? [this.faction, enemyF] : [enemyF, this.faction];
+                const so = { seed: (Math.random() * 1e9) | 0, size: 64, difficulty: this.difficulty, playerTeam: this.team, factions: facs };
+                if (mission) {
+                    so.mission = mission;
+                    if (mission.map && mission.map.seed != null) so.seed = mission.map.seed;
+                    if (mission.map && mission.map.size) so.size = mission.map.size;
+                    so.difficulty = (mission.enemy && mission.enemy.ai) || 'normal';
+                }
+                try { sim = new SF.Sim(so); }
                 catch (e) { console.error(e); this.ui.loading(true, 'The battlefield failed to load: ' + e.message, true); return; }
                 this.sim = sim;
+                const myT = sim.teams[this.team]; if (myT && myT.faction) this.faction = myT.faction;
                 this.render.attract = false; this.render.reveal = false;
                 this.render.setSim(sim, this.team);
-                this.sel = []; this.selSet = new Set(); this.mode = null; this.placing = null; this.ghost = null; this.groups = {};
-                this.render.setSelection([]); this.render.setGhost(null);
+                this.sel = []; this.selSet = new Set(); this.mode = null; this.placing = null; this.ghost = null; this.groups = {}; this.superAim = null;
+                this.render.setSelection([]); this.render.setGhost(null); this.render.setAim(null);
                 this.stats = { unitsBuilt: 0, unitsLost: 0, kills: 0, buildingsDestroyed: 0, buildingsLost: 0, harvested: 0, time: 0 };
                 this.lastCredits = sim.teams[this.team].credits;
                 this.state = 'playing'; this.paused = false; this.overAt = 0;
                 document.body.classList.add('playing');
+                document.body.classList.toggle('mission', !!mission);
                 this.ui.hideAll();
                 this.ui.startGame();
                 this.input.reset();
                 this.defaultZoom();
                 this.home(); this.render.cam.anim = null;
-                const c = this.render.cam; const s = sim.map.starts[this.team]; c.x = s.tx + 1.5; c.z = s.tz + 3; this.render.placeCamera();
+                // open on the core, or on the strike group when a mission starts without a base
+                const c = this.render.cam; let core = null;
+                for (const e of sim.entities.values()) if (e.team === this.team && e.kind === 'building' && !e.dead) { core = e; if (e.type === 'core') break; }
+                if (core) { c.x = core.x; c.z = core.z + 1.5; }
+                else {
+                    let n = 0, x = 0, z = 0;
+                    for (const e of sim.entities.values()) if (e.team === this.team && !e.dead) { x += e.x; z += e.z; n++; }
+                    if (n) { c.x = x / n; c.z = z / n; } else { const st = sim.map.starts[this.team]; c.x = st.tx + 1.5; c.z = st.tz + 3; }
+                }
+                this.render.placeCamera();
                 this.ui.loading(false);
-                this.ui.toast('Build a Reactor, then a Refinery', 'info');
+                if (!mission) this.ui.toast('Build a Reactor, then a Refinery', 'info');
             }, 30);
         },
-        restart() { this.ui.hideAll(); this.start(this.difficulty); },
-        quit() {
-            this.state = 'title'; this.paused = false;
-            document.body.classList.remove('playing', 'has-sel', 'placing', 'mode-on');
-            this.ui.hideAll(); this.ui.clearToasts();
-            this.showTitle();
+        restart() { this.ui.hideAll(); this.ui.clearRadio(); this.start(this.lastStart); },
+        nextMission() {
+            const i = this.missionIndex + 1;
+            if (i < this.missions().length && this.missionUnlocked(i)) { this.quit('campaign'); this.ui.showBriefing(i); } else this.quit('campaign');
         },
-        showTitle() {
+        quit(pane) {
+            const wasMission = !!this.mission;
+            this.state = 'title'; this.paused = false; this.mode = null; this.superAim = null;
+            document.body.classList.remove('playing', 'has-sel', 'placing', 'mode-on', 'mission');
+            this.ui.hideAll(); this.ui.clearToasts(); this.ui.clearRadio();
+            this.showTitle(pane || (wasMission ? 'campaign' : 'home'));
+        },
+        showTitle(pane) {
             try {
-                const sim = new SF.Sim({ seed: 20261015, size: 64, difficulty: 'normal', playerTeam: this.team });
+                const sim = new SF.Sim({ seed: 20261015, size: 64, difficulty: 'normal', playerTeam: this.team, factions: ['vanguard', 'hegemony'] });
                 this.sim = sim; this.render.setSim(sim, this.team);
             } catch (e) { console.error(e); }
+            this.mission = null; this.missionIndex = -1;
             this.render.attract = true; this.render.reveal = true;
-            this.render.setSelection([]); this.render.setGhost(null);
+            this.render.setSelection([]); this.render.setGhost(null); this.render.setAim(null);
             this.render.setZoomLimits(9, 50); this.render.cam.dist = 30;
-            this.ui.show('start');
+            this.ui.showTitle(pane || 'home');
         },
         defaultZoom() {
             const R = this.render;
@@ -216,14 +318,24 @@
                         break;
                     case 'spawn': if (ev.team === this.team) st.unitsBuilt++; break;
                     case 'placed': if (ev.team !== this.team) break; break;
-                    case 'gameover': this.gameOver(ev.winner); break;
+                    case 'superweapon':
+                        if (ev.phase === 'warn') A.play(ev.team === this.team ? 'launch' : 'siren');
+                        else if (ev.phase === 'strike') A.play(ev.kind === 'rift' ? 'rift' : 'lance', { x: ev.x, z: ev.z, far: true });
+                        break;
+                    case 'cloak': { const e = this.sim.entities.get(ev.id); if (e && e.team === this.team) A.play(ev.on ? 'cloak' : 'decloak', { x: e.x, z: e.z, vol: 0.6 }); break; }
+                    case 'mission': if (ev.status === 'won' || ev.status === 'lost') this.endGame(ev.status === 'won', ev.reason); break;
+                    case 'gameover': if (!this.mission || !this.sim.mission) this.endGame(ev.winner === this.team, null); break;
                 }
             }
         },
-        gameOver(winner) {
-            if (this.overAt) return;
+        gameOver(winner) { this.endGame(winner === this.team, null); },
+        // win: bool; reason: optional text (missions)
+        endGame(win, reason) {
+            if (this.overAt || this.state !== 'playing') return;
             this.overAt = performance.now();
             this.cancelPlacing(); this.setMode(null);
+            const mission = this.mission;
+            if (mission && win) this.markMissionDone(mission);
             setTimeout(() => {
                 if (this.state !== 'playing') return;
                 this.state = 'over';
@@ -234,10 +346,10 @@
                 const S = T.stats;
                 if (S) for (const k of ['unitsBuilt', 'unitsLost', 'kills', 'buildingsDestroyed', 'buildingsLost']) if (typeof S[k] === 'number') this.stats[k] = S[k];
                 if (S && typeof S.creditsHarvested === 'number') this.stats.harvested = S.creditsHarvested;
-                const win = winner === this.team;
                 this.audio.play(win ? 'win' : 'lose');
-                this.ui.showEnd(win, this.stats);
-            }, 2400);
+                this.ui.clearRadio();
+                this.ui.showEnd(win, this.stats, mission ? { mission, index: this.missionIndex, reason, hasNext: this.missionIndex + 1 < this.missions().length } : null);
+            }, mission ? 2000 : 2400);
         },
         pruneSelection() {
             if (!this.sel.length) return;
@@ -251,7 +363,9 @@
                 this.sim.update(dt);
                 const ev = this.sim.drainEvents ? this.sim.drainEvents() : [];
                 if (ev.length) { R.onEvents(ev); this.ui.onEvents(ev); this.handleEvents(ev); }
-                if (this.sim.winner != null && !this.overAt) this.gameOver(this.sim.winner);
+                const M = this.sim.mission;
+                if (this.mission && M && (M.status === 'won' || M.status === 'lost')) { if (!this.overAt) this.endGame(M.status === 'won', M.reason || null); }
+                else if (this.sim.winner != null && !this.overAt && !(this.mission && M)) this.endGame(this.sim.winner === this.team, null);
                 // harvested credits fallback when the sim keeps no stats: count income (positive deltas)
                 const T = this.sim.teams[this.team];
                 if (this.stats && T) { const d = T.credits - this.lastCredits; if (d > 0) this.stats.harvested += d; this.lastCredits = T.credits; }
@@ -261,6 +375,7 @@
                 const T = this.sim.teams[this.team];
                 if (this.placing && T.ready !== this.placing) this.cancelPlacing();
                 if (this.placing && this.ghost) this.moveGhost(this.ghost.tx, this.ghost.tz);
+                if (this.mode === 'super' && !(T.super && T.super.ready)) this.setMode(null);
                 const b = this.selBuilding(), cat = b && C.BUILDINGS[b.type].makes;
                 const r = cat && T.rally && T.rally[cat];
                 R.setRallies(r ? [{ x: r.x, z: r.z, fromX: b.x, fromZ: b.z }] : []);

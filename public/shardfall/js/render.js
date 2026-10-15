@@ -1,6 +1,7 @@
 // Shardfall: the render layer. Camera, terrain, fog of war, shard fields, entities (interpolated + animated),
-// effects (projectiles, explosions, smoke, debris, scorch marks), selection rings, health bars, placement ghost,
-// order markers and rally flags. Reads the simulation (read-only) and SF_MODELS; never changes game state.
+// effects (projectiles, energy bolts and beams, explosions, smoke, debris, scorch marks, superweapon warnings and
+// strikes), cloaked units, selection rings, health bars, placement ghost, superweapon reticle, order markers and rally
+// flags. Reads the simulation (read-only) and SF_MODELS; never changes game state.
 (function () {
     'use strict';
     const SF = window.SF = window.SF || {};
@@ -14,6 +15,19 @@
     function rnd(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
     const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpS = new THREE.Vector3();
     const AX_X = new THREE.Vector3(1, 0, 0), AX_Y = new THREE.Vector3(0, 1, 0);
+    // energy weapon colours (Hegemony): bolts, beams, their flashes and impacts
+    const ENERGY = { pulse: 0xc77dff, twinPulse: 0xe08cff, shock: 0xff5fd2, phase: 0x7ff6ff, beam: 0xe45cff, spireBeam: 0xff4fd0 };
+    const SW_COLOR = { lance: 0x9fe8ff, rift: 0xc45cff };
+    const SW_WARN = { lance: 0xff5a3c, rift: 0xd66eff };
+    const rgb = (hex, a) => [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255, a == null ? 1 : a];
+    function cloneMat(m) {
+        if (Array.isArray(m)) return m.map(cloneMat);
+        const c = m.clone();
+        if (m.onBeforeCompile) c.onBeforeCompile = m.onBeforeCompile;
+        if (m.customProgramCacheKey) c.customProgramCacheKey = m.customProgramCacheKey;
+        return c;
+    }
+    const eachMat = (m, fn) => { if (Array.isArray(m)) m.forEach(fn); else if (m) fn(m); };
 
     function radialTexture(inner, outer) {
         const c = document.createElement('canvas'); c.width = c.height = 64;
@@ -185,7 +199,9 @@
             this.sparks.clear(); this.smoke.clear();
             for (const pool of Object.values(this.pools)) for (const it of pool.items) { it.active = false; if (it.obj) it.obj.visible = false; }
             this.debris.count = 0; this.debrisList.length = 0;
-            this.ghost = null;
+            this.ghost = null; this.timers = [];
+            if (this.aim) this.aim.obj.visible = false;
+            if (this.strikeMarks) this.strikeMarks.clear();
         }
         buildGround(map) {
             const W = map.w, H = map.h, px = W <= 64 ? 16 : 8;
@@ -477,9 +493,55 @@
             mkPool('rocket', 24, () => ({ obj: new THREE.Mesh(rocketGeo, rocketMat) }));
             const arcGeo = new THREE.SphereGeometry(0.11, 8, 6), arcMat = add(0xffc06a);
             mkPool('arc', 16, () => ({ obj: new THREE.Mesh(arcGeo, arcMat) }));
+            // energy bolts: a glowing capsule (colour per shot) with a hot white core
+            const eboltGeo = new THREE.SphereGeometry(1, 8, 6), eboltCore = new THREE.SphereGeometry(0.38, 6, 4);
+            mkPool('ebolt', 40, () => { const g = new THREE.Group(); const m = new THREE.Mesh(eboltGeo, new THREE.MeshBasicMaterial({ color: 0xc77dff, transparent: true, opacity: 0.9, depthWrite: false, toneMapped: false })); const c = new THREE.Mesh(eboltCore, add(0xffffff)); g.add(m, c); g.renderOrder = 6; return { obj: g, glow: m }; });
+            // beams: an open cylinder along +X from 0 to 1 (core + wide glow), scaled to the muzzle→target distance
+            const beamGeo = new THREE.CylinderGeometry(1, 1, 1, 6, 1, true); beamGeo.rotateZ(-Math.PI / 2); beamGeo.translate(0.5, 0, 0);
+            mkPool('beam', 28, () => {
+                const g = new THREE.Group();
+                const glow = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: 0xe45cff, transparent: true, opacity: 0.6, depthWrite: false, toneMapped: false })), core = new THREE.Mesh(beamGeo, add(0xffffff));
+                glow.renderOrder = core.renderOrder = 6; g.add(glow, core);
+                return { obj: g, glow, core };
+            });
+            // superweapon: warning markers (visible through fog), strike effects, the Rift missile, the aim reticle
+            const ringThin = new THREE.RingGeometry(0.95, 1, 64); ringThin.rotateX(-Math.PI / 2);
+            const ringFat = new THREE.RingGeometry(0.8, 1, 64); ringFat.rotateX(-Math.PI / 2);
+            const disc = new THREE.CircleGeometry(1, 48); disc.rotateX(-Math.PI / 2);
+            const ticks = (() => { const pos = []; for (let i = 0; i < 8; i++) { const a = i / 8 * TAU, c = Math.cos(a), sn = Math.sin(a), w = 0.035; const r0 = i % 2 ? 0.86 : 0.74, r1 = 1.12; pos.push(c * r0 - sn * w, 0, sn * r0 + c * w, c * r1 - sn * w, 0, sn * r1 + c * w, c * r1 + sn * w, 0, sn * r1 - c * w, c * r0 - sn * w, 0, sn * r0 + c * w, c * r1 + sn * w, 0, sn * r1 - c * w, c * r0 + sn * w, 0, sn * r0 - c * w); } const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); return g; })();
+            const over = (color, op) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, depthWrite: false, depthTest: false, side: THREE.DoubleSide, toneMapped: false });
+            const mkReticle = () => {
+                const g = new THREE.Group();
+                const fill = new THREE.Mesh(disc, over(0xff5a3c, 0.12)), ring = new THREE.Mesh(ringThin, over(0xff5a3c, 0.95)), pulse = new THREE.Mesh(ringFat, over(0xff5a3c, 0.5)), tk = new THREE.Mesh(ticks, over(0xff5a3c, 0.9));
+                for (const m of [fill, ring, pulse, tk]) { m.renderOrder = 1001; g.add(m); }
+                return { obj: g, fill, ring, pulse, tk };
+            };
+            mkPool('swmark', 4, mkReticle);
+            this.aim = mkReticle(); this.aim.obj.visible = false; this.fx.add(this.aim.obj);
+            const colGeo = new THREE.CylinderGeometry(1, 1, 1, 16, 1, true); colGeo.translate(0, 0.5, 0);
+            const sphGeo = new THREE.SphereGeometry(1, 20, 14);
+            mkPool('swfx', 3, () => {
+                const g = new THREE.Group();
+                const glow = new THREE.Mesh(colGeo, add(0x9fe8ff)), core = new THREE.Mesh(colGeo, add(0xffffff));
+                const dark = new THREE.Mesh(sphGeo, new THREE.MeshBasicMaterial({ color: 0x06000b, transparent: true, opacity: 0.94, toneMapped: false }));
+                const rim = new THREE.Mesh(sphGeo, add(0xc45cff)); rim.material.side = THREE.BackSide;
+                glow.renderOrder = core.renderOrder = rim.renderOrder = 7;
+                g.add(glow, core, dark, rim);
+                return { obj: g, glow, core, dark, rim };
+            });
+            const misBody = new THREE.CylinderGeometry(0.14, 0.17, 0.9, 8); misBody.rotateZ(-Math.PI / 2);
+            const misNose = new THREE.ConeGeometry(0.14, 0.38, 8); misNose.rotateZ(-Math.PI / 2); misNose.translate(0.64, 0, 0);
+            const misMat = new THREE.MeshStandardMaterial({ color: lin(0x9aa3ad), roughness: 0.5, metalness: 0.4, flatShading: true });
+            mkPool('missile', 3, () => {
+                const g = new THREE.Group();
+                g.add(new THREE.Mesh(misBody, misMat), new THREE.Mesh(misNose, add(0xd06bff)));
+                const fl = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.flashTex, color: 0xe08cff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+                fl.position.x = -0.6; fl.scale.set(1.1, 1.1, 1); g.add(fl);
+                return { obj: g };
+            });
             mkPool('flash', 40, () => ({ obj: new THREE.Sprite(new THREE.SpriteMaterial({ map: this.flashTex, color: 0xffd9a0, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })) }));
             const ringGeo = new THREE.RingGeometry(0.82, 1, 40); ringGeo.rotateX(-Math.PI / 2);
-            mkPool('shock', 12, () => ({ obj: new THREE.Mesh(ringGeo, add(0xffc890)) }));
+            mkPool('shock', 16, () => ({ obj: new THREE.Mesh(ringGeo, add(0xffc890)) }));
             const scorchGeo = new THREE.PlaneGeometry(1, 1); scorchGeo.rotateX(-Math.PI / 2);
             mkPool('scorch', 40, () => { const m = new THREE.Mesh(scorchGeo, new THREE.MeshBasicMaterial({ map: this.scorchTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 })); m.renderOrder = 1; return { obj: m }; });
             // order markers: a ring that contracts + four chevrons
@@ -502,6 +564,7 @@
             // explosion lights (fixed count so shaders never recompile)
             this.lights = [];
             if (this.high) for (let i = 0; i < 2; i++) { const l = new THREE.PointLight(0xffa860, 0, 7, 2); this.fx.add(l); this.lights.push({ l, t: 0, life: 0, power: 0 }); }
+            this.strikeMarks = new Map();
             // rally flags
             this.rallyObjs = [];
             for (let i = 0; i < 2; i++) {
@@ -540,10 +603,11 @@
 
         // ------------------------------------------------------------ entity views
         teamColor(t) { return (C.TEAMS[t] || C.TEAMS[0]).color; }
+        factionOf(t) { const T = this.sim && this.sim.teams[t]; return (T && T.faction) || (t ? 'hegemony' : 'vanguard'); }
         createView(e) {
             const M = window.SF_MODELS;
             let model = null;
-            try { model = e.kind === 'unit' ? M.unit(e.type, this.teamColor(e.team)) : M.building(e.type, this.teamColor(e.team)); } catch (err) { model = null; }
+            try { model = e.kind === 'unit' ? M.unit(e.type, this.teamColor(e.team), this.factionOf(e.team)) : M.building(e.type, this.teamColor(e.team), this.factionOf(e.team)); } catch (err) { model = null; }
             if (!model) { model = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshStandardMaterial({ color: this.teamColor(e.team) })); model.position.y = 0.25; }
             if (model.parent) model = model.clone();
             const obj = new THREE.Group(); obj.add(model);
@@ -555,11 +619,20 @@
             const parts = { turret: findNamed(model, 'turret'), barrel: findNamed(model, 'barrel'), muzzle: findNamed(model, 'muzzle'), arm: findNamed(model, 'arm'), rotor: findNamed(model, 'rotor'), flag: findNamed(model, 'flag'), crane: findNamed(model, 'crane'), cargo: findNamed(model, 'cargo'), wheels, wheelR: (model.userData && model.userData.wheelRadius) || 0.15 };
             if (parts.barrel) parts.barrelX = parts.barrel.position.x;
             if (parts.arm) parts.armRot = parts.arm.rotation.z;
+            // superweapon buildings: 'charge' glow (SF_MODELS.setCharge), 'doorL'/'doorR' (SF_MODELS.setDoors), 'missile';
+            // skimmer: 'hover' node (bobbed). Fallbacks keep older models working.
+            parts.charge = findNamed(model, 'charge'); parts.doorL = findNamed(model, 'doorL'); parts.doorR = findNamed(model, 'doorR'); parts.missile = findNamed(model, 'missile');
+            parts.hover = findNamed(model, 'hover');
+            if (parts.charge && !(M && M.setCharge)) {
+                parts.chargeMats = [];
+                parts.charge.traverse((o) => { if (o.isMesh) { o.material = cloneMat(o.material); eachMat(o.material, (m) => parts.chargeMats.push({ m, ei: m.emissiveIntensity != null ? m.emissiveIntensity : null, col: m.color ? m.color.clone() : null })); } });
+            }
+            if (parts.missile) parts.missileY = parts.missile.position.y;
             model.traverse((o) => { if (o.isMesh) { o.castShadow = this.high; o.receiveShadow = false; } });
             const v = { id: e.id, ent: e, team: e.team, kind: e.kind, type: e.type, obj, model, parts, height, def,
                 radius: e.kind === 'unit' ? def.radius : Math.max(def.w, def.d) / 2,
                 ang: e.angle || 0, tur: e.turret != null ? e.turret : (e.angle || 0), x: e.x, z: e.z, lastHp: e.hp, dmgT: -99, recoil: 0, phase: Math.random() * 6,
-                smokeAcc: 0, remembered: false, shown: false, frame: 0 };
+                smokeAcc: 0, remembered: false, shown: false, frame: 0, cloakK: 0, cloakOn: false, doorK: 0, launchT: -99, hover: !!((def && def.hover) || (model.userData && model.userData.hover) || parts.hover) };
             obj.position.set(e.x, 0, e.z);
             this.root.add(obj);
             this.views.set(e.id, v);
@@ -577,6 +650,65 @@
             for (let z = e.tz; z < e.tz + b.d; z++) for (let x = e.tx; x < e.tx + b.w; x++) if (this.tileVisible(x + 0.5, z + 0.5)) return true;
             return false;
         }
+        // k: 0 = solid, 1 = fully cloaked. Uses SF_MODELS.ghostMaterial (shared see-through twins, swapped in past
+        // the halfway point) when the models provide it; otherwise per-view translucent clones that fade with k.
+        setCloak(v, k) {
+            const M = window.SF_MODELS, shared = !!(M && M.ghostMaterial);
+            const on = shared ? k > 0.5 : k > 0.001;
+            if (on && !v.cloakOn) {
+                if (!v.cloakMats) {
+                    v.cloakMats = [];
+                    v.model.traverse((o) => {
+                        if (!o.isMesh) return;
+                        let cm;
+                        if (shared) cm = Array.isArray(o.material) ? o.material.map((m) => M.ghostMaterial(m)) : M.ghostMaterial(o.material);
+                        else { cm = cloneMat(o.material); eachMat(cm, (m) => { m.transparent = true; m.depthWrite = false; }); }
+                        v.cloakMats.push({ o, orig: o.material, cm });
+                    });
+                    v.cloakShared = shared;
+                }
+                for (const c of v.cloakMats) { c.o.material = c.cm; c.o.castShadow = false; }
+                v.cloakOn = true;
+            }
+            if (!v.cloakOn) return;
+            if (!on) { for (const c of v.cloakMats) { c.o.material = c.orig; c.o.castShadow = this.high; } v.cloakOn = false; return; }
+            if (!v.cloakShared) {
+                const op = clamp(lerp(1, 0.24, k) + Math.sin(this.time * 7 + v.phase) * 0.07 * k, 0.12, 1);
+                for (const c of v.cloakMats) eachMat(c.cm, (m) => { m.opacity = op; });
+            }
+        }
+        animSuper(v, e, built, dt) {
+            const S = this.sim.teams[e.team] && this.sim.teams[e.team].super;
+            const mine = !!(S && S.building === e.id && built >= 1);
+            const charge = mine ? clamp(S.charge || 0, 0, 1) : 0, ready = mine && !!S.ready;
+            const pulse = 0.5 + 0.5 * Math.sin(this.time * 6);
+            const M = window.SF_MODELS;
+            if (v.parts.charge && M && M.setCharge) {
+                M.setCharge(v.model, ready ? 1 : charge, this.time);
+                if (ready && Math.random() < dt * 6) { v.parts.charge.getWorldPosition(tmpV); this.sparks.emit(tmpV.x + (Math.random() - 0.5) * 0.4, tmpV.y, tmpV.z + (Math.random() - 0.5) * 0.4, 0, 1.2, 0, 0.6, 0.18, 0.03, [0.7, 1, 1, 1], [0.3, 0.7, 1, 0], 0, -1); }
+            } else if (v.parts.charge) {
+                const glow = (0.15 + charge * 2.2 + (ready ? 0.8 + pulse * 1.4 : 0)) * (built >= 1 ? 1 : 0.2);
+                for (const c of v.parts.chargeMats) {
+                    if (c.ei != null) c.m.emissiveIntensity = c.ei * glow;
+                    else if (c.col) c.m.color.copy(c.col).multiplyScalar(0.35 + glow * 0.5);
+                }
+                const sc = 1 + (ready ? pulse * 0.12 : charge * 0.05);
+                v.parts.charge.scale.setScalar(sc);
+                if (ready && Math.random() < dt * 6) { v.parts.charge.getWorldPosition(tmpV); this.sparks.emit(tmpV.x + (Math.random() - 0.5) * 0.4, tmpV.y, tmpV.z + (Math.random() - 0.5) * 0.4, 0, 1.2, 0, 0.6, 0.18, 0.03, [0.7, 1, 1, 1], [0.3, 0.7, 1, 0], 0, -1); }
+            }
+            const open = ready || this.time - v.launchT < 2.2 ? 1 : 0;
+            v.doorK += (open - v.doorK) * Math.min(1, dt * 2.2);
+            if (v.parts.doorL || v.parts.doorR) {
+                if (M && M.setDoors) M.setDoors(v.model, v.doorK);
+                else { const a = (v.model.userData.doorOpen || 1.9) * v.doorK; if (v.parts.doorL) v.parts.doorL.rotation.z = a; if (v.parts.doorR) v.parts.doorR.rotation.z = -a; }
+            }
+            if (v.parts.missile) {
+                // the missile rises in the open shaft when ready, leaves at launch, and is back once charge builds
+                const flying = this.time - v.launchT < 6;
+                v.parts.missile.visible = !flying && (ready || charge > 0.3);
+                v.parts.missile.position.y = v.parts.missileY + (ready ? 0.2 * v.doorK : 0);
+            }
+        }
         syncEntities(dt) {
             const sim = this.sim, alpha = clamp(sim.alpha || 0, 0, 1), frame = ++this.frameNo;
             const lowPower = sim.teams[this.team] && sim.teams[this.team].lowPower;
@@ -590,9 +722,17 @@
                 if (e.dead) show = false;
                 else if (e.team === this.team || this.reveal) show = true;
                 else if (e.kind === 'building') { const seen = this.buildingSeen(e); if (seen) { v.remembered = true; v.ghostHp = e.hp; } show = seen || v.remembered; v.stale = !seen; }
-                else show = this.tileVisible(x, z);
+                // enemy units: only when seen, and never while cloaked (the sim's isVisible respects cloak)
+                else show = !e.cloaked && (sim.isVisible ? sim.isVisible(this.team, e) : this.tileVisible(x, z));
                 v.obj.visible = show; v.shown = show;
-                if (!show) { v.x = x; v.z = z; continue; }
+                if (!show) { v.x = x; v.z = z; if (v.cloakOn) this.setCloak(v, 0); continue; }
+                // cloaked own units (or any in attract/reveal mode): translucent with a shimmer
+                const wantCloak = e.cloaked ? 1 : 0;
+                if (wantCloak || v.cloakK > 0) {
+                    v.cloakK += (wantCloak - v.cloakK) * Math.min(1, dt * 5); if (v.cloakK < 0.01 && !wantCloak) v.cloakK = 0;
+                    this.setCloak(v, v.cloakK);
+                    if (v.cloakK > 0.5 && Math.random() < dt * 5) this.sparks.emit(x + (Math.random() - 0.5) * v.radius * 1.6, Math.random() * v.height, z + (Math.random() - 0.5) * v.radius * 1.6, 0, 0.3, 0, 0.5, 0.12, 0.02, [0.6, 0.95, 1, 0.7], [0.4, 0.6, 1, 0], 0, 0);
+                }
                 const moved = Math.hypot(x - v.x, z - v.z);
                 v.x = x; v.z = z;
                 if (e.hp < v.lastHp - 0.01) v.dmgT = this.time;
@@ -607,6 +747,15 @@
                         v.model.position.y = moved > 0.0005 ? Math.abs(Math.sin(v.phase)) * 0.045 : v.model.position.y * 0.8;
                     }
                     for (const w of v.parts.wheels) w.rotation.z -= moved / v.parts.wheelR;
+                    if (v.hover) {
+                        // skimmers float: bob, bank into turns, a little dust when moving
+                        const hn = v.parts.hover || v.model;
+                        hn.position.y = (v.parts.hover ? 0 : 0.09) + Math.sin(this.time * 2.8 + v.phase) * 0.035;
+                        const bank = clamp(angDiff(v.ang, e.angle || 0) * 0.6, -0.3, 0.3);
+                        hn.rotation.x += (bank - hn.rotation.x) * Math.min(1, dt * 6);
+                        hn.rotation.z += ((moved > 0.004 ? 0.06 : 0) - hn.rotation.z) * Math.min(1, dt * 4);
+                        if (moved > 0.004 && !e.cloaked && Math.random() < dt * (this.high ? 10 : 5)) this.smoke.emit(x - Math.cos(v.ang) * 0.35, 0.05, z - Math.sin(v.ang) * 0.35, (Math.random() - 0.5) * 0.5, 0.15, (Math.random() - 0.5) * 0.5, 0.6, 0.15, 0.5, [0.62, 0.56, 0.46, 0.3], [0.6, 0.55, 0.45, 0], 2, 0);
+                    }
                     if (v.parts.arm) {
                         const mining = e.state === 'harvest' && moved < 0.002;
                         const want = mining ? -0.22 + Math.sin(this.time * 5 + v.phase) * 0.13 : 0;
@@ -627,6 +776,7 @@
                     if (v.parts.rotor && built >= 1 && !(e.team === this.team ? lowPower : sim.teams[e.team].lowPower)) v.parts.rotor.rotation.y += dt * 1.6;
                     if (v.parts.flag) v.parts.flag.rotation.y = Math.sin(this.time * 1.7 + v.phase) * 0.25;
                     if (v.parts.crane) v.parts.crane.rotation.y = Math.sin(this.time * 0.23 + v.phase) * 0.9;
+                    if (v.parts.charge || v.parts.doorL || v.parts.doorR || v.parts.missile) this.animSuper(v, e, built, dt);
                 }
                 if (v.parts.turret && e.turret != null) {
                     v.tur += angDiff(v.tur, e.turret) * (1 - Math.exp(-dt * 10));
@@ -664,6 +814,8 @@
                     case 'placed': { const v = this.views.get(ev.id), e = this.sim.entities.get(ev.id); if (e && e.team !== this.team) this.zoneDirty = true; if (e) this.dust(e.x, e.z, C.BUILDINGS[e.type] ? C.BUILDINGS[e.type].w : 2); if (v) v.placedT = this.time; this.zoneDirty = true; break; }
                     case 'spawn': { const e = this.sim.entities.get(ev.id); if (e && e.team === this.team) this.spawnGlow(e.x, e.z); break; }
                     case 'harvest': { const e = this.sim.entities.get(ev.id); if (e && this.tileVisible(e.x, e.z)) for (let i = 0; i < 6; i++) this.harvestSpark(e.x, e.z); break; }
+                    case 'superweapon': if (ev.phase === 'warn') this.strikeWarn(ev); else if (ev.phase === 'strike') this.strikeFx(ev); break;
+                    case 'cloak': { const v = this.views.get(ev.id); if (v && (v.team === this.team || v.shown)) this.shimmer(v.x, v.z, v.radius, ev.on); break; }
                 }
             }
         }
@@ -683,8 +835,11 @@
             const tv = this.findTargetHeight(tx, tz);
             const end = new THREE.Vector3(tx, tv, tz);
             const dist = start.distanceTo(end);
+            const ecol = ENERGY[ev.weapon] || 0xd77bff;
             // muzzle flash
-            if (this.seenAt(sx, sz)) {
+            if (this.seenAt(sx, sz) && (w.projectile === 'bolt' || w.projectile === 'beam')) {
+                this.flash(start.x, start.y, start.z, ev.weapon === 'spireBeam' ? 1.0 : ev.weapon === 'shock' || ev.weapon === 'phase' ? 0.7 : 0.42, 0.09, ecol);
+            } else if (this.seenAt(sx, sz)) {
                 const big = w.projectile === 'shell' || w.projectile === 'arc';
                 this.flash(start.x, start.y, start.z, big ? 0.9 : w.projectile === 'rocket' ? 0.6 : 0.38, big ? 0.12 : 0.07, big ? 0xffc070 : 0xffe2a8);
                 if (big) for (let i = 0; i < 4; i++) this.smoke.emit(start.x, start.y, start.z, (Math.random() - 0.5) * 0.6, 0.4 + Math.random() * 0.4, (Math.random() - 0.5) * 0.6, 1.0, 0.2, 0.7, [0.5, 0.48, 0.45, 0.5], [0.4, 0.4, 0.4, 0], 2, -0.2);
@@ -698,7 +853,30 @@
                 const it = this.take('bolt'); it.kind = 'bolt'; it.s = start; it.e = end; it.t = 0; it.dur = ev.dur > 0 ? ev.dur : Math.max(0.06, dist / (w.speed || 18)); it.len = 0.45;
             } else if (kind === 'arc') {
                 const it = this.take('arc'); it.kind = 'arc'; it.s = start; it.e = end; it.t = 0; it.dur = ev.dur > 0 ? ev.dur : Math.max(0.3, dist / (w.speed || 9)); it.arc = 1.2 + dist * 0.32; it.acc = 0;
+            } else if (kind === 'bolt') {
+                const it = this.take('ebolt'); it.s = start; it.e = end; it.t = 0; it.dur = ev.dur > 0 ? ev.dur : Math.max(0.05, dist / (w.speed || 20)); it.acc = 0; it.col = ecol;
+                it.size = ev.weapon === 'shock' ? 0.11 : ev.weapon === 'phase' ? 0.1 : 0.065;
+                it.glow.material.color.setHex(ecol); it.obj.scale.setScalar(it.size);
+            } else if (kind === 'beam') {
+                this.beam(start, end, ecol, ev.weapon === 'spireBeam' ? 0.065 : 0.04, ev.weapon === 'spireBeam' ? 0.26 : 0.17, 'shot');
             }
+        }
+        beam(start, end, color, r, life, mode) {
+            const it = this.take('beam');
+            it.s = start.clone(); it.e = end.clone(); it.t = 0; it.life = life; it.r = r; it.mode = mode || 'shot';
+            it.glow.material.color.setHex(color); it.core.material.color.setHex(mode === 'target' ? color : 0xffffff);
+            tmpV.subVectors(it.e, it.s); const d = Math.max(0.01, tmpV.length()); tmpV.normalize();
+            it.obj.position.copy(it.s); it.obj.quaternion.setFromUnitVectors(AX_X, tmpV); it.obj.scale.set(d, 1, 1);
+            this.beamStyle(it, 0);
+            return it;
+        }
+        beamStyle(it, k) {
+            let r = it.r, a = 1;
+            if (it.mode === 'target') { const f = 0.55 + 0.45 * Math.sin(this.time * 40) * Math.sin(this.time * 13); r = it.r * (0.4 + k * 1.2); a = (0.35 + 0.5 * k) * f; }
+            else if (it.mode === 'up') { r = it.r * (1 - k * 0.7); a = 1 - k; }
+            else { r = it.r * (1 - k * 0.6) * (0.85 + Math.random() * 0.3); a = 1 - k * k; }
+            it.core.scale.set(1, r, r); it.glow.scale.set(1, r * 2.6, r * 2.6);
+            it.core.material.opacity = a; it.glow.material.opacity = a * (it.mode === 'shot' ? 0.75 : 0.5);
         }
         findTargetHeight(x, z) {
             let best = 0.35, bd = 1.2;
@@ -713,7 +891,13 @@
             if (!this.seenAt(ev.x, ev.z)) return;
             const w = C.WEAPONS[ev.weapon] || {}; const p = w.projectile;
             const y = this.findTargetHeight(ev.x, ev.z) * 0.6;
-            if (p === 'bullet') {
+            if (p === 'beam' || p === 'bolt') {
+                const c = rgb(ENERGY[ev.weapon] || 0xd77bff), big = (ev.splash || 0) >= 0.4 || ev.weapon === 'spireBeam';
+                for (let i = 0; i < (big ? 12 : 5); i++) this.sparks.emit(ev.x, y + 0.05, ev.z, (Math.random() - 0.5) * 3, Math.random() * 2.2, (Math.random() - 0.5) * 3, 0.25, big ? 0.22 : 0.13, 0.02, [1, 1, 1, 1], [c[0], c[1], c[2], 0], 2, 6);
+                this.flash(ev.x, y + 0.1, ev.z, big ? 1.3 : 0.5, big ? 0.16 : 0.08, ENERGY[ev.weapon] || 0xd77bff);
+                if (big) { const sh = this.take('shock'); sh.obj.material.color.setHex(ENERGY[ev.weapon] || 0xd77bff); sh.obj.position.set(ev.x, 0.06, ev.z); sh.t = 0; sh.life = 0.3; sh.size = 0.5 + (ev.splash || 0); sh.obj.scale.setScalar(0.1); }
+                if ((ev.splash || 0) >= 0.5) this.scorch(ev.x, ev.z, 0.8);
+            } else if (p === 'bullet') {
                 for (let i = 0; i < 3; i++) this.sparks.emit(ev.x, y, ev.z, (Math.random() - 0.5) * 2.5, Math.random() * 2, (Math.random() - 0.5) * 2.5, 0.18, 0.12, 0.02, [1, 0.9, 0.6, 1], [1, 0.5, 0.1, 0], 2, 8);
                 this.smoke.emit(ev.x, 0.1, ev.z, 0, 0.3, 0, 0.5, 0.15, 0.4, [0.55, 0.5, 0.42, 0.35], [0.55, 0.5, 0.42, 0], 1, 0);
             } else {
@@ -764,7 +948,7 @@
                 this.smoke.emit(x + Math.cos(a) * 0.2, y + 0.1, z + Math.sin(a) * 0.2, Math.cos(a) * sp, 0.5 + Math.random() * 0.7, Math.sin(a) * sp, 1.6 + Math.random(), 0.5 * s, 1.7 * s, [0.12, 0.11, 0.1, 0.75], [0.32, 0.31, 0.3, 0], 1.2, -0.08);
             }
             if (big) {
-                const sh = this.take('shock'); sh.obj.position.set(x, 0.06, z); sh.t = 0; sh.life = 0.45; sh.size = 1.8 * s; sh.obj.scale.setScalar(0.2);
+                const sh = this.take('shock'); sh.obj.material.color.setHex(0xffc890); sh.obj.position.set(x, 0.06, z); sh.t = 0; sh.life = 0.45; sh.size = 1.8 * s; sh.obj.scale.setScalar(0.2);
                 for (const L of this.lights) if (L.t >= L.life) { L.l.position.set(x, 1.2, z); L.t = 0; L.life = 0.35; L.power = 3.5 * s; break; }
             }
             this.emit('boom', { x, z, s });
@@ -782,6 +966,149 @@
         harvestSpark(x, z) { this.sparks.emit(x + (Math.random() - 0.5) * 0.5, 0.2, z + (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.8, 0.8 + Math.random(), (Math.random() - 0.5) * 0.8, 0.6, 0.14, 0.03, [0.6, 1, 0.9, 1], [0.15, 0.85, 0.7, 0], 1, 2.5); }
         shake(a) { this.cam.shake = Math.min(1, this.cam.shake + a); }
 
+        shimmer(x, z, r, on) {
+            for (let i = 0; i < 14; i++) { const a = i / 14 * TAU; this.sparks.emit(x + Math.cos(a) * r, 0.1 + Math.random() * 0.5, z + Math.sin(a) * r, Math.cos(a) * (on ? -0.6 : 0.8), 0.4, Math.sin(a) * (on ? -0.6 : 0.8), 0.5, 0.16, 0.03, [0.7, 0.95, 1, 0.9], [0.4, 0.5, 1, 0], 1, 0); }
+        }
+        superBuilding(team, kind) {
+            for (const v of this.views.values()) if (v.team === team && v.kind === 'building' && v.def && v.def.superweapon === kind && !v.ent.dead) return v;
+            return null;
+        }
+        // a launch: everyone sees the warning ring (drawn from sim.strikes); Lance: a flickering targeting beam from
+        // orbit and a beam up from the uplink; Rift: the missile climbs out of the silo and arcs onto the target
+        strikeWarn(ev) {
+            const sw = (C.SUPERWEAPONS || {})[ev.kind] || { warn: 3, radius: 3 };
+            const b = this.superBuilding(ev.team, ev.kind);
+            if (b) b.launchT = this.time;
+            if (ev.kind === 'rift') {
+                const it = this.take('missile');
+                const from = b ? new THREE.Vector3(b.x, 0.8, b.z) : (() => { const st = this.sim.map.starts[ev.team] || { tx: 0, tz: 0 }; return new THREE.Vector3(st.tx < this.W / 2 ? -6 : this.W + 6, 4, st.tz < this.H / 2 ? -6 : this.H + 6); })();
+                it.s = from; it.e = new THREE.Vector3(ev.x, 0, ev.z); it.t = 0; it.dur = Math.max(0.8, sw.warn); it.acc = 0;
+                it.arc = 12 + it.s.distanceTo(it.e) * 0.22;
+                if (b && b.shown) { for (let i = 0; i < 18; i++) this.smoke.emit(b.x + (Math.random() - 0.5), 0.6, b.z + (Math.random() - 0.5), (Math.random() - 0.5) * 1.6, 0.4 + Math.random(), (Math.random() - 0.5) * 1.6, 1.8, 0.4, 1.6, [0.5, 0.45, 0.5, 0.6], [0.4, 0.38, 0.4, 0], 1, -0.05); this.flash(b.x, 1.2, b.z, 2.4, 0.3, 0xe08cff); }
+            } else {
+                this.beam(new THREE.Vector3(ev.x, 46, ev.z), new THREE.Vector3(ev.x, 0, ev.z), SW_COLOR.lance, 0.09, sw.warn, 'target');
+                if (b && b.shown) {
+                    const top = b.parts.charge ? b.parts.charge.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(b.x, b.height, b.z);
+                    this.beam(top, new THREE.Vector3(top.x, 60, top.z), 0xbff4ff, 0.16, 0.8, 'up');
+                    this.flash(top.x, top.y, top.z, 2.2, 0.35, 0xbff4ff);
+                }
+            }
+        }
+        strikeFx(ev) {
+            const sw = (C.SUPERWEAPONS || {})[ev.kind] || { radius: 3 };
+            const R = sw.radius || 3, x = ev.x, z = ev.z, n = this.high ? 1 : 0.55;
+            const it = this.take('swfx'); it.kind = ev.kind; it.t = 0; it.R = R; it.x = x; it.z = z; it.burst = false;
+            it.obj.position.set(x, 0, z);
+            it.glow.visible = it.core.visible = ev.kind !== 'rift'; it.dark.visible = it.rim.visible = ev.kind === 'rift';
+            it.life = ev.kind === 'rift' ? 1.5 : 1.6;
+            if (ev.kind === 'rift') {
+                it.dark.scale.setScalar(0.01); it.rim.scale.setScalar(0.01); it.dark.position.y = it.rim.position.y = R * 0.35;
+                this.flash(x, 1, z, R * 2.2, 0.25, 0xd08cff);
+                // implosion: particles from a shell around the point rushing inwards
+                for (let i = 0; i < 150 * n; i++) {
+                    const a = Math.random() * TAU, el = Math.random() * 1.3, rr = R * (1 + Math.random() * 0.5);
+                    const px = Math.cos(a) * Math.cos(el) * rr, py = Math.sin(el) * rr * 0.8 + 0.3, pz = Math.sin(a) * Math.cos(el) * rr, life = 0.38 + Math.random() * 0.12;
+                    this.sparks.emit(x + px, py, z + pz, -px / life, (R * 0.35 - py) / life, -pz / life, life, 0.3, 0.06, [0.75, 0.45, 1, 0.3], [1, 0.9, 1, 1], 0, 0);
+                }
+                for (let i = 0; i < 40 * n; i++) { const a = Math.random() * TAU, rr = R * (1.1 + Math.random() * 0.6); this.smoke.emit(x + Math.cos(a) * rr, 0.2, z + Math.sin(a) * rr, -Math.cos(a) * rr * 1.6, 0.1, -Math.sin(a) * rr * 1.6, 0.6, 0.8, 0.2, [0.3, 0.22, 0.36, 0.5], [0.1, 0.05, 0.15, 0], 0.5, 0); }
+                this.shake(0.45);
+            } else {
+                it.core.scale.set(0.05, 60, 0.05); it.glow.scale.set(0.1, 60, 0.1);
+                it.core.material.opacity = 1; it.glow.material.opacity = 0.5;
+                this.flash(x, 1.2, z, R * 3.4, 0.45, 0xe6fbff);
+                this.flash(x, 0.4, z, R * 2.2, 0.9, 0x9fe8ff);
+                this.ring(x, z, R * 2.6, 0.75, 0xd8f6ff); this.ring(x, z, R * 1.6, 0.5, 0x9fe8ff);
+                for (let i = 0; i < 110 * n; i++) { const a = Math.random() * TAU, sp = (2 + Math.random() * 6); this.sparks.emit(x + Math.cos(a) * R * 0.3, 0.3, z + Math.sin(a) * R * 0.3, Math.cos(a) * sp, 1 + Math.random() * 6, Math.sin(a) * sp, 0.5 + Math.random() * 0.5, 0.45, 0.08, [1, 1, 1, 1], [0.4, 0.8, 1, 0], 2, 4); }
+                for (let i = 0; i < 36 * n; i++) { const a = Math.random() * TAU, sp = 1.5 + Math.random() * 2.5; this.smoke.emit(x + Math.cos(a) * R * 0.5, 0.3, z + Math.sin(a) * R * 0.5, Math.cos(a) * sp, 0.4 + Math.random() * 0.8, Math.sin(a) * sp, 2.4 + Math.random(), 0.8, 2.6, [0.2, 0.22, 0.25, 0.7], [0.35, 0.36, 0.4, 0], 1.0, -0.05); }
+                this.debrisBurst(x, 0.5, z, 20, 6);
+                this.scorch(x, z, R * 1.15); this.scorch(x, z, R * 0.7);
+                this.light(x, z, 9, 1.4, 0xbff4ff);
+                this.shake(1);
+            }
+            this.emit('strike', { x, z, kind: ev.kind });
+        }
+        ring(x, z, size, life, color) { const sh = this.take('shock'); sh.obj.material.color.setHex(color); sh.obj.position.set(x, 0.08, z); sh.t = 0; sh.life = life; sh.size = size; sh.obj.scale.setScalar(0.2); }
+        light(x, z, power, life, color) {
+            for (const L of this.lights) if (L.t >= L.life || L.power < power) { L.l.position.set(x, 2.5, z); L.l.color.setHex(color || 0xffa860); L.l.distance = 18; L.t = 0; L.life = life; L.power = power; return; }
+        }
+        updateStrikeFx(it, dt) {
+            it.t += dt;
+            const t = it.t, R = it.R;
+            if (t >= it.life) { this.release(it); return; }
+            if (it.kind === 'rift') {
+                // grow the dark sphere, collapse it, then burst outwards
+                let s;
+                if (t < 0.45) s = R * 0.62 * (1 - Math.pow(1 - t / 0.45, 3));
+                else if (t < 0.75) s = R * 0.62 * (1 - Math.pow((t - 0.45) / 0.3, 2));
+                else s = 0.001;
+                it.dark.scale.setScalar(Math.max(0.001, s)); it.rim.scale.setScalar(Math.max(0.001, s * 1.12));
+                it.rim.material.opacity = t < 0.75 ? 0.5 + 0.5 * (t / 0.75) : 0;
+                it.dark.visible = it.rim.visible = t < 0.76;
+                if (t < 0.7 && Math.random() < dt * 30) { const a = Math.random() * TAU, rr = R * 1.2; this.sparks.emit(it.x + Math.cos(a) * rr, 0.3 + Math.random() * R * 0.6, it.z + Math.sin(a) * rr, -Math.cos(a) * rr * 3, 0, -Math.sin(a) * rr * 3, 0.3, 0.25, 0.05, [0.8, 0.5, 1, 0.6], [1, 1, 1, 1], 0, 0); }
+                if (!it.burst && t >= 0.75) {
+                    it.burst = true;
+                    const x = it.x, z = it.z, n = this.high ? 1 : 0.55;
+                    this.flash(x, R * 0.35, z, R * 3.6, 0.5, 0xf2dcff);
+                    this.ring(x, z, R * 2.8, 0.8, 0xd66eff); this.ring(x, z, R * 1.8, 0.55, 0xffffff);
+                    for (let i = 0; i < 120 * n; i++) { const a = Math.random() * TAU, el = Math.random() * 1.2, sp = 3 + Math.random() * 6; this.sparks.emit(x, R * 0.35, z, Math.cos(a) * Math.cos(el) * sp, Math.sin(el) * sp, Math.sin(a) * Math.cos(el) * sp, 0.5 + Math.random() * 0.4, 0.45, 0.06, [1, 0.9, 1, 1], [0.6, 0.2, 1, 0], 1.5, 3); }
+                    for (let i = 0; i < 30 * n; i++) { const a = Math.random() * TAU, sp = 1.5 + Math.random() * 2; this.smoke.emit(x + Math.cos(a) * R * 0.4, 0.3, z + Math.sin(a) * R * 0.4, Math.cos(a) * sp, 0.5 + Math.random(), Math.sin(a) * sp, 2.6, 0.9, 2.8, [0.16, 0.1, 0.2, 0.75], [0.3, 0.26, 0.34, 0], 1, -0.05); }
+                    this.debrisBurst(x, 0.5, z, 18, 6);
+                    this.scorch(x, z, R * 1.2); this.scorch(x, z, R * 0.75);
+                    this.light(x, z, 8, 1.1, 0xd08cff);
+                    this.shake(1);
+                }
+            } else {
+                // the orbital beam: snaps on, holds, then thins out
+                let w;
+                if (t < 0.08) w = t / 0.08; else if (t < 0.85) w = 1 + Math.sin(t * 50) * 0.05; else w = Math.max(0, 1 - (t - 0.85) / 0.6);
+                const rc = R * 0.3 * w + 0.02, rg = R * 0.72 * w + 0.04;
+                it.core.scale.set(rc, 60, rc); it.glow.scale.set(rg, 60, rg);
+                it.core.material.opacity = Math.min(1, w * 1.2); it.glow.material.opacity = 0.45 * w;
+                if (t < 0.9 && Math.random() < dt * 40) { const a = Math.random() * TAU, rr = Math.random() * R * 0.5; this.sparks.emit(it.x + Math.cos(a) * rr, 0.2, it.z + Math.sin(a) * rr, Math.cos(a) * 3, 3 + Math.random() * 5, Math.sin(a) * 3, 0.5, 0.35, 0.05, [1, 1, 1, 1], [0.5, 0.85, 1, 0], 1, 3); }
+            }
+        }
+        // per frame: one warning marker per pending strike (sim.strikes), pulsing towards impact
+        updateStrikeMarks() {
+            const list = (this.sim && this.sim.strikes) || [], pool = this.pools.swmark.items, seen = new Set();
+            for (const st of list) {
+                seen.add(st.id);
+                let m = this.strikeMarks.get(st.id);
+                if (!m) { m = this.take('swmark'); m.sid = st.id; this.strikeMarks.set(st.id, m); m.born = this.time; }
+                const sw = (C.SUPERWEAPONS || {})[st.kind] || { radius: 3, warn: 3 };
+                const left = this.strikeLeft(st), warn = st.warn || sw.warn || 3, k = clamp(1 - left / warn, 0, 1);
+                const col = SW_WARN[st.kind] || 0xff5a3c;
+                m.obj.position.set(st.x, 0.07, st.z);
+                const R = sw.radius || 3;
+                m.ring.scale.setScalar(R); m.fill.scale.setScalar(R); m.tk.scale.setScalar(R); m.tk.rotation.y = this.time * (0.6 + k * 2.5);
+                const ph = (this.time * (1.2 + k * 3)) % 1;
+                m.pulse.scale.setScalar(R * (1 - ph) + 0.05); m.pulse.material.opacity = 0.55 * ph;
+                for (const mm of [m.ring, m.fill, m.pulse, m.tk]) mm.material.color.setHex(col);
+                const blink = 0.65 + 0.35 * Math.sin(this.time * (8 + k * 16));
+                m.ring.material.opacity = 0.95 * blink; m.fill.material.opacity = 0.08 + 0.14 * k; m.tk.material.opacity = 0.9;
+                m.left = left; m.kind = st.kind;
+            }
+            for (const [id, m] of this.strikeMarks) if (!seen.has(id)) { this.release(m); this.strikeMarks.delete(id); }
+            for (const it of pool) if (it.active && !this.strikeMarks.has(it.sid)) this.release(it);
+        }
+        // seconds until a pending strike lands; `t` is read as the sim time it lands (falls back to "seconds left")
+        strikeLeft(st) {
+            const warn = st.warn || 5, now = this.sim.time;
+            let left = st.t - now;
+            if (left < -0.3 || left > warn + 0.3) left = st.t;
+            return clamp(left, 0, warn);
+        }
+        // superweapon targeting reticle: { x, z, r, ok, kind } or null
+        setAim(a) { this.aimState = a || null; if (!a && this.aim) this.aim.obj.visible = false; }
+        updateAim() {
+            const a = this.aimState, A = this.aim; if (!A) return;
+            if (!a || !this.sim) { A.obj.visible = false; return; }
+            A.obj.visible = true; A.obj.position.set(a.x, 0.08, a.z);
+            const col = !a.ok ? 0xff3b30 : (SW_COLOR[a.kind] || 0x9fe8ff), R = a.r || 3;
+            for (const mm of [A.ring, A.fill, A.pulse, A.tk]) mm.material.color.setHex(col);
+            A.ring.scale.setScalar(R); A.fill.scale.setScalar(R); A.tk.scale.setScalar(R); A.tk.rotation.y = -this.time * 0.8;
+            const ph = (this.time * 0.9) % 1; A.pulse.scale.setScalar(R * (0.25 + ph * 0.75)); A.pulse.material.opacity = 0.45 * (1 - ph);
+            A.ring.material.opacity = 0.95; A.fill.material.opacity = a.ok ? 0.14 : 0.1; A.tk.material.opacity = 0.95;
+        }
         updateFx(dt) {
             if (this.timers && this.timers.length) {
                 const due = this.timers.filter((t) => t.t <= this.time); this.timers = this.timers.filter((t) => t.t > this.time);
@@ -816,6 +1143,42 @@
                     }
                 }
             }
+            for (const it of this.pools.ebolt.items) {
+                if (!it.active) continue;
+                it.t += dt / it.dur;
+                if (it.t >= 1) { this.release(it); continue; }
+                const x = lerp(it.s.x, it.e.x, it.t), y = lerp(it.s.y, it.e.y, it.t), z = lerp(it.s.z, it.e.z, it.t);
+                tmpV.subVectors(it.e, it.s).normalize();
+                it.obj.position.set(x, y, z); it.obj.quaternion.setFromUnitVectors(AX_X, tmpV);
+                it.obj.scale.set(it.size * 2.6, it.size, it.size);
+                it.acc += dt;
+                if (it.acc > 0.025) { it.acc = 0; const c = rgb(it.col); this.sparks.emit(x, y, z, 0, 0, 0, 0.16, it.size * 2.6, 0.02, [c[0], c[1], c[2], 0.8], [c[0], c[1], c[2], 0], 0, 0); }
+            }
+            for (const it of this.pools.beam.items) {
+                if (!it.active) continue;
+                it.t += dt;
+                if (it.t >= it.life) { this.release(it); continue; }
+                this.beamStyle(it, it.t / it.life);
+            }
+            for (const it of this.pools.missile.items) {
+                if (!it.active) continue;
+                it.t += dt / it.dur;
+                if (it.t >= 1) { this.release(it); continue; }
+                // slow climb out of the silo, then a ballistic arc; eased so it accelerates into the dive
+                const t = it.t, tt = t < 0.15 ? t * 0.4 : 0.06 + (t - 0.15) / 0.85 * 0.94, f = tt * tt * (3 - 2 * tt) * 0.5 + tt * 0.5;
+                const climb = t < 0.15 ? (t / 0.15) * 3 : 0;
+                const x = lerp(it.s.x, it.e.x, f), z = lerp(it.s.z, it.e.z, f), y = lerp(it.s.y, it.e.y, f) + 4 * it.arc * f * (1 - f) + climb * (1 - f);
+                const nf = Math.min(1, f + 0.01), nx = lerp(it.s.x, it.e.x, nf), nz = lerp(it.s.z, it.e.z, nf), ny = lerp(it.s.y, it.e.y, nf) + 4 * it.arc * nf * (1 - nf) + climb * (1 - nf);
+                tmpV.set(nx - x, ny - y + (t < 0.15 ? 0.05 : 0), nz - z).normalize();
+                it.obj.position.set(x, y, z); it.obj.quaternion.setFromUnitVectors(AX_X, tmpV);
+                it.acc += dt;
+                while (it.acc > 0.02) {
+                    it.acc -= 0.02;
+                    this.smoke.emit(x, y, z, (Math.random() - 0.5) * 0.2, 0.1, (Math.random() - 0.5) * 0.2, 1.4, 0.25, 1.1, [0.7, 0.66, 0.72, 0.55], [0.5, 0.5, 0.55, 0], 1, -0.05);
+                    this.sparks.emit(x, y, z, 0, 0, 0, 0.18, 0.5, 0.08, [1, 0.85, 1, 1], [0.7, 0.3, 1, 0], 0, 0);
+                }
+            }
+            for (const it of this.pools.swfx.items) if (it.active) this.updateStrikeFx(it, dt);
             for (const it of this.pools.flash.items) {
                 if (!it.active) continue;
                 it.t += dt; const k = it.t / it.life;
@@ -880,7 +1243,7 @@
                 for (let i = 0; i < b.w * b.d; i++) { tmpM.makeTranslation((i % b.w) + 0.5, 0.04, Math.floor(i / b.w) + 0.5); tiles.setMatrixAt(i, tmpM); tiles.setColorAt(i, col); }
                 group.add(tiles);
                 let model = null;
-                try { model = window.SF_MODELS.building(type, this.teamColor(this.team)); if (model.parent) model = model.clone(); } catch (e) { model = null; }
+                try { model = window.SF_MODELS.building(type, this.teamColor(this.team), this.factionOf(this.team)); if (model.parent) model = model.clone(); } catch (e) { model = null; }
                 const gm = this.ghostMat = this.ghostMat || new THREE.MeshBasicMaterial({ color: 0x8fd0ff, transparent: true, opacity: 0.42, depthWrite: false, toneMapped: false });
                 if (model) { model.traverse((o) => { if (o.isMesh) { o.material = gm; o.castShadow = false; } }); model.position.set(b.w / 2, 0, b.d / 2); group.add(model); }
                 group.traverse((o) => { o.renderOrder = 4; });
@@ -942,6 +1305,20 @@
             g.clearRect(0, 0, w, h);
             if (!this.sim || this.attract) return;
             const scale = this.pxPerUnit();
+            // strike countdowns
+            if (this.strikeMarks && this.strikeMarks.size) {
+                g.textAlign = 'center'; g.textBaseline = 'middle';
+                for (const m of this.strikeMarks.values()) {
+                    const p = this.worldToScreen(m.obj.position.x, 0.2, m.obj.position.z);
+                    if (p.behind || p.x < -40 || p.y < -40 || p.x > w + 40 || p.y > h + 40) continue;
+                    const fs = Math.round(clamp(scale * 0.9, 16, 30));
+                    g.font = '800 ' + fs + 'px "Saira Condensed", "Arial Narrow", sans-serif';
+                    const txt = m.left.toFixed(1), col = m.kind === 'rift' ? '#e2a2ff' : '#ff8a6a';
+                    g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,0.75)'; g.strokeText(txt, p.x, p.y); g.fillStyle = col; g.fillText(txt, p.x, p.y);
+                    g.font = '700 ' + Math.round(fs * 0.5) + 'px "Saira Condensed", "Arial Narrow", sans-serif';
+                    g.strokeText('STRIKE', p.x, p.y - fs * 0.85); g.fillText('STRIKE', p.x, p.y - fs * 0.85);
+                }
+            }
             for (const v of this.views.values()) {
                 if (!v.shown) continue;
                 const e = v.ent, sel = this.selection.has(v.id), hov = this.hover === v.id;
@@ -1108,13 +1485,14 @@
         isShown(id) { const v = this.views.get(id); return !!(v && v.shown); }
 
         // ------------------------------------------------------------ thumbnails for the build sidebar
-        thumbnail(kind, type, team) {
-            const key = kind + ':' + type + ':' + (team || 0);
+        thumbnail(kind, type, team, faction) {
+            faction = faction || this.factionOf(team || 0);
+            const key = kind + ':' + type + ':' + (team || 0) + ':' + faction;
             if (this.thumbs.has(key)) return this.thumbs.get(key);
             let url = null;
             try {
                 const M = window.SF_MODELS; const color = this.teamColor(team || 0);
-                let model = kind === 'unit' ? M.unit(type, color) : M.building(type, color);
+                let model = kind === 'unit' ? M.unit(type, color, faction) : M.building(type, color, faction);
                 if (model.parent) model = model.clone();
                 const S = 160;
                 if (!this.thumbScene) {
@@ -1176,6 +1554,8 @@
                 for (const o of this.root.children) if (o.userData.spireGlow) o.material.opacity = 0.28 + Math.sin(this.time * 2 + o.position.x) * 0.08;
             }
             this.updateFx(dt);
+            if (this.sim) this.updateStrikeMarks();
+            this.updateAim();
             this.updateOverlays(dt);
             const m = this.fogMat.uniforms;
             m.uInv.value.multiplyMatrices(this.camera.matrixWorld, this.camera.projectionMatrixInverse);

@@ -1,9 +1,11 @@
 // Shardfall: input. Desktop mouse + keyboard and phone touch, all through pointer events on the stage.
 //   mouse: left click select (Shift adds), left drag box, double-click = all of type on screen, right click smart
 //          order, right/middle drag pans, wheel zoom, edge scroll, WASD/arrows, A attack-move, S stop, Q army,
-//          H home, Ctrl/Shift+1..9 groups, Esc cancel/deselect/pause.
+//          H home, Z superweapon targeting (click fires, right click cancels), Ctrl/Shift+1..9 groups,
+//          Esc cancel/deselect/pause.
 //   touch: one-finger drag pans (with inertia), tap selects / smart-orders, press-and-hold then drag box-selects,
-//          double-tap a unit selects all of that type on screen, pinch zooms (and pans with the midpoint).
+//          double-tap a unit selects all of that type on screen, pinch zooms (and pans with the midpoint);
+//          superweapon targeting: the first tap places the reticle, a tap inside it (or the Fire button) launches.
 (function () {
     'use strict';
     const SF = window.SF = window.SF || {};
@@ -153,7 +155,7 @@
         longPress() {
             if (this.state !== 'pending' || this.touches.size !== 1) return;
             this.pressEnd();
-            if (this.G.placing) return; // no box-select while placing
+            if (this.G.placing || this.G.mode === 'super') return; // no box-select while placing or targeting
             const t = Array.from(this.touches.values())[0];
             this.state = 'box';
             this.drawBox(t.sx, t.sy, t.x, t.y);
@@ -180,6 +182,7 @@
         tap(x, y, ts) {
             const G = this.G, now = ts || performance.now();
             if (G.placing) { this.placeTap(x, y); return; }
+            if (G.mode === 'super') { this.superTap(x, y); return; }
             const id = this.R.pick(x, y, true), ent = id != null ? G.sim.entities.get(id) : null;
             const dbl = this.lastTap && now - this.lastTap.t < DOUBLE && Math.hypot(x - this.lastTap.x, y - this.lastTap.y) < 40;
             this.lastTap = { t: now, x, y, id };
@@ -193,6 +196,14 @@
             if (units.length) { this.smartOrder(x, y, true); return; }
             if (ent) { G.select([id]); return; }
             if (G.sel.length) G.select([]);
+        }
+        // touch: first tap aims, a second tap inside the reticle fires
+        superTap(x, y) {
+            const G = this.G, g = this.R.screenToGround(x, y); if (!g) return;
+            const a = G.superAim, d = G.superDef();
+            if (a && a.ok && Math.hypot(g.x - a.x, g.z - a.z) <= Math.max(1.2, (d ? d.radius : 2) * 0.9)) { G.fireSuper(a.x, a.z); return; }
+            G.aimSuper(g.x, g.z);
+            G.audio.play(G.superAim && G.superAim.ok ? 'click' : 'error');
         }
         placeTap(x, y) {
             const G = this.G, g = this.R.screenToGround(x, y); if (!g) return;
@@ -235,6 +246,7 @@
             const G = this.G;
             if (m.button === 0) {
                 if (G.placing) { this.placeClick(p.x, p.y); return; }
+                if (G.mode === 'super') { const g = this.R.screenToGround(p.x, p.y); if (g) G.fireSuper(g.x, g.z); return; }
                 if (m.dragging) { this.hideBox(); this.finishBox(m.sx, m.sy, p.x, p.y, false, e.shiftKey); return; }
                 if (G.mode === 'attackMove') { this.smartOrder(p.x, p.y, false, true); return; }
                 if (G.mode === 'rally') { this.rallyAt(p.x, p.y); return; }
@@ -263,6 +275,10 @@
         updateHover(p) {
             const G = this.G;
             if (G.placing) { this.updateGhostFromMouse(p.x, p.y); this.setCursor('cur-place'); this.R.setHover(null); return; }
+            if (G.mode === 'super') {
+                const g = this.R.screenToGround(p.x, p.y); if (g) G.aimSuper(g.x, g.z);
+                this.setCursor(G.superAim && !G.superAim.ok ? 'cur-noaim' : 'cur-target'); this.R.setHover(null); return;
+            }
             if (this.mouse && this.mouse.dragging) return;
             const id = this.R.pick(p.x, p.y, false), ent = id != null ? G.sim.entities.get(id) : null;
             this.R.setHover(id);
@@ -371,6 +387,7 @@
                 case 's': if (hasUnits) { e.preventDefault(); G.stop(); } break;
                 case 'q': G.selectArmy(); break;
                 case 'h': case 'home': G.home(); break;
+                case 'z': e.preventDefault(); G.superClick(); break;
                 case 'p': G.togglePause(); break;
                 case 'f': G.focusSelection(); break;
                 case 'delete': break;
@@ -407,6 +424,7 @@
                 if (t > 0.3) { this.press.classList.add('on'); this.press.style.setProperty('--p', Math.min(100, (t - 0.3) / 0.7 * 100) + '%'); }
             }
             if (this.hoverPos && !this.mouse && G.placing) this.updateGhostFromMouse(this.hoverPos.x, this.hoverPos.y);
+            if (this.hoverPos && (px || pz) && G.mode === 'super' && !G.ui.touch) { const g = R.screenToGround(this.hoverPos.x, this.hoverPos.y); if (g) G.aimSuper(g.x, g.z); }
         }
         reset() {
             this.touches.clear(); this.state = 'idle'; this.mouse = null; this.hideBox(); this.pressEnd(); clearTimeout(this.lpTimer);
