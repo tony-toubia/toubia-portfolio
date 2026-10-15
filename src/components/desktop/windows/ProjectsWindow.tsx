@@ -7,6 +7,7 @@ import AMZToolsWindow from './AMZToolsWindow';
 import PrimalHuntWindow from './PrimalHuntWindow';
 import StudForgeWindow from './StudForgeWindow';
 import HoleHaulWindow from './HoleHaulWindow';
+import ShardfallWindow from './ShardfallWindow';
 
 interface Project {
   id: string;
@@ -94,6 +95,21 @@ const projects: Project[] = [
     windowContent: <HoleHaulWindow />,
     windowSize: { width: 420, height: 720 },
   },
+  {
+    id: 'shardfall',
+    name: 'Shardfall',
+    icon: (
+      <svg viewBox="0 0 48 48" className="w-10 h-10">
+        <rect x="4" y="4" width="40" height="40" rx="6" fill="#0B1220" stroke="#2F8FFF" strokeWidth="2" />
+        <path d="M24 9 L31 22 L24 39 L17 22 Z" fill="#5CE1FF" />
+        <path d="M24 9 L31 22 L24 26 Z" fill="#B8F3FF" />
+        <path d="M11 33 L17 27 L19 35 Z" fill="#2F8FFF" />
+        <path d="M37 33 L31 27 L29 35 Z" fill="#E8432E" />
+      </svg>
+    ),
+    windowContent: <ShardfallWindow />,
+    windowSize: { width: 960, height: 640 },
+  },
 ];
 
 export default function ProjectsWindow() {
@@ -162,6 +178,17 @@ export default function ProjectsWindow() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   /studforge ↗
+                </a>
+              )}
+              {project.id === 'shardfall' && (
+                <a
+                  href="/shardfall"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[9px] text-sky-500 hover:underline mt-0.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  /shardfall ↗
                 </a>
               )}
               {project.id === 'hole-haul' && (
