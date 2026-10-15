@@ -800,7 +800,8 @@
             const fl = Math.hypot(fx, fz);
             if (fl < 0.5) { fx = 1; fz = 0; } else { fx /= fl; fz /= fl; }
             const rx = -fz, rz = fx;
-            const n = units.length, sp = Math.max(0.75, maxR * 2 + 0.25);
+            // about one unit per tile: loose enough that one artillery shell can't catch half the group
+            const n = units.length, sp = Math.max(1.0, maxR * 2 + 0.25);
             const cols = Math.ceil(Math.sqrt(n * 1.3)), rows = Math.ceil(n / cols);
             const slots = new Array(n);
             const bad = [];
@@ -1013,7 +1014,8 @@
                 const d = Math.hypot(e.x - s.x, e.z - s.z) - e.radius;
                 if (d > r || d < minR) return;
                 if (vis[(e.z | 0) * w + (e.x | 0)] !== 2) return;
-                const sc = d + (U[e.type].weapon ? 0 : (e.type === 'harvester' ? 1.2 : 2));
+                // armed units first (artillery above all: fragile and deadly), then harvesters, then the rest
+                const sc = d + (U[e.type].weapon ? (e.type === 'artillery' ? -1.5 : 0) : (e.type === 'harvester' ? 1.2 : 2));
                 if (sc < bs) { bs = sc; best = e; }
             });
             for (const b of this._blds()) {

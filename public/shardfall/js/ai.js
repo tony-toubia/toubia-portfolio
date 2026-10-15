@@ -10,12 +10,12 @@
         easy: [['reactor', 1], ['refinery', 1], ['barracks', 1], ['reactor', 2], ['factory', 1], ['turret', 1], ['radar', 1],
             ['reactor', 3], ['techlab', 1], ['turret', 2]],
         normal: [['reactor', 1], ['refinery', 1], ['barracks', 1], ['reactor', 2], ['factory', 1], ['turret', 1], ['refinery', 2],
-            ['reactor', 3], ['radar', 1], ['turret', 2], ['techlab', 1], ['reactor', 4], ['turret', 3]],
+            ['reactor', 3], ['radar', 1], ['turret', 2], ['techlab', 1], ['reactor', 4]],
         hard: [['reactor', 1], ['refinery', 1], ['barracks', 1], ['reactor', 2], ['factory', 1], ['refinery', 2], ['turret', 1],
             ['reactor', 3], ['radar', 1], ['turret', 2], ['techlab', 1], ['turret', 3], ['reactor', 4], ['turret', 4]],
     };
     // harvesters per refinery, and the cap
-    const HARV = { easy: [1.5, 2], normal: [2, 4], hard: [2, 5] };
+    const HARV = { easy: [1.5, 2], normal: [1.5, 3], hard: [2, 4] };
     const ARMY_CAP = { easy: 22, normal: 34, hard: 44 };
     // Each computer player picks a style per game, so matches play out differently:
     //   balanced: the plan as written; rush: fewer turrets, tech last, earlier and more frequent (smaller) waves,
@@ -63,7 +63,7 @@
             this.enemyStart = { x: en.tx + 1.5, z: en.tz + 1.5 };
             const dx = this.enemyStart.x - this.base.x, dz = this.enemyStart.z - this.base.z, dl = Math.hypot(dx, dz);
             this.fwd = { x: dx / dl, z: dz / dl };
-            this.staging = sim._freePoint(this.base.x + this.fwd.x * 9, this.base.z + this.fwd.z * 9);
+            this.staging = sim._freePoint(this.base.x + this.fwd.x * 13, this.base.z + this.fwd.z * 13);
             this.defendUntil = 0; this.lastDefend = -99; this.lastStage = -99;
             this.scoutIdx = 0;
             this._reach = { ver: -1, count: 0 };
@@ -98,6 +98,7 @@
                 } else if (sim.isVisible(me, e)) {
                     threats.push(e);
                     if (e.type === 'harvester') enemyHarv.push(e);
+                    if (e.type === 'artillery') this.sawArtillery = sim.time;
                 }
             }
             for (const [id, k] of this.known) {
@@ -166,7 +167,9 @@
             const inf = this.army.filter((u) => U[u.type].from === 'infantry');
             const veh = this.army.filter((u) => U[u.type].from === 'vehicle');
             const rich = tm.credits > 1500 ? 1 : 0;
-            if (c.barracks && tm.queues.infantry.length < this.st.infQ + rich) {
+            // enemy artillery shreds infantry: lean on vehicles once we've seen it
+            const artThreat = c.factory && sim.time - (this.sawArtillery || -999) < 180 && inf.length > 0.3 * (this.army.length + 1);
+            if (c.barracks && !artThreat && tm.queues.infantry.length < this.st.infQ + rich) {
                 const rockets = inf.filter((u) => u.type === 'rocketeer').length;
                 const wantRocket = c.factory ? this.st.rocket : 0.3;
                 cmd(rockets < (inf.length + 1) * wantRocket ? 'rocketeer' : 'rifleman');
@@ -390,9 +393,9 @@
             const cap = Math.round(ARMY_CAP[this.diff] * 0.75);
             const need = Math.max(3, Math.round(Math.min(cap, this.cfg.waveSize + this.waveNo * this.cfg.waveGrowth) * this.st.need));
             const full = home.length >= ARMY_CAP[this.diff] * 0.85;
-            const timer = full || t >= this.nextWave && (home.length >= need || (t >= this.nextWave + 45 && home.length >= Math.max(3, Math.ceil(need * 0.6))));
+            const timer = full || t >= this.nextWave && (home.length >= need || (this.waveNo < 3 && t >= this.nextWave + 45 && home.length >= Math.max(3, Math.ceil(need * 0.6))));
             const counter = !easy && this.waveNo > 0 && this.lastThreat !== undefined && t - this.lastThreat > 4 && t - this.lastThreat < 15 &&
-                this.wave.size === 0 && home.length >= Math.max(5, Math.ceil(need * 0.7)) && t - this.waveIssued > 40;
+                this.wave.size === 0 && home.length >= Math.max(5, Math.ceil(need * 0.9)) && t - this.waveIssued > 40;
             if (timer || counter) { this.launch(home, timer ? 'timer' : 'counter'); return; }
             // reinforce a wave that is still fighting
             if (this.diff === 'hard' && this.wave.size >= 3 && home.length >= 6 && t - (this.lastReinforce || -99) > 12) {
@@ -401,6 +404,22 @@
                     this.lastReinforce = t;
                     sim.command(this.team, { type: 'attackMove', ids: ids(home), x: c.x, z: c.z });
                     for (const u of home) this.wave.add(u.id);
+                }
+            }
+            // artillery sieges: shell the nearest building we know about (turrets first) from outside its reach
+            if (this.wave.size && this.known.size && t - (this.lastSiege || -99) > 2) {
+                this.lastSiege = t;
+                for (const id of this.wave) {
+                    const u = sim.entities.get(id);
+                    if (!u || u.type !== 'artillery' || u._order === 'attack') continue;
+                    let best = null, bs = Infinity;
+                    for (const k of this.known.values()) {
+                        const e = sim.entities.get(k.id);
+                        if (!e || e.dead) continue;
+                        const d = Math.hypot(k.x - u.x, k.z - u.z) - (k.type === 'turret' ? 4 : 0);
+                        if (d < bs) { bs = d; best = k; }
+                    }
+                    if (best && bs < 16) sim.command(this.team, { type: 'attack', ids: [u.id], targetId: best.id });
                 }
             }
             // wave units that spot a harvester go for it (it hurts more than anything else)
