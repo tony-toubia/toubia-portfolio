@@ -78,17 +78,17 @@
     // 2. Hold the Ridge (Vanguard defence)
     const m2waves = [
         // [time, side, units]
-        [40, 'north', ['skimmer', 'skimmer']],
-        [75, 'east', ['trooper', 'trooper', 'trooper', 'trooper']],
-        [115, 'north', ['trooper', 'trooper', 'shocktrooper', 'skimmer', 'skimmer']],
-        [155, 'east', ['lancer', 'trooper', 'trooper', 'shocktrooper']],
-        [195, 'north', ['lancer', 'lancer', 'skimmer', 'skimmer', 'trooper']],
-        [235, 'east', ['lancer', 'shocktrooper', 'shocktrooper', 'trooper', 'trooper', 'skimmer']],
-        [275, 'north', ['phantom', 'phantom', 'lancer', 'trooper', 'trooper']],
-        [315, 'east', ['lancer', 'lancer', 'shocktrooper', 'shocktrooper', 'skimmer', 'skimmer']],
-        [355, 'north', ['phantom', 'lancer', 'lancer', 'shocktrooper', 'trooper', 'trooper', 'trooper']],
-        [395, 'east', ['phantom', 'phantom', 'lancer', 'lancer', 'skimmer', 'skimmer', 'shocktrooper']],
-        [435, 'north', ['lancer', 'lancer', 'lancer', 'phantom', 'shocktrooper', 'shocktrooper', 'trooper', 'trooper']],
+        [40, 'north', ['skimmer', 'skimmer', 'trooper']],
+        [75, 'east', ['trooper', 'trooper', 'trooper', 'trooper', 'shocktrooper']],
+        [115, 'north', ['trooper', 'trooper', 'shocktrooper', 'skimmer', 'skimmer', 'skimmer']],
+        [155, 'east', ['lancer', 'trooper', 'trooper', 'trooper', 'shocktrooper', 'shocktrooper']],
+        [195, 'north', ['lancer', 'lancer', 'skimmer', 'skimmer', 'trooper', 'trooper']],
+        [235, 'east', ['lancer', 'lancer', 'shocktrooper', 'shocktrooper', 'trooper', 'trooper', 'skimmer']],
+        [275, 'north', ['phantom', 'phantom', 'lancer', 'trooper', 'trooper', 'shocktrooper']],
+        [315, 'east', ['lancer', 'lancer', 'shocktrooper', 'shocktrooper', 'skimmer', 'skimmer', 'trooper', 'trooper']],
+        [355, 'north', ['phantom', 'lancer', 'lancer', 'shocktrooper', 'shocktrooper', 'trooper', 'trooper', 'trooper']],
+        [395, 'east', ['phantom', 'phantom', 'lancer', 'lancer', 'skimmer', 'skimmer', 'shocktrooper', 'trooper', 'trooper']],
+        [435, 'north', ['lancer', 'lancer', 'lancer', 'phantom', 'phantom', 'shocktrooper', 'shocktrooper', 'trooper', 'trooper', 'trooper']],
     ];
     const M2_GATE = { north: { x: 9, z: 22 }, east: { x: 42, z: 57 } };
     const m2 = {
@@ -177,7 +177,7 @@
         triggers: [
             { at: 1, do: [say(KESH, 'Strike group, this is Kesh. Cloaks up. We go in quiet.')] },
             { at: 6, do: [say(VAEL, 'Prefect. Phantoms are hidden while they move. The moment they fire, or an enemy comes within a few paces, they shimmer into view for a breath. Choose your moments.')] },
-            { at: 14, do: [say(KESH, 'First array is due east-northeast, past the river of shards. Their reactors feed every turret on the plateau: kill one and the guns go silent. Keep the Skimmers back until we need speed.')] },
+            { at: 14, do: [say(KESH, 'First array is due east-northeast, past the southern shard field. Their reactors feed every turret on the plateau: kill one and the guns go silent. Keep the Skimmers back until we need speed.')] },
             { at: { spotted: 'ghost' }, do: [say(KESH, 'They see us! Break contact: pull back and the cloak returns.')] },
             { at: { destroyed: 'commsAPower' }, do: [say(KESH, 'Reactor down. Their grid is failing: turrets are dark across the plateau.')] },
             { at: { destroyed: 'commsBPower' }, do: [say(KESH, 'Another reactor gone. They are blind and powerless.')] },
@@ -205,16 +205,20 @@
             'Build your base, Prefect. Skimmers can reach the uplink early if you are bold; Phantoms can slip past the turrets. Then bring everything down on them.',
         ],
         map: { seed: 404, size: 64 },
-        player: { credits: 5000, start: true },
+        player: {
+            credits: 4000, start: true, aiWaveDelay: 300,   // (only used when an AI plays this side: build up first)
+            buildings: [{ type: 'reactor', tx: 10, tz: 57 }, { type: 'refinery', tx: 9, tz: 49 }, { type: 'barracks', tx: 13, tz: 54 }],
+            units: [{ type: 'lancer', count: 3, x: 14, z: 50 }, { type: 'shocktrooper', count: 2, x: 16, z: 52 }, { type: 'harvester', x: 10.5, z: 53.5 }],
+        },
         enemy: {
-            credits: 4000, ai: 'normal', start: true,
+            credits: 1000, ai: 'normal', start: true, aiWaveDelay: 150,
             buildings: [
                 { type: 'reactor', tx: 51, tz: 4 }, { type: 'reactor', tx: 51, tz: 10 }, { type: 'reactor', tx: 60, tz: 9 }, { type: 'refinery', tx: 46, tz: 8 },
                 { type: 'barracks', tx: 55, tz: 11 }, { type: 'factory', tx: 59, tz: 12 }, { type: 'radar', tx: 61, tz: 3 },
                 { type: 'techlab', tx: 47, tz: 3 }, { type: 'uplink', tx: 60, tz: 0, tag: 'uplink', delay: 240 },
                 { type: 'turret', tx: 49, tz: 15 }, { type: 'turret', tx: 54, tz: 17 }, { type: 'turret', tx: 44, tz: 12 }, { type: 'turret', tx: 58, tz: 18 },
             ],
-            units: [{ type: 'artillery', count: 2, x: 53, z: 8 }, { type: 'tank', count: 3, x: 50, z: 14 }, { type: 'harvester', x: 47, z: 13 }],
+            units: [{ type: 'artillery', count: 2, x: 53, z: 8 }, { type: 'tank', x: 50, z: 14 }, { type: 'harvester', x: 47, z: 13 }],
         },
         objectives: [
             { id: 'destroy', text: 'Destroy every Vanguard structure', kind: 'destroyAll' },
@@ -244,8 +248,15 @@
         ],
         map: { seed: 505, size: 80 },
         autoTag: { riftsilo: 'silo' },   // any Rift Silo the enemy builds gets the 'silo' tag
-        player: { credits: 6000, start: true },
-        enemy: { credits: 4000, ai: 'hard', start: true },
+        player: { credits: 5000, start: true, aiWaveDelay: 120 },
+        enemy: {
+            credits: 3000, ai: 'hard', start: true, aiWaveDelay: 90,
+            buildings: [
+                { type: 'reactor', tx: 66, tz: 3 }, { type: 'reactor', tx: 76, tz: 10 }, { type: 'refinery', tx: 70, tz: 13 },
+                { type: 'barracks', tx: 65, tz: 9 }, { type: 'spire', tx: 63, tz: 15 }, { type: 'spire', tx: 69, tz: 19 },
+            ],
+            units: [{ type: 'lancer', count: 2, x: 64, z: 19 }, { type: 'trooper', count: 2, x: 62, z: 13 }, { type: 'harvester', x: 72, z: 18 }],
+        },
         objectives: [
             { id: 'destroy', text: 'Destroy every Hegemony structure', kind: 'destroyAll' },
             { id: 'uplink', text: 'Build an Orbital Uplink', kind: 'build', type: 'uplink', optional: true },

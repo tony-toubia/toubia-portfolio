@@ -25,10 +25,10 @@
     const armyCap = (diff, t) => Math.round(ARMY_CAP[diff] * (1 + 0.6 * lateness(t)));
     // Each computer player picks a style per game, so matches play out differently:
     //   balanced: the plan as written; rush: fewer turrets, tech last, earlier and more frequent (smaller) waves,
-    //   infantry-heavy; armor: tech lab early, tank/artillery-heavy, bigger and later waves.
+    //   fewer anti-armour troops; armor: tech lab early, tank/artillery-heavy, bigger and later waves.
     const STYLES = {
         balanced: { first: 0, every: 1, need: 1, rocket: 0.6, infQ: 1, vehQ: 1 },
-        rush: { first: -35, every: 0.8, need: 0.8, rocket: 0.4, infQ: 2, vehQ: 1 },
+        rush: { first: -20, every: 0.9, need: 0.95, rocket: 0.4, infQ: 1, vehQ: 1 },
         armor: { first: 25, every: 1.1, need: 1.15, rocket: 0.6, infQ: 1, vehQ: 2 },
     };
     function stylePlan(plan, style) {
@@ -91,6 +91,9 @@
             this.t = 0; this.next = 0.25 + team * 0.25;
             this.readyAt = null;
             this.nextWave = this.cfg.firstWave + this.st.first; this.waveNo = 0;
+            // missions can hold the first attack back (side.aiWaveDelay seconds)
+            const md = sim.missionDef, sd = md && (team === sim.playerTeam ? md.player : md.enemy);
+            if (sd && sd.aiWaveDelay) this.nextWave += sd.aiWaveDelay;
             this.wave = new Set(); this.waveTarget = null; this.waveIssued = -99; this.lastThreat = undefined;
             this.known = new Map();
             this.skip = {};

@@ -490,7 +490,8 @@ function gamesTest(diffList, games, cap) {
   const summary = {};
   for (const diff of diffList) {
     const res = [];
-    for (let g = 0; g < games; g++) res.push(playGame(1000 + g * 17, [diff, diff], cap));
+    // mirror matches (side balance), alternating Vanguard mirrors and Hegemony mirrors
+    for (let g = 0; g < games; g++) res.push(playGame(1000 + g * 17, [diff, diff], cap, g % 2 ? ['hegemony', 'hegemony'] : ['vanguard', 'vanguard']));
     const done = res.filter((r) => r.winner !== null);
     const wins = [0, 1].map((t) => res.filter((r) => r.winner === t).length);
     const avg = done.length ? done.reduce((a, r) => a + r.time, 0) / done.length : 0;
@@ -498,7 +499,7 @@ function gamesTest(diffList, games, cap) {
     console.log(`\n  ${diff}: ${games} games, winners T0 ${wins[0]} / T1 ${wins[1]}, timeouts ${games - done.length}; avg length ${fmtT(avg)} (min ${fmtT(lens[0] || 0)}, max ${fmtT(lens[lens.length - 1] || 0)})`);
     for (const r of res) {
       const s = r.stats;
-      console.log(`    seed ${r.seed}: ${r.winner === null ? 'timeout' : 'T' + r.winner + ' wins'} at ${fmtT(r.time)}; ${r.ais[0].style} vs ${r.ais[1].style}; peak army ${r.ais[0].peak}/${r.ais[1].peak}; waves ${r.ais[0].waves.length}/${r.ais[1].waves.length}; harvested ${Math.round(s[0].creditsHarvested)}/${Math.round(s[1].creditsHarvested)}; units built ${s[0].unitsBuilt}/${s[1].unitsBuilt}; tick avg ${r.avgTick.toFixed(3)} ms max ${r.maxTick.toFixed(1)} ms${r.error ? '\n      ERROR ' + r.error : ''}`);
+      console.log(`    seed ${r.seed} (${r.factions[0]} mirror): ${r.winner === null ? 'timeout' : 'T' + r.winner + ' wins'} at ${fmtT(r.time)}; ${r.ais[0].style} vs ${r.ais[1].style}; peak army ${r.ais[0].peak}/${r.ais[1].peak}; waves ${r.ais[0].waves.length}/${r.ais[1].waves.length}; harvested ${Math.round(s[0].creditsHarvested)}/${Math.round(s[1].creditsHarvested)}; units built ${s[0].unitsBuilt}/${s[1].unitsBuilt}; tick avg ${r.avgTick.toFixed(3)} ms max ${r.maxTick.toFixed(1)} ms${r.error ? '\n      ERROR ' + r.error : ''}`);
       if (has('--verbose')) for (const a of r.ais) console.log(`      T${a.team} build: ${a.log.map(([t, b]) => `${fmtT(t)} ${b}`).join(', ')}\n      T${a.team} waves: ${a.waves.map((w) => `${fmtT(w.t)}×${w.size}`).join(', ')}`);
       check(!r.error, `${diff} seed ${r.seed}: ${r.error || 'ok'}`);
     }
