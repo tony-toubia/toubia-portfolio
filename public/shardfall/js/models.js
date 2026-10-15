@@ -27,6 +27,21 @@
 //             doorL.rotation.z = +k * userData.doorOpen, doorR.rotation.z = -k * userData.doorOpen
 //             (or call SF_MODELS.setDoors(obj, k))
 //   'missile' rift silo missile standing in the shaft (pivot at its base); raise .position.y to launch it
+// Roster expansion:
+//   'turret' + 'muzzle'       salvo (the rocket pod; it also has a static tilted 'pod' child), arc walker (the tesla
+//                             coil), sentry; 'barrel' too on the howitzer (elevated) and the obliterator (the lance)
+//   'barrel2' / 'muzzle2'     bulwark: the second (port, -Z) cannon; recoil it like 'barrel' (the two can alternate)
+//   'hover'                   wisp and obliterator, like the skimmer (userData.hover, userData.hoverHeight)
+//   'body'                    arc walker: hips, thighs, hull and turret; bob .position.y (rest 0) while it walks,
+//                             the shins and feet stay planted (userData.walker = true)
+//   'ring'                    floating rings: gravity well (3), wisp (1), arc walker coil crown (1); spin about Y
+//   'drill'                   shard siphon drill: spin about Y
+//   'arm'                     repair bay crane (userData.craneArm): .rotation.y, rest = boom towards +X; aim it at
+//                             the vehicle with .rotation.y = -atan2(dz, dx) (or aimArm); a 'muzzle' marker at its
+//                             welding head is the repair-beam origin
+//   'post' + 'armN'/'armS'/'armE'/'armW'  wall: arms hidden by default; setWallArms(obj, { n, s, e, w })
+//   'muzzle' on the healers (medic injector, engineer torch, acolyte staff crystal): the heal-beam origin
+//   SF_MODELS.spin(obj, t, { powered, arm }) animates rings, the drill and the crane idle in one call.
 //   userData.height = top of the main body (health bars / selection rings).
 // Factions: SF_MODELS.unit/building(type, teamColor, faction). The Hegemony look ('hegemony') swaps the neutral
 // palette for violet graphite and pearl with magenta energy glows, and shared buildings get swept fins and floating
@@ -85,6 +100,16 @@ window.SF_MODELS = (() => {
         pod:       [0xffb347, 1.2],
         hglow:     [PAL.hegemonyGlow, 1.45],   // Hegemony energy (magenta), whatever the faction palette
         violet:    [PAL.violet, 1.25],
+        // roster expansion
+        ghillie:     [0x5f6e3a, 0],     // sniper camouflage
+        ghillieDark: [0x414a27, 0],
+        medic:       [0xe6ecee, 0],     // medic white
+        medGreen:    [0x2e9e55, 0],
+        plus:        [0x3dff7e, 1.2],   // the medic's green plus (glowing so it reads at any zoom)
+        toolbox:     [0xd2552a, 0],
+        hazardDark:  [0xa8781a, 0],
+        weld:        [0xbff4ff, 1.6],   // a welding torch's hot tip
+        heal:        [0xffd2f6, 1.5],   // the acolyte's pale healing crystal
     };
     // The Hegemony palette: the same part keys, re-coloured (lavender-grey armour, violet-black under-structure,
     // pearl metal, magenta lights instead of amber, violet glass and energy).
@@ -375,7 +400,7 @@ window.SF_MODELS = (() => {
     // ---------------------------------------------------------------- units
     // Infantry are modelled at human-ish proportions inside the footprint, then stretched a little (a 'body' node)
     // so they stay readable from the RTS camera.
-    function infantryBody(b, helmetRound) {
+    function infantryBody(b, helmetRound, opts = {}) {
         b.cur = b.node('body', b.root, 0, 0, 0, null, [1.1, 1.18, 1.1]);
         // legs (a small stride), hips, armoured torso, shoulder pads, arms, head
         b.add(box(0.075, 0.17, 0.07), 'suit', 0.025, 0, 0.05);
@@ -386,7 +411,8 @@ window.SF_MODELS = (() => {
         b.add(hexa(0.11, 0.18, 0.14, 0.23, 0.15), 'team', 0, 0.19, 0);
         b.add(box(0.03, 0.05, 0.07), 'teamGlow', 0.065, 0.24, 0);   // chest light
         b.pair(box(0.09, 0.055, 0.075), 'team', 0, 0.305, 0.12);
-        b.add(box(0.07, 0.12, 0.13), 'hullDark', -0.1, 0.18, 0);     // backpack
+        if (!opts.noPack) b.add(box(0.07, 0.12, 0.13), 'hullDark', -0.1, 0.18, 0);     // backpack
+        if (helmetRound === null) return;     // the caller adds its own headgear
         if (helmetRound) {
             b.add(ico(0.068, 0), 'team', 0, 0.395, 0);
             b.add(box(0.035, 0.03, 0.1), 'glass', 0.05, 0.375, 0);
@@ -547,7 +573,7 @@ window.SF_MODELS = (() => {
     // ---------------------------------------------------------------- Hegemony units
     // Design language: tall, slim and angular, swept fins instead of boxes, magenta energy glows ('hglow'),
     // hover pads and four-pod running gear instead of wheels and treads. Built with the Hegemony palette.
-    function hegInfantryBody(b, heavy) {
+    function hegInfantryBody(b, heavy, opts = {}) {
         b.cur = b.node('body', b.root, 0, 0, 0, null, [1.1, 1.2, 1.1]);
         // slim armoured legs with team knee plates, small feet
         b.add(hexa(0.06, 0.06, 0.05, 0.05, 0.17), 'suit', 0.025, 0, 0.045);
@@ -564,8 +590,10 @@ window.SF_MODELS = (() => {
         // shoulder plates sweeping up and out
         b.mirror(hexa(0.08, 0.07, 0.04, 0.03, heavy ? 0.06 : 0.07, -0.01, 0.035), 'team', 0, 0.33, tz / 2 - 0.02);
         // back vanes with glowing tips (no backpack box: the Hegemony silhouette)
-        b.mirror(hexa(0.05, 0.02, 0.02, 0.012, 0.2, -0.04, 0.035), 'hullDark', -0.065, 0.26, 0.045);
-        b.mirror(box(0.025, 0.04, 0.025), 'hglow', -0.105, 0.45, 0.08);
+        if (!opts.noVanes) {
+            b.mirror(hexa(0.05, 0.02, 0.02, 0.012, 0.2, -0.04, 0.035), 'hullDark', -0.065, 0.26, 0.045);
+            b.mirror(box(0.025, 0.04, 0.025), 'hglow', -0.105, 0.45, 0.08);
+        }
         // helmet: a tapered wedge with a wrap-around glowing visor and a crest fin
         const hw = heavy ? 0.1 : 0.088;
         b.add(hexa(hw, hw * 0.9, hw * 0.62, hw * 0.55, 0.1, -0.012, 0), 'team', 0, 0.355, 0);
@@ -711,6 +739,418 @@ window.SF_MODELS = (() => {
         b.pair(box(0.03, 0.034, 0.034), 'hglow', 0.21, -0.017, 0.034, null, null, bar);
         b.marker('muzzle', bar, 0.24, 0, 0);
         return b.build({ height: 0.36, wheels: [] });
+    }
+
+    // ---------------------------------------------------------------- roster expansion: shared helpers
+    // A strut between two points (legs, braces, crane cables): an n-sided rod from p0 to p1.
+    const _up = new T.Vector3(0, 1, 0), _sq = new T.Quaternion(), _se = new T.Euler();
+    function strut(b, mk, p0, p1, r, sides = 4, node, r1 = r) {
+        const a = new T.Vector3(p0[0], p0[1], p0[2]), d = new T.Vector3(p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]);
+        const len = +d.length().toFixed(4);
+        _sq.setFromUnitVectors(_up, d.normalize());
+        _se.setFromQuaternion(_sq);
+        b.add(cyl(r1, r, len, sides), mk, a.x, a.y, a.z, [_se.x, _se.y, _se.z], null, node);
+    }
+    // A flat ring (torus) lying in the XZ plane.
+    const ringGeo = (r, tube, seg = 14, rad = 3) => cached(`ring${r},${tube},${seg},${rad}`, () => new T.TorusGeometry(r, tube, rad, seg).rotateX(Math.PI / 2));
+    // A plus sign lying flat (y up) or standing on a face whose normal is +X / -X (axis 'x').
+    function plus(b, mk, x, y, z, s, axis = 'y', node) {
+        const t = s * 0.3, th = 0.012;
+        if (axis === 'y') { b.add(box(s, th, t), mk, x, y, z, null, null, node); b.add(box(t, th, s), mk, x, y, z, null, null, node); }
+        else { b.add(box(th, s, t), mk, x, y - s / 2, z, null, null, node); b.add(box(th, t, s), mk, x, y - t / 2, z, null, null, node); }
+    }
+
+    // ---------------------------------------------------------------- roster expansion: Vanguard infantry
+    function makeSniper() {
+        // A ghillie-hooded marksman with a long scoped rifle raised to the cheek.
+        const b = new Builder();
+        infantryBody(b, null, { noPack: true });
+        // the ghillie: a draped hood, a shawl over the shoulders, a ragged cape down the back, tufts
+        b.add(ico(0.074, 0), 'ghillie', -0.008, 0.39, 0, null, [1.05, 1, 1.05]);
+        b.add(box(0.025, 0.035, 0.075), 'dark', 0.058, 0.375, 0);                     // face in the hood's shadow
+        b.add(hexa(0.2, 0.25, 0.1, 0.13, 0.09, -0.02, 0), 'ghillie', -0.025, 0.3, 0);  // shawl
+        b.add(box(0.05, 0.03, 0.26), 'team', -0.05, 0.345, 0, [0, 0, 0.35]);         // team scarf across the shawl
+        b.add(box(0.056, 0.03, 0.056), 'team', 0.03, 0.27, -0.125);                   // arm band
+        b.add(hexa(0.05, 0.24, 0.04, 0.17, 0.27), 'ghillieDark', -0.1, 0.08, 0, [0, 0, -0.12]);   // cape
+        for (const [x, y, z, r] of [[-0.04, 0.42, 0.05, 0.5], [-0.06, 0.41, -0.05, -0.6], [-0.1, 0.32, 0.1, 0.9], [-0.1, 0.32, -0.1, -0.9],
+            [-0.13, 0.18, 0.07, 1.1], [-0.13, 0.18, -0.07, -1.1]]) {
+            b.add(cone(0.035, 0.045, 4), r > 0 ? 'ghillie' : 'ghillieDark', x, y, z, [r, 0.4, 0.6]);
+        }
+        // arms brought up to the rifle
+        b.add(box(0.12, 0.05, 0.05), 'suit', 0.03, 0.27, 0.11, [0, 0.3, 0]);
+        b.add(box(0.1, 0.05, 0.05), 'suit', 0.05, 0.27, -0.03, [0, -0.5, 0]);
+        // the long rifle: wrapped stock, receiver, long barrel with a muzzle brake, big scope, bipod
+        const RY = 0.31, RZ = 0.07;
+        b.add(box(0.12, 0.045, 0.035), 'ghillieDark', -0.1, RY - 0.03, RZ);
+        b.add(box(0.12, 0.04, 0.035), 'hullDark', 0.01, RY - 0.025, RZ);
+        b.add(rodX(0.011, 0.013, 0.13, 5), 'metal', 0.06, RY, RZ);
+        b.add(rodX(0.018, 0.018, 0.025, 5), 'hullDark', 0.17, RY, RZ);
+        b.add(rodX(0.02, 0.02, 0.1, 6), 'hullDark', -0.04, RY + 0.035, RZ);            // scope
+        b.add(rodX(0.024, 0.024, 0.02, 6), 'hullDark', 0.06, RY + 0.035, RZ);
+        b.add(box(0.006, 0.03, 0.03), 'glass', 0.081, RY + 0.035, RZ);                // lens glint
+        b.add(cyl(0.005, 0.005, 0.09, 3), 'metal', 0.13, RY - 0.09, RZ + 0.035, [-0.3, 0, 0]);
+        b.add(cyl(0.005, 0.005, 0.09, 3), 'metal', 0.13, RY - 0.09, RZ - 0.035, [0.3, 0, 0]);
+        b.marker('muzzle', null, 0.195, RY, RZ);
+        return b.build({ height: 0.55 });
+    }
+
+    function makeMedic() {
+        // White helmet and a big white med pack, both marked with a green plus; a glowing injector in hand.
+        const b = new Builder();
+        infantryBody(b, null, { noPack: true });
+        b.add(ico(0.07, 0), 'medic', 0, 0.395, 0);
+        b.add(box(0.035, 0.03, 0.1), 'glass', 0.05, 0.375, 0);
+        plus(b, 'plus', 0, 0.458, 0, 0.07);                                           // on the helmet, seen from above
+        // the pack: white box with a green band, a green plus on its back and its lid
+        b.add(box(0.1, 0.17, 0.19), 'medic', -0.12, 0.16, 0);
+        b.add(box(0.105, 0.03, 0.195), 'medGreen', -0.12, 0.17, 0);
+        b.add(box(0.11, 0.03, 0.2), 'medic', -0.12, 0.3, 0);
+        plus(b, 'plus', -0.12, 0.332, 0, 0.11);
+        plus(b, 'plus', -0.172, 0.255, 0, 0.08, 'x');
+        b.add(box(0.03, 0.06, 0.05), 'medGreen', -0.08, 0.13, 0.11);                   // side pouch
+        // arm band, arms, the injector held forward with a green glow at its tip
+        b.add(box(0.056, 0.03, 0.056), 'medGreen', 0.0, 0.28, -0.125);
+        b.add(box(0.05, 0.12, 0.05), 'suit', 0.03, 0.19, -0.125);
+        b.add(box(0.12, 0.05, 0.05), 'suit', 0.06, 0.25, 0.12, [0, 0, -0.35]);
+        b.add(box(0.07, 0.035, 0.035), 'medic', 0.125, 0.27, 0.12);
+        b.add(box(0.03, 0.025, 0.025), 'plus', 0.17, 0.275, 0.12);
+        b.marker('muzzle', null, 0.185, 0.287, 0.12);
+        return b.build({ height: 0.55 });
+    }
+
+    function makeEngineer() {
+        // Yellow hard hat with a lamp, twin gas tanks, a toolbox in one hand and a welding torch in the other.
+        const b = new Builder();
+        infantryBody(b, null, { noPack: true });
+        b.add(ico(0.06, 0), 'suit', 0, 0.38, 0);
+        b.add(box(0.03, 0.028, 0.09), 'glass', 0.05, 0.375, 0);                         // goggles
+        b.add(cyl(0.1, 0.1, 0.016, 8), 'hazard', 0, 0.41, 0);                            // hat brim
+        b.add(dome(0.072, 8, 3), 'hazard', 0, 0.418, 0);
+        b.add(box(0.11, 0.02, 0.02), 'hazardDark', 0, 0.46, 0);                          // ridge
+        b.add(box(0.02, 0.025, 0.03), 'warn', 0.07, 0.435, 0);                           // lamp
+        // twin gas tanks on the back
+        b.pair(cyl(0.034, 0.034, 0.17, 6), 'team', -0.115, 0.15, 0.045);
+        b.pair(dome(0.034, 6, 2), 'metal', -0.115, 0.32, 0.045);
+        b.add(box(0.03, 0.06, 0.14), 'hullDark', -0.085, 0.2, 0);
+        // toolbox in the left hand
+        b.add(box(0.05, 0.12, 0.05), 'suit', 0.0, 0.17, -0.13);
+        b.add(box(0.14, 0.075, 0.06), 'toolbox', 0.01, 0.06, -0.16);
+        b.add(box(0.06, 0.015, 0.012), 'metal', 0.01, 0.14, -0.16);
+        b.add(box(0.144, 0.012, 0.064), 'dark', 0.01, 0.105, -0.16);
+        // welding torch in the right hand, hose to the tanks, a hot blue tip
+        b.add(box(0.12, 0.05, 0.05), 'suit', 0.06, 0.24, 0.12, [0, 0, -0.3]);
+        b.add(rodX(0.014, 0.016, 0.09, 5), 'metal', 0.08, 0.26, 0.12);
+        b.add(rodX(0.022, 0.022, 0.03, 5), 'hullDark', 0.06, 0.26, 0.12);
+        b.add(box(0.025, 0.025, 0.025), 'weld', 0.18, 0.2475, 0.12);
+        strut(b, 'dark', [-0.1, 0.2, 0.08], [0.08, 0.25, 0.12], 0.008, 3);
+        b.marker('muzzle', null, 0.19, 0.26, 0.12);
+        return b.build({ height: 0.55 });
+    }
+
+    // ---------------------------------------------------------------- roster expansion: Hegemony infantry
+    function makeDisruptor() {
+        // A trooper carrying a tall coil backpack (stacked glowing rings and a crackling orb) and an EMP gauntlet.
+        const b = new Builder();
+        hegInfantryBody(b, false, { noVanes: true });
+        b.add(hexa(0.07, 0.14, 0.06, 0.12, 0.14), 'hullDark', -0.11, 0.17, 0);
+        b.add(cyl(0.022, 0.03, 0.34, 5), 'metal', -0.13, 0.22, 0);
+        for (const [y, r] of [[0.3, 0.062], [0.37, 0.055], [0.44, 0.047]]) {
+            b.add(cyl(r, r, 0.024, 8), 'violet', -0.13, y, 0);
+            b.add(cyl(r * 0.7, r * 0.7, 0.03, 8), 'hullDark', -0.13, y + 0.024, 0);
+        }
+        b.add(sph(0.04, 6, 4), 'hglow', -0.13, 0.57, 0);
+        b.mirror(cyl(0.006, 0.006, 0.09, 3), 'metal', -0.13, 0.5, 0.02, [0.5, 0, 0]);
+        // EMP gauntlet on the right arm: a dark block with a glowing emitter disc
+        b.add(box(0.045, 0.11, 0.045), 'suit', 0.03, 0.2, -0.125);
+        b.add(box(0.13, 0.05, 0.05), 'suit', 0.05, 0.25, 0.125, [0, 0, -0.3]);
+        b.add(box(0.08, 0.07, 0.07), 'teamDark', 0.12, 0.26, 0.125);
+        b.add(cyl(0.035, 0.035, 0.015, 6), 'violet', 0.165, 0.26, 0.125, [0, 0, Math.PI / 2]);
+        strut(b, 'hglow', [-0.1, 0.3, 0.05], [0.1, 0.28, 0.12], 0.006, 3);
+        b.marker('muzzle', null, 0.18, 0.26, 0.125);
+        return b.build({ height: 0.6 });
+    }
+
+    function makeAcolyte() {
+        // A robed healer: flared team-coloured robe, pointed hood, a tall staff topped with a pale glowing crystal.
+        const b = new Builder();
+        b.cur = b.node('body', b.root, 0, 0, 0, null, [1.1, 1.2, 1.1]);
+        const R0 = ngon(6, 0.16, Math.PI / 6), R1 = ngon(6, 0.085, Math.PI / 6);
+        b.add(loft(scalePts(R0, 1.04), R0, 0.03), 'hullDark', 0, 0, 0);                 // hem
+        b.add(loft(R0, R1, 0.29), 'team', 0, 0.03, 0);                                   // robe
+        b.add(box(0.012, 0.25, 0.03), 'hglow', 0.112, 0.04, 0, [0, 0, 0.255]);           // glowing front seam
+        b.add(loft(scalePts(R1, 1.25), scalePts(R1, 0.8), 0.07), 'hull', 0, 0.3, 0);    // pearl mantle
+        b.mirror(hexa(0.08, 0.06, 0.05, 0.03, 0.05, 0, 0.02), 'teamDark', 0, 0.33, 0.085);
+        // hood: a tall pointed cowl leaning back, dark opening, two glowing eyes
+        b.add(hexa(0.11, 0.11, 0.025, 0.03, 0.16, -0.045, 0), 'teamDark', -0.005, 0.355, 0);
+        b.add(box(0.02, 0.06, 0.06), 'dark', 0.047, 0.37, 0);
+        b.pair(box(0.012, 0.012, 0.012), 'hglow', 0.058, 0.39, 0.015);
+        // sash, arms
+        b.add(box(0.13, 0.03, 0.13), 'hullDark', 0, 0.2, 0);
+        b.add(box(0.045, 0.12, 0.045), 'teamDark', 0.0, 0.2, -0.1);
+        b.add(box(0.1, 0.045, 0.045), 'teamDark', 0.03, 0.29, 0.1, [0, 0, -0.4]);
+        // the staff (held at the side, leaning forward a touch), crystal, halo
+        b.add(cyl(0.009, 0.011, 0.5, 4), 'metal', 0.07, 0.02, 0.13);
+        b.add(cone(0.02, 0.05, 4), 'metal', 0.07, 0.5, 0.13);
+        b.add(prismGem(0.032, 0.1, 4), 'heal', 0.07, 0.6, 0.13);
+        b.add(ringGeo(0.045, 0.006, 10, 3), 'hglow', 0.07, 0.6, 0.13);
+        b.marker('muzzle', null, 0.08, 0.6, 0.13);
+        return b.build({ height: 0.6 });
+    }
+
+    function makeStalker() {
+        // Slim and hooded, crouched to strike: a long magenta energy blade in the right hand, a short one in the left.
+        const b = new Builder();
+        b.cur = b.node('body', b.root, 0, 0, 0, null, [1.05, 1.22, 1.0]);
+        // wide crouched stance
+        for (const [hip, knee, foot] of [[[0.02, 0.16, 0.05], [0.09, 0.09, 0.055], [0.075, 0.0, 0.06]],
+            [[-0.02, 0.16, -0.05], [-0.03, 0.07, -0.055], [-0.11, 0.015, -0.06]]]) {
+            strut(b, 'suit', hip, knee, 0.026, 4, null, 0.022);
+            strut(b, 'suit', knee, foot, 0.022, 4, null, 0.02);
+            b.add(box(0.03, 0.04, 0.045), 'teamDark', knee[0] + 0.01, knee[1] - 0.02, knee[2]);
+        }
+        b.add(box(0.07, 0.022, 0.05), 'dark', 0.09, 0, 0.06);
+        b.add(box(0.06, 0.022, 0.05), 'dark', -0.12, 0, -0.06, [0, 0, 0.3]);
+        b.add(box(0.06, 0.04, 0.11), 'suit', 0, 0.14, 0);
+        // slim torso leaning forward, a glowing spine line, a swept shoulder plate on the blade arm
+        b.add(hexa(0.08, 0.11, 0.11, 0.19, 0.15, 0.03, 0), 'team', 0, 0.17, 0, [0, 0, -0.25]);
+        b.add(hexa(0.08, 0.06, 0.04, 0.03, 0.06, -0.01, 0.03), 'team', 0.04, 0.3, 0.085);
+        b.add(box(0.015, 0.12, 0.02), 'hglow', -0.05, 0.2, 0, [0, 0, -0.25]);
+        // the hood: a sharp cowl swept back into a trailing scarf
+        b.add(hexa(0.085, 0.08, 0.02, 0.025, 0.12, -0.05, 0), 'hullDark', 0.055, 0.3, 0);
+        b.add(box(0.015, 0.012, 0.05), 'hglow', 0.08, 0.335, 0);
+        strut(b, 'hullDark', [-0.02, 0.33, 0], [-0.17, 0.17, 0.02], 0.016, 4, null, 0.04);   // trailing scarf
+        // right arm raised forward: the long blade
+        strut(b, 'suit', [0.02, 0.31, 0.1], [0.1, 0.24, 0.125], 0.022, 4);
+        b.add(box(0.035, 0.035, 0.035), 'hullDark', 0.1, 0.225, 0.125);
+        strut(b, 'hglow', [0.1, 0.24, 0.125], [0.2, 0.45, 0.165], 0.013, 4, null, 0.004);
+        // left arm low: a short reversed blade
+        strut(b, 'suit', [0.0, 0.3, -0.1], [0.01, 0.17, -0.12], 0.022, 4);
+        strut(b, 'hglow', [0.01, 0.17, -0.12], [-0.1, 0.09, -0.14], 0.011, 4, null, 0.004);
+        b.marker('muzzle', null, 0.2, 0.45, 0.165);
+        return b.build({ height: 0.48 });
+    }
+
+    // ---------------------------------------------------------------- roster expansion: Vanguard vehicles
+    function makeScout() {
+        // Recon Bike: two fat wheels, a team-coloured tank and fairing, a hunched rider, a small gun on the nose.
+        const b = new Builder();
+        const wheels = [], R = 0.105;
+        addWheel(b, wheels, 0.215, R, 0, R, 0.085);
+        addWheel(b, wheels, -0.215, R, 0, R, 0.095);
+        b.pair(box(0.03, 0.17, 0.02), 'metal', 0.2, 0.09, 0.055, [0, 0, 0.4]);           // fork
+        b.pair(box(0.2, 0.03, 0.02), 'hullDark', -0.12, 0.11, 0.055, [0, 0, 0.1]);       // swing arm
+        b.add(box(0.18, 0.1, 0.1), 'hullDark', -0.02, 0.1, 0);                          // engine
+        b.pair(rodX(0.014, 0.014, 0.16, 5), 'metal', -0.3, 0.13, 0.065);                // exhausts
+        b.add(hexa(0.22, 0.15, 0.15, 0.12, 0.07, -0.02, 0), 'team', 0.04, 0.19, 0);       // tank
+        b.add(hexa(0.1, 0.17, 0.05, 0.14, 0.1, -0.03, 0), 'team', 0.19, 0.21, 0, [0, 0, 0.35]);   // fairing
+        b.add(box(0.02, 0.04, 0.06), 'warn', 0.255, 0.26, 0);                             // headlight
+        b.add(box(0.13, 0.04, 0.11), 'dark', -0.1, 0.2, 0);                               // seat
+        b.add(box(0.1, 0.025, 0.12), 'team', -0.22, 0.22, 0);                             // tail
+        b.add(box(0.02, 0.025, 0.08), 'redLight', -0.27, 0.23, 0);
+        b.pair(box(0.11, 0.07, 0.035), 'teamDark', -0.18, 0.15, 0.085);                   // panniers
+        // the rider, leaning forward over the tank
+        b.pair(box(0.11, 0.035, 0.035), 'suit', -0.06, 0.22, 0.06, [0, 0, 0.5]);
+        b.add(hexa(0.11, 0.14, 0.1, 0.16, 0.13, 0.04, 0), 'suit', -0.08, 0.23, 0, [0, 0, -0.6]);
+        b.add(box(0.12, 0.03, 0.15), 'team', -0.04, 0.33, 0, [0, 0, -0.6]);              // back armour
+        b.pair(box(0.13, 0.03, 0.03), 'suit', 0.03, 0.31, 0.06, [0, 0, -0.3]);           // arms to the bars
+        b.add(box(0.02, 0.02, 0.16), 'metal', 0.1, 0.3, 0);                               // handlebar
+        b.add(ico(0.055, 0), 'team', 0.03, 0.38, 0);                                      // helmet
+        b.add(box(0.03, 0.025, 0.07), 'glass', 0.075, 0.38, 0);
+        b.add(cyl(0.004, 0.004, 0.14, 3), 'metal', -0.2, 0.24, -0.05);                    // whip antenna
+        b.pair(rodX(0.009, 0.009, 0.08, 4), 'dark', 0.23, 0.29, 0.025);                   // nose guns
+        b.marker('muzzle', null, 0.31, 0.29, 0);
+        return b.build({ height: 0.44, wheels, wheelRadius: R });
+    }
+
+    function makeSalvo() {
+        // Salvo Launcher: a six-wheel truck with a team-coloured box rocket pod (2 × 3 warheads) on a turntable.
+        const b = new Builder();
+        const wheels = [], R = 0.11;
+        b.add(box(0.98, 0.1, 0.4), 'hullDark', 0, 0.09, 0);
+        for (const x of [0.3, -0.1, -0.33]) {
+            addWheel(b, wheels, x, R, 0.23, R, 0.09);
+            addWheel(b, wheels, x, R, -0.23, R, 0.09);
+        }
+        b.pair(box(0.24, 0.025, 0.12), 'teamDark', 0.3, 0.22, 0.23);                      // front fenders
+        b.pair(box(0.5, 0.025, 0.12), 'teamDark', -0.215, 0.22, 0.23);
+        // cab
+        b.add(hexa(0.26, 0.44, 0.2, 0.38, 0.22, -0.03, 0), 'team', 0.35, 0.19, 0);
+        b.add(box(0.03, 0.08, 0.32), 'glass', 0.455, 0.3, 0);
+        b.pair(box(0.12, 0.06, 0.02), 'glass', 0.33, 0.31, 0.2);
+        b.add(box(0.2, 0.03, 0.36), 'hullDark', 0.33, 0.41, 0);
+        b.pair(box(0.02, 0.04, 0.06), 'warn', 0.47, 0.17, 0.14);
+        b.pair(cyl(0.02, 0.02, 0.05, 5), 'warn', 0.3, 0.44, 0.12);
+        // bed, stabiliser jacks, ammo lockers
+        b.add(box(0.62, 0.05, 0.44), 'hull', -0.17, 0.19, 0);
+        b.pair(box(0.05, 0.16, 0.05), 'hazard', -0.44, 0.04, 0.2);
+        b.pair(box(0.09, 0.02, 0.09), 'dark', -0.44, 0.0, 0.2);
+        b.add(box(0.12, 0.09, 0.4), 'hullDark', 0.13, 0.24, 0);
+        // the pod on its turntable; tilted up, tubes facing +X
+        b.add(cyl(0.15, 0.17, 0.05, 8), 'hullDark', -0.16, 0.24, 0);
+        const tur = b.node('turret', null, -0.16, 0.29, 0);
+        b.add(cyl(0.12, 0.12, 0.04, 8), 'team', 0, 0, 0, null, null, tur);
+        b.pair(box(0.16, 0.12, 0.03), 'hullDark', 0, 0.03, 0.12, null, null, tur);       // yoke
+        const pod = b.node('pod', tur, 0, 0.18, 0, [0, 0, 0.32]);
+        b.add(box(0.42, 0.2, 0.3), 'team', -0.03, -0.1, 0, null, null, pod);
+        b.add(box(0.43, 0.02, 0.31), 'team', -0.03, 0.1, 0, null, null, pod);
+        for (const z of [-0.07, 0.07]) b.add(box(0.36, 0.012, 0.03), 'hullDark', -0.05, 0.12, z, null, null, pod);
+        b.pair(box(0.44, 0.03, 0.012), 'hazard', -0.03, -0.03, 0.156, null, null, pod);
+        b.add(box(0.03, 0.21, 0.31), 'dark', 0.185, -0.105, 0, null, null, pod);
+        for (const y of [-0.05, 0.04]) for (const z of [-0.09, 0, 0.09]) {
+            b.add(rodX(0.026, 0.0, 0.05, 5), 'warn', 0.2, y, z, null, null, pod);
+        }
+        b.marker('muzzle', pod, 0.26, 0, 0);
+        return b.build({ height: 0.55, wheels, wheelRadius: R });
+    }
+
+    function makeBulwark() {
+        // Bulwark: a super-heavy, very wide twin-cannon tank with double treads, side armour and a cupola gun.
+        const b = new Builder();
+        b.pair(hexa(1.12, 0.3, 1.38, 0.3, 0.24), 'tread', 0, 0, 0.46);
+        for (const x of [-0.48, -0.24, 0, 0.24, 0.48]) b.pair(wheel(0.085, 0.02, 6), 'hullDark', x, 0.1, 0.615);
+        b.pair(box(1.4, 0.05, 0.32), 'teamDark', 0, 0.24, 0.46);                      // fenders
+        b.pair(box(1.0, 0.12, 0.04), 'team', 0.02, 0.15, 0.62);                        // side skirts
+        b.pair(box(0.1, 0.06, 0.32), 'hullDark', 0.66, 0.2, 0.46, [0, 0, 0.5]);
+        // hull: sloped glacis, raised centre, engine deck with grilles
+        b.add(hexa(1.24, 0.68, 0.98, 0.62, 0.22, -0.1, 0), 'hull', 0, 0.12, 0);
+        b.add(box(0.34, 0.04, 0.56), 'hullDark', -0.46, 0.34, 0);
+        for (const z of [-0.16, 0, 0.16]) b.add(box(0.28, 0.012, 0.06), 'dark', -0.46, 0.38, z);
+        b.pair(box(0.1, 0.05, 0.08), 'dark', -0.62, 0.36, 0.2);
+        b.pair(box(0.05, 0.035, 0.07), 'warn', 0.6, 0.24, 0.2);
+        // the turret: big faceted block in team colour, rear bustle, cupola with a small gun, sensor bar
+        const tur = b.node('turret', null, -0.04, 0.36, 0);
+        b.add(hexa(0.64, 0.6, 0.48, 0.48, 0.22, -0.03, 0), 'team', 0, 0, 0, null, null, tur);
+        b.add(box(0.18, 0.16, 0.56), 'hullDark', -0.34, 0.02, 0, null, null, tur);
+        b.add(box(0.5, 0.03, 0.04), 'teamGlow', 0.0, 0.22, 0, null, null, tur);
+        b.add(cyl(0.09, 0.1, 0.06, 6), 'hullDark', -0.12, 0.22, 0.13, null, null, tur);
+        b.add(rodX(0.012, 0.012, 0.16, 4), 'dark', -0.1, 0.3, 0.13, null, null, tur);
+        b.add(box(0.06, 0.04, 0.12), 'hullDark', 0.22, 0.17, -0.17, null, null, tur);   // sight
+        b.add(box(0.012, 0.03, 0.08), 'glass', 0.25, 0.18, -0.17, null, null, tur);
+        b.add(cyl(0.008, 0.008, 0.24, 3), 'metal', -0.3, 0.2, -0.22, null, null, tur);
+        b.add(box(0.12, 0.14, 0.38), 'hullDark', 0.25, 0.04, 0, null, null, tur);       // twin mantlet
+        for (const [name, mz, z] of [['barrel', 'muzzle', 0.1], ['barrel2', 'muzzle2', -0.1]]) {
+            const bar = b.node(name, tur, 0.28, 0.11, z);
+            b.add(rodX(0.038, 0.042, 0.3, 6), 'metal', 0.02, 0, 0, null, null, bar);
+            b.add(rodX(0.05, 0.05, 0.07, 6), 'hullDark', 0.13, 0, 0, null, null, bar);    // fume extractor
+            b.add(rodX(0.05, 0.05, 0.06, 6), 'hullDark', 0.31, 0, 0, null, null, bar);    // muzzle brake
+            b.marker(mz, bar, 0.38, 0, 0);
+        }
+        return b.build({ height: 0.65, wheels: [] });
+    }
+
+    // ---------------------------------------------------------------- roster expansion: Hegemony vehicles
+    function makeWisp() {
+        // Wisp Drone: a small faceted orb with one glowing eye, swept fins and a spinning ring, floating high.
+        const b = new Builder();
+        const Y = 0.32;
+        b.cur = b.node('hover', b.root, 0, 0, 0);
+        b.add(prismGem(0.12, 0.24, 6), 'team', 0, Y, 0, [0, Math.PI / 6, 0]);
+        b.add(cyl(0.122, 0.122, 0.03, 6), 'hullDark', 0, Y - 0.015, 0, [0, Math.PI / 6, 0]);
+        b.add(box(0.04, 0.045, 0.06), 'hglow', 0.095, Y + 0.01, 0);                     // the eye
+        b.add(cone(0.05, 0.08, 6), 'hullDark', 0, Y - 0.09, 0, [Math.PI, 0, 0]);
+        b.add(sph(0.026, 6, 4), 'hglow', 0, Y - 0.175, 0);                               // the lift glow underneath
+        b.mirror(hexa(0.14, 0.02, 0.04, 0.012, 0.1, -0.06, 0), 'teamDark', -0.02, Y, 0.1, [0.9, 0, 0]);
+        b.mirror(box(0.035, 0.025, 0.02), 'hglow', -0.07, Y + 0.075, 0.175, [0.9, 0, 0]);
+        b.pair(rodX(0.007, 0.007, 0.1, 3), 'metal', 0.08, Y - 0.04, 0.03);              // zapper prongs
+        b.add(box(0.02, 0.02, 0.02), 'hglow', 0.18, Y - 0.04, 0);
+        b.marker('muzzle', null, 0.19, Y - 0.04, 0);
+        // the ring (spins; tilted a little so the spin reads)
+        const ring = b.node('ring', null, 0, Y, 0);
+        b.add(ringGeo(0.22, 0.016, 14, 3), 'violet', 0, 0, 0, [0.28, 0, 0], null, ring);
+        for (let i = 0; i < 3; i++) {
+            const a = i / 3 * Math.PI * 2;
+            b.add(box(0.04, 0.03, 0.03), 'hullDark', Math.cos(a) * 0.22, -Math.sin(a) * 0.22 * Math.sin(0.28), Math.sin(a) * 0.22 * Math.cos(0.28), [0.28, -a, 0], null, ring);
+        }
+        b.cur = null;
+        return b.build({ height: 0.5, hover: true, hoverHeight: Y, wheels: [] });
+    }
+
+    function makeArcwalker() {
+        // Arc Walker: a team-coloured faceted body on four spider legs, a tesla coil on top (the turret).
+        // Hips and thighs ride on the 'body' node (the renderer may bob it); the shins and feet stay planted.
+        const b = new Builder();
+        const body = b.node('body', b.root, 0, 0, 0);
+        for (const sx of [1, -1]) for (const sz of [1, -1]) {
+            const hip = [0.15 * sx, 0.3, 0.14 * sz], knee = [0.34 * sx, 0.44, 0.34 * sz], foot = [0.43 * sx, 0.02, 0.43 * sz];
+            strut(b, 'hullDark', hip, knee, 0.04, 4, body, 0.032);
+            b.add(box(0.12, 0.03, 0.07), 'team', (hip[0] + knee[0]) / 2, (hip[1] + knee[1]) / 2 + 0.035, (hip[2] + knee[2]) / 2, [0, -Math.atan2(sz, sx), 0.47], null, body);
+            b.add(sph(0.045, 6, 4), 'metal', knee[0], knee[1], knee[2], null, null, body);
+            strut(b, 'hullDark', [knee[0], knee[1] - 0.03, knee[2]], foot, 0.02, 4, null, 0.028);
+            b.add(box(0.02, 0.06, 0.02), 'hglow', knee[0] * 1.06, knee[1] - 0.12, knee[2] * 1.06);
+            b.add(hexa(0.12, 0.12, 0.07, 0.07, 0.04), 'tread', foot[0], 0, foot[2], [0, Math.PI / 4, 0]);
+        }
+        // body: dark under-hull, faceted team hull, glowing seams
+        const H0 = [[0.3, 0], [0.12, 0.23], [-0.2, 0.23], [-0.3, 0], [-0.2, -0.23], [0.12, -0.23]];
+        const H1 = scalePts(H0, 0.7, 0.68);
+        b.add(loft(scalePts(H0, 0.7, 0.7), H0, 0.07), 'hullDark', 0, 0.24, 0, null, null, body);
+        b.add(loft(H0, H1, 0.13), 'team', 0, 0.31, 0, null, null, body);
+        b.mirror(box(0.18, 0.015, 0.02), 'hglow', 0.17, 0.32, 0.16, [0, 0.9, 0], null, body);
+        b.add(box(0.06, 0.04, 0.16), 'hglow', 0.265, 0.33, 0, null, null, body);         // sensor band at the front
+        // the tesla coil (turret): collar, column, stacked discs, crown ring and a forward discharge prong
+        const tur = b.node('turret', body, -0.02, 0.44, 0);
+        b.add(cyl(0.13, 0.15, 0.05, 6), 'hullDark', 0, 0, 0, null, null, tur);
+        b.add(cyl(0.035, 0.05, 0.3, 6), 'metal', 0, 0.05, 0, null, null, tur);
+        for (const [y, r] of [[0.1, 0.11], [0.17, 0.09], [0.24, 0.07]]) {
+            b.add(cyl(r, r, 0.022, 8), 'violet', 0, y, 0, null, null, tur);
+            b.add(cyl(r * 0.6, r * 0.6, 0.04, 6), 'teamDark', 0, y + 0.022, 0, null, null, tur);
+        }
+        b.add(sph(0.07, 8, 5), 'hglow', 0, 0.38, 0, null, null, tur);
+        b.add(rodX(0.012, 0.004, 0.13, 4), 'metal', 0.05, 0.38, 0, null, null, tur);
+        b.mirror(rodX(0.008, 0.003, 0.08, 3), 'metal', 0.03, 0.34, 0.03, [0, 0.9, 0.4], null, tur);
+        b.marker('muzzle', tur, 0.19, 0.38, 0);
+        const ring = b.node('ring', tur, 0, 0.38, 0);
+        b.add(ringGeo(0.12, 0.01, 12, 3), 'hglow', 0, 0, 0, [0.35, 0, 0], null, ring);
+        return b.build({ height: 0.75, wheels: [], walker: true });
+    }
+
+    function makeObliterator() {
+        // Obliterator: a big faceted hover platform with glowing pads, side pylons and a long beam lance.
+        const b = new Builder();
+        const Y = 0.13;
+        b.cur = b.node('hover', b.root, 0, 0, 0);
+        const P0 = [[0.72, 0], [0.42, 0.55], [-0.5, 0.58], [-0.72, 0.3], [-0.72, -0.3], [-0.5, -0.58], [0.42, -0.55]];
+        const P1 = scalePts(P0, 0.84, 0.8);
+        const P2 = scalePts(P0, 0.6, 0.52, -0.04);
+        b.add(loft(scalePts(P0, 0.82, 0.8), P0, 0.06), 'hullDark', 0, Y, 0);
+        b.add(loft(P0, P1, 0.1), 'team', 0, Y + 0.06, 0);
+        b.add(loft(P1, P2, 0.06), 'team', 0, Y + 0.16, 0);
+        b.add(loft(P2, scalePts(P2, 0.8, 0.75), 0.012), 'hull', 0, Y + 0.22, 0);
+        // glowing seams along the outline
+        for (let i = 0; i < P0.length; i++) {
+            const [x1, z1] = P0[i], [x2, z2] = P0[(i + 1) % P0.length];
+            const len = Math.hypot(x2 - x1, z2 - z1);
+            b.add(box(len * 0.9, 0.016, 0.02), 'hglow', (x1 + x2) / 2 * 0.985, Y + 0.058, (z1 + z2) / 2 * 0.985, [0, -Math.atan2(z2 - z1, x2 - x1), 0]);
+        }
+        // hover pads: four corner discs and a big central one
+        for (const [x, z, r] of [[0.36, 0.34, 0.12], [0.36, -0.34, 0.12], [-0.46, 0.36, 0.12], [-0.46, -0.36, 0.12], [-0.05, 0, 0.2]]) {
+            b.add(cyl(r, r * 0.85, 0.05, 8), 'hullDark', x, Y - 0.05, z);
+            b.add(cyl(r * 0.78, r * 0.78, 0.02, 8), 'hglow', x, Y - 0.065, z);
+        }
+        // side pylons with floating crystals
+        b.mirror(hexa(0.3, 0.06, 0.06, 0.03, 0.26, -0.12, 0), 'teamDark', -0.4, Y + 0.16, 0.42, [0.25, 0, 0]);
+        b.mirror(box(0.06, 0.04, 0.04), 'hglow', -0.52, Y + 0.41, 0.484, [0.25, 0, 0]);
+        b.pair(prismGem(0.035, 0.12, 4), 'violet', 0.3, Y + 0.32, 0.4);
+        b.pair(box(0.08, 0.06, 0.08), 'hullDark', 0.3, Y + 0.16, 0.4);
+        // turret: a faceted block with a capacitor bank behind it
+        const tur = b.node('turret', null, -0.06, Y + 0.22, 0);
+        const T0 = [[0.22, 0], [0.08, 0.2], [-0.24, 0.2], [-0.3, 0], [-0.24, -0.2], [0.08, -0.2]];
+        b.add(loft(T0, scalePts(T0, 0.7, 0.65, -0.03), 0.16), 'team', 0, 0, 0, null, null, tur);
+        b.add(loft(scalePts(T0, 0.7, 0.65, -0.03), scalePts(T0, 0.5, 0.45, -0.05), 0.03), 'hullDark', 0, 0.16, 0, null, null, tur);
+        for (const z of [-0.12, 0, 0.12]) {
+            b.add(cyl(0.04, 0.04, 0.16, 6), 'violet', -0.27, 0.04, z, null, null, tur);
+            b.add(cyl(0.045, 0.045, 0.03, 6), 'hullDark', -0.27, 0.2, z, null, null, tur);
+        }
+        // the lance: long twin rails, a glowing core, focusing rings and a crystal at the tip
+        const bar = b.node('barrel', tur, 0.1, 0.09, 0);
+        b.add(box(0.14, 0.13, 0.2), 'hullDark', 0.02, -0.065, 0, null, null, bar);
+        b.pair(box(0.48, 0.04, 0.035), 'hullDark', 0.28, -0.02, 0.055, null, null, bar);
+        b.pair(box(0.4, 0.012, 0.012), 'hglow', 0.28, 0.022, 0.055, null, null, bar);
+        b.add(rodX(0.02, 0.02, 0.44, 5), 'hglow', 0.06, 0, 0, null, null, bar);
+        for (const x of [0.18, 0.31, 0.43]) b.add(box(0.03, 0.1, 0.16), 'metal', x, -0.05, 0, null, null, bar);
+        b.add(prismGem(0.04, 0.1, 4), 'hglow', 0.52, 0, 0, [0, 0, Math.PI / 2], null, bar);
+        b.marker('muzzle', bar, 0.56, 0, 0);
+        b.cur = null;
+        return b.build({ height: 0.6, hover: true, hoverHeight: Y, wheels: [] });
     }
 
     // ---------------------------------------------------------------- buildings
@@ -1078,6 +1518,274 @@ window.SF_MODELS = (() => {
         return b.build({ height: 0.9, doorOpen: OPEN });
     }
 
+    // ---------------------------------------------------------------- roster expansion: shared buildings
+    // Wall: a post plus four half-tile arms (armE +X, armW -X, armN -Z, armS +Z) that reach the tile edge, so the
+    // arms of two neighbouring walls meet. All arms start hidden (a lone post); SF_MODELS.setWallArms toggles them.
+    const WALL_ARMS = { armE: 0, armN: Math.PI / 2, armW: Math.PI, armS: -Math.PI / 2 };
+    function makeWall() {
+        const b = new Builder();
+        const heg = Builder.faction === 'hegemony';
+        const post = b.node('post', b.root, 0, 0, 0);
+        if (!heg) {
+            // Vanguard: a chunky concrete pillar with a team band, a dark cap and an amber marker light
+            b.add(hexa(0.62, 0.62, 0.56, 0.56, 0.08), 'hullDark', 0, 0, 0, null, null, post);
+            b.add(hexa(0.52, 0.52, 0.46, 0.46, 0.5), 'concrete', 0, 0.08, 0, null, null, post);
+            b.add(box(0.5, 0.06, 0.5), 'hullDark', 0, 0.38, 0, null, null, post);
+            b.add(hexa(0.5, 0.5, 0.4, 0.4, 0.06), 'team', 0, 0.58, 0, null, null, post);
+            b.add(box(0.1, 0.04, 0.1), 'warn', 0, 0.64, 0, null, null, post);
+        } else {
+            // Hegemony: a faceted octagonal pylon with a team band, a pointed cap and a glowing tip
+            const O0 = ngon(8, 0.3, Math.PI / 8), O1 = ngon(8, 0.24, Math.PI / 8);
+            b.add(loft(scalePts(O0, 1.08), O0, 0.08), 'hullDark', 0, 0, 0, null, null, post);
+            b.add(loft(O0, O1, 0.5), 'hull', 0, 0.08, 0, null, null, post);
+            b.add(loft(scalePts(O0, 0.92), scalePts(O1, 1.05), 0.1), 'team', 0, 0.32, 0, null, null, post);
+            b.add(cone(0.24, 0.14, 4), 'team', 0, 0.58, 0, [0, Math.PI / 4, 0], null, post);
+            b.add(prismGem(0.035, 0.08, 4), 'hglow', 0, 0.75, 0, null, null, post);
+        }
+        for (const [name, ry] of Object.entries(WALL_ARMS)) {
+            // each arm runs along its node's +X from inside the post (x 0.18) to the tile edge (x 0.5)
+            const n = b.node(name, b.root, 0, 0, 0, [0, ry, 0]);
+            if (!heg) {
+                b.add(box(0.32, 0.06, 0.44), 'hullDark', 0.34, 0, 0, null, null, n);
+                b.add(hexa(0.32, 0.36, 0.32, 0.3, 0.42), 'concrete', 0.34, 0.06, 0, null, null, n);
+                b.add(box(0.32, 0.04, 0.31), 'hullDark', 0.34, 0.34, 0, null, null, n);
+                b.add(box(0.32, 0.04, 0.3), 'team', 0.34, 0.48, 0, null, null, n);
+            } else {
+                b.add(box(0.32, 0.06, 0.44), 'hullDark', 0.34, 0, 0, null, null, n);
+                b.add(hexa(0.32, 0.36, 0.32, 0.12, 0.44), 'hull', 0.34, 0.06, 0, null, null, n);
+                b.add(hexa(0.32, 0.25, 0.32, 0.17, 0.1), 'team', 0.34, 0.28, 0, null, null, n);
+            }
+        }
+        const g = b.build({ height: 0.64 });
+        for (const name of Object.keys(WALL_ARMS)) g.getObjectByName(name).visible = false;
+        return g;
+    }
+
+    function makeRepairbay() {
+        // A hazard-striped service pad with a turning crane: its 'arm' (mast, boom, trolley and a welding head)
+        // rests pointing +X and turns about Y to face the vehicle being repaired.
+        const b = new Builder();
+        slab(b, 2, 2);
+        b.add(box(1.8, 0.03, 1.8), 'pad', 0, 0.08, 0);
+        // hazard border with dark chevrons, team corner brackets, corner lights
+        for (const s of [1, -1]) {
+            b.add(box(1.7, 0.012, 0.09), 'hazard', 0, 0.11, 0.83 * s);
+            b.add(box(0.09, 0.012, 1.7), 'hazard', 0.83 * s, 0.11, 0);
+            for (let i = -3; i <= 3; i++) {
+                b.add(box(0.05, 0.014, 0.1), 'dark', i * 0.22, 0.111, 0.83 * s, [0, 0.6, 0]);
+                b.add(box(0.1, 0.014, 0.05), 'dark', 0.83 * s, 0.111, i * 0.22, [0, 0.6, 0]);
+            }
+        }
+        for (const [x, z] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+            b.add(box(0.4, 0.05, 0.1), 'team', 0.7 * x, 0.11, 0.86 * z);
+            b.add(box(0.1, 0.05, 0.4), 'team', 0.86 * x, 0.11, 0.7 * z);
+            b.add(cyl(0.035, 0.035, 0.06, 6), 'warn', 0.86 * x, 0.16, 0.86 * z);
+        }
+        // service gear: a control booth (south-west), a parts rack (north-west), drums (north-east)
+        b.add(box(0.34, 0.28, 0.3), 'hull', -0.58, 0.11, 0.56);
+        b.add(box(0.38, 0.04, 0.34), 'team', -0.58, 0.39, 0.56);
+        b.add(box(0.24, 0.06, 0.02), 'glass', -0.58, 0.28, 0.715);
+        b.add(box(0.5, 0.18, 0.16), 'hullDark', -0.45, 0.11, -0.62);
+        for (const x of [-0.6, -0.42, -0.26]) b.add(box(0.12, 0.08, 0.12), 'hazard', x, 0.29, -0.62);
+        for (const [x, z] of [[0.6, -0.6], [0.44, -0.66], [0.62, -0.42]]) {
+            b.add(cyl(0.065, 0.065, 0.18, 7), 'teamDark', x, 0.11, z);
+            b.add(cyl(0.067, 0.067, 0.02, 7), 'metal', x, 0.25, z);
+        }
+        // a painted team service ring around the turntable, then the turntable: a dark drum with a glowing team ring
+        b.add(ringGeo(0.6, 0.05, 20, 3), 'team', 0, 0.105, 0, null, [1, 0.25, 1]);
+        for (let i = 0; i < 4; i++) {
+            const a = Math.PI / 4 + i * Math.PI / 2;
+            b.add(hexa(0.12, 0.1, 0.0, 0.1, 0.012, 0.06, 0), 'hazard', Math.cos(a) * 0.43, 0.108, Math.sin(a) * 0.43, [0, Math.PI - a, Math.PI / 2 * 0], null);
+        }
+        b.add(cyl(0.3, 0.34, 0.07, 10), 'hullDark', 0, 0.11, 0);
+        b.add(ringGeo(0.31, 0.018, 16, 3), 'teamGlow', 0, 0.18, 0);
+        // the crane
+        const arm = b.node('arm', null, 0, 0.18, 0);
+        b.add(cyl(0.22, 0.24, 0.06, 8), 'team', 0, 0, 0, null, null, arm);
+        b.add(box(0.2, 0.16, 0.2), 'hull', -0.1, 0.06, 0.12, null, null, arm);              // operator cab
+        b.add(box(0.02, 0.07, 0.16), 'glass', 0.005, 0.13, 0.12, null, null, arm);
+        b.add(box(0.12, 0.66, 0.12), 'hazard', 0, 0.06, 0, null, null, arm);              // mast
+        for (const y of [0.2, 0.36, 0.52]) b.add(box(0.125, 0.03, 0.125), 'dark', 0, y, 0, null, null, arm);
+        b.add(box(1.02, 0.07, 0.1), 'hazard', 0.31, 0.68, 0, null, null, arm);            // boom
+        b.add(box(1.0, 0.012, 0.11), 'dark', 0.31, 0.75, 0, null, null, arm);
+        strut(b, 'metal', [0, 0.72, 0], [0.04, 0.92, 0], 0.02, 4, arm);
+        strut(b, 'metal', [0.04, 0.92, 0], [0.74, 0.75, 0], 0.01, 3, arm);
+        strut(b, 'metal', [0.04, 0.92, 0], [-0.18, 0.75, 0], 0.01, 3, arm);
+        b.add(box(0.18, 0.14, 0.16), 'hullDark', -0.17, 0.58, 0, null, null, arm);        // counterweight
+        b.add(box(0.1, 0.06, 0.12), 'hullDark', 0.72, 0.62, 0, null, null, arm);          // trolley
+        b.add(cyl(0.006, 0.006, 0.3, 3), 'metal', 0.72, 0.33, 0, null, null, arm);        // cable
+        b.add(box(0.1, 0.07, 0.1), 'hullDark', 0.72, 0.26, 0, null, null, arm);           // welding head
+        b.pair(box(0.02, 0.08, 0.02), 'metal', 0.72, 0.19, 0.035, null, null, arm);
+        b.add(box(0.03, 0.03, 0.03), 'weld', 0.72, 0.18, 0, null, null, arm);
+        b.add(box(0.03, 0.03, 0.03), 'warn', 0.84, 0.69, 0, null, null, arm);
+        b.marker('muzzle', arm, 0.72, 0.18, 0);
+        return b.build({ height: 0.95, craneArm: true });
+    }
+
+    // ---------------------------------------------------------------- roster expansion: Vanguard defences
+    function makeSentry() {
+        // Sentry Post: a raised gun platform on four splayed legs, a rotary machine gun behind a team shield.
+        const b = new Builder();
+        b.add(octo(0.9, 0.08), 'hullDark', 0, 0, 0);
+        b.add(octo(0.7, 0.03), 'pad', 0, 0.08, 0);
+        for (const [x, z] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+            strut(b, 'hullDark', [0.3 * x, 0.1, 0.3 * z], [0.2 * x, 0.42, 0.2 * z], 0.035, 4);
+            b.add(box(0.1, 0.03, 0.1), 'dark', 0.3 * x, 0.1, 0.3 * z);
+        }
+        for (const s of [1, -1]) {
+            strut(b, 'metal', [0.27 * s, 0.14, 0.27], [-0.22 * s, 0.38, 0.22], 0.008, 3);
+            strut(b, 'metal', [0.27 * s, 0.14, -0.27], [-0.22 * s, 0.38, -0.22], 0.008, 3);
+        }
+        // platform, parapet plates, ladder on the south face
+        b.add(box(0.56, 0.04, 0.56), 'hullDark', 0, 0.4, 0);
+        b.add(box(0.6, 0.05, 0.6), 'team', 0, 0.44, 0);
+        for (const s of [1, -1]) {
+            b.add(box(0.6, 0.08, 0.04), 'concrete', 0, 0.49, 0.28 * s);
+            b.add(box(0.04, 0.08, 0.52), 'concrete', 0.28 * s, 0.49, 0);
+        }
+        for (const x of [-0.06, 0.06]) b.add(box(0.015, 0.4, 0.015), 'metal', x, 0.08, 0.315);
+        for (const y of [0.16, 0.26, 0.36]) b.add(box(0.12, 0.012, 0.015), 'metal', 0, y, 0.315);
+        b.add(box(0.1, 0.012, 0.012), 'hazard', 0, 0.535, 0.3);
+        // the gun
+        const tur = b.node('turret', null, 0, 0.49, 0);
+        b.add(cyl(0.11, 0.12, 0.06, 8), 'hullDark', 0, 0, 0, null, null, tur);
+        b.add(box(0.2, 0.1, 0.12), 'hullDark', 0.0, 0.06, 0, null, null, tur);
+        b.add(hexa(0.05, 0.32, 0.04, 0.24, 0.2), 'team', 0.12, 0.03, 0, [0, 0, 0.18], null, tur);
+        b.add(box(0.012, 0.035, 0.08), 'glass', 0.115, 0.17, 0, [0, 0, 0.18], null, tur);
+        b.add(cyl(0.05, 0.05, 0.06, 7), 'teamDark', -0.02, 0.06, -0.11, [Math.PI / 2, 0, 0], null, tur);   // ammo drum
+        for (let i = 0; i < 3; i++) {
+            const a = i / 3 * Math.PI * 2;
+            b.add(rodX(0.013, 0.013, 0.26, 4), 'dark', 0.1, 0.11 + Math.cos(a) * 0.022, Math.sin(a) * 0.022, null, null, tur);
+        }
+        b.add(rodX(0.038, 0.038, 0.03, 6), 'hullDark', 0.13, 0.11, 0, null, null, tur);
+        b.add(rodX(0.034, 0.034, 0.025, 6), 'hullDark', 0.33, 0.11, 0, null, null, tur);
+        b.add(box(0.03, 0.025, 0.03), 'redLight', -0.08, 0.13, 0, null, null, tur);
+        b.marker('muzzle', tur, 0.37, 0.11, 0);
+        return b.build({ height: 0.72 });
+    }
+
+    function makeHowitzer() {
+        // Howitzer: a revetted gun pit (team-capped concrete walls, open to the south for the ammo track) with a
+        // heavy gun on a turntable, its long barrel elevated for indirect fire.
+        const b = new Builder();
+        slab(b, 2, 2);
+        b.add(octo(1.7, 0.03), 'pad', 0, 0.08, 0);
+        for (let i = 0; i < 8; i++) {
+            const a = i * Math.PI / 4;
+            if (Math.abs(a - Math.PI / 2) < 0.1) continue;        // the south gap
+            const x = Math.cos(a) * 0.8, z = Math.sin(a) * 0.8, ry = Math.PI / 2 - a;
+            b.add(hexa(0.62, 0.16, 0.6, 0.12, 0.22), 'concrete', x, 0.08, z, [0, ry, 0]);
+            b.add(box(0.6, 0.05, 0.13), 'team', x, 0.3, z, [0, ry, 0]);
+        }
+        // ammo at the gap: crates and a shell rack
+        b.add(box(0.2, 0.12, 0.14), 'hazard', -0.22, 0.11, 0.8);
+        b.add(box(0.2, 0.012, 0.145), 'dark', -0.22, 0.2, 0.8);
+        b.add(box(0.16, 0.1, 0.14), 'teamDark', 0.24, 0.11, 0.82);
+        for (const x of [0.18, 0.24, 0.3]) b.add(cyl(0.022, 0.022, 0.08, 5), 'warn', x, 0.21, 0.82);
+        // turntable and gun
+        b.add(cyl(0.5, 0.54, 0.07, 12), 'hullDark', 0, 0.08, 0);
+        b.add(cyl(0.44, 0.44, 0.02, 12), 'metal', 0, 0.15, 0);
+        const tur = b.node('turret', null, 0, 0.17, 0);
+        b.add(box(0.56, 0.12, 0.46), 'hullDark', -0.06, 0, 0, null, null, tur);
+        b.pair(hexa(0.4, 0.06, 0.22, 0.06, 0.32, 0.04, 0), 'team', 0.02, 0.12, 0.17, null, null, tur);   // trunnion cheeks
+        b.add(box(0.06, 0.2, 0.42), 'team', 0.22, 0.1, 0, [0, 0, -0.35], null, tur);            // crew shield
+        b.add(box(0.2, 0.06, 0.3), 'metal', -0.28, 0.12, 0, null, null, tur);                    // loading tray
+        b.add(box(0.04, 0.05, 0.12), 'redLight', -0.33, 0.18, -0.12, null, null, tur);
+        const bar = b.node('barrel', tur, 0.04, 0.32, 0, [0, 0, 0.5]);
+        b.add(rodX(0.085, 0.085, 0.26, 7), 'hullDark', -0.18, 0, 0, null, null, bar);           // breech
+        b.pair(rodX(0.024, 0.024, 0.34, 5), 'metal', -0.05, 0.075, 0.045, null, null, bar);      // recoil cylinders
+        b.add(rodX(0.046, 0.054, 0.66, 7), 'metal', 0.08, 0, 0, null, null, bar);
+        b.add(rodX(0.058, 0.058, 0.03, 7), 'team', 0.4, 0, 0, null, null, bar);
+        b.add(rodX(0.068, 0.068, 0.09, 7), 'hullDark', 0.74, 0, 0, null, null, bar);           // muzzle brake
+        b.marker('muzzle', bar, 0.84, 0, 0);
+        return b.build({ height: 0.85 });
+    }
+
+    // ---------------------------------------------------------------- roster expansion: Hegemony buildings
+    function makeGravwell() {
+        // Gravity Well: a slim pylon held by three team claws, with three floating violet rings that spin.
+        const b = new Builder();
+        b.add(octo(0.9, 0.08), 'hullDark', 0, 0, 0);
+        b.add(loft(ngon(6, 0.4, Math.PI / 6), ngon(6, 0.3, Math.PI / 6), 0.14), 'hull', 0, 0.08, 0);
+        b.add(cyl(0.28, 0.28, 0.03, 6), 'team', 0, 0.22, 0);
+        b.add(cyl(0.12, 0.12, 0.03, 6), 'hglow', 0, 0.24, 0);
+        for (let i = 0; i < 3; i++) {
+            const a = Math.PI / 2 + i / 3 * Math.PI * 2, c = Math.cos(a), s = Math.sin(a);
+            strut(b, 'team', [c * 0.3, 0.22, s * 0.3], [c * 0.09, 0.7, s * 0.09], 0.05, 4, null, 0.025);
+            b.add(box(0.03, 0.03, 0.03), 'hglow', c * 0.22, 0.4, s * 0.22, [0, -a, 0]);
+        }
+        const P = ngon(4, 0.08, Math.PI / 4);
+        b.add(loft(P, scalePts(P, 0.5), 0.86), 'hullDark', 0, 0.24, 0);
+        for (let i = 0; i < 4; i++) {
+            const a = i * Math.PI / 2;
+            b.add(box(0.012, 0.6, 0.025), 'hglow', Math.cos(a) * 0.058, 0.3, Math.sin(a) * 0.058, [0, -a, 0.033]);
+        }
+        b.add(prismGem(0.06, 0.18, 4), 'violet', 0, 1.2, 0);
+        // the rings: [height, radius, tube, tilt, spin speed]
+        for (const [y, r, tube, tilt, sp] of [[0.42, 0.4, 0.024, 0.22, 1.5], [0.68, 0.32, 0.021, -0.26, -1.1], [0.92, 0.23, 0.018, 0.2, 2.0]]) {
+            const ring = b.node('ring', null, 0, y, 0);
+            ring.userData.restY = y; ring.userData.spin = sp; ring.userData.drop = 0.06;
+            b.add(ringGeo(r, tube, 16, 3), 'violet', 0, 0, 0, [tilt, 0, 0], null, ring);
+            for (let i = 0; i < 3; i++) {
+                const a = i / 3 * Math.PI * 2 + y;
+                b.add(box(0.05, 0.035, 0.035), 'hglow', Math.cos(a) * r, -Math.sin(a) * r * Math.sin(tilt), Math.sin(a) * r * Math.cos(tilt), [tilt, -a, 0], null, ring);
+            }
+        }
+        return b.build({ height: 1.2 });
+    }
+
+    function makeSiphon() {
+        // Shard Siphon: a faceted platform over a bore hole, four swept struts holding a spinning drill (a hub
+        // with spokes you can see turn from above, a fluted shaft) and pipes to two glowing shard tanks.
+        const b = new Builder();
+        slab(b, 2, 2);
+        const O0 = ngon(8, 0.92, Math.PI / 8), O1 = ngon(8, 0.84, Math.PI / 8), O2 = ngon(8, 0.74, Math.PI / 8);
+        b.add(loft(O0, O1, 0.16), 'hull', 0, 0.08, 0);
+        b.add(loft(O1, O2, 0.1), 'team', 0, 0.24, 0);
+        b.add(loft(O2, scalePts(O2, 0.96), 0.02), 'hullDark', 0, 0.34, 0);
+        // bore collar with a glowing shard ring
+        b.add(cyl(0.22, 0.27, 0.1, 8), 'hullDark', 0, 0.36, 0);
+        b.add(ringGeo(0.19, 0.022, 12, 3), 'shard', 0, 0.46, 0);
+        b.add(cyl(0.16, 0.16, 0.01, 8), 'dark', 0, 0.455, 0);
+        // the derrick: four swept struts to a top collar with a glowing crown
+        for (const [x, z] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+            strut(b, 'teamDark', [0.58 * x, 0.36, 0.58 * z], [0.12 * x, 1.32, 0.12 * z], 0.05, 4, null, 0.03);
+            b.add(hexa(0.14, 0.14, 0.1, 0.1, 0.06), 'hullDark', 0.58 * x, 0.34, 0.58 * z, [0, Math.PI / 4, 0]);
+            b.add(box(0.03, 0.12, 0.03), 'hglow', 0.42 * x, 0.66, 0.42 * z, [0, -Math.atan2(z, x), -0.45]);
+        }
+        b.add(cyl(0.13, 0.16, 0.08, 8), 'hullDark', 0, 1.3, 0);
+        b.add(cyl(0.09, 0.09, 0.02, 8), 'hglow', 0, 1.38, 0);
+        b.add(prismGem(0.05, 0.14, 4), 'violet', 0, 1.5, 0);
+        // shard tanks on the south side, piped to the collar
+        for (const s of [1, -1]) {
+            b.add(cyl(0.14, 0.14, 0.04, 8), 'hullDark', 0.5 * s, 0.34, 0.5);
+            b.add(cyl(0.11, 0.11, 0.3, 8), 'shard', 0.5 * s, 0.38, 0.5);
+            for (const y of [0.38, 0.52, 0.66]) b.add(cyl(0.125, 0.125, 0.03, 8), 'metal', 0.5 * s, y, 0.5);
+            b.add(dome(0.125, 8, 2), 'hullDark', 0.5 * s, 0.69, 0.5);
+            strut(b, 'metal', [0.5 * s, 0.6, 0.5], [0.16 * s, 0.42, 0.14], 0.025, 5);
+        }
+        // condenser block on the north side with violet vents and a fin
+        b.add(box(0.5, 0.2, 0.26), 'hullDark', 0, 0.34, -0.56);
+        for (const x of [-0.15, 0, 0.15]) b.add(box(0.08, 0.14, 0.012), 'violet', x, 0.37, -0.42);
+        fin(b, 0, 0.54, -0.56, -Math.PI / 2, 0.24, 0.3);
+        // the drill (spins about Y; rests at its node's y)
+        const drill = b.node('drill', null, 0, 0.42, 0);
+        drill.userData.restY = 0.42; drill.userData.spin = 4.5;
+        b.add(cyl(0.045, 0.05, 0.86, 6), 'metal', 0, -0.06, 0, null, null, drill);
+        for (let i = 0; i < 7; i++) {
+            const a = i * 0.95, y = 0.04 + i * 0.07;
+            b.add(box(0.05, 0.025, 0.15), 'hullDark', Math.cos(a) * 0.05, y, Math.sin(a) * 0.05, [0, -a, 0.35], null, drill);
+        }
+        b.add(cyl(0.25, 0.25, 0.06, 8), 'team', 0, 0.55, 0, null, null, drill);
+        for (let i = 0; i < 4; i++) {
+            const a = i * Math.PI / 2;
+            b.add(box(0.36, 0.04, 0.06), 'hullDark', Math.cos(a) * 0.15, 0.61, Math.sin(a) * 0.15, [0, -a, 0], null, drill);
+            b.add(box(0.06, 0.05, 0.06), i ? 'hglow' : 'shard', Math.cos(a) * 0.33, 0.6, Math.sin(a) * 0.33, [0, -a, 0], null, drill);
+        }
+        b.add(cyl(0.06, 0.06, 0.1, 6), 'hullDark', 0, 0.62, 0, null, null, drill);
+        return b.build({ height: 1.4 });
+    }
+
     // Hegemony trim for the shared buildings (added on top of the re-coloured model).
     const HEG_TRIM = {
         core: (b) => { cornerFin(b, -1.2, -1.2, 0.15, 0.95, 0.5); cornerFin(b, 1.22, -1.22, 0.15, 0.95, 0.5); floatGem(b, 0.32, 0.96, 0.18, 1.2); },
@@ -1090,6 +1798,8 @@ window.SF_MODELS = (() => {
         },
         radar: (b) => { cornerFin(b, 0.8, 0.8, 0.08, 0.6, 0.32); cornerFin(b, -0.82, -0.82, 0.08, 0.6, 0.32); },
         techlab: (b) => { fin(b, 0.7, 0.59, -0.7, Math.PI / 2, 0.42, 0.34); fin(b, 0.7, 0.59, 0.7, Math.PI / 2, 0.42, 0.34); floatGem(b, -0.42, 0.7, -0.35, 0.9); },
+        repairbay: (b) => { cornerFin(b, 0.84, 0.84, 0.11, 0.5, 0.28); cornerFin(b, -0.84, -0.84, 0.11, 0.5, 0.28); floatGem(b, 0.62, 0.36, -0.62, 0.7); },
+        // the wall's Hegemony look is built into makeWall (a trim would end up on the post, not the arms)
     };
 
     // ---------------------------------------------------------------- decor, shards, spire (no team)
@@ -1164,16 +1874,22 @@ window.SF_MODELS = (() => {
     // ---------------------------------------------------------------- registry, caching, cloning
     const MAKERS = {
         unit: { rifleman: makeRifleman, rocketeer: makeRocketeer, harvester: makeHarvester, buggy: makeBuggy, tank: makeTank, artillery: makeArtillery,
-            trooper: makeTrooper, shocktrooper: makeShocktrooper, skimmer: makeSkimmer, lancer: makeLancer, phantom: makePhantom },
+            trooper: makeTrooper, shocktrooper: makeShocktrooper, skimmer: makeSkimmer, lancer: makeLancer, phantom: makePhantom,
+            sniper: makeSniper, medic: makeMedic, engineer: makeEngineer, scout: makeScout, salvo: makeSalvo, bulwark: makeBulwark,
+            disruptor: makeDisruptor, acolyte: makeAcolyte, stalker: makeStalker, wisp: makeWisp, arcwalker: makeArcwalker, obliterator: makeObliterator },
         building: { core: makeCore, reactor: makeReactor, refinery: makeRefinery, barracks: makeBarracks, factory: makeFactory,
-            radar: makeRadar, turret: makeTurret, techlab: makeTechlab, spire: makePulseSpire, uplink: makeUplink, riftsilo: makeRiftsilo },
+            radar: makeRadar, turret: makeTurret, techlab: makeTechlab, spire: makePulseSpire, uplink: makeUplink, riftsilo: makeRiftsilo,
+            wall: makeWall, repairbay: makeRepairbay, sentry: makeSentry, howitzer: makeHowitzer, gravwell: makeGravwell, siphon: makeSiphon },
         decor: { rock: makeRock, boulder: makeBoulder, crystal: makeCrystal, tree: makeTree },
         misc: { shardCluster: makeShardCluster, spire: makeSpire },
     };
     const templates = new Map();   // kind:type:team:faction → built template (geometry has the team colour baked in)
     const FACTIONS = ['vanguard', 'hegemony'];
     const OWN_FACTION = { trooper: 'hegemony', shocktrooper: 'hegemony', skimmer: 'hegemony', lancer: 'hegemony', phantom: 'hegemony',
-        spire: 'hegemony', riftsilo: 'hegemony' };
+        spire: 'hegemony', riftsilo: 'hegemony',
+        sniper: 'vanguard', medic: 'vanguard', engineer: 'vanguard', scout: 'vanguard', salvo: 'vanguard', bulwark: 'vanguard', sentry: 'vanguard', howitzer: 'vanguard',
+        disruptor: 'hegemony', acolyte: 'hegemony', stalker: 'hegemony', wisp: 'hegemony', arcwalker: 'hegemony', obliterator: 'hegemony',
+        gravwell: 'hegemony', siphon: 'hegemony' };
     // The faction look for a model: the one asked for, else the type's own (config `faction`), else Vanguard.
     function factionFor(kind, type, f) {
         if (FACTIONS.includes(f)) return f;
@@ -1260,6 +1976,61 @@ window.SF_MODELS = (() => {
         c.traverse((m) => { if (m.isMesh && m.userData.ownMaterial) m.material.emissiveIntensity = v; });
         c.scale.setScalar(0.85 + 0.25 * k);
     }
+    // Roster expansion helpers.
+    // Wall connectors: show the arm towards each neighbouring wall (n = -Z, s = +Z, e = +X, w = -X).
+    function setWallArms(obj, arms = {}) {
+        for (const [k, name] of [['n', 'armN'], ['s', 'armS'], ['e', 'armE'], ['w', 'armW']]) {
+            const a = obj.getObjectByName(name);
+            if (a) a.visible = !!arms[k];
+        }
+        return obj;
+    }
+    // Turns a repair bay's crane arm to face a point at (dx, dz) from the building centre (world axes; buildings
+    // are never rotated). k (0..1) eases towards it per call, 1 = snap.
+    function aimArm(obj, dx, dz, k = 1) {
+        const a = obj.getObjectByName('arm');
+        if (!a || !obj.userData.craneArm) return obj;
+        const want = -Math.atan2(dz, dx);
+        let d = want - a.rotation.y;
+        d = Math.atan2(Math.sin(d), Math.cos(d));
+        a.rotation.y += d * Math.max(0, Math.min(1, k));
+        return obj;
+    }
+    // Idle animation by absolute time t (seconds), cheap enough to call every frame for every model:
+    //   'ring'  nodes (gravity well, wisp, arc walker coil, shard spire) spin about Y and bob around userData.restY;
+    //   'drill' (shard siphon) spins and pumps a little;
+    //   'arm'   of a repair bay (userData.craneArm) sways slowly while idle.
+    // opts.powered = false stops the rings and drill (the well's rings sink a little); opts.arm = false leaves the
+    // crane to the caller (aimArm while repairing). Models without these nodes are left untouched.
+    function spin(obj, t, opts = {}) {
+        let list = obj.userData.spinners;
+        if (!list) {
+            list = [];
+            obj.traverse((o) => { if (o.name === 'ring' || o.name === 'drill' || (o.name === 'arm' && obj.userData.craneArm)) list.push(o); });
+            Object.defineProperty(obj.userData, 'spinners', { value: list, enumerable: false, configurable: true, writable: true });
+        }
+        const on = opts.powered !== false;
+        let k = 0;
+        for (const n of list) {
+            const ud = n.userData;
+            if (ud.restY == null) ud.restY = n.position.y;
+            if (n.name === 'ring') {
+                if (on) {
+                    n.rotation.y = t * (ud.spin || (k % 2 ? -1.4 : 1.8));
+                    n.position.y = ud.restY + Math.sin(t * 1.7 + k * 2.1) * (ud.bob != null ? ud.bob : 0.025);
+                } else n.position.y = ud.restY - (ud.drop || 0);
+                k++;
+            } else if (n.name === 'drill') {
+                if (on) {
+                    n.rotation.y = t * (ud.spin || 4);
+                    n.position.y = ud.restY + Math.sin(t * 2.3) * 0.03;
+                }
+            } else if (opts.arm !== false) {
+                n.rotation.y = Math.sin(t * 0.35) * 0.8 + Math.sin(t * 0.93) * 0.15;
+            }
+        }
+        return obj;
+    }
     const teamOf = (c) => (typeof c === 'number' ? c : (CFG.TEAMS && CFG.TEAMS[0] ? CFG.TEAMS[0].color : 0x2f8fff));
 
     function triangles(obj) {
@@ -1285,6 +2056,9 @@ window.SF_MODELS = (() => {
         factionOf: (kind, type) => factionFor(kind, type),   // the default look of a type ('vanguard' | 'hegemony')
         setDoors,       // setDoors(riftsiloObj, open01)
         setCharge,      // setCharge(uplinkObj, charge01, timeSeconds)
+        setWallArms,    // setWallArms(wallObj, { n, s, e, w }) → shows the arm towards each neighbouring wall
+        aimArm,         // aimArm(repairbayObj, dx, dz, ease01) → turns the crane arm towards a vehicle
+        spin,           // spin(obj, timeSeconds, { powered, arm }) → rings, drill and crane idle
         ghostMaterial,  // ghostMaterial(material) → its shared translucent twin (cloak)
         materials: MATERIALS,   // { body, glow }: shared by every model; clone before changing one per entity
         triangles,      // triangles(object3d) → triangle count

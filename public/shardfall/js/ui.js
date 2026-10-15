@@ -82,6 +82,8 @@
             try { const d = localStorage.getItem('shardfall.diff'); const b = d && document.querySelector('#diff-seg [data-diff="' + d + '"]'); if (b) b.click(); } catch (e) { /* blocked */ }
             document.querySelectorAll('.tab[data-tab]').forEach((b) => b.addEventListener('click', () => { G.audio.play('click'); this.setTab(b.dataset.tab); if (this.collapsed) this.toggleSheet(false); }));
             $('sheet-toggle').addEventListener('click', () => { G.audio.play('click'); this.toggleSheet(); });
+            $('build-grid').addEventListener('scroll', () => this.stripEdges(), { passive: true });
+            click('pb-done', () => G.cancelPlacing());
             click('act-army', () => G.selectArmy());
             click('act-amove', () => G.setMode(G.mode === 'attackMove' ? null : 'attackMove'));
             click('act-stop', () => G.stop());
@@ -135,12 +137,34 @@
             B.classList.toggle('cramped', side && (w - sideW) < 900);
             this.side = side;
             requestAnimationFrame(() => {
+                this.fitGrid();
                 this.measureSheet();
                 this.sizeMinimap();
                 if (this.G.render) this.G.render.resize();
                 this.G.onLayout && this.G.onLayout(side);
             });
             this.refreshReadyLabels();
+        }
+        // desktop sidebar: when the longest category would not fit in three columns, switch to a compact four-column grid
+        // (it still scrolls if even that overflows; touch screens scroll three columns instead). Phone: a horizontal strip with edge fades showing there is more.
+        fitGrid() {
+            const g = $('build-grid'), B = document.body;
+            if (!g) return;
+            if (!this.side) { B.classList.remove('grid-compact'); this.stripEdges(); return; }
+            const counts = {}; let max = 0;
+            for (const [, it] of this.items) { counts[it.cat] = (counts[it.cat] || 0) + 1; max = Math.max(max, counts[it.cat]); }
+            if (!max) return;
+            const cols = B.classList.contains('narrow') ? 2 : 3, gap = 6, w = g.clientWidth - 2;
+            const ih = Math.max(64, (w - gap * (cols - 1)) / cols * 1.08), rows = Math.ceil(max / cols);
+            const sheet = g.parentElement, tabs = sheet.querySelector('.tabs');
+            const need = rows * ih + (rows - 1) * gap, have = sheet.clientHeight - (tabs ? tabs.offsetHeight : 38) - 8;
+            B.classList.toggle('grid-compact', have > 40 && need > have + 2 && cols === 3 && !this.touch);   // touch: scroll instead, names stay readable
+        }
+        stripEdges() {
+            const g = $('build-grid'); if (!g || this.side) return;
+            const max = g.scrollWidth - g.clientWidth;
+            g.classList.toggle('more-r', max > 4 && g.scrollLeft < max - 4);
+            g.classList.toggle('more-l', g.scrollLeft > 4);
         }
         measureSheet() {
             const sheet = document.querySelector('.sheet');
@@ -163,6 +187,7 @@
             document.querySelectorAll('.tab[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === t));
             for (const [, it] of this.items) it.el.style.display = it.cat === t ? '' : 'none';
             const g = $('build-grid'); g.scrollLeft = 0; g.scrollTop = 0;
+            this.stripEdges();
         }
 
         // ------------------------------------------------------------ screens
@@ -285,9 +310,11 @@
                 const el = document.createElement('button');
                 el.type = 'button'; el.className = 'build-item'; el.dataset.type = o.type;
                 el.setAttribute('aria-label', nameOf(o.type) + ', ' + o.cost + ' credits');
+                const nm = nameOf(o.type);
                 el.innerHTML = '<span class="thumb"></span><span class="lock">' + svg('i-lock') + '</span><span class="why"></span>' +
-                    '<span class="sweep"></span><span class="cost">' + svg('i-shard') + o.cost + '</span><span class="qn"></span><span class="tag"></span>' +
-                    '<span class="x" role="button" aria-label="Cancel">' + svg('i-close') + '</span><span class="nm">' + nameOf(o.type) + '</span><span class="pbar2"><i></i></span>';
+                    '<span class="sweep"></span><span class="cost">' + svg('i-shard') + o.cost + '</span><span class="qn"></span><span class="tag"></span><span class="par"></span>' +
+                    '<span class="x" role="button" aria-label="Cancel">' + svg('i-close') + '</span><span class="nm' + (nm.length > 10 ? ' long' : '') + '">' + nm + '</span><span class="pbar2"><i></i></span>';
+                el.title = nm + ' · ' + o.cost + ' credits';
                 const thumb = G.render.thumbnail(o.cat === 'building' ? 'building' : 'unit', o.type, G.team, fac);
                 if (thumb) el.querySelector('.thumb').style.backgroundImage = 'url(' + thumb + ')';
                 const it = { el, type: o.type, cat: o.cat, last: {} };
@@ -296,6 +323,7 @@
                 grid.appendChild(el);
             }
             this.setTab(this.tab);
+            requestAnimationFrame(() => this.fitGrid());
         }
         // the build options for the player's side: only shared types and the player's faction's own
         sideOptions() {
@@ -339,6 +367,10 @@
                 if (L.qn !== qn) { el.querySelector('.qn').textContent = qn; L.qn = qn; if (!qn) el.classList.remove('queued'), L.queued = false; }
                 const p = Math.round((o.progress || 0) * 100);
                 if (L.p !== p) { el.style.setProperty('--p', p + '%'); el.querySelector('.pbar2 i').style.width = (busy ? p : 0) + '%'; L.p = p; }
+                // production lanes: several of this type building at once
+                const nb = o.building != null ? o.building | 0 : 0;
+                const par = busy && nb > 1 ? '×' + nb : '';
+                if (L.par !== par) { el.querySelector('.par').textContent = par; set('multi', !!par); L.par = par; }
                 const tag = placing ? 'PLACING' : ready ? 'READY<small style="display:block;font-size:10.5px;letter-spacing:.04em;font-weight:700">' + readyLabel + '</small>' : busy ? (hold ? 'ON HOLD' : p + '%') : '';
                 if (L.tag !== tag) { el.querySelector('.tag').innerHTML = tag; L.tag = tag; }
                 if (ready || placing) badges[o.cat] = 'ready';
@@ -347,6 +379,13 @@
             document.querySelectorAll('.tab[data-tab]').forEach((b) => {
                 const i = b.querySelector('.badge'), v = badges[b.dataset.tab];
                 if (i.dataset.v !== v) { i.className = 'badge' + (v ? ' ' + v : ''); i.dataset.v = v; }
+                // lane count when more than one producer builds in parallel ("VEHICLES ×2")
+                const cat = b.dataset.tab, ln = cat === 'building' ? 1 : G.lanes(cat), lt = ln > 1 ? '×' + ln : '';
+                const le = b.querySelector('.lanes');
+                if (le && le.textContent !== lt) {
+                    le.textContent = lt; b.classList.toggle('has-lanes', !!lt);
+                    b.title = lt ? ln + ' ' + (cat === 'infantry' ? 'barracks' : 'war factories') + ': ' + ln + ' build at once, queue ' + G.queueCap(cat) : '';
+                }
             });
         }
 
@@ -463,21 +502,38 @@
                 $('sel-hpfill').style.background = f > 0.6 ? 'var(--ok)' : f > 0.3 ? 'var(--warn)' : 'var(--danger)';
                 $('sel-hptext').textContent = hp + ' / ' + e.maxHp;
                 let sub = '';
+                const stunned = e.stunned > 0, nameAt = (id) => { const t = id != null && G.sim.entities.get(id); return t ? esc(nameOf(t.type)) : ''; };
                 if (e.kind === 'unit') {
-                    sub = '<b>' + (STATE_TEXT[e.state] || 'Standing by') + '</b>';
-                    if (e.type === 'harvester' && own) sub += ' · <span class="cy">' + Math.round(e.carry || 0) + ' / ' + (def.capacity || 500) + '</span> shards';
+                    const heal = def.heal, healing = e.healing != null && e.healing !== false;
+                    sub = stunned ? '<b class="stun">Stunned</b>' : healing && own ? '<b class="heal">' + (heal && heal.targets !== 'inf' ? 'Repairing' : 'Healing') + '</b>' : '<b>' + (STATE_TEXT[e.state] || 'Standing by') + '</b>';
+                    if (healing && own && !stunned) sub += ' · ' + nameAt(e.healing);
+                    else if (e.type === 'harvester' && own) sub += ' · <span class="cy">' + Math.round(e.carry || 0) + ' / ' + (def.capacity || 500) + '</span> shards';
                     else if (e.cloaked && own) sub += ' · <span class="cy">cloaked</span>';
                     else if (def.cloak && own) sub += ' · <span class="warn">revealed</span>';
+                    else if (heal) sub += ' · ' + (heal.targets === 'bld' ? 'repairs structures' : heal.targets === 'inf' ? 'heals infantry' : 'repairs vehicles');
                     else if (def.weapon) sub += ' · ' + def.weapon.replace(/([A-Z])/g, ' $1').toLowerCase();
+                    if (e.slowed) sub += ' · <span class="vi">slowed</span>';
                 } else {
-                    const pw = def.power || 0;
-                    sub = (e.built != null && e.built < 1) ? '<b>Constructing ' + Math.round(e.built * 100) + '%</b>' : '<b>' + (pw >= 0 ? '+' : '') + pw + ' power</b>';
-                    const sw = def.superweapon && G.sim.teams[e.team].super;
-                    if (sw && sw.building === e.id && (e.built == null || e.built >= 1)) sub += ' · <span class="cy">' + (sw.ready ? 'READY' : 'charging ' + Math.floor(sw.charge * 100) + '%') + '</span>';
-                    else if (own) {
-                        if (makes === 'infantry' || makes === 'vehicle') sub += ' · ' + (this.touch ? 'Rally button: set rally' : 'Right-click: set rally');
-                        else if (e.type !== 'core') sub += ' · sells for ' + Math.round(def.cost * C.ECONOMY.sellRefund);
-                    }
+                    const pw = def.power || 0, built = e.built == null || e.built >= 1, T = G.sim.teams[e.team];
+                    const lowP = own && T && T.lowPower;
+                    sub = !built ? '<b>Constructing ' + Math.round(e.built * 100) + '%</b>' : stunned ? '<b class="stun">Stunned</b>' : '<b>' + (pw >= 0 ? '+' : '') + pw + ' power</b>';
+                    const sw = def.superweapon && T.super;
+                    if (sw && sw.building === e.id && built) sub += ' · <span class="cy">' + (sw.ready ? 'READY' : 'charging ' + Math.floor(sw.charge * 100) + '%') + '</span>';
+                    else if (own && built && (makes === 'infantry' || makes === 'vehicle')) {
+                        // production lanes: which lane this building is and what it is making right now
+                        const prods = G.producers(G.team, makes), idx = prods.findIndex((p) => p.id === e.id) + 1;
+                        const lanes = G.lanes(makes), maxL = C.ECONOMY.maxLanes || 5;
+                        const q = T.queues[makes] || [], laneAware = q.some((it) => it.active !== undefined);
+                        const job = laneAware ? q.find((it) => it.active && it.producer === e.id) : (idx === 1 && q[0] && q[0].progress > 0 ? q[0] : null);
+                        let lane = '';
+                        if (typeof G.sim.lanes === 'function' && idx > 0) lane = idx <= lanes ? '<b>Lane ' + idx + ' of ' + lanes + '</b>' : '<b>Reserve</b> (max ' + maxL + ' lanes)';
+                        sub = lane || sub;
+                        if (job) sub += ' · <span class="cy">' + esc(nameOf(job.type)) + ' ' + Math.floor((job.progress || 0) * 100) + '%</span>';
+                        else sub += ' · idle · ' + (this.touch ? 'Rally button sets rally' : 'right-click sets rally');
+                    } else if (built && def.repair) sub += ' · ' + (e.repairing != null ? '<span class="rep">repairing ' + nameAt(e.repairing) + '</span>' : 'repairs vehicles nearby');
+                    else if (built && def.income) sub += ' · ' + (lowP ? '<span class="warn">no power</span>' : '<span class="cy">+' + def.income + ' credits/s</span>');
+                    else if (built && def.field) sub += ' · ' + (lowP ? '<span class="warn">no power</span>' : '<span class="vi">slows enemies within ' + def.field.radius + '</span>');
+                    else if (own && e.type !== 'core') sub += ' · sells for ' + Math.round(def.cost * C.ECONOMY.sellRefund);
                 }
                 if ($('sel-sub').innerHTML !== sub) $('sel-sub').innerHTML = sub;
             } else {
@@ -683,9 +739,17 @@
             const G = this.G, bar = $('placebar');
             bar.classList.toggle('show', !!G.placing);
             document.body.classList.toggle('placing', !!G.placing);
-            if (G.placing) {
+            bar.classList.toggle('wall', !!(G.placing && G.wall));
+            if (G.placing && G.wall) {
+                const W = G.wall, d = C.BUILDINGS[G.placing] || {}, n = W.plan.length;
+                const t = nameOf(G.placing) + 's, ' + d.cost + ' each: ' + (this.touch ? 'tap tiles to build' : 'click tiles or drag a line · Shift-click continues · Esc when done');
+                const pend = n ? n + ' queued' : W.placed ? W.placed + ' built' : '';
+                if (this.lastPbHint !== t) { $('pb-hint').textContent = t; this.lastPbHint = t; }
+                const c = $('pb-count'); if (c.textContent !== pend) c.textContent = pend;
+            } else if (G.placing) {
                 $('pb-ok').disabled = !G.canPlaceGhost();
-                $('pb-hint').textContent = (this.touch ? 'Tap the map to position, tap again to build' : 'Click to build · right-click / Esc to cancel') + ' — ' + nameOf(G.placing);
+                const t = (this.touch ? 'Tap the map to position, tap again to build' : 'Click to build · right-click / Esc to cancel') + ' — ' + nameOf(G.placing);
+                if (this.lastPbHint !== t) { $('pb-hint').textContent = t; this.lastPbHint = t; }
             }
         }
 

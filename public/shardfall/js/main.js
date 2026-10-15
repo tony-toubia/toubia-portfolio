@@ -139,6 +139,29 @@
             this.select(g);
         },
 
+        // ------------------------------------------------------------ production lanes
+        // lanes: how many items of a category build at once (one per finished barracks / war factory, up to
+        // ECONOMY.maxLanes); 1 when the simulation predates lanes. queueCap: queue size for the category.
+        lanes(cat, team) {
+            const s = this.sim; team = team == null ? this.team : team;
+            if (s && typeof s.lanes === 'function') { try { const n = s.lanes(team, cat); if (n >= 0) return n | 0; } catch (e) { /* fall through */ } }
+            return 1;
+        },
+        queueCap(cat) {
+            const s = this.sim;
+            if (s && typeof s.queueCap === 'function') { try { const n = s.queueCap(this.team, cat); if (n > 0) return n; } catch (e) { /* fall through */ } }
+            return C.ECONOMY.queueMax * (cat === 'building' ? 1 : Math.max(1, this.lanes(cat)));
+        },
+        // the live, finished producers of a category for a team, oldest first (lane order)
+        producers(team, cat) {
+            const out = [];
+            for (const e of this.sim.entities.values()) {
+                if (e.kind !== 'building' || e.team !== team || e.dead || (e.built != null && e.built < 1)) continue;
+                const d = C.BUILDINGS[e.type]; if (d && d.makes === cat && e.type !== 'core') out.push(e);
+            }
+            return out.sort((a, b) => a.id - b.id);
+        },
+
         // ------------------------------------------------------------ production / placement
         buildClick(type) {
             if (!this.canInteract()) return;
@@ -147,10 +170,14 @@
             if (o.locked) { this.denied(o.reason || 'Locked'); return; }
             if (o.cat === 'building') {
                 if (this.placing === type) { this.cancelPlacing(); return; }
+                if (this.wall) this.cancelPlacing();   // done with walls: free the build lane for this
                 if (T.ready === type) { this.startPlacing(type); return; }
                 if (T.ready) { this.denied('Place the ' + C.BUILDINGS[T.ready].name + ' first'); return; }
                 if (T.queues.building.length) { const cur = T.queues.building[0].type; this.denied(cur === type ? 'Already constructing' : 'Busy constructing ' + C.BUILDINGS[cur].name); return; }
-            } else if (o.queued >= C.ECONOMY.queueMax) { this.denied('Queue full'); return; }
+            } else {
+                const q = (T.queues && T.queues[o.cat]) || [];
+                if (o.full || q.length >= this.queueCap(o.cat)) { this.denied('Queue full'); return; }
+            }
             if (this.sim.command(this.team, { type: 'queue', item: type })) this.audio.play('click');
             else this.denied(T.credits < 1 ? 'Not enough credits' : 'Cannot build that now');
         },
@@ -171,11 +198,104 @@
                     if (this.sim.canPlace(this.team, type, tx + dx, tz + dz)) { tx += dx; tz += dz; break outer; }
                 }
             }
+            // walls: stay in placement mode while affordable; clicks/taps queue tiles that are built as walls come off the line
+            this.wall = b.wall ? { placed: 0, plan: [], preview: [], anchor: null } : null;
             this.moveGhost(tx, tz);
             this.audio.play('click');
             this.ui.placeBar(); this.ui.modeBar();
         },
-        cancelPlacing() { this.placing = null; this.ghost = null; this.render.setGhost(null); this.ui.placeBar(); },
+        cancelPlacing() {
+            if (this.wall) this.finishWalls();
+            this.placing = null; this.ghost = null; this.render.setGhost(null); this.ui.placeBar();
+        },
+
+        // ------------------------------------------------------------ wall placement (multi-place, lines)
+        isWall(type) { const d = C.BUILDINGS[type]; return !!(d && d.wall); },
+        wallInQueue(T) { return T.queues.building.some((q) => q.type === this.placing); },
+        // leave wall mode: walls the UI lined up after the first one are refunded so the build lane is free again
+        finishWalls() {
+            const W = this.wall; this.wall = null;
+            this.render.setWallPlan(null);
+            if (!W || !W.placed || !this.sim) return;
+            const T = this.sim.teams[this.team];
+            for (let i = 0; i < 6; i++) {
+                const has = T.ready === W.type || T.queues.building.some((q) => q.type === W.type);
+                if (!has || !this.sim.command(this.team, { type: 'cancel', item: W.type })) break;
+            }
+        },
+        // 4-connected tile line (walls join N/S/E/W, so a diagonal becomes a staircase)
+        wallLine(a, b) {
+            const out = [{ tx: a.tx, tz: a.tz }];
+            const dx = Math.abs(b.tx - a.tx), dz = Math.abs(b.tz - a.tz), sx = Math.sign(b.tx - a.tx), sz = Math.sign(b.tz - a.tz);
+            let ix = 0, iz = 0, x = a.tx, z = a.tz;
+            while ((ix < dx || iz < dz) && out.length < 32) {
+                if (ix < dx && (iz >= dz || (ix + 0.5) / dx < (iz + 0.5) / dz)) { ix++; x += sx; } else { iz++; z += sz; }
+                out.push({ tx: x, tz: z });
+            }
+            return out;
+        },
+        // can a wall go here, counting walls already lined up (they extend the build radius once built)?
+        wallTileOk(tx, tz, extra) {
+            const sim = this.sim, m = sim.map;
+            if (tx < 0 || tz < 0 || tx >= m.w || tz >= m.h) return false;
+            if (sim.canPlace(this.team, this.placing, tx, tz)) return true;
+            if (!sim.passable(tx, tz) || m.tiles[tz * m.w + tx] === 2 || m.shards[tz * m.w + tx] > 0) return false;
+            const near = (p) => Math.max(Math.abs(p.tx - tx), Math.abs(p.tz - tz)) <= C.ECONOMY.buildRadius;
+            return this.wall.plan.some(near) || (extra || []).some(near);
+        },
+        wallAfford() {
+            const T = this.sim.teams[this.team], d = C.BUILDINGS[this.placing], cost = Math.max(1, d.cost || 1);
+            return Math.floor(T.credits / cost) + (T.ready === this.placing ? 1 : 0) + (this.wallInQueue(T) ? 1 : 0);
+        },
+        // add tiles to the plan (a click, a tap, or a line); returns how many were accepted
+        wallAdd(tiles) {
+            const W = this.wall; if (!W) return 0;
+            let added = 0, poor = false, bad = false;
+            const taken = (t) => W.plan.some((p) => p.tx === t.tx && p.tz === t.tz);
+            for (const t of tiles) {
+                if (taken(t)) continue;
+                if (W.plan.length >= this.wallAfford()) { poor = true; break; }
+                if (W.plan.length >= 40) break;
+                if (!this.wallTileOk(t.tx, t.tz)) { bad = true; continue; }
+                W.plan.push({ tx: t.tx, tz: t.tz }); added++;
+            }
+            if (tiles.length) W.anchor = { tx: tiles[tiles.length - 1].tx, tz: tiles[tiles.length - 1].tz };
+            if (poor && !added) this.denied('Not enough credits');
+            else if (bad && !added) this.denied("Can't build there");
+            if (added) this.audio.play('click');
+            this.drainWalls();
+            this.showWallPlan();
+            return added;
+        },
+        setWallPreview(tiles) { if (this.wall) { this.wall.preview = tiles || []; this.showWallPlan(); } },
+        showWallPlan() {
+            const W = this.wall; if (!W) { this.render.setWallPlan(null); return; }
+            const list = W.plan.map((p) => ({ tx: p.tx, tz: p.tz, kind: 'pending' }));
+            const acc = [];
+            for (const t of W.preview) { const ok = this.wallTileOk(t.tx, t.tz, acc); if (ok) acc.push(t); list.push({ tx: t.tx, tz: t.tz, kind: ok ? 'ok' : 'bad' }); }
+            this.render.setWallPlan(list);
+        },
+        // per frame in wall mode: place the next planned tile whenever a wall is ready, keep one wall in production
+        // while affordable, and leave wall mode once nothing is left to build or pay for
+        drainWalls() {
+            const W = this.wall, sim = this.sim; if (!W || !this.placing) return;
+            W.type = this.placing;
+            const T = sim.teams[this.team], type = this.placing, d = C.BUILDINGS[type];
+            let guard = 0, changed = false;
+            while (T.ready === type && W.plan.length && guard++ < 8) {
+                const t = W.plan.shift(); changed = true;
+                if (sim.canPlace(this.team, type, t.tx, t.tz) && sim.command(this.team, { type: 'place', item: type, tx: t.tx, tz: t.tz })) {
+                    W.placed++; this.render.marker(t.tx + 0.5, t.tz + 0.5, 'place'); this.audio.play('wall', { x: t.tx + 0.5, z: t.tz + 0.5 });
+                } else this.denied("Can't build there");
+            }
+            if (changed) this.showWallPlan();
+            if (T.ready !== type && !this.wallInQueue(T)) {
+                if (T.ready || T.queues.building.length) { this.cancelPlacing(); return; }   // something else took the build lane
+                if (T.credits >= (d.cost || 0) && sim.command(this.team, { type: 'queue', item: type })) return;
+                if (W.placed) this.ui.toast('Out of credits for walls', 'warn');
+                this.cancelPlacing();
+            }
+        },
         moveGhost(tx, tz) {
             if (!this.placing) return;
             const ok = this.sim.canPlace(this.team, this.placing, tx, tz);
@@ -186,6 +306,7 @@
         canPlaceGhost() { return !!(this.placing && this.ghost && this.sim.canPlace(this.team, this.placing, this.ghost.tx, this.ghost.tz)); },
         placeAt(tx, tz) {
             const type = this.placing; if (!type) return;
+            if (this.wall) { this.wallAdd([{ tx, tz }]); return; }
             if (this.sim.command(this.team, { type: 'place', item: type, tx, tz })) {
                 const b = C.BUILDINGS[type];
                 this.render.marker(tx + b.w / 2, tz + b.d / 2, 'place');
@@ -245,7 +366,7 @@
                 const myT = sim.teams[this.team]; if (myT && myT.faction) this.faction = myT.faction;
                 this.render.attract = false; this.render.reveal = false;
                 this.render.setSim(sim, this.team);
-                this.sel = []; this.selSet = new Set(); this.mode = null; this.placing = null; this.ghost = null; this.groups = {}; this.superAim = null;
+                this.sel = []; this.selSet = new Set(); this.mode = null; this.placing = null; this.ghost = null; this.wall = null; this.groups = {}; this.superAim = null;
                 this.render.setSelection([]); this.render.setGhost(null); this.render.setAim(null);
                 this.stats = { unitsBuilt: 0, unitsLost: 0, kills: 0, buildingsDestroyed: 0, buildingsLost: 0, harvested: 0, time: 0 };
                 this.lastCredits = sim.teams[this.team].credits;
@@ -323,6 +444,9 @@
                         else if (ev.phase === 'strike') A.play(ev.kind === 'rift' ? 'rift' : 'lance', { x: ev.x, z: ev.z, far: true });
                         break;
                     case 'cloak': { const e = this.sim.entities.get(ev.id); if (e && e.team === this.team) A.play(ev.on ? 'cloak' : 'decloak', { x: e.x, z: e.z, vol: 0.6 }); break; }
+                    case 'heal': { const x = ev.tx != null ? ev.tx : ev.x, z = ev.tz != null ? ev.tz : ev.z; if (x != null && R.seenAt(x, z)) A.play(ev.kind === 'repair' ? 'repair' : 'heal', { x, z, vol: 0.5 }); break; }
+                    case 'stun': { const e = this.sim.entities.get(ev.id); if (e && R.isShown(e.id)) A.play('stun', { x: e.x, z: e.z, vol: 0.7 }); break; }
+                    case 'income': if (ev.team === this.team) A.play('income', { x: ev.x, z: ev.z, vol: 0.4 }); break;
                     case 'mission': if (ev.status === 'won' || ev.status === 'lost') this.endGame(ev.status === 'won', ev.reason); break;
                     case 'gameover': if (!this.mission || !this.sim.mission) this.endGame(ev.winner === this.team, null); break;
                 }
@@ -373,7 +497,8 @@
             if (this.state === 'playing' && this.sim) {
                 this.pruneSelection();
                 const T = this.sim.teams[this.team];
-                if (this.placing && T.ready !== this.placing) this.cancelPlacing();
+                if (this.placing && this.wall) this.drainWalls();
+                else if (this.placing && T.ready !== this.placing) this.cancelPlacing();
                 if (this.placing && this.ghost) this.moveGhost(this.ghost.tx, this.ghost.tz);
                 if (this.mode === 'super' && !(T.super && T.super.ready)) this.setMode(null);
                 const b = this.selBuilding(), cat = b && C.BUILDINGS[b.type].makes;

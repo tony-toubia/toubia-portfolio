@@ -65,8 +65,8 @@
                 { spawn: { team: 'enemy', units: ['trooper', 'trooper', 'trooper', 'skimmer'], at: { x: 40, z: 54 }, attackMove: 'base', tag: 'raid' } },
                 { objective: 'raid' }] },
             { at: { objective: 'raid' }, do: [
-                say(VARGA, 'Good work. Their raiders came from an outpost in the east. I am marking it on your map. Rocketeers are cleared for you: they crack buildings and armour.'),
-                { reveal: { x: 48, z: 45, r: 7 } }, { allow: { team: 'player', add: ['rocketeer'] } }, { credits: { team: 'player', amount: 1000 } },
+                say(VARGA, 'Good work. Their raiders came from an outpost in the east. I am marking it on your map. Rocketeers and Field Medics are cleared for you: rockets crack buildings and armour, medics keep your squads on their feet.'),
+                { reveal: { x: 48, z: 45, r: 7 } }, { allow: { team: 'player', add: ['rocketeer', 'medic', 'wall'] } }, { credits: { team: 'player', amount: 1000 } },
                 { objective: 'outpost' }] },
             { at: { objective: 'raid' }, delay: 12, do: [say(MARSH, 'Gather a squad and attack-move onto the outpost: press A (or the Attack-move button) and tap the target area. They will fight everything on the way.')] },
             { at: { objective: 'outpost' }, do: [say(VARGA, 'The plateau is ours. First light on Kessar, Commander. It will not be the last fight.')] },
@@ -78,17 +78,17 @@
     // 2. Hold the Ridge (Vanguard defence)
     const m2waves = [
         // [time, side, units]
-        [40, 'north', ['skimmer', 'skimmer', 'trooper']],
+        [40, 'north', ['skimmer', 'skimmer', 'trooper', 'wisp']],
         [75, 'east', ['trooper', 'trooper', 'trooper', 'trooper', 'shocktrooper']],
-        [115, 'north', ['trooper', 'trooper', 'shocktrooper', 'skimmer', 'skimmer', 'skimmer']],
-        [155, 'east', ['lancer', 'trooper', 'trooper', 'trooper', 'shocktrooper', 'shocktrooper']],
+        [115, 'north', ['trooper', 'trooper', 'shocktrooper', 'skimmer', 'skimmer', 'skimmer', 'wisp']],
+        [155, 'east', ['lancer', 'trooper', 'trooper', 'trooper', 'shocktrooper', 'shocktrooper', 'disruptor', 'acolyte']],
         [195, 'north', ['lancer', 'lancer', 'skimmer', 'skimmer', 'trooper', 'trooper']],
-        [235, 'east', ['lancer', 'lancer', 'shocktrooper', 'shocktrooper', 'trooper', 'trooper', 'skimmer']],
+        [235, 'east', ['lancer', 'lancer', 'arcwalker', 'shocktrooper', 'shocktrooper', 'trooper', 'trooper', 'skimmer']],
         [275, 'north', ['phantom', 'phantom', 'lancer', 'trooper', 'trooper', 'shocktrooper']],
-        [315, 'east', ['lancer', 'lancer', 'shocktrooper', 'shocktrooper', 'skimmer', 'skimmer', 'trooper', 'trooper']],
-        [355, 'north', ['phantom', 'lancer', 'lancer', 'shocktrooper', 'shocktrooper', 'trooper', 'trooper', 'trooper']],
-        [395, 'east', ['phantom', 'phantom', 'lancer', 'lancer', 'skimmer', 'skimmer', 'shocktrooper', 'trooper', 'trooper']],
-        [435, 'north', ['lancer', 'lancer', 'lancer', 'phantom', 'phantom', 'shocktrooper', 'shocktrooper', 'trooper', 'trooper', 'trooper']],
+        [315, 'east', ['lancer', 'lancer', 'shocktrooper', 'shocktrooper', 'skimmer', 'skimmer', 'trooper', 'trooper', 'disruptor', 'acolyte']],
+        [355, 'north', ['phantom', 'lancer', 'lancer', 'arcwalker', 'shocktrooper', 'shocktrooper', 'trooper', 'trooper', 'trooper']],
+        [395, 'east', ['phantom', 'phantom', 'lancer', 'lancer', 'skimmer', 'skimmer', 'shocktrooper', 'trooper', 'trooper', 'disruptor', 'acolyte']],
+        [435, 'north', ['lancer', 'lancer', 'lancer', 'arcwalker', 'phantom', 'phantom', 'shocktrooper', 'shocktrooper', 'trooper', 'trooper', 'trooper']],
     ];
     const M2_GATE = { north: { x: 9, z: 22 }, east: { x: 42, z: 57 } };
     const m2 = {
@@ -102,7 +102,8 @@
         map: { seed: 202, size: 64 },
         player: {
             credits: 3000, start: true,
-            allow: ['reactor', 'refinery', 'barracks', 'factory', 'radar', 'turret', 'rifleman', 'rocketeer', 'harvester', 'buggy', 'tank'],
+            allow: ['reactor', 'refinery', 'barracks', 'factory', 'radar', 'turret', 'sentry', 'wall', 'repairbay',
+                'rifleman', 'rocketeer', 'medic', 'engineer', 'harvester', 'scout', 'buggy', 'tank'],
             buildings: [
                 { type: 'reactor', tx: 10, tz: 57 }, { type: 'refinery', tx: 9, tz: 49 }, { type: 'barracks', tx: 13, tz: 54 },
                 { type: 'turret', tx: 9, tz: 45 }, { type: 'turret', tx: 18, tz: 56 }, { type: 'radar', tx: 3, tz: 52, tag: 'comms' },
@@ -117,10 +118,12 @@
         triggers: [
             { at: 1, do: [say(VARGA, 'Eight minutes, Commander. Waves from the north pass and from the east. Hold the ridge.')] },
             { at: 8, do: [say(MARSH, 'Gun Turrets are unlocked. Every turret drains power: if the meter goes red, turrets and the radar shut down. Reactor first, then guns.')] },
+            { at: 60, do: [say(MARSH, 'Sentry Posts are cheap and shred infantry; walls buy time. Engineers patch up damaged buildings, and a Repair Bay fixes tanks parked next to it.')] },
             { at: 30, do: [say(MARSH, 'Skimmers inbound from the north. They are fast and fragile; Riflemen and turrets chew them up.')] },
             ...m2waves.map(([t, side, units], k) => ({
                 at: t, do: [{ spawn: { team: 'enemy', units, at: M2_GATE[side], attackMove: 'base', tag: 'wave' + k } }]
-                    .concat(k === 3 ? [say(VARGA, 'Lancers in the next group: beam tanks, deadly against armour. Rocketeers and tank shells will stop them.')] : [])
+                    .concat(k === 3 ? [say(VARGA, 'Lancers in the next group, and a Disruptor: its EMP bolts freeze tanks and turrets for a moment. Rocketeers and tank shells will stop them.')] : [])
+                    .concat(k === 5 ? [say(MARSH, 'Arc Walker coming in: its lightning jumps between troops standing close together. Spread your infantry out.')] : [])
                     .concat(k === 6 ? [say(MARSH, 'Phantoms! Cloaked tanks: you cannot see or target them until they fire or come close to one of ours. Keep turrets in depth.')] : []),
             })),
             { at: 240, do: [say(VARGA, 'Halfway there. The dropships have a fix on your position.'), { credits: { team: 'player', amount: 1500 } }] },
@@ -152,7 +155,8 @@
         map: { seed: 303, size: 64, clear: [{ x: 29, z: 49, r: 5 }, { x: 50, z: 33, r: 5 }, { x: 34, z: 12, r: 5 }] },
         player: {
             credits: 0, start: false, allow: [],
-            units: [{ type: 'phantom', count: 4, x: 6, z: 58, tag: 'ghost' }, { type: 'skimmer', count: 2, x: 9, z: 60, tag: 'skimmer' }],
+            units: [{ type: 'phantom', count: 4, x: 6, z: 58, tag: 'ghost' }, { type: 'skimmer', count: 2, x: 9, z: 60, tag: 'skimmer' },
+                { type: 'stalker', count: 2, x: 4, z: 61, tag: 'stalker' }],
         },
         enemy: {
             credits: 0, ai: null, start: false,
@@ -164,6 +168,7 @@
                 { type: 'rifleman', count: 3, x: 27, z: 46, tag: 'guard' }, { type: 'rocketeer', x: 31, z: 47, tag: 'guard' },
                 { type: 'rifleman', count: 2, x: 48, z: 30, tag: 'guard' }, { type: 'rocketeer', x: 51, z: 36, tag: 'guard' },
                 { type: 'rifleman', count: 2, x: 32, z: 9, tag: 'guard' }, { type: 'rocketeer', count: 2, x: 36, z: 10, tag: 'guard' }, { type: 'tank', x: 30, z: 14, tag: 'guard' },
+                { type: 'medic', x: 34, z: 8, tag: 'guard' },
                 { type: 'buggy', x: 38, z: 40, tag: 'patrol', patrol: [{ x: 38, z: 40 }, { x: 44, z: 22 }, { x: 22, z: 28 }] },
             ],
         },
@@ -178,6 +183,7 @@
             { at: 1, do: [say(KESH, 'Strike group, this is Kesh. Cloaks up. We go in quiet.')] },
             { at: 6, do: [say(VAEL, 'Prefect. Phantoms are hidden while they move. The moment they fire, or an enemy comes within a few paces, they shimmer into view for a breath. Choose your moments.')] },
             { at: 14, do: [say(KESH, 'First array is due east-northeast, past the southern shard field. Their reactors feed every turret on the plateau: kill one and the guns go silent. Keep the Skimmers back until we need speed.')] },
+            { at: 24, do: [say(VAEL, 'Two Stalkers walk with you: cloaked infantry with energy blades. They must get close to strike, and the enemy sees them only at arm\'s length. Use them on the riflemen.')] },
             { at: { spotted: 'ghost' }, do: [say(KESH, 'They see us! Break contact: pull back and the cloak returns.')] },
             { at: { destroyed: 'commsAPower' }, do: [say(KESH, 'Reactor down. Their grid is failing: turrets are dark across the plateau.')] },
             { at: { destroyed: 'commsBPower' }, do: [say(KESH, 'Another reactor gone. They are blind and powerless.')] },
@@ -187,7 +193,7 @@
             { at: { all: ['commsA', 'commsB', 'commsC'] }, do: [
                 say(VAEL, 'The Vanguard is deaf and blind. Extraction is waiting in the northwest, Prefect. Their hunters are out: do not linger.'),
                 { objective: 'extract' }, { reveal: { x: 5, z: 5, r: 5 } },
-                { spawn: { team: 'enemy', units: ['buggy', 'buggy', 'tank', 'rocketeer', 'rocketeer'], at: { x: 22, z: 6 }, attackMove: { x: 30, z: 30 }, tag: 'hunters' } }] },
+                { spawn: { team: 'enemy', units: ['scout', 'buggy', 'tank', 'rocketeer', 'rocketeer'], at: { x: 22, z: 6 }, attackMove: { x: 30, z: 30 }, tag: 'hunters' } }] },
             { at: { lost: 'ghost' }, do: [say(KESH, 'We lost a Phantom. Stay out of their reach.')] },
             { at: { objective: 'extract' }, do: [say(VAEL, 'Well done, Prefect. Now the real offensive begins.')] },
         ],
@@ -217,6 +223,8 @@
                 { type: 'barracks', tx: 55, tz: 11 }, { type: 'factory', tx: 59, tz: 12 }, { type: 'radar', tx: 61, tz: 3 },
                 { type: 'techlab', tx: 47, tz: 3 }, { type: 'uplink', tx: 60, tz: 0, tag: 'uplink', delay: 240 },
                 { type: 'turret', tx: 49, tz: 15 }, { type: 'turret', tx: 54, tz: 17 }, { type: 'turret', tx: 44, tz: 12 }, { type: 'turret', tx: 58, tz: 18 },
+                { type: 'reactor', tx: 56, tz: 3 }, { type: 'howitzer', tx: 54, tz: 7 }, { type: 'sentry', tx: 51, tz: 17 }, { type: 'sentry', tx: 46, tz: 15 },
+                { type: 'wall', tx: 50, tz: 19 }, { type: 'wall', tx: 51, tz: 19 }, { type: 'wall', tx: 52, tz: 19 }, { type: 'wall', tx: 56, tz: 20 }, { type: 'wall', tx: 57, tz: 20 },
             ],
             units: [{ type: 'artillery', count: 2, x: 53, z: 8 }, { type: 'tank', x: 50, z: 14 }, { type: 'harvester', x: 47, z: 13 }],
         },
@@ -227,6 +235,7 @@
         triggers: [
             { at: 1, do: [say(KESH, 'Their fortress is in the northeast. Build fast; that uplink will not wait for us.')] },
             { at: 20, do: [say(VAEL, 'Lancers break armour, Shock Troopers break walls, Pulse Spires hold your ground. Phantoms need a Tech Lab.')] },
+            { at: 45, do: [say(KESH, 'Their Howitzer outranges everything we have, but it cannot hit what is close to it. Disruptors freeze their turrets; Obliterators burn through walls.')] },
             { at: 240, do: [say(KESH, 'Their uplink has started charging. Four minutes, maybe less.')] },
             { at: 420, do: [say(KESH, 'The uplink is almost charged! Spread out your forces: one strike must not catch them all.')] },
             { at: { failed: 'uplink' }, do: [say(VAEL, 'The Lance has fired. It will fire again. End this, Prefect.')] },
@@ -250,10 +259,12 @@
         autoTag: { riftsilo: 'silo' },   // any Rift Silo the enemy builds gets the 'silo' tag
         player: { credits: 5000, start: true, aiWaveDelay: 120 },
         enemy: {
-            credits: 3000, ai: 'hard', start: true, aiWaveDelay: 90,
+            // (roster pass: 3000 → 2000 credits and the first attack 60 s later; with production lanes the hard AI's
+            // first waves arrive bigger, and the finale should be hard, not decided in the first five minutes)
+            credits: 2000, ai: 'hard', start: true, aiWaveDelay: 150,
             buildings: [
                 { type: 'reactor', tx: 66, tz: 3 }, { type: 'reactor', tx: 76, tz: 10 }, { type: 'refinery', tx: 70, tz: 13 },
-                { type: 'barracks', tx: 65, tz: 9 }, { type: 'spire', tx: 63, tz: 15 }, { type: 'spire', tx: 69, tz: 19 },
+                { type: 'barracks', tx: 65, tz: 9 }, { type: 'spire', tx: 63, tz: 15 }, { type: 'spire', tx: 69, tz: 19 }, { type: 'gravwell', tx: 66, tz: 18 },
             ],
             units: [{ type: 'lancer', count: 2, x: 64, z: 19 }, { type: 'trooper', count: 2, x: 62, z: 13 }, { type: 'harvester', x: 72, z: 18 }],
         },

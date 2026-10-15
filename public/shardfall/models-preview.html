@@ -121,6 +121,16 @@
                 footprintGrid(cx, cz, b.w, b.d);
                 x += b.w + 1;
             }
+            // a wall run after the faction's buildings: an L, a T junction and a lone post, joined with setWallArms
+            const run = [[0, 0], [1, 0], [2, 0], [3, 0], [3, 1], [3, 2], [2, 2], [4, 2], [0, 2]];
+            const has = new Set(run.map(([i, j]) => i + ',' + j));
+            for (const [i, j] of run) {
+                const w = place('building', 'wall', team, x + i + 0.5, z + j + 0.5, f);
+                M.setWallArms(w.obj, { n: has.has(i + ',' + (j - 1)), s: has.has(i + ',' + (j + 1)), e: has.has((i + 1) + ',' + j), w: has.has((i - 1) + ',' + j) });
+                if (i || j) w.nolabel = true; else w.label = 'wall run';
+                footprintGrid(x + i + 0.5, z + j + 0.5, 1, 1);
+            }
+            x += 6;
             worldW = Math.max(worldW, x - 1);
             rowZ['b' + f] = z + 1.5;
             z += 4.5;
@@ -273,6 +283,7 @@
     let sheetObj = null;
     function sheetModel(s) {
         const o = make(s.kind, s.type, s.team, s.faction);
+        if (s.type === 'wall') M.setWallArms(o, { e: true, s: true, n: Q.get('arms') === '4', w: Q.get('arms') === '4' });
         poseParts(o, s.type, sheetT);
         return o;
     }
@@ -326,6 +337,12 @@
             // phase 2
             trooper: ['muzzle'], shocktrooper: ['muzzle'], skimmer: ['muzzle', 'hover', '!wheels'], lancer: ['turret', 'barrel', 'muzzle', '!wheels'],
             phantom: ['turret', 'muzzle', '!wheels'], spire: ['turret', 'muzzle'], uplink: ['charge'], riftsilo: ['doorL', 'doorR', 'missile'],
+            // roster expansion
+            sniper: ['muzzle'], medic: ['muzzle'], engineer: ['muzzle'], disruptor: ['muzzle'], acolyte: ['muzzle'], stalker: ['muzzle'],
+            scout: ['muzzle', '#wheels'], salvo: ['turret', 'muzzle', '#wheels'], bulwark: ['turret', 'barrel', 'barrel2', 'muzzle', 'muzzle2', '!wheels'],
+            wisp: ['muzzle', 'hover', 'ring', '!wheels'], arcwalker: ['turret', 'muzzle', 'body', '!wheels'], obliterator: ['turret', 'barrel', 'muzzle', 'hover', '!wheels'],
+            wall: ['post', 'armN', 'armS', 'armE', 'armW'], repairbay: ['arm', 'muzzle'], sentry: ['turret', 'muzzle'], howitzer: ['turret', 'barrel', 'muzzle'],
+            gravwell: ['ring'], siphon: ['drill'],
         };
         const rows = [], fails = [];
         const box = new THREE.Box3(), wp = new THREE.Vector3();
@@ -360,9 +377,10 @@
             }
             if (box.min.y < (kind === 'unit' || kind === 'building' ? -0.06 : -0.15)) problems.push(`below ground ${box.min.y.toFixed(2)}`);
             // rotating parts must stay in the footprint whatever their angle (turret, rotor, crane)
-            for (const nm of ['turret', 'rotor', 'crane']) {
-                const n = g.getObjectByName(nm);
-                if (!n) continue;
+            const spinning = [];
+            g.traverse((o) => { if (['turret', 'rotor', 'crane', 'drill', 'ring'].includes(o.name) || (o.name === 'arm' && g.userData.craneArm)) spinning.push(o); });
+            for (const n of spinning) {
+                const nm = n.name;
                 n.getWorldPosition(wp);
                 const nb = new THREE.Box3().setFromObject(n);
                 let rad = 0;
@@ -380,7 +398,56 @@
                 else if (r === '!wheels') { if (g.userData.wheels && g.userData.wheels.length) problems.push('should have no wheels'); }
                 else if (!g.getObjectByName(r)) problems.push(`missing '${r}'`);
             }
-            if (type === 'skimmer' && !(g.userData.hover && g.userData.hoverHeight > 0)) problems.push('skimmer: userData.hover/hoverHeight');
+            if (g.getObjectByName('hover') && !(g.userData.hover && g.userData.hoverHeight > 0)) problems.push(`${type}: userData.hover/hoverHeight`);
+            // the arc walker's turret rides on the bobbing 'body'; its feet stay on the ground
+            if (type === 'arcwalker') {
+                const bd = g.getObjectByName('body');
+                let inBody = false; g.getObjectByName('turret').traverseAncestors((a) => { if (a === bd) inBody = true; });
+                if (!inBody) problems.push('arcwalker: turret not inside body');
+                if (!g.userData.walker) problems.push('arcwalker: userData.walker');
+            }
+            // walls: arms hidden by default, setWallArms toggles them, each arm reaches its tile edge with a matching
+            // cross-section so neighbours join seamlessly
+            if (type === 'wall') {
+                const arms = { armN: [2, -1], armS: [2, 1], armE: [0, 1], armW: [0, -1] };   // [axis 0 = x / 2 = z, sign]
+                if (Object.keys(arms).some((n) => g.getObjectByName(n).visible)) problems.push('wall arms visible by default');
+                const gw = make(kind, type, team, faction);
+                M.setWallArms(gw, { n: 1, s: 1, e: 1, w: 0 });
+                if (!(gw.getObjectByName('armN').visible && gw.getObjectByName('armS').visible && gw.getObjectByName('armE').visible && !gw.getObjectByName('armW').visible)) problems.push('setWallArms');
+                gw.updateMatrixWorld(true);
+                const ab = {};
+                for (const [n, [ax, sg]] of Object.entries(arms)) {
+                    const bb = new THREE.Box3().setFromObject(gw.getObjectByName(n)); ab[n] = bb;
+                    const edge = sg > 0 ? (ax ? bb.max.z : bb.max.x) : -(ax ? bb.min.z : bb.min.x);
+                    if (Math.abs(edge - 0.5) > 0.006) problems.push(`${n} reaches ${edge.toFixed(3)} (want 0.5)`);
+                }
+                const sec = (bb, ax) => ax ? [bb.min.x, bb.max.x, bb.min.y, bb.max.y] : [bb.min.z, bb.max.z, bb.min.y, bb.max.y];
+                const se = sec(ab.armE, 0), sw = sec(ab.armW, 0), sn = sec(ab.armN, 2), ss = sec(ab.armS, 2);
+                if (se.some((v, i) => Math.abs(v - sw[i]) > 0.002) || sn.some((v, i) => Math.abs(v - ss[i]) > 0.002) || se.some((v, i) => Math.abs(v - sn[i]) > 0.002)) problems.push('wall arm sections differ');
+            }
+            // spin(): rings and the drill turn, the crane sways (and aimArm points it), nothing else moves
+            const ring = g.getObjectByName('ring'), drill = g.getObjectByName('drill'), crane = g.userData.craneArm ? g.getObjectByName('arm') : null;
+            if (ring || drill || crane) {
+                const gs = make(kind, type, team, faction);
+                M.spin(gs, 0.7);
+                const r1 = gs.getObjectByName('ring'), d1 = gs.getObjectByName('drill'), c1 = gs.userData.craneArm ? gs.getObjectByName('arm') : null;
+                if (r1 && Math.abs(r1.rotation.y) < 0.1) problems.push('spin: ring did not turn');
+                if (d1 && Math.abs(d1.rotation.y) < 0.1) problems.push('spin: drill did not turn');
+                if (c1 && Math.abs(c1.rotation.y) < 0.05) problems.push('spin: crane idle did not move');
+                if (r1) { const y0 = r1.userData.restY; M.spin(gs, 0.7, { powered: false }); if (r1.position.y > y0 + 1e-6) problems.push('spin: unpowered ring did not settle'); }
+                if (c1) {
+                    const before = c1.rotation.y; M.spin(gs, 3.1, { arm: false });
+                    if (c1.rotation.y !== before) problems.push('spin {arm:false} moved the crane');
+                    M.aimArm(gs, 0, 2); gs.updateMatrixWorld(true);
+                    gs.getObjectByName('muzzle').getWorldPosition(wp);
+                    if (!(wp.z > 0.5 && Math.abs(wp.x) < 0.05)) problems.push(`aimArm(0, +z) put the head at ${wp.x.toFixed(2)}, ${wp.z.toFixed(2)}`);
+                    M.aimArm(gs, -1, 0); gs.updateMatrixWorld(true);
+                    gs.getObjectByName('muzzle').getWorldPosition(wp);
+                    if (!(wp.x < -0.5)) problems.push('aimArm(-x) wrong');
+                }
+            }
+            const mz2 = g.getObjectByName('muzzle2');
+            if (mz2) { mz2.getWorldPosition(wp); if (wp.x <= 0) problems.push('muzzle2 not towards +X'); }
             // the uplink's charge glow: glow meshes with a material per instance that setCharge drives
             const cg = g.getObjectByName('charge');
             if (cg) {
@@ -466,13 +533,17 @@
             const mis = o.getObjectByName('missile'); if (mis) mis.position.y = 0.24 + 0.2 * k;
         }
         if (o.getObjectByName('charge')) M.setCharge(o, Math.min(1, (t % 12) / 9), t);
+        // roster expansion: rings, drill, crane idle; the arc walker's body bob
+        M.spin(o, t);
+        if (o.userData.walker) o.getObjectByName('body').position.y = Math.abs(Math.sin(t * 4 + o.position.x)) * 0.03;
     }
     function animateParts(t) {
         for (const it of items) {
             const o = it.obj;
             poseParts(o, it.type, t);
             const tur = o.getObjectByName('turret'); if (tur) tur.rotation.y = Math.sin(t * 0.8) * 1.2;
-            const bar = o.getObjectByName('barrel'); if (bar && it.type !== 'artillery') bar.rotation.z = Math.max(0, Math.sin(t * 1.3)) * 0.25;
+            const bar = o.getObjectByName('barrel'); if (bar && it.type !== 'artillery' && it.type !== 'howitzer') bar.rotation.z = Math.max(0, Math.sin(t * 1.3)) * 0.25;
+            const bar2 = o.getObjectByName('barrel2'); if (bar2) bar2.rotation.z = Math.max(0, Math.sin(t * 1.3)) * 0.25;
             const rot = o.getObjectByName('rotor'); if (rot) rot.rotation.y = t * 1.2;
             const arm = o.getObjectByName('arm'); if (arm) arm.rotation.z = -0.35 * (0.5 + 0.5 * Math.sin(t * 2));
             const cargo = o.getObjectByName('cargo'); if (cargo) cargo.scale.y = 0.05 + 0.95 * (0.5 + 0.5 * Math.sin(t * 0.5));
