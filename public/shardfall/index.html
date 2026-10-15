@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#070b12">
+    <meta name="description" content="Shardfall: a low-poly sci-fi real-time strategy skirmish. Build a base, harvest shards, out-fight the Hegemony.">
+    <title>Shardfall</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M16 1.5 25 11 16 30.5 7 11Z%27 fill=%27%232f8fff%27/%3E%3Cpath d=%27M16 1.5 25 11H7Z%27 fill=%27%239fd4ff%27/%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css?v=1">
+</head>
+<body>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+        <defs>
+            <symbol id="i-shard" viewBox="0 0 24 24"><path d="M12 2 18 9 12 22 6 9Z" fill="currentColor" opacity=".35"/><path d="M12 2 18 9 12 22 6 9Z M6 9h12 M12 2v20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+            <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.5 2 5 13.5h6L9.5 22 19 9.5h-6.2Z" fill="currentColor"/></symbol>
+            <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5.2l3.4 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+            <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></symbol>
+            <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4Z" fill="currentColor"/><path d="M15.5 8.8a4.5 4.5 0 0 1 0 6.4M18 6.3a8 8 0 0 1 0 11.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+            <symbol id="i-mute" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4Z" fill="currentColor"/><path d="m15.5 9.5 5 5m0-5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+            <symbol id="i-army" viewBox="0 0 24 24"><path d="M5 15.5 8 10l3 5.5Z M13 15.5l3-5.5 3 5.5Z M9 9l3-5.5L15 9Z" fill="currentColor"/><path d="M3.5 19.5h17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+            <symbol id="i-amove" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v5M12 16.5v5M2.5 12h5M16.5 12h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/></symbol>
+            <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor"/></symbol>
+            <symbol id="i-deselect" viewBox="0 0 24 24"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m9 9 6 6m0-6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+            <symbol id="i-sell" viewBox="0 0 24 24"><path d="M12 3 16.5 8.5 12 17 7.5 8.5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M5 20.5h14M12 17v3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="m3.5 11 2.5 2.5L8.5 11M20.5 11 18 13.5 15.5 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+            <symbol id="i-rally" viewBox="0 0 24 24"><path d="M6 21V3.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M6.8 4h11l-2.8 4 2.8 4h-11Z" fill="currentColor"/></symbol>
+            <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5.5" y="10.5" width="13" height="9.5" rx="1.5" fill="currentColor"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" fill="none" stroke="currentColor" stroke-width="1.9"/></symbol>
+            <symbol id="i-check" viewBox="0 0 24 24"><path d="m4.5 12.5 5 5 10-11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+            <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+            <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9.5 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+            <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11.5 12 4l8 7.5V20h-5.5v-5h-5v5H4Z" fill="currentColor"/></symbol>
+            <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5 8 12l7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+            <symbol id="i-logo" viewBox="0 0 32 32"><path d="M16 1.5 25 11 16 30.5 7 11Z" fill="#2f8fff"/><path d="M16 1.5 25 11H7Z" fill="#9fd4ff"/><path d="M16 11v19.5L7 11Z" fill="#1c5fb8"/><path d="M16 1.5 25 11 16 30.5 7 11Z" fill="none" stroke="#dff1ff" stroke-width="1.2" stroke-linejoin="round"/></symbol>
+        </defs>
+    </svg>
+
+    <div id="app" class="app">
+        <div id="stage" class="stage" aria-label="Battlefield"></div>
+        <div class="vignette" aria-hidden="true"></div>
+
+        <header id="topbar" class="topbar hud-hide">
+            <a class="back-link" id="back-link" href="/" target="_top" aria-label="Back to portfolio"><svg><use href="#i-back"/></svg><span>Portfolio</span></a>
+            <div class="brand"><svg class="logo"><use href="#i-logo"/></svg><span>SHARDFALL</span></div>
+            <div class="res">
+                <div class="res-item credits" id="credits-box" title="Credits">
+                    <svg><use href="#i-shard"/></svg><span id="credits">0</span>
+                </div>
+                <div class="res-item power" id="power-box" title="Power used / made">
+                    <svg><use href="#i-bolt"/></svg>
+                    <div class="pbar"><i id="power-fill"></i></div>
+                    <span id="power-text">0/0</span>
+                </div>
+                <div class="res-item clock" title="Game time"><svg><use href="#i-clock"/></svg><span id="clock">0:00</span></div>
+            </div>
+            <div class="tb-actions">
+                <button class="icon-btn" id="btn-sound" type="button" aria-label="Sound on/off"><svg><use href="#i-sound"/></svg></button>
+                <button class="icon-btn" id="btn-pause" type="button" aria-label="Pause menu"><svg><use href="#i-pause"/></svg></button>
+            </div>
+        </header>
+
+        <aside id="side" class="side hud-hide" aria-label="Command sidebar">
+            <div class="mm-wrap" id="mm-wrap">
+                <canvas id="minimap" aria-label="Minimap"></canvas>
+                <div class="mm-off"><b>NO RADAR</b><small>Build a Comms Array</small></div>
+                <span class="mm-corner tl"></span><span class="mm-corner tr"></span><span class="mm-corner bl"></span><span class="mm-corner br"></span>
+            </div>
+            <div class="sheet">
+                <nav class="tabs" role="tablist">
+                    <button class="tab active" data-tab="building" role="tab" type="button"><span class="tl-full">Buildings</span><span class="tl-short">Build</span><i class="badge"></i></button>
+                    <button class="tab" data-tab="infantry" role="tab" type="button"><span class="tl-full">Infantry</span><span class="tl-short">Infantry</span><i class="badge"></i></button>
+                    <button class="tab" data-tab="vehicle" role="tab" type="button"><span class="tl-full">Vehicles</span><span class="tl-short">Vehicles</span><i class="badge"></i></button>
+                    <button class="tab sheet-toggle" id="sheet-toggle" type="button" aria-label="Collapse build bar"><svg><use href="#i-chev"/></svg></button>
+                </nav>
+                <div class="build-grid" id="build-grid"></div>
+            </div>
+        </aside>
+
+        <section id="selpanel" class="selpanel hud-hide" aria-live="polite">
+            <div class="sel-single" id="sel-single">
+                <div class="portrait" id="sel-portrait"></div>
+                <div class="sel-info">
+                    <div class="sel-name" id="sel-name"></div>
+                    <div class="sel-hp"><div class="hpbar"><i id="sel-hpfill"></i></div><span id="sel-hptext"></span></div>
+                    <div class="sel-sub" id="sel-sub"></div>
+                </div>
+            </div>
+            <div class="sel-multi" id="sel-multi"></div>
+        </section>
+
+        <div id="actions" class="actions hud-hide">
+            <button class="act" id="act-army" type="button" title="Select all army (Q)"><svg><use href="#i-army"/></svg><span>Army</span></button>
+            <button class="act" id="act-amove" type="button" title="Attack-move (A)"><svg><use href="#i-amove"/></svg><span>Attack</span></button>
+            <button class="act" id="act-stop" type="button" title="Stop (S)"><svg><use href="#i-stop"/></svg><span>Stop</span></button>
+            <button class="act" id="act-rally" type="button" title="Set rally point"><svg><use href="#i-rally"/></svg><span>Rally</span></button>
+            <button class="act danger" id="act-sell" type="button" title="Sell building"><svg><use href="#i-sell"/></svg><span>Sell</span></button>
+            <button class="act" id="act-deselect" type="button" title="Deselect (Esc)"><svg><use href="#i-deselect"/></svg><span>Clear</span></button>
+        </div>
+
+        <div id="placebar" class="placebar hud-hide">
+            <span class="pb-hint" id="pb-hint">Tap the map to position</span>
+            <button class="pb-btn cancel" id="pb-cancel" type="button"><svg><use href="#i-close"/></svg><span>Cancel</span></button>
+            <button class="pb-btn ok" id="pb-ok" type="button"><svg><use href="#i-check"/></svg><span>Place</span></button>
+        </div>
+        <div id="modebar" class="modebar hud-hide"><span id="mode-text">Attack-move: pick a target</span><button id="mode-cancel" type="button" aria-label="Cancel"><svg><use href="#i-close"/></svg></button></div>
+        <div id="toasts" class="toasts" aria-live="assertive"></div>
+
+        <!-- Start screen -->
+        <div id="scr-start" class="screen start">
+            <div class="start-card">
+                <a class="back-link solo" href="/" target="_top"><svg><use href="#i-back"/></svg><span>Portfolio</span></a>
+                <div class="title-wrap">
+                    <svg class="title-logo"><use href="#i-logo"/></svg>
+                    <h1 class="title">SHARDFALL</h1>
+                    <p class="tagline">Build. Harvest. Overwhelm. <span>A sci-fi base-building skirmish.</span></p>
+                </div>
+                <div class="panel diff">
+                    <div class="panel-h">Opponent: the Hegemony</div>
+                    <div class="seg" role="radiogroup" id="diff-seg">
+                        <button type="button" role="radio" data-diff="easy"><b>Easy</b><small>Slow, small waves</small></button>
+                        <button type="button" role="radio" data-diff="normal" class="on"><b>Normal</b><small>A fair fight</small></button>
+                        <button type="button" role="radio" data-diff="hard"><b>Hard</b><small>Fast and greedy</small></button>
+                    </div>
+                </div>
+                <div class="start-btns">
+                    <button class="btn primary big" id="btn-start" type="button">Deploy</button>
+                    <button class="btn" id="btn-howto" type="button">How to play</button>
+                </div>
+                <p class="start-foot" id="start-foot">You command the <b class="blue">Vanguard</b>. Destroy every Hegemony structure.</p>
+            </div>
+        </div>
+
+        <!-- How to play -->
+        <div id="scr-howto" class="screen modal">
+            <div class="card howto">
+                <div class="card-h"><h2>How to play</h2><button class="icon-btn" data-close type="button" aria-label="Close"><svg><use href="#i-close"/></svg></button></div>
+                <div class="howto-body">
+                    <section>
+                        <h3>The war</h3>
+                        <ul>
+                            <li><b>Credits</b> come from <span class="cy">shards</span>. Harvesters mine them and unload at a Refinery.</li>
+                            <li><b>Power</b>: every structure draws power. Build Reactors. Low power slows production and shuts down turrets and radar.</li>
+                            <li><b>Build</b> from the sidebar. A finished structure waits as <b>READY</b>; place it near your base.</li>
+                            <li>Barracks train infantry, the War Factory builds vehicles. The Comms Array turns on the minimap.</li>
+                            <li><b>Win</b> by destroying every enemy structure. Lose all of yours and it is over.</li>
+                        </ul>
+                    </section>
+                    <section class="ctl ctl-touch">
+                        <h3>Touch</h3>
+                        <dl>
+                            <dt>Drag</dt><dd>pan the map</dd>
+                            <dt>Pinch</dt><dd>zoom</dd>
+                            <dt>Tap</dt><dd>select a unit or structure</dd>
+                            <dt>Tap ground / enemy</dt><dd>with units selected: move / attack (harvesters mine shards)</dd>
+                            <dt>Press &amp; hold, then drag</dt><dd>box-select units</dd>
+                            <dt>Double-tap a unit</dt><dd>select all of that type on screen</dd>
+                            <dt>Side buttons</dt><dd>Army, Attack-move, Stop, Rally, Sell, Clear</dd>
+                        </dl>
+                    </section>
+                    <section class="ctl ctl-mouse">
+                        <h3>Mouse &amp; keyboard</h3>
+                        <dl>
+                            <dt>Left click / drag</dt><dd>select / box-select (Shift adds)</dd>
+                            <dt>Double-click</dt><dd>all of that type on screen</dd>
+                            <dt>Right click</dt><dd>move, attack, harvest, or set rally</dd>
+                            <dt>A + click</dt><dd>attack-move</dd>
+                            <dt>S</dt><dd>stop &nbsp;·&nbsp; <b>Q</b> select army &nbsp;·&nbsp; <b>H</b> home</dd>
+                            <dt>Ctrl + 1–9</dt><dd>set group (1–9 recalls, twice to jump)</dd>
+                            <dt>Arrows / edges / wheel</dt><dd>pan and zoom (WASD when nothing is selected)</dd>
+                            <dt>Esc</dt><dd>cancel placement, deselect, pause</dd>
+                        </dl>
+                    </section>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pause -->
+        <div id="scr-pause" class="screen modal">
+            <div class="card pause">
+                <div class="card-h"><h2>Paused</h2></div>
+                <div class="menu">
+                    <button class="btn primary" id="btn-resume" type="button">Resume</button>
+                    <button class="btn" id="btn-howto2" type="button">How to play</button>
+                    <button class="btn" id="btn-sound2" type="button">Sound: On</button>
+                    <button class="btn" id="btn-restart" type="button">Restart skirmish</button>
+                    <button class="btn ghost" id="btn-quit" type="button">Quit to title</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- End -->
+        <div id="scr-end" class="screen modal end">
+            <div class="card endcard">
+                <div class="end-title" id="end-title">Victory</div>
+                <p class="end-sub" id="end-sub"></p>
+                <div class="stats" id="end-stats"></div>
+                <div class="menu row">
+                    <button class="btn primary" id="btn-again" type="button">Play again</button>
+                    <button class="btn" id="btn-title" type="button">Title</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="loading" class="loading"><svg class="spin"><use href="#i-logo"/></svg><span id="loading-text">Deploying…</span></div>
+    </div>
+
+    <script>window.SF_BOOT = { failed: [] };</script>
+    <script src="vendor/three.min.js?v=2" onerror="SF_BOOT.failed.push('vendor/three.min.js')"></script>
+    <script src="js/config.js?v=2" onerror="SF_BOOT.failed.push('js/config.js')"></script>
+    <script src="js/models.js?v=2" onerror="SF_BOOT.failed.push('js/models.js')"></script>
+    <script src="js/map.js?v=2" onerror="SF_BOOT.failed.push('js/map.js')"></script>
+    <script src="js/sim.js?v=2" onerror="SF_BOOT.failed.push('js/sim.js')"></script>
+    <script src="js/ai.js?v=2" onerror="SF_BOOT.failed.push('js/ai.js')"></script>
+    <script src="js/audio.js?v=2" onerror="SF_BOOT.failed.push('js/audio.js')"></script>
+    <script src="js/render.js?v=2" onerror="SF_BOOT.failed.push('js/render.js')"></script>
+    <script src="js/input.js?v=2" onerror="SF_BOOT.failed.push('js/input.js')"></script>
+    <script src="js/ui.js?v=2" onerror="SF_BOOT.failed.push('js/ui.js')"></script>
+    <script src="js/main.js?v=2" onerror="SF_BOOT.failed.push('js/main.js')"></script>
+</body>
+</html>

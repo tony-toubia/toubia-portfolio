@@ -1,0 +1,111 @@
+// Shardfall: small synthesized WebAudio sounds (no samples, no voice). Weapons, explosions, production chimes,
+// UI clicks and alert stings. Positional sounds are attenuated by distance from the camera's focus and panned.
+(function () {
+    'use strict';
+    const SF = window.SF = window.SF || {};
+    const KEY = 'shardfall.muted';
+    let ctx = null, master = null, comp = null, noiseBuf = null;
+    let muted = false;
+    try { muted = localStorage.getItem(KEY) === '1'; } catch (e) { /* storage blocked */ }
+    const last = {};
+    let voices = 0;
+    const listener = { x: 0, z: 0, r: 14 };
+    const GAP = { rifle: 0.045, mg: 0.04, rocket: 0.07, cannon: 0.06, turretGun: 0.06, artillery: 0.1, boom: 0.06, bigboom: 0.12, impact: 0.05, click: 0.03, select: 0.05, order: 0.06 };
+
+    function ensure() {
+        if (ctx) return ctx;
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        try { ctx = new AC(); } catch (e) { return null; }
+        comp = ctx.createDynamicsCompressor();
+        comp.threshold.value = -16; comp.knee.value = 12; comp.ratio.value = 5; comp.attack.value = 0.004; comp.release.value = 0.18;
+        master = ctx.createGain(); master.gain.value = muted ? 0 : 0.55;
+        master.connect(comp); comp.connect(ctx.destination);
+        noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+        const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        return ctx;
+    }
+    function unlock() {
+        const c = ensure(); if (!c) return;
+        if (c.state === 'suspended') c.resume().catch(() => {});
+    }
+    function out(vol, pan) {
+        const g = ctx.createGain(); g.gain.value = vol;
+        if (pan && ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan)); g.connect(p); p.connect(master); }
+        else g.connect(master);
+        voices++; setTimeout(() => { voices--; try { g.disconnect(); } catch (e) { /* gone */ } }, 2500);
+        return g;
+    }
+    function env(param, t, a, peak, dec, end) {
+        param.cancelScheduledValues(t); param.setValueAtTime(0.0001, t);
+        param.exponentialRampToValueAtTime(peak, t + a);
+        param.exponentialRampToValueAtTime(end || 0.0001, t + a + dec);
+    }
+    function noise(dest, t, dur, type, f0, f1, q, peak, attack) {
+        const s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
+        const f = ctx.createBiquadFilter(); f.type = type; f.Q.value = q || 1;
+        f.frequency.setValueAtTime(f0, t); if (f1 && f1 !== f0) f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+        const g = ctx.createGain(); env(g.gain, t, attack || 0.004, peak, dur);
+        s.connect(f); f.connect(g); g.connect(dest);
+        s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.05);
+    }
+    function tone(dest, t, dur, type, f0, f1, peak, attack) {
+        const o = ctx.createOscillator(); o.type = type;
+        o.frequency.setValueAtTime(f0, t); if (f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+        const g = ctx.createGain(); env(g.gain, t, attack || 0.005, peak, dur);
+        o.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + 0.05);
+    }
+
+    const SOUNDS = {
+        rifle(d, t) { noise(d, t, 0.07, 'bandpass', 2600, 1400, 1.2, 0.5); tone(d, t, 0.04, 'square', 420, 160, 0.06); },
+        mg(d, t) { noise(d, t, 0.045, 'bandpass', 3200, 2000, 1.4, 0.38); tone(d, t, 0.03, 'square', 300, 140, 0.05); },
+        rocket(d, t) { noise(d, t, 0.42, 'bandpass', 700, 2600, 2.5, 0.35, 0.03); tone(d, t, 0.12, 'triangle', 160, 70, 0.18); },
+        cannon(d, t) { tone(d, t, 0.22, 'sine', 140, 45, 0.7); noise(d, t, 0.2, 'lowpass', 1600, 300, 0.8, 0.5); },
+        turretGun(d, t) { tone(d, t, 0.2, 'sine', 170, 55, 0.6); noise(d, t, 0.18, 'lowpass', 2200, 400, 0.8, 0.45); },
+        artillery(d, t) { tone(d, t, 0.5, 'sine', 95, 32, 0.85); noise(d, t, 0.45, 'lowpass', 900, 150, 0.7, 0.6); },
+        impact(d, t) { noise(d, t, 0.25, 'lowpass', 1400, 200, 0.7, 0.4); tone(d, t, 0.18, 'sine', 90, 40, 0.35); },
+        boom(d, t) { noise(d, t, 0.7, 'lowpass', 1800, 120, 0.7, 0.8, 0.008); tone(d, t, 0.5, 'sine', 80, 28, 0.8); },
+        bigboom(d, t) { noise(d, t, 1.3, 'lowpass', 1300, 70, 0.6, 1.0, 0.01); tone(d, t, 0.9, 'sine', 62, 22, 1.0); noise(d, t + 0.12, 0.8, 'bandpass', 600, 200, 0.8, 0.35); },
+        click(d, t) { tone(d, t, 0.045, 'sine', 1900, 1300, 0.22, 0.002); },
+        select(d, t) { tone(d, t, 0.06, 'triangle', 1250, 1500, 0.2, 0.003); },
+        order(d, t) { tone(d, t, 0.05, 'triangle', 880, 1180, 0.2, 0.003); tone(d, t + 0.05, 0.05, 'triangle', 1180, 1180, 0.14, 0.003); },
+        place(d, t) { tone(d, t, 0.25, 'sine', 190, 55, 0.7); noise(d, t, 0.22, 'lowpass', 900, 200, 0.7, 0.4); tone(d, t + 0.05, 0.16, 'triangle', 660, 990, 0.12); },
+        build(d, t) { [523, 659, 784, 1047].forEach((f, i) => tone(d, t + i * 0.075, 0.22, 'triangle', f, f, 0.22, 0.004)); },
+        unit(d, t) { tone(d, t, 0.07, 'square', 880, 880, 0.09, 0.003); tone(d, t + 0.085, 0.09, 'square', 1175, 1175, 0.09, 0.003); },
+        sell(d, t) { [1568, 1319, 1760].forEach((f, i) => tone(d, t + i * 0.06, 0.12, 'triangle', f, f, 0.18, 0.003)); },
+        error(d, t) { tone(d, t, 0.09, 'square', 150, 140, 0.16, 0.004); tone(d, t + 0.12, 0.12, 'square', 120, 110, 0.16, 0.004); },
+        lowpower(d, t) { tone(d, t, 0.28, 'sawtooth', 520, 260, 0.15, 0.01); tone(d, t + 0.32, 0.36, 'sawtooth', 420, 180, 0.15, 0.01); },
+        attack(d, t) { [0, 0.16, 0.32].forEach((o, i) => tone(d, t + o, 0.12, 'square', i === 2 ? 988 : 740, i === 2 ? 988 : 740, 0.14, 0.004)); },
+        ready(d, t) { tone(d, t, 0.12, 'triangle', 988, 988, 0.2); tone(d, t + 0.12, 0.2, 'triangle', 1319, 1319, 0.2); },
+        win(d, t) { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(d, t + i * 0.12, 0.5, 'triangle', f, f, 0.24, 0.006)); },
+        lose(d, t) { [440, 392, 349, 262].forEach((f, i) => tone(d, t + i * 0.2, 0.55, 'sawtooth', f, f * 0.98, 0.12, 0.01)); },
+    };
+
+    // play(name, { x, z, vol }) — x/z make it positional (quieter/panned away from the camera focus)
+    function play(name, o) {
+        if (muted || !ctx || ctx.state !== 'running') return;
+        const fn = SOUNDS[name]; if (!fn) return;
+        const now = ctx.currentTime;
+        const gap = GAP[name] || 0.02;
+        if (last[name] && now - last[name] < gap) return;
+        if (voices > 28 && name !== 'attack' && name !== 'lowpower') return;
+        last[name] = now;
+        let vol = (o && o.vol) || 1, pan = 0;
+        if (o && o.x != null) {
+            const dx = o.x - listener.x, dz = o.z - listener.z, d = Math.hypot(dx, dz), r = listener.r;
+            if (d > r * 2.6) return;
+            vol *= d < r ? 1 : Math.max(0, 1 - (d - r) / (r * 1.6));
+            pan = dx / (r * 1.4);
+            if (vol < 0.03) return;
+        }
+        try { fn(out(vol, pan), now + 0.005); } catch (e) { /* audio graph failure is never fatal */ }
+    }
+    function setMuted(m) {
+        muted = !!m;
+        try { localStorage.setItem(KEY, muted ? '1' : '0'); } catch (e) { /* storage blocked */ }
+        if (master) master.gain.setTargetAtTime(muted ? 0 : 0.55, ctx.currentTime, 0.03);
+    }
+    function setListener(x, z, r) { listener.x = x; listener.z = z; listener.r = r || 14; }
+
+    SF.Audio = { unlock, play, setMuted, isMuted: () => muted, setListener, sounds: Object.keys(SOUNDS) };
+})();

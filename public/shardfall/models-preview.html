@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shardfall models</title>
+<style>
+  :root { --bg: #0d1014; --panel: rgba(12, 16, 22, 0.86); --text: #dfe7ef; --dim: #8b97a5; --ok: #5be38f; --bad: #ff6b5b; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.35 system-ui, -apple-system, Segoe UI, sans-serif; overflow: hidden; }
+  canvas { display: block; touch-action: none; }
+  #labels { position: fixed; inset: 0; pointer-events: none; }
+  .lbl { position: absolute; transform: translate(-50%, 0); white-space: nowrap; font-size: 11px; padding: 1px 5px; border-radius: 4px;
+         background: rgba(0, 0, 0, 0.55); color: #fff; }
+  .lbl.t0 { border-bottom: 2px solid #2f8fff; } .lbl.t1 { border-bottom: 2px solid #e8432e; } .lbl.tn { border-bottom: 2px solid #40f0c8; }
+  .cell { position: absolute; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: #fff; padding: 2px 4px; background: rgba(0, 0, 0, 0.45); border-radius: 0 0 4px 0; }
+  #bar { position: fixed; left: 8px; top: 8px; display: flex; gap: 6px; flex-wrap: wrap; max-width: calc(100% - 16px); }
+  #bar button, #bar a { font: inherit; color: var(--text); background: var(--panel); border: 1px solid #2a3440; border-radius: 6px; padding: 6px 10px; cursor: pointer; text-decoration: none; }
+  #bar button.on { border-color: #40f0c8; color: #40f0c8; }
+  #check { position: fixed; right: 8px; bottom: 8px; max-width: min(560px, calc(100% - 16px)); max-height: 45vh; overflow: auto; background: var(--panel);
+           border: 1px solid #2a3440; border-radius: 8px; padding: 8px 10px; }
+  #check summary { cursor: pointer; font-weight: 600; }
+  #check table { border-collapse: collapse; margin-top: 6px; font-size: 11px; }
+  #check td, #check th { padding: 2px 6px; text-align: left; border-bottom: 1px solid #222b35; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); }
+</style>
+</head>
+<body>
+<div id="labels"></div>
+<div id="bar">
+  <button data-mode="overview">Overview</button>
+  <button data-mode="rts">RTS zoom</button>
+  <button data-mode="sheet">Close-up</button>
+  <button id="animBtn">Animate</button>
+</div>
+<details id="check"><summary>Checks…</summary><div id="checkBody"></div></details>
+
+<script src="vendor/three.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/models.js"></script>
+<script>
+(() => {
+    'use strict';
+    const C = SF_CONFIG, M = SF_MODELS;
+    const Q = new URLSearchParams(location.search);
+    let mode = Q.get('mode') || 'overview';
+    let animate = Q.get('anim') === '1';
+    const TEAMS = [C.TEAMS[0].color, C.TEAMS[1].color];
+
+    // ------------------------------------------------------------------ renderer, scene, lights
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.shadowMap.enabled = Q.get('shadows') !== '0';
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.prepend(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0d1014);
+    scene.add(new THREE.HemisphereLight(0xcfe3ff, 0x3a3226, 0.65));
+    const sun = new THREE.DirectionalLight(0xfff1dc, 1.35);
+    sun.position.set(-12, 22, 10);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    Object.assign(sun.shadow.camera, { left: -22, right: 22, top: 22, bottom: -22, near: 1, far: 80 });
+    scene.add(sun, sun.target);
+
+    // ------------------------------------------------------------------ layout every model, both teams
+    const items = [];   // { kind, type, team, obj, x, z, label, foot }
+    const BTYPES = Object.keys(C.BUILDINGS), UTYPES = Object.keys(C.UNITS);
+    let worldW = 0, worldD = 0;
+    function place(kind, type, team, x, z) {
+        let obj;
+        if (kind === 'unit') obj = M.unit(type, TEAMS[team]);
+        else if (kind === 'building') obj = M.building(type, TEAMS[team]);
+        else if (kind === 'decor') obj = M.decor(type);
+        else if (type === 'shardCluster') obj = M.shardCluster();
+        else obj = M.spire();
+        obj.position.set(x, 0, z);
+        scene.add(obj);
+        const it = { kind, type, team, obj, x, z };
+        items.push(it);
+        return it;
+    }
+    const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45 });
+    function footprintGrid(x, z, w, d) {
+        const p = [];
+        for (let i = 0; i <= w; i++) p.push(x - w / 2 + i, 0.012, z - d / 2, x - w / 2 + i, 0.012, z + d / 2);
+        for (let j = 0; j <= d; j++) p.push(x - w / 2, 0.012, z - d / 2 + j, x + w / 2, 0.012, z - d / 2 + j);
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
+        scene.add(new THREE.LineSegments(g, lineMat));
+    }
+    function circle(x, z, r) {
+        const p = [];
+        for (let i = 0; i <= 40; i++) { const a = i / 40 * Math.PI * 2; p.push(x + Math.cos(a) * r, 0.012, z + Math.sin(a) * r); }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
+        scene.add(new THREE.Line(g, lineMat));
+        // facing tick (+X)
+        const t = new THREE.BufferGeometry();
+        t.setAttribute('position', new THREE.Float32BufferAttribute([x + r, 0.012, z, x + r + 0.15, 0.012, z], 3));
+        scene.add(new THREE.LineSegments(t, lineMat));
+    }
+    (function layout() {
+        // buildings: one row per team, footprints aligned to whole tiles
+        let z = 0;
+        for (let team = 0; team < 2; team++) {
+            let x = 0;
+            for (const t of BTYPES) {
+                const b = C.BUILDINGS[t];
+                const cx = x + b.w / 2, cz = z + 1.5;
+                place('building', t, team, cx, cz);
+                footprintGrid(cx, cz, b.w, b.d);
+                x += b.w + 1;
+            }
+            worldW = Math.max(worldW, x - 1);
+            z += 4.5;
+        }
+        // units: one row per team
+        for (let team = 0; team < 2; team++) {
+            let x = 0.6;
+            for (const t of UTYPES) {
+                const r = C.UNITS[t].radius;
+                place('unit', t, team, x + 0.6, z + 0.6);
+                circle(x + 0.6, z + 0.6, r);
+                x += 2.0;
+            }
+            // a mixed squad to judge readability in a crowd
+            for (let i = 0; i < 5; i++) place('unit', i % 2 ? 'rocketeer' : 'rifleman', team, x + 0.5 + (i % 3) * 0.48, z + 0.25 + Math.floor(i / 3) * 0.5);
+            z += 2;
+        }
+        // decor, a shard field and a spire
+        z += 0.6;
+        let x = 0.5;
+        for (const t of ['rock', 'boulder', 'crystal', 'tree']) { place('decor', t, -1, x + 0.5, z + 0.5); footprintGrid(x + 0.5, z + 0.5, 1, 1); x += 2; }
+        place('misc', 'spire', -1, x + 0.5, z + 0.5); footprintGrid(x + 0.5, z + 0.5, 1, 1);
+        x += 2;
+        for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) {
+            const s = place('misc', 'shardCluster', -1, x + i + 0.5, z + j + 0.5);
+            const amt = [1, 0.75, 0.5, 0.3][i];
+            s.obj.scale.setScalar(0.35 + 0.65 * amt);
+            if (i || j) s.nolabel = true;
+        }
+        footprintGrid(x + 2, z + 1, 4, 2);
+        worldD = z + 2;
+    })();
+
+    // ground with a subtle tile grid
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(worldW + 8, worldD + 8),
+        new THREE.MeshStandardMaterial({ color: new THREE.Color(0x5c5446).convertSRGBToLinear(), roughness: 1 }));
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.set(worldW / 2, 0, worldD / 2);
+    ground.receiveShadow = true;
+    scene.add(ground);
+    const grid = new THREE.GridHelper(Math.ceil(Math.max(worldW, worldD) + 8), Math.ceil(Math.max(worldW, worldD) + 8), 0x000000, 0x000000);
+    grid.material.transparent = true; grid.material.opacity = 0.12;
+    grid.position.set(Math.round(worldW / 2), 0.004, Math.round(worldD / 2));
+    scene.add(grid);
+    sun.target.position.set(worldW / 2, 0, worldD / 2);
+    sun.position.set(worldW / 2 - 12, 22, worldD / 2 + 10);
+
+    // ------------------------------------------------------------------ camera (~55° pitch, looking north = -Z)
+    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 400);
+    const PITCH = 55 * Math.PI / 180;
+    const view = { x: worldW / 2, z: worldD / 2, dist: 30 };
+    function fitOverview() {
+        const aspect = innerWidth / innerHeight;
+        const vFov = camera.fov * Math.PI / 180, hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
+        const needW = (worldW + 1.5) / 2 / Math.tan(hFov / 2), needD = (worldD + 1.5) * Math.sin(PITCH) / 2 / Math.tan(vFov / 2);
+        view.x = worldW / 2; view.z = worldD / 2; view.dist = Math.max(needW, needD) * 1.05;
+    }
+    function rtsView() {
+        // The in-game zoom: ~10 tiles across on a phone in portrait, ~25 on a desktop (40° vertical fov).
+        view.dist = Q.get('dist') ? +Q.get('dist') : (innerWidth < 700 ? 30 : 22);
+        const f = Q.get('focus') || 'mix';
+        const at = { buildings: [7, 4], units: [6.5, 10.5], decor: [8, 14], mix: [6, 8] }[f] || [6, 8];
+        view.x = Q.get('cx') ? +Q.get('cx') : at[0];
+        view.z = Q.get('cz') ? +Q.get('cz') : at[1];
+    }
+    function applyCamera() {
+        camera.aspect = innerWidth / innerHeight;
+        camera.updateProjectionMatrix();
+        camera.position.set(view.x, Math.sin(PITCH) * view.dist, view.z + Math.cos(PITCH) * view.dist);
+        camera.lookAt(view.x, 0, view.z);
+    }
+
+    // ------------------------------------------------------------------ labels
+    const labelsEl = document.getElementById('labels');
+    for (const it of items) {
+        if (it.nolabel) continue;
+        const el = document.createElement('div');
+        el.className = 'lbl ' + (it.team === 0 ? 't0' : it.team === 1 ? 't1' : 'tn');
+        el.textContent = it.type === 'shardCluster' ? 'shards (by amount)' : it.type;
+        it.el = el;
+        labelsEl.appendChild(el);
+    }
+    // squad members after the 6 unit types are not labelled
+    { let n = 0; for (const it of items) if (it.kind === 'unit') { n++; if ((n - 1) % 11 >= 6 && it.el) { it.el.remove(); it.el = null; } } }
+    const v3 = new THREE.Vector3();
+    function updateLabels() {
+        const show = mode !== 'sheet' && Q.get('labels') !== '0';
+        labelsEl.style.display = show ? '' : 'none';
+        if (!show) return;
+        for (const it of items) {
+            if (!it.el) continue;
+            const zEdge = it.kind === 'building' ? C.BUILDINGS[it.type].d / 2 : it.kind === 'unit' ? C.UNITS[it.type].radius : 0.5;
+            v3.set(it.x, 0, it.z + zEdge + 0.05).project(camera);
+            const sx = (v3.x + 1) / 2 * innerWidth, sy = (1 - v3.y) / 2 * innerHeight;
+            const vis = v3.z < 1 && sx > -60 && sx < innerWidth + 60 && sy > -20 && sy < innerHeight + 20;
+            it.el.style.display = vis ? '' : 'none';
+            if (vis) { it.el.style.left = sx + 'px'; it.el.style.top = sy + 'px'; }
+        }
+    }
+
+    // ------------------------------------------------------------------ close-up sheet (one viewport per model)
+    const sheetEls = [];
+    const sheetList = [];
+    for (const t of BTYPES) for (const team of [0, 1]) sheetList.push({ kind: 'building', type: t, team });
+    for (const t of UTYPES) for (const team of [0, 1]) sheetList.push({ kind: 'unit', type: t, team });
+    for (const t of ['rock', 'boulder', 'crystal', 'tree']) sheetList.push({ kind: 'decor', type: t, team: -1 });
+    sheetList.push({ kind: 'misc', type: 'shardCluster', team: -1 }, { kind: 'misc', type: 'spire', team: -1 });
+    if (Q.get('only')) {
+        const keep = new Set(Q.get('only').split(','));
+        const tq = Q.get('team');
+        for (let i = sheetList.length - 1; i >= 0; i--) {
+            const s = sheetList[i];
+            if (!keep.has(s.type) || (tq !== null && s.team >= 0 && String(s.team) !== tq)) sheetList.splice(i, 1);
+        }
+    }
+    const sheetScene = new THREE.Scene();
+    sheetScene.background = new THREE.Color(0x161b22);
+    sheetScene.add(new THREE.HemisphereLight(0xcfe3ff, 0x3a3226, 0.65));
+    const sheetSun = new THREE.DirectionalLight(0xfff1dc, 1.35);
+    sheetSun.position.set(-6, 12, 5);
+    sheetScene.add(sheetSun);
+    const sheetGround = new THREE.Mesh(new THREE.CircleGeometry(8, 32), ground.material);
+    sheetGround.rotation.x = -Math.PI / 2;
+    sheetScene.add(sheetGround);
+    const sheetCam = new THREE.PerspectiveCamera(30, 1, 0.05, 100);
+    let sheetObj = null;
+    function sheetModel(s) {
+        if (s.kind === 'unit') return M.unit(s.type, TEAMS[s.team]);
+        if (s.kind === 'building') return M.building(s.type, TEAMS[s.team]);
+        if (s.kind === 'decor') return M.decor(s.type);
+        return s.type === 'spire' ? M.spire() : M.shardCluster();
+    }
+    function renderSheet() {
+        const cols = Q.get('cols') ? +Q.get('cols') : innerWidth < 700 ? 3 : 6;
+        const cw = Math.floor(innerWidth / cols), rows = Math.ceil(sheetList.length / cols);
+        const ch = Math.floor(Math.min(cw * 0.85, (innerHeight - 50) / rows));
+        renderer.setScissorTest(true);
+        renderer.setClearColor(0x0d1014);
+        renderer.clear();
+        const yaw = (Q.get('yaw') ? +Q.get('yaw') : 35) * Math.PI / 180;
+        const pitch = (Q.get('pitch') ? +Q.get('pitch') : 38) * Math.PI / 180;
+        sheetList.forEach((s, i) => {
+            const cx = (i % cols) * cw, cy = 46 + Math.floor(i / cols) * ch;
+            if (sheetObj) sheetScene.remove(sheetObj);
+            sheetObj = sheetModel(s);
+            sheetScene.add(sheetObj);
+            const size = s.kind === 'building' ? Math.max(C.BUILDINGS[s.type].w, C.BUILDINGS[s.type].d) * 0.95 + 0.4
+                : s.kind === 'unit' ? C.UNITS[s.type].radius * 2 + 0.25 : s.type === 'spire' ? 2.1 : 1.1;
+            const h = sheetObj.userData.height || 0.5;
+            const d = size * 2.6;
+            sheetCam.aspect = cw / ch;
+            sheetCam.updateProjectionMatrix();
+            sheetCam.position.set(Math.cos(yaw) * Math.cos(pitch) * d, Math.sin(pitch) * d + h * 0.3, Math.sin(yaw) * Math.cos(pitch) * d);
+            sheetCam.lookAt(0, h * 0.35, 0);
+            const y = innerHeight - cy - ch;
+            renderer.setViewport(cx, y, cw, ch);
+            renderer.setScissor(cx + 1, y + 1, cw - 2, ch - 2);
+            renderer.render(sheetScene, sheetCam);
+            if (!sheetEls[i]) {
+                const el = document.createElement('div');
+                el.className = 'cell';
+                el.textContent = s.type + (s.team >= 0 ? ' · ' + (cols <= 3 ? C.TEAMS[s.team].name[0] : C.TEAMS[s.team].name) : '') + ' · ' + M.triangles(sheetObj) + (cols <= 3 ? '△' : ' tris');
+                document.body.appendChild(el);
+                sheetEls[i] = el;
+            }
+            Object.assign(sheetEls[i].style, { left: cx + 'px', top: cy + 'px', maxWidth: (cw - 10) + 'px', display: '' });
+        });
+        renderer.setScissorTest(false);
+        renderer.setViewport(0, 0, innerWidth, innerHeight);
+    }
+
+    // ------------------------------------------------------------------ automated checks
+    function runChecks() {
+        const REQ = {
+            rifleman: ['muzzle'], rocketeer: ['muzzle'], buggy: ['muzzle', '#wheels'], harvester: ['arm', 'cargo', '#wheels'],
+            tank: ['turret', 'barrel', 'muzzle'], artillery: ['barrel', 'muzzle', '#wheels'],
+            core: ['flag'], refinery: ['dock'], factory: ['exit'], barracks: ['exit'], radar: ['rotor'], turret: ['turret', 'barrel', 'muzzle'],
+        };
+        const rows = [], fails = [];
+        const box = new THREE.Box3(), wp = new THREE.Vector3();
+        const EPS = 0.005;
+        function check(kind, type, team) {
+            const make = () => kind === 'unit' ? M.unit(type, TEAMS[team]) : kind === 'building' ? M.building(type, TEAMS[team])
+                : kind === 'decor' ? M.decor(type) : type === 'spire' ? M.spire() : M.shardCluster();
+            const g = make(), g2 = make();
+            g.updateMatrixWorld(true);
+            const tris = M.triangles(g);
+            let meshes = 0; g.traverse((o) => { if (o.isMesh) meshes++; });
+            const budget = kind === 'unit' ? 1500 : kind === 'building' ? 4000 : 1500;
+            const problems = [];
+            if (tris >= budget) problems.push(`tris ${tris} ≥ ${budget}`);
+            // bounds: units inside the 2r square, buildings inside w × d, decor/shards/spire inside 1 × 1
+            box.setFromObject(g);
+            let hx, hz;
+            if (kind === 'unit') hx = hz = C.UNITS[type].radius;
+            else if (kind === 'building') { hx = C.BUILDINGS[type].w / 2; hz = C.BUILDINGS[type].d / 2; }
+            else hx = hz = 0.5;
+            const over = Math.max(box.max.x - hx, -hx - box.min.x, box.max.z - hz, -hz - box.min.z);
+            if (over > EPS) problems.push(`outside footprint by ${over.toFixed(3)}`);
+            if (box.min.y < (kind === 'unit' || kind === 'building' ? -0.06 : -0.15)) problems.push(`below ground ${box.min.y.toFixed(2)}`);
+            // rotating parts must stay in the footprint whatever their angle (turret, rotor, crane)
+            for (const nm of ['turret', 'rotor', 'crane']) {
+                const n = g.getObjectByName(nm);
+                if (!n) continue;
+                n.getWorldPosition(wp);
+                const nb = new THREE.Box3().setFromObject(n);
+                let rad = 0;
+                n.traverse((o) => {
+                    if (!o.isMesh) return;
+                    const p = o.geometry.attributes.position, v = new THREE.Vector3();
+                    for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i).applyMatrix4(o.matrixWorld); rad = Math.max(rad, Math.hypot(v.x - wp.x, v.z - wp.z)); }
+                });
+                const room = Math.min(hx - Math.abs(wp.x), hz - Math.abs(wp.z));
+                if (nm !== 'crane' && rad > room + EPS) problems.push(`${nm} sweep r ${rad.toFixed(2)} > ${room.toFixed(2)}`);
+            }
+            // required children
+            for (const r of REQ[type] || []) {
+                if (r === '#wheels') { if (!(g.userData.wheels && g.userData.wheels.length)) problems.push('no wheels'); }
+                else if (!g.getObjectByName(r)) problems.push(`missing '${r}'`);
+            }
+            const mz = g.getObjectByName('muzzle');
+            if (mz) { mz.getWorldPosition(wp); if (wp.x <= 0) problems.push('muzzle not towards +X'); }
+            const h = g.userData.height;
+            if (!(h > 0) || h > box.max.y + 0.15 || h < box.max.y * 0.45) problems.push(`height ${h} vs top ${box.max.y.toFixed(2)}`);
+            // a new group per call, sharing geometry & materials
+            if (g === g2) problems.push('same group returned twice');
+            let gm = null, gm2 = null;
+            g.traverse((o) => { if (o.isMesh && !gm) gm = o; });
+            g2.traverse((o) => { if (o.isMesh && !gm2) gm2 = o; });
+            if (gm.geometry !== gm2.geometry || gm.material !== gm2.material) problems.push('geometry/material not shared');
+            if (g.userData.wheels && g.userData.wheels.length && g.userData.wheels[0] === g2.userData.wheels[0]) problems.push('wheels shared between clones');
+            const row = { kind, type, team, tris, meshes, w: (box.max.x - box.min.x).toFixed(2), d: (box.max.z - box.min.z).toFixed(2), top: box.max.y.toFixed(2), problems };
+            rows.push(row);
+            if (problems.length) fails.push(`${type}${team >= 0 ? '/' + team : ''}: ${problems.join(', ')}`);
+        }
+        for (const team of [0, 1]) {
+            for (const t of UTYPES) check('unit', t, team);
+            for (const t of BTYPES) check('building', t, team);
+        }
+        for (const t of ['rock', 'boulder', 'crystal', 'tree']) check('decor', t, -1);
+        check('misc', 'shardCluster', -1); check('misc', 'spire', -1);
+        // team colours are baked into per-team geometry; all models share the two materials
+        const a = M.unit('tank', TEAMS[0]), b = M.unit('tank', TEAMS[1]);
+        const ta = a.getObjectByName('turret').children.find((o) => o.isMesh);
+        const tb = b.getObjectByName('turret').children.find((o) => o.isMesh);
+        if (!ta || !tb || ta.geometry === tb.geometry || ta.material !== tb.material) fails.push('team geometry/material sharing wrong');
+        const mats = new Set();
+        for (const r of [a, b, M.building('core', TEAMS[0]), M.spire()]) r.traverse((o) => { if (o.isMesh) mats.add(o.material); });
+        if (mats.size > 2) fails.push(`expected 2 shared materials, found ${mats.size}`);
+        const result = { pass: fails.length === 0, fails, rows };
+        window.SF_MODEL_CHECK = result;
+        const body = document.getElementById('checkBody');
+        document.querySelector('#check summary').innerHTML = result.pass
+            ? `<span class="ok">All ${rows.length} model checks pass</span>` : `<span class="bad">${fails.length} check(s) failed</span>`;
+        let html = fails.map((f) => `<div class="bad">${f}</div>`).join('');
+        html += '<table><tr><th>model</th><th>team</th><th>tris</th><th>meshes</th><th>w×d</th><th>top</th><th></th></tr>';
+        for (const r of rows) html += `<tr><td>${r.type}</td><td>${r.team < 0 ? '–' : r.team}</td><td>${r.tris}</td><td>${r.meshes}</td><td>${r.w}×${r.d}</td><td>${r.top}</td><td class="${r.problems.length ? 'bad' : 'ok'}">${r.problems.length ? '✗' : '✓'}</td></tr>`;
+        body.innerHTML = html + '</table>';
+        if (Q.get('check') === '1') document.getElementById('check').open = true;
+    }
+
+    // ------------------------------------------------------------------ animation of named parts (pivot sanity)
+    let t0 = performance.now();
+    function animateParts(t) {
+        for (const it of items) {
+            const o = it.obj;
+            const tur = o.getObjectByName('turret'); if (tur) tur.rotation.y = Math.sin(t * 0.8) * 1.2;
+            const bar = o.getObjectByName('barrel'); if (bar && it.type !== 'artillery') bar.rotation.z = Math.max(0, Math.sin(t * 1.3)) * 0.25;
+            const rot = o.getObjectByName('rotor'); if (rot) rot.rotation.y = t * 1.2;
+            const arm = o.getObjectByName('arm'); if (arm) arm.rotation.z = -0.35 * (0.5 + 0.5 * Math.sin(t * 2));
+            const cargo = o.getObjectByName('cargo'); if (cargo) cargo.scale.y = 0.05 + 0.95 * (0.5 + 0.5 * Math.sin(t * 0.5));
+            const flag = o.getObjectByName('flag'); if (flag) flag.rotation.y = Math.sin(t * 3) * 0.25;
+            const crane = o.getObjectByName('crane'); if (crane) crane.rotation.y = Math.sin(t * 0.3) * 0.6;
+            if (o.userData.wheels) for (const w of o.userData.wheels) w.rotation.z = -t * 3;
+        }
+    }
+
+    // ------------------------------------------------------------------ interaction: drag to pan, wheel / pinch to zoom
+    const ptrs = new Map();
+    let pinch0 = 0, dist0 = 0;
+    renderer.domElement.addEventListener('pointerdown', (e) => { ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); renderer.domElement.setPointerCapture(e.pointerId);
+        if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); dist0 = view.dist; } });
+    renderer.domElement.addEventListener('pointermove', (e) => {
+        const p = ptrs.get(e.pointerId); if (!p || mode === 'sheet') return;
+        if (ptrs.size === 1) {
+            const k = view.dist / innerHeight * 0.9;
+            view.x -= (e.clientX - p.x) * k; view.z -= (e.clientY - p.y) * k / Math.sin(PITCH);
+        }
+        p.x = e.clientX; p.y = e.clientY;
+        if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; view.dist = Math.max(4, Math.min(80, dist0 * pinch0 / Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)))); }
+        draw();
+    });
+    const up = (e) => ptrs.delete(e.pointerId);
+    renderer.domElement.addEventListener('pointerup', up);
+    renderer.domElement.addEventListener('pointercancel', up);
+    renderer.domElement.addEventListener('wheel', (e) => { e.preventDefault(); view.dist = Math.max(4, Math.min(80, view.dist * Math.exp(e.deltaY * 0.001))); draw(); }, { passive: false });
+
+    function setMode(m) {
+        mode = m;
+        for (const b of document.querySelectorAll('#bar [data-mode]')) b.classList.toggle('on', b.dataset.mode === mode);
+        for (const el of sheetEls) if (el) el.style.display = mode === 'sheet' ? '' : 'none';
+        if (mode === 'overview') fitOverview();
+        if (mode === 'rts') rtsView();
+        draw();
+    }
+    for (const b of document.querySelectorAll('#bar [data-mode]')) b.addEventListener('click', () => setMode(b.dataset.mode));
+    const animBtn = document.getElementById('animBtn');
+    animBtn.classList.toggle('on', animate);
+    animBtn.addEventListener('click', () => { animate = !animate; animBtn.classList.toggle('on', animate); if (animate) loop(); });
+
+    function draw() {
+        renderer.setSize(innerWidth, innerHeight);
+        if (mode === 'sheet') { renderSheet(); updateLabels(); return; }
+        applyCamera();
+        renderer.setClearColor(0x0d1014);
+        renderer.render(scene, camera);
+        updateLabels();
+    }
+    function loop() {
+        if (!animate) return;
+        animateParts((performance.now() - t0) / 1000);
+        if (mode !== 'sheet') draw();
+        requestAnimationFrame(loop);
+    }
+    addEventListener('resize', () => setMode(mode));
+    if (Q.get('t')) animateParts(+Q.get('t'));
+    runChecks();
+    setMode(mode);
+    if (animate) loop();
+    window.SF_PREVIEW_READY = true;
+})();
+</script>
+</body>
+</html>
