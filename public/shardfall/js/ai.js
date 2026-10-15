@@ -12,7 +12,7 @@
         normal: [['reactor', 1], ['refinery', 1], ['barracks', 1], ['reactor', 2], ['factory', 1], ['turret', 1], ['refinery', 2],
             ['reactor', 3], ['radar', 1], ['turret', 2], ['techlab', 1], ['reactor', 4]],
         hard: [['reactor', 1], ['refinery', 1], ['barracks', 1], ['reactor', 2], ['factory', 1], ['refinery', 2], ['turret', 1],
-            ['reactor', 3], ['radar', 1], ['turret', 2], ['techlab', 1], ['turret', 3], ['reactor', 4], ['turret', 4]],
+            ['reactor', 3], ['radar', 1], ['techlab', 1], ['turret', 2], ['reactor', 4]],
     };
     // harvesters per refinery, and the cap
     const HARV = { easy: [1.5, 2], normal: [1.5, 3], hard: [2, 4] };
@@ -390,7 +390,7 @@
                 if (stray.length) sim.command(this.team, { type: 'move', ids: ids(stray), x: this.staging.x, z: this.staging.z });
             }
             // launch a wave on the timer, or counter-attack right after beating off an attack
-            const cap = Math.round(ARMY_CAP[this.diff] * 0.75);
+            const cap = Math.min(22, Math.round(ARMY_CAP[this.diff] * 0.75));
             const need = Math.max(3, Math.round(Math.min(cap, this.cfg.waveSize + this.waveNo * this.cfg.waveGrowth) * this.st.need));
             const full = home.length >= ARMY_CAP[this.diff] * 0.85;
             const timer = full || t >= this.nextWave && (home.length >= need || (this.waveNo < 3 && t >= this.nextWave + 45 && home.length >= Math.max(3, Math.ceil(need * 0.6))));
@@ -398,7 +398,7 @@
                 this.wave.size === 0 && home.length >= Math.max(5, Math.ceil(need * 0.9)) && t - this.waveIssued > 40;
             if (timer || counter) { this.launch(home, timer ? 'timer' : 'counter'); return; }
             // reinforce a wave that is still fighting
-            if (this.diff === 'hard' && this.wave.size >= 3 && home.length >= 6 && t - (this.lastReinforce || -99) > 12) {
+            if (this.diff === 'hard' && this.wave.size >= 6 && home.length >= 8 && t - (this.lastReinforce || -99) > 12) {
                 const c = this.waveCentroid();
                 if (c) {
                     this.lastReinforce = t;

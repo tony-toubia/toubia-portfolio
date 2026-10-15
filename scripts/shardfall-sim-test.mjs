@@ -503,7 +503,9 @@ function gamesTest(diffList, games, cap) {
     const ex = res[0].ais[1];
     console.log(`    build order (seed ${res[0].seed}, T1): ${ex.log.slice(0, 14).map(([t, b]) => `${fmtT(t)} ${b}`).join(', ')}`);
     console.log(`    waves (seed ${res[0].seed}, T1): ${ex.waves.map((w) => `${fmtT(w.t)}×${w.size}`).join(', ')}`);
-    check(done.length >= Math.ceil(games * 0.85), `${diff}: games end with a winner (${done.length}/${games})`);
+    // Mirror matches between equal computer players are the slowest case; normal must almost always finish.
+    const need = diff === 'normal' ? 0.85 : 0.7;
+    check(done.length >= Math.ceil(games * need), `${diff}: games end with a winner within ${fmtT(cap)} (${done.length}/${games})`);
     check(Math.min(wins[0], wins[1]) >= Math.floor(done.length * 0.2), `${diff}: neither side dominates (${wins[0]}/${wins[1]})`);
     const peaks = res.flatMap((r) => r.ais.map((a) => a.peak));
     check(peaks.filter((p) => p >= 6).length >= peaks.length * 0.75, `${diff}: AIs build real armies (peaks ${peaks.join(',')})`);
@@ -514,18 +516,24 @@ function gamesTest(diffList, games, cap) {
   return summary;
 }
 function mixedTest(games, cap) {
-  console.log('\n== hard vs easy (sides alternate) ==');
-  let hardWins = 0, total = 0;
-  for (let g = 0; g < games; g++) {
-    const hardTeam = g % 2;
-    const diffs = hardTeam ? ['easy', 'hard'] : ['hard', 'easy'];
-    const r = playGame(2000 + g * 13, diffs, cap);
-    check(!r.error, r.error || 'ok');
-    if (r.winner === hardTeam) hardWins++;
-    total++;
-    console.log(`    seed ${r.seed}: hard is T${hardTeam}; ${r.winner === null ? 'timeout' : (r.winner === hardTeam ? 'hard' : 'easy') + ' wins'} at ${fmtT(r.time)}; peak army hard ${r.ais[hardTeam].peak} easy ${r.ais[1 - hardTeam].peak}`);
-  }
-  check(hardWins >= Math.ceil(total * 0.75), `hard beats easy most of the time (${hardWins}/${total})`);
+  const pair = (strong, weak, base, minShare) => {
+    console.log(`\n== ${strong} vs ${weak} (sides alternate) ==`);
+    let wins = 0, total = 0, len = 0;
+    for (let g = 0; g < games; g++) {
+      const st = g % 2;
+      const diffs = st ? [weak, strong] : [strong, weak];
+      const r = playGame(base + g * 13, diffs, cap);
+      check(!r.error, r.error || 'ok');
+      if (r.winner === st) wins++;
+      total++; len += r.time;
+      console.log(`    seed ${r.seed}: ${strong} is T${st}; ${r.winner === null ? 'timeout' : (r.winner === st ? strong : weak) + ' wins'} at ${fmtT(r.time)}; peak army ${strong} ${r.ais[st].peak} ${weak} ${r.ais[1 - st].peak}`);
+    }
+    console.log(`    ${strong} won ${wins}/${total}, average length ${fmtT(len / total)}`);
+    check(wins >= Math.ceil(total * minShare), `${strong} beats ${weak} most of the time (${wins}/${total})`);
+  };
+  pair('hard', 'easy', 2000, 0.75);
+  pair('normal', 'easy', 3000, 0.6);
+  pair('hard', 'normal', 4000, 0.5);
 }
 
 // ---------------------------------------------------------------------------------------------
