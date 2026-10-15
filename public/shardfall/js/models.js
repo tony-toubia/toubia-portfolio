@@ -20,7 +20,17 @@
 //   'crane'   core crane, may slowly swing .rotation.y
 //   'dock'    refinery: empty Object3D at the unload pad centre (local, on the +Z edge)
 //   'exit'    factory / barracks: empty Object3D at the door, just inside the +Z edge
+//   'hover'   skimmer: the whole craft; the renderer may bob .position.y (rest 0) — userData.hover = true
+//   'charge'  orbital uplink: glow parts with a per-instance material; pulse its .emissiveIntensity by the charge
+//             (or call SF_MODELS.setCharge(obj, charge01, time))
+//   'doorL' / 'doorR'  rift silo hatch doors (west / east), hinged at their outer edges: open k (0..1) =
+//             doorL.rotation.z = +k * userData.doorOpen, doorR.rotation.z = -k * userData.doorOpen
+//             (or call SF_MODELS.setDoors(obj, k))
+//   'missile' rift silo missile standing in the shaft (pivot at its base); raise .position.y to launch it
 //   userData.height = top of the main body (health bars / selection rings).
+// Factions: SF_MODELS.unit/building(type, teamColor, faction). The Hegemony look ('hegemony') swaps the neutral
+// palette for violet graphite and pearl with magenta energy glows, and shared buildings get swept fins and floating
+// crystals; team colour stays on the big panels either way. Default faction = the type's own (config) or 'vanguard'.
 window.SF_MODELS = (() => {
     'use strict';
     const T = THREE;
@@ -30,6 +40,7 @@ window.SF_MODELS = (() => {
     const PAL = {
         shard: 0x40f0c8, shardDeep: 0x1aa88e, energy: 0x8ffcff, tech: 0xc29bff, warn: 0xffb52e,
         rock: 0x7d746a, ground: 0x5c5446,
+        hegemonyGlow: 0xff4fd8, violet: 0xa070ff,
     };
     const lin = (hex) => new T.Color(hex).convertSRGBToLinear();
     const lighten = (hex, k) => {
@@ -72,11 +83,33 @@ window.SF_MODELS = (() => {
         shard:     [PAL.shard, 0.95],
         shardDeep: [PAL.shardDeep, 0.6],
         pod:       [0xffb347, 1.2],
+        hglow:     [PAL.hegemonyGlow, 1.45],   // Hegemony energy (magenta), whatever the faction palette
+        violet:    [PAL.violet, 1.25],
     };
-    function colorOf(key, team) {
+    // The Hegemony palette: the same part keys, re-coloured (lavender-grey armour, violet-black under-structure,
+    // pearl metal, magenta lights instead of amber, violet glass and energy).
+    const HEGEMONY = {
+        hull:      [0xaca6c2, 0],
+        hullDark:  [0x2c2838, 0],
+        metal:     [0xd9d5ea, 0],
+        dark:      [0x15121c, 0],
+        tread:     [0x221f2a, 0],
+        concrete:  [0x77728a, 0],
+        pad:       [0x3c3946, 0],
+        suit:      [0x2a2634, 0],
+        hazard:    [0xc8c2dc, 0],
+        dish:      [0xd9d5ea, 0],
+        glass:     [0xc77bff, 1.0],
+        warn:      [PAL.hegemonyGlow, 1.3],
+        redLight:  [PAL.hegemonyGlow, 1.3],
+        energy:    [0xe070ff, 1.4],
+        tech:      [PAL.violet, 1.15],
+    };
+    function colorOf(key, team, faction) {
         if (key === 'team') return [darken(team, 0.08), 0];   // a touch darker so bright sun does not wash it out
         if (key === 'teamDark') return [darken(team, 0.45), 0];
         if (key === 'teamGlow') return [lighten(team, 0.45), 1.0];
+        if (faction === 'hegemony' && HEGEMONY[key]) return HEGEMONY[key];
         return COLORS[key] || COLORS.hull;
     }
     const isGlow = (key) => colorOf(key, 0)[1] > 0;
@@ -156,6 +189,28 @@ window.SF_MODELS = (() => {
         const pts = [[0, -0.05 * h], [r * 0.7, 0], [r, h * 0.62], [0, h]];
         return new T.LatheGeometry(pts.map(([x, y]) => new T.Vector2(x, y)), s);
     });
+    // A convex faceted solid: bottom polygon `bot` at y = 0, top polygon `top` (same vertex count) at y = h, both
+    // as [[x, z], ...] in order around the shape. Sharp-edged hulls, wedges and blades.
+    function loft(bot, top, h) {
+        return cached(`loft${bot.join(';')}|${top.join(';')}|${h}`, () => {
+            const n = bot.length;
+            const B = bot.map(([x, z]) => [x, 0, z]), U = top.map(([x, z]) => [x, h, z]);
+            const faces = [];
+            for (let i = 0; i < n; i++) faces.push([B[i], B[(i + 1) % n], U[(i + 1) % n], U[i]]);
+            for (let i = 1; i < n - 1; i++) { faces.push([B[0], B[i], B[i + 1]]); faces.push([U[0], U[i], U[i + 1]]); }
+            return quadsGeometry(faces);
+        });
+    }
+    const scalePts = (pts, sx, sz = sx, dx = 0) => pts.map(([x, z]) => [+(x * sx + dx).toFixed(4), +(z * sz).toFixed(4)]);
+    // Regular n-gon of circumradius r in the XZ plane, first vertex at angle a0.
+    const ngon = (n, r, a0 = 0) => Array.from({ length: n }, (_, i) => {
+        const a = a0 + i / n * Math.PI * 2;
+        return [+(Math.cos(a) * r).toFixed(4), +(Math.sin(a) * r).toFixed(4)];
+    });
+    // A double-pointed crystal (energy emitters), centred on its middle.
+    const prismGem = (r, h, s = 4) => cached(`gem${r},${h},${s}`, () =>
+        new T.LatheGeometry([new T.Vector2(0, -h / 2), new T.Vector2(r, 0), new T.Vector2(0, h / 2)], s));
+
     // Both faces of an open surface (the radar dish), so no double-sided material is needed.
     function doubleSided(g) {
         const a = (g.index ? g.toNonIndexed() : g).attributes.position.array;
@@ -242,12 +297,20 @@ window.SF_MODELS = (() => {
             const r2 = rot ? [-(rot[0] || 0), -(rot[1] || 0), rot[2] || 0] : undefined;
             return this.add(g, mk, x, y, -z, r2, scl, node);
         }
+        // Like pair(), but the copy is a true mirror image (for parts that are not symmetric about their own z = 0).
+        mirror(g, mk, x, y, z, rot, scl, node) {
+            this.add(g, mk, x, y, z, rot, scl, node);
+            const r2 = [-(rot ? rot[0] || 0 : 0), -(rot ? rot[1] || 0 : 0), rot ? rot[2] || 0 : 0];
+            const s2 = scl ? [scl[0], scl[1], -scl[2]] : [1, 1, -1];
+            return this.add(g, mk, x, y, -z, r2, s2, node);
+        }
         build(userData) {
-            const team = Builder.team;
+            const team = Builder.team, faction = Builder.faction;
+            if (Builder.trim) { this.cur = null; Builder.trim(this); }
             for (const [node, byMat] of this.parts) {
                 const body = [], glow = [];
                 for (const [mk, list] of byMat) {
-                    const [hex, k] = colorOf(mk, team);
+                    const [hex, k] = colorOf(mk, team, faction);
                     const c = lin(hex);
                     if (k > 0) c.multiplyScalar(k);
                     for (const [g, m] of list) (k > 0 ? glow : body).push([g, m, c]);
@@ -266,6 +329,8 @@ window.SF_MODELS = (() => {
         }
     }
     Builder.team = 0x888888;
+    Builder.faction = 'vanguard';
+    Builder.trim = null;     // optional extra parts (faction trim) added just before a template is built
     function mergeParts(list) {
         const geos = list.map(([g, m]) => {
             const c = g.index ? g.toNonIndexed() : g.clone();
@@ -477,6 +542,175 @@ window.SF_MODELS = (() => {
         for (const z of [-0.18, -0.06, 0.06, 0.18]) b.add(box(0.06, 0.03, 0.05), 'metal', 0.2, -0.12, z, [0, 0, 0.6], null, arm);
         b.add(box(0.03, 0.02, 0.4), 'warn', 0.1, 0.0, 0, null, null, arm);
         return b.build({ height: 0.6, wheels, wheelRadius: 0.14 });
+    }
+
+    // ---------------------------------------------------------------- Hegemony units
+    // Design language: tall, slim and angular, swept fins instead of boxes, magenta energy glows ('hglow'),
+    // hover pads and four-pod running gear instead of wheels and treads. Built with the Hegemony palette.
+    function hegInfantryBody(b, heavy) {
+        b.cur = b.node('body', b.root, 0, 0, 0, null, [1.1, 1.2, 1.1]);
+        // slim armoured legs with team knee plates, small feet
+        b.add(hexa(0.06, 0.06, 0.05, 0.05, 0.17), 'suit', 0.025, 0, 0.045);
+        b.add(hexa(0.06, 0.06, 0.05, 0.05, 0.17), 'suit', -0.02, 0, -0.045);
+        b.add(box(0.03, 0.05, 0.05), 'teamDark', 0.052, 0.07, 0.045);
+        b.add(box(0.03, 0.05, 0.05), 'teamDark', 0.007, 0.07, -0.045);
+        b.add(box(0.07, 0.025, 0.06), 'dark', 0.035, 0, 0.045);
+        b.add(box(0.07, 0.025, 0.06), 'dark', -0.01, 0, -0.045);
+        b.add(box(0.075, 0.04, 0.12), 'suit', 0, 0.16, 0);
+        // torso: an inverted wedge (narrow waist, broad chest), glowing diamond on the chest
+        const tx = heavy ? 0.15 : 0.12, tz = heavy ? 0.29 : 0.235;
+        b.add(hexa(0.085, 0.12, tx, tz, 0.16), 'team', 0, 0.195, 0);
+        b.add(box(0.02, 0.045, 0.045), 'hglow', tx / 2, 0.29, 0, [Math.PI / 4, 0, 0]);
+        // shoulder plates sweeping up and out
+        b.mirror(hexa(0.08, 0.07, 0.04, 0.03, heavy ? 0.06 : 0.07, -0.01, 0.035), 'team', 0, 0.33, tz / 2 - 0.02);
+        // back vanes with glowing tips (no backpack box: the Hegemony silhouette)
+        b.mirror(hexa(0.05, 0.02, 0.02, 0.012, 0.2, -0.04, 0.035), 'hullDark', -0.065, 0.26, 0.045);
+        b.mirror(box(0.025, 0.04, 0.025), 'hglow', -0.105, 0.45, 0.08);
+        // helmet: a tapered wedge with a wrap-around glowing visor and a crest fin
+        const hw = heavy ? 0.1 : 0.088;
+        b.add(hexa(hw, hw * 0.9, hw * 0.62, hw * 0.55, 0.1, -0.012, 0), 'team', 0, 0.355, 0);
+        b.add(box(0.025, 0.024, hw * 0.86), 'hglow', hw / 2 - 0.006, 0.385, 0);
+        b.add(box(0.11, 0.035, 0.012), 'hullDark', -0.025, 0.445, 0, [0, 0, -0.32]);
+    }
+
+    function makeTrooper() {
+        const b = new Builder();
+        hegInfantryBody(b, false);
+        b.pair(box(0.045, 0.11, 0.045), 'suit', 0.03, 0.2, 0.125);           // arms
+        // long slim pulse rifle: dark stock, two glowing coils, split prongs at the tip
+        b.add(box(0.25, 0.03, 0.03), 'hullDark', 0.065, 0.235, 0.11);
+        b.add(box(0.2, 0.014, 0.036), 'hglow', 0.08, 0.262, 0.11);
+        b.add(box(0.02, 0.045, 0.045), 'hglow', 0.05, 0.228, 0.11);
+        b.add(box(0.02, 0.045, 0.045), 'hglow', 0.11, 0.228, 0.11);
+        b.add(box(0.05, 0.012, 0.01), 'metal', 0.165, 0.244, 0.098);
+        b.add(box(0.05, 0.012, 0.01), 'metal', 0.165, 0.244, 0.122);
+        b.add(box(0.02, 0.012, 0.012), 'hglow', 0.18, 0.244, 0.11);
+        b.marker('muzzle', null, 0.195, 0.25, 0.11);
+        return b.build({ height: 0.56 });
+    }
+
+    function makeShocktrooper() {
+        const b = new Builder();
+        hegInfantryBody(b, true);
+        b.add(box(0.05, 0.12, 0.05), 'suit', 0.03, 0.19, -0.14);
+        // shoulder pylons: two prongs carrying glowing orbs (the shock trooper's signature at a distance)
+        b.pair(cyl(0.012, 0.018, 0.14, 4), 'metal', -0.03, 0.36, 0.145);
+        b.pair(sph(0.046, 6, 4), 'hglow', -0.03, 0.52, 0.145);
+        // heavy arm cannon on the right: a team-coloured barrel, a glow ring and a charged orb at the front
+        b.add(box(0.07, 0.07, 0.07), 'hullDark', 0.0, 0.2, 0.14);
+        b.add(rodX(0.042, 0.05, 0.15, 6), 'teamDark', -0.01, 0.235, 0.14);
+        b.add(rodX(0.054, 0.054, 0.02, 6), 'hglow', 0.07, 0.235, 0.14);
+        b.add(rodX(0.03, 0.045, 0.04, 6), 'metal', 0.105, 0.235, 0.14);
+        b.add(sph(0.042, 6, 4), 'hglow', 0.15, 0.235, 0.14);
+        // power cell on the back
+        b.add(hexa(0.06, 0.12, 0.04, 0.09, 0.12), 'hullDark', -0.1, 0.22, 0);
+        b.add(box(0.015, 0.03, 0.08), 'hglow', -0.13, 0.28, 0);
+        b.marker('muzzle', null, 0.19, 0.235, 0.14);
+        return b.build({ height: 0.6 });
+    }
+
+    function makeSkimmer() {
+        const b = new Builder();
+        b.cur = b.node('hover', b.root, 0, 0, 0);
+        const Y = 0.13;    // underside height above the ground
+        // delta hull: a dark under-plate flaring out to the edge, then a team-coloured faceted deck
+        const E = [[0.4, 0], [-0.06, 0.33], [-0.34, 0.29], [-0.34, -0.29], [-0.06, -0.33]];
+        b.add(loft(scalePts(E, 0.82, 0.8), E, 0.05), 'hullDark', 0, Y, 0);
+        b.add(loft(E, [[0.28, 0], [-0.1, 0.2], [-0.3, 0.16], [-0.3, -0.16], [-0.1, -0.2]], 0.09), 'team', 0, Y + 0.05, 0);
+        // glowing leading and trailing edges (the hover glow)
+        const ang = Math.atan2(0.33, 0.46);
+        b.mirror(box(0.56, 0.02, 0.025), 'hglow', 0.17, Y + 0.035, 0.165, [0, ang, 0]);
+        b.add(box(0.025, 0.02, 0.5), 'hglow', -0.345, Y + 0.035, 0);
+        // hover pads under the nose and the wingtips: glowing discs in dark housings
+        for (const [x, z] of [[0.16, 0], [-0.2, 0.21], [-0.2, -0.21]]) {
+            b.add(cyl(0.1, 0.085, 0.04, 8), 'hullDark', x, Y - 0.035, z);
+            b.add(cyl(0.075, 0.075, 0.02, 8), 'hglow', x, Y - 0.05, z);
+        }
+        // canopy, twin pulse guns, swept tail fins, engine glow
+        b.add(loft([[0.16, 0], [0.0, 0.08], [-0.1, 0.06], [-0.1, -0.06], [0.0, -0.08]],
+            [[0.08, 0], [-0.01, 0.04], [-0.07, 0.03], [-0.07, -0.03], [-0.01, -0.04]], 0.06), 'glass', 0.03, Y + 0.14, 0);
+        b.pair(box(0.12, 0.05, 0.06), 'hullDark', 0.1, Y + 0.08, 0.14);
+        b.pair(rodX(0.018, 0.018, 0.17, 5), 'metal', 0.16, Y + 0.105, 0.14);
+        b.pair(box(0.025, 0.03, 0.03), 'hglow', 0.33, Y + 0.09, 0.14);
+        b.mirror(hexa(0.16, 0.02, 0.05, 0.015, 0.15, -0.06, 0), 'teamDark', -0.24, Y + 0.13, 0.12, [0.45, 0, 0]);
+        b.mirror(box(0.04, 0.03, 0.02), 'hglow', -0.3, Y + 0.255, 0.185, [0.45, 0, 0]);
+        b.add(box(0.05, 0.05, 0.16), 'hullDark', -0.31, Y + 0.12, 0);
+        b.add(box(0.02, 0.035, 0.12), 'hglow', -0.34, Y + 0.13, 0);
+        b.marker('muzzle', null, 0.36, Y + 0.105, 0);
+        b.cur = null;
+        return b.build({ height: 0.42, hover: true, hoverHeight: Y, wheels: [] });
+    }
+
+    function makeLancer() {
+        const b = new Builder();
+        // four armoured running pods at the corners, with glowing strips on the outside
+        for (const x of [0.27, -0.27]) for (const z of [0.31, -0.31]) {
+            b.add(hexa(0.34, 0.16, 0.24, 0.16, 0.13), 'tread', x, 0, z);
+            b.add(hexa(0.36, 0.19, 0.22, 0.13, 0.08), 'hullDark', x, 0.12, z);
+            b.add(box(0.18, 0.025, 0.02), 'hglow', x, 0.1, z + Math.sign(z) * 0.085);
+        }
+        b.pair(box(0.12, 0.06, 0.2), 'hullDark', 0.27, 0.12, 0.2);
+        b.pair(box(0.12, 0.06, 0.2), 'hullDark', -0.27, 0.12, 0.2);
+        // hull: a long faceted hexagon, team-coloured upper facets, pearl deck
+        const H0 = [[0.44, 0], [0.22, 0.25], [-0.32, 0.25], [-0.44, 0], [-0.32, -0.25], [0.22, -0.25]];
+        const H1 = [[0.32, 0], [0.15, 0.19], [-0.27, 0.19], [-0.36, 0], [-0.27, -0.19], [0.15, -0.19]];
+        b.add(loft(scalePts(H0, 0.9, 0.85), H0, 0.06), 'hullDark', 0, 0.12, 0);
+        b.add(loft(H0, H1, 0.12), 'team', 0, 0.18, 0);
+        b.add(loft(H1, scalePts(H1, 0.85), 0.02), 'hull', 0, 0.3, 0);
+        b.mirror(box(0.03, 0.02, 0.12), 'hglow', 0.3, 0.215, 0.115, [0, -0.72, 0]);
+        // turret: a tall faceted pentagon with swept fins and a floating focus crystal
+        const tur = b.node('turret', null, -0.06, 0.32, 0);
+        const T0 = [[0.2, 0], [0.05, 0.16], [-0.2, 0.14], [-0.24, 0], [-0.2, -0.14], [0.05, -0.16]];
+        const T1 = scalePts(T0, 0.62, 0.6, -0.03);
+        b.add(loft(T0, T1, 0.15), 'team', 0, 0, 0, null, null, tur);
+        b.add(loft(T1, scalePts(T0, 0.45, 0.42, -0.04), 0.02), 'team', 0, 0.15, 0, null, null, tur);
+        b.add(box(0.16, 0.012, 0.02), 'hull', -0.04, 0.17, 0.05, null, null, tur);
+        b.add(box(0.16, 0.012, 0.02), 'hull', -0.04, 0.17, -0.05, null, null, tur);
+        b.mirror(hexa(0.2, 0.02, 0.05, 0.015, 0.17, -0.09, 0), 'teamDark', -0.15, 0.06, 0.12, [0.4, 0, 0], null, tur);
+        b.mirror(box(0.04, 0.03, 0.02), 'hglow', -0.24, 0.215, 0.19, [0.4, 0, 0], null, tur);
+        b.add(prismGem(0.045, 0.12, 4), 'violet', -0.06, 0.26, 0, null, null, tur);
+        // beam emitter: twin rails with a glowing core between them, focusing rings and a lens at the tip
+        const bar = b.node('barrel', tur, 0.12, 0.08, 0);
+        b.add(box(0.1, 0.09, 0.15), 'hullDark', 0.0, -0.045, 0, null, null, bar);
+        b.pair(box(0.3, 0.035, 0.028), 'hullDark', 0.17, -0.0175, 0.045, null, null, bar);
+        b.add(rodX(0.016, 0.016, 0.3, 5), 'hglow', 0.03, 0, 0, null, null, bar);
+        for (const x of [0.12, 0.22]) b.add(box(0.025, 0.075, 0.13), 'metal', x, -0.0375, 0, null, null, bar);
+        b.add(prismGem(0.035, 0.07, 4), 'hglow', 0.335, 0, 0, [0, 0, Math.PI / 2], null, bar);
+        b.marker('muzzle', bar, 0.36, 0, 0);
+        return b.build({ height: 0.55, wheels: [] });
+    }
+
+    function makePhantom() {
+        const b = new Builder();
+        // low tread skirts, mostly hidden under the hull
+        b.pair(box(0.78, 0.07, 0.15), 'tread', -0.02, 0, 0.26);
+        // flat faceted stealth hull: a dark under-bevel, team-coloured upper facets, a dark spine deck
+        const P0 = [[0.53, 0], [0.12, 0.44], [-0.44, 0.4], [-0.52, 0], [-0.44, -0.4], [0.12, -0.44]];
+        const P1 = scalePts(P0, 0.86, 0.84);
+        const P2 = scalePts(P0, 0.62, 0.48, -0.03);
+        b.add(loft(P1, P0, 0.06), 'hullDark', 0, 0.04, 0);
+        b.add(loft(P0, P2, 0.1), 'team', 0, 0.1, 0);
+        b.add(loft(P2, scalePts(P2, 0.85, 0.8), 0.025), 'hullDark', 0, 0.2, 0);
+        // glowing seams along the hull outline (the Phantom's signature, also visible when ghosted)
+        for (let i = 0; i < P0.length; i++) {
+            const [x1, z1] = P0[i], [x2, z2] = P0[(i + 1) % P0.length];
+            const len = Math.hypot(x2 - x1, z2 - z1);
+            b.add(box(len * 0.96, 0.014, 0.018), 'hglow', (x1 + x2) / 2 * 0.985, 0.098, (z1 + z2) / 2 * 0.985, [0, -Math.atan2(z2 - z1, x2 - x1), 0]);
+        }
+        b.mirror(box(0.05, 0.02, 0.12), 'hglow', -0.38, 0.17, 0.2, [0, 0.3, 0]);
+        // flat faceted turret and a short twin-prong phase gun with a glowing slit
+        const tur = b.node('turret', null, -0.05, 0.22, 0);
+        const Q0 = [[0.22, 0], [0.07, 0.15], [-0.15, 0.14], [-0.2, 0], [-0.15, -0.14], [0.07, -0.15]];
+        const Q1 = scalePts(Q0, 0.7, 0.62, -0.02);
+        b.add(loft(Q0, Q1, 0.07), 'hullDark', 0, 0, 0, null, null, tur);
+        b.add(loft(Q1, scalePts(Q0, 0.5, 0.42, -0.03), 0.015), 'team', 0, 0.07, 0, null, null, tur);
+        b.add(box(0.1, 0.012, 0.03), 'hglow', 0.02, 0.085, 0, null, null, tur);
+        const bar = b.node('barrel', tur, 0.17, 0.035, 0);
+        b.pair(box(0.21, 0.028, 0.026), 'metal', 0.1, -0.014, 0.034, null, null, bar);
+        b.add(box(0.17, 0.012, 0.03), 'hglow', 0.1, -0.006, 0, null, null, bar);
+        b.pair(box(0.03, 0.034, 0.034), 'hglow', 0.21, -0.017, 0.034, null, null, bar);
+        b.marker('muzzle', bar, 0.24, 0, 0);
+        return b.build({ height: 0.36, wheels: [] });
     }
 
     // ---------------------------------------------------------------- buildings
@@ -715,6 +949,149 @@ window.SF_MODELS = (() => {
         return b.build({ height: 0.8 });
     }
 
+    // ---------------------------------------------------------------- faction buildings
+    // A swept blade (Hegemony motif): its base runs along local X, the top leans back towards -X; glowing tip.
+    function fin(b, x, y, z, ry, h = 0.6, len = 0.36, mk = 'teamDark') {
+        const back = -len * 0.42;
+        b.add(hexa(len, 0.05, 0.06, 0.03, h, back, 0), mk, x, y, z, [0, ry, 0]);
+        b.add(box(0.07, 0.05, 0.045), 'hglow', x + Math.cos(ry) * back, y + h, z - Math.sin(ry) * back, [0, ry, 0]);
+    }
+    // A fin at (x, z) whose top leans away from the building centre.
+    const cornerFin = (b, x, z, y, h, len) => fin(b, x, y, z, Math.PI - Math.atan2(z, x), h, len);
+    // A floating energy crystal over a small pedestal.
+    function floatGem(b, x, y, z, s = 1) {
+        b.add(cone(0.1 * s, 0.1 * s, 6), 'hullDark', x, y, z);
+        b.add(cyl(0.11 * s, 0.11 * s, 0.02, 6), 'hglow', x, y, z);
+        b.add(prismGem(0.075 * s, 0.24 * s, 4), 'violet', x, y + 0.27 * s, z);
+    }
+
+    function makePulseSpire() {
+        // Not a solid tower: three team-coloured claws on a faceted plinth hold a floating, turning emitter crystal.
+        const b = new Builder();
+        b.add(octo(0.92, 0.1), 'hullDark', 0, 0, 0);
+        b.add(loft(ngon(6, 0.42, Math.PI / 6), ngon(6, 0.33, Math.PI / 6), 0.18), 'hull', 0, 0.1, 0);
+        b.add(cyl(0.3, 0.3, 0.035, 6), 'team', 0, 0.28, 0);
+        b.add(cyl(0.12, 0.12, 0.03, 6), 'hglow', 0, 0.3, 0);
+        for (let i = 0; i < 3; i++) {
+            const a = Math.PI / 2 + i / 3 * Math.PI * 2, c = Math.cos(a), s = Math.sin(a);
+            const r0 = 0.27, r1 = 0.2;
+            // lower claw leans in, upper claw flicks back out; a glowing tip on each
+            b.add(hexa(0.14, 0.09, 0.08, 0.06, 0.5, -(r0 - r1), 0), 'team', c * r0, 0.3, s * r0, [0, -a, 0]);
+            b.add(hexa(0.08, 0.06, 0.025, 0.035, 0.34, 0.06, 0), 'hull', c * r1, 0.8, s * r1, [0, -a, 0]);
+            b.add(box(0.035, 0.07, 0.035), 'hglow', c * (r1 + 0.06), 1.12, s * (r1 + 0.06), [0, -a, 0]);
+            b.add(box(0.02, 0.3, 0.05), 'hglow', c * (r0 + 0.06), 0.38, s * (r0 + 0.06), [0, -a, 0.2]);
+        }
+        // the emitter head (turret): a collar, the crystal and a short spike pointing +X with the muzzle at its tip
+        const tur = b.node('turret', null, 0, 1.24, 0);
+        b.add(cyl(0.12, 0.12, 0.035, 6), 'hullDark', 0, -0.06, 0, null, null, tur);
+        b.add(prismGem(0.13, 0.42, 4), 'hglow', 0, 0.04, 0, [0, Math.PI / 4, 0], null, tur);
+        b.add(rodX(0.022, 0.032, 0.2, 4), 'metal', 0.07, -0.04, 0, null, null, tur);
+        b.add(box(0.05, 0.05, 0.05), 'hglow', 0.28, -0.04, 0, null, null, tur);
+        b.marker('muzzle', tur, 0.31, -0.04, 0);
+        return b.build({ height: 1.3 });
+    }
+
+    function makeUplink() {
+        // Vanguard: a heavy armoured base, a big dish pointing at the sky, the focus glows as the Lance charges.
+        const b = new Builder();
+        slab(b, 2, 2);
+        b.add(octo(1.56, 0.24), 'hull', 0, 0.08, 0);
+        b.add(octo(1.62, 0.07), 'team', 0, 0.3, 0);
+        b.add(octo(1.3, 0.1), 'hullDark', 0, 0.37, 0);
+        b.add(box(0.9, 0.05, 0.03), 'hazard', 0, 0.16, 0.79);
+        b.add(box(0.03, 0.05, 0.9), 'hazard', 0.79, 0.16, 0);
+        // corner pylons with lights, a generator block and a control hut with a lit window
+        for (const [x, z] of [[-0.8, -0.8], [0.8, -0.8], [0.8, 0.8], [-0.8, 0.8]]) {
+            b.add(box(0.2, 0.5, 0.2), 'hullDark', x, 0.08, z);
+            b.add(box(0.22, 0.06, 0.22), 'team', x, 0.4, z);
+            b.add(cyl(0.05, 0.05, 0.06, 6), 'warn', x, 0.58, z);
+        }
+        b.add(box(0.4, 0.26, 0.3), 'hull', -0.45, 0.08, 0.66);
+        b.add(box(0.3, 0.05, 0.02), 'glass', -0.45, 0.22, 0.815);
+        b.add(box(0.44, 0.04, 0.34), 'team', -0.45, 0.34, 0.66);
+        // pedestal and yoke
+        b.add(cyl(0.2, 0.3, 0.32, 8), 'hullDark', 0, 0.47, 0);
+        for (const x of [-0.24, 0.24]) b.add(box(0.08, 0.26, 0.14), 'team', x, 0.62, 0);
+        // the dish (tilted a little south so the RTS camera looks into it)
+        const dish = b.node('dish', null, 0, 0.8, 0, [0.28, 0, 0]);
+        const R = 1.0, CAP = 0.8;
+        const bowl = cached('upbowl', () => doubleSided(new T.SphereGeometry(R, 14, 3, 0, Math.PI * 2, Math.PI - CAP, CAP).translate(0, R, 0)));
+        b.add(bowl, 'dish', 0, 0, 0, null, null, dish);
+        const rimR = R * Math.sin(CAP), rimY = R * (1 - Math.cos(CAP));
+        b.add(cached('uprim', () => new T.TorusGeometry(rimR, 0.04, 3, 16).rotateX(Math.PI / 2)), 'team', 0, rimY, 0, null, null, dish);
+        b.add(cyl(0.12, 0.22, 0.12, 8), 'team', 0, -0.1, 0, null, null, dish);
+        // three struts from the rim to the focus
+        const F = 0.62, up = new T.Vector3(0, 1, 0), q = new T.Quaternion(), eu = new T.Euler();
+        for (let i = 0; i < 3; i++) {
+            const a = Math.PI / 2 + i / 3 * Math.PI * 2;
+            const p0 = new T.Vector3(Math.cos(a) * rimR * 0.97, rimY, Math.sin(a) * rimR * 0.97), p1 = new T.Vector3(0, F, 0);
+            const d = p1.clone().sub(p0), len = d.length();
+            q.setFromUnitVectors(up, d.normalize());
+            eu.setFromQuaternion(q);
+            b.add(cyl(0.018, 0.018, len, 4), 'metal', p0.x, p0.y, p0.z, [eu.x, eu.y, eu.z], null, dish);
+        }
+        b.add(cyl(0.05, 0.08, 0.12, 6), 'hullDark', 0, F + 0.04, 0, null, null, dish);
+        // the charge glow: focus orb, a ring around it and a glowing plate at the bottom of the bowl
+        const charge = b.node('charge', dish, 0, F, 0);
+        b.add(sph(0.085, 8, 6), 'energy', 0, 0, 0, null, null, charge);
+        b.add(cached('upring', () => new T.TorusGeometry(0.15, 0.02, 3, 12).rotateX(Math.PI / 2)), 'energy', 0, -0.02, 0, null, null, charge);
+        b.add(cyl(0.2, 0.2, 0.02, 10), 'energy', 0, -F + 0.005, 0, null, null, charge);
+        return b.build({ height: 1.4 });
+    }
+
+    function makeRiftsilo() {
+        // Hegemony: a faceted octagonal silo with team-coloured hatch doors over a missile, swept corner fins.
+        const b = new Builder();
+        slab(b, 2, 2);
+        const O0 = ngon(8, 0.92, Math.PI / 8), O1 = ngon(8, 0.84, Math.PI / 8), O2 = ngon(8, 0.72, Math.PI / 8);
+        b.add(loft(O0, O1, 0.3), 'hull', 0, 0.08, 0);
+        b.add(loft(O1, O2, 0.26), 'team', 0, 0.38, 0);
+        b.add(loft(O2, scalePts(O2, 0.95), 0.03), 'hullDark', 0, 0.64, 0);
+        b.add(box(0.94, 0.012, 0.88), 'dark', 0, 0.67, 0);
+        // glowing conduits on the diagonal faces
+        for (let i = 0; i < 4; i++) {
+            const a = Math.PI / 4 + i * Math.PI / 2;
+            b.add(box(0.03, 0.22, 0.12), 'hglow', Math.cos(a) * 0.79, 0.12, Math.sin(a) * 0.79, [0, -a, 0]);
+        }
+        // swept fins on the four corners
+        for (const [x, z] of [[-0.74, -0.74], [0.74, -0.74], [0.74, 0.74], [-0.74, 0.74]]) cornerFin(b, x, z, 0.08, 0.72, 0.34);
+        // control pod (south-west) with a violet window
+        b.add(hexa(0.3, 0.26, 0.2, 0.18, 0.2), 'hull', -0.5, 0.36, 0.55);
+        b.add(box(0.16, 0.04, 0.02), 'glass', -0.5, 0.46, 0.67);
+        // the missile, standing in the shaft (its glowing nose shows when the doors open)
+        const mis = b.node('missile', null, 0, 0.24, 0);
+        b.add(cyl(0.085, 0.085, 0.36, 8), 'metal', 0, 0, 0, null, null, mis);
+        b.add(cyl(0.09, 0.09, 0.06, 8), 'team', 0, 0.22, 0, null, null, mis);
+        b.add(cone(0.085, 0.16, 8), 'hglow', 0, 0.36, 0, null, null, mis);
+        for (let i = 0; i < 2; i++) b.add(box(0.24, 0.12, 0.02), 'team', 0, 0, 0, [0, i * Math.PI / 2 + Math.PI / 4, 0], null, mis);
+        // hatch doors hinged at their outer (west / east) edges so they swing open to the sides as seen from the RTS
+        // camera; closed they form a shallow gable over the missile's nose
+        const OPEN = 1.9;
+        const dl = b.node('doorL', null, -0.46, 0.67, 0);
+        const dr = b.node('doorR', null, 0.46, 0.67, 0);
+        for (const [n, s] of [[dl, 1], [dr, -1]]) {
+            const rz = 0.25 * s, lift = Math.sin(0.25);
+            b.add(box(0.46, 0.05, 0.88), 'team', 0.23 * s, 0.23 * lift, 0, [0, 0, rz], null, n);
+            b.add(box(0.2, 0.012, 0.5), 'hullDark', 0.2 * s, 0.2 * lift + 0.047, 0, [0, 0, rz], null, n);
+            b.add(box(0.03, 0.025, 0.82), 'hglow', 0.43 * s, 0.43 * lift + 0.035, 0, [0, 0, rz], null, n);
+        }
+        return b.build({ height: 0.9, doorOpen: OPEN });
+    }
+
+    // Hegemony trim for the shared buildings (added on top of the re-coloured model).
+    const HEG_TRIM = {
+        core: (b) => { cornerFin(b, -1.2, -1.2, 0.15, 0.95, 0.5); cornerFin(b, 1.22, -1.22, 0.15, 0.95, 0.5); floatGem(b, 0.32, 0.96, 0.18, 1.2); },
+        reactor: (b) => { cornerFin(b, 0.84, -0.84, 0.08, 0.6, 0.3); cornerFin(b, 0.84, 0.84, 0.08, 0.6, 0.3); },
+        refinery: (b) => { cornerFin(b, -1.28, -1.28, 0.08, 0.8, 0.4); cornerFin(b, 1.3, 0.32, 0.08, 0.7, 0.34); floatGem(b, -0.2, 0.78, -0.4, 1); },
+        barracks: (b) => { cornerFin(b, -0.8, -0.82, 0.08, 0.75, 0.34); cornerFin(b, 0.8, -0.82, 0.08, 0.75, 0.34); },
+        factory: (b) => {
+            fin(b, 0, 1.2, -0.62, -Math.PI / 2, 0.32, 0.5); fin(b, 0, 1.2, 0.3, -Math.PI / 2, 0.26, 0.42);
+            cornerFin(b, -1.28, -1.3, 0.08, 0.8, 0.4); cornerFin(b, 1.28, -1.3, 0.08, 0.8, 0.4);
+        },
+        radar: (b) => { cornerFin(b, 0.8, 0.8, 0.08, 0.6, 0.32); cornerFin(b, -0.82, -0.82, 0.08, 0.6, 0.32); },
+        techlab: (b) => { fin(b, 0.7, 0.59, -0.7, Math.PI / 2, 0.42, 0.34); fin(b, 0.7, 0.59, 0.7, Math.PI / 2, 0.42, 0.34); floatGem(b, -0.42, 0.7, -0.35, 0.9); },
+    };
+
     // ---------------------------------------------------------------- decor, shards, spire (no team)
     function makeRock() {
         const b = new Builder();
@@ -786,13 +1163,23 @@ window.SF_MODELS = (() => {
 
     // ---------------------------------------------------------------- registry, caching, cloning
     const MAKERS = {
-        unit: { rifleman: makeRifleman, rocketeer: makeRocketeer, harvester: makeHarvester, buggy: makeBuggy, tank: makeTank, artillery: makeArtillery },
+        unit: { rifleman: makeRifleman, rocketeer: makeRocketeer, harvester: makeHarvester, buggy: makeBuggy, tank: makeTank, artillery: makeArtillery,
+            trooper: makeTrooper, shocktrooper: makeShocktrooper, skimmer: makeSkimmer, lancer: makeLancer, phantom: makePhantom },
         building: { core: makeCore, reactor: makeReactor, refinery: makeRefinery, barracks: makeBarracks, factory: makeFactory,
-            radar: makeRadar, turret: makeTurret, techlab: makeTechlab },
+            radar: makeRadar, turret: makeTurret, techlab: makeTechlab, spire: makePulseSpire, uplink: makeUplink, riftsilo: makeRiftsilo },
         decor: { rock: makeRock, boulder: makeBoulder, crystal: makeCrystal, tree: makeTree },
         misc: { shardCluster: makeShardCluster, spire: makeSpire },
     };
-    const templates = new Map();   // kind:type:team → built template (geometry has the team colour baked in)
+    const templates = new Map();   // kind:type:team:faction → built template (geometry has the team colour baked in)
+    const FACTIONS = ['vanguard', 'hegemony'];
+    const OWN_FACTION = { trooper: 'hegemony', shocktrooper: 'hegemony', skimmer: 'hegemony', lancer: 'hegemony', phantom: 'hegemony',
+        spire: 'hegemony', riftsilo: 'hegemony' };
+    // The faction look for a model: the one asked for, else the type's own (config `faction`), else Vanguard.
+    function factionFor(kind, type, f) {
+        if (FACTIONS.includes(f)) return f;
+        const def = kind === 'unit' ? CFG.UNITS[type] : kind === 'building' ? CFG.BUILDINGS[type] : null;
+        return (def && def.faction) || OWN_FACTION[type] || 'vanguard';
+    }
 
     function fallback(kind, type) {
         console.warn('SF_MODELS: no model for', kind, type);
@@ -800,14 +1187,17 @@ window.SF_MODELS = (() => {
         b.add(box(0.5, 0.5, 0.5), 'team', 0, 0, 0);
         return b.build({ height: 0.5 });
     }
-    function template(kind, type, team) {
-        const key = `${kind}:${type}:${team}`;
+    function template(kind, type, team, faction = 'vanguard') {
+        const key = `${kind}:${type}:${team}:${faction}`;
         let t = templates.get(key);
         if (t) return t;
         const make = MAKERS[kind] && MAKERS[kind][type];
         Builder.team = team;
-        t = make ? make() : fallback(kind, type);
+        Builder.faction = faction;
+        Builder.trim = kind === 'building' && faction === 'hegemony' ? HEG_TRIM[type] || null : null;
+        try { t = make ? make() : fallback(kind, type); } finally { Builder.faction = 'vanguard'; Builder.trim = null; }
         t.userData.kind = kind;
+        t.userData.faction = faction;
         t.userData.type = type;
         t.userData.team = team;
         if (kind === 'unit' && CFG.UNITS[type]) t.userData.radius = CFG.UNITS[type].radius;
@@ -816,12 +1206,59 @@ window.SF_MODELS = (() => {
         templates.set(key, t);
         return t;
     }
-    function instance(kind, type, team) {
-        const g = template(kind, type, team).clone(true);
+    // A glow material of its own (same shader program), for parts the renderer drives per entity ('charge').
+    function ownGlowMaterial() {
+        const m = MATERIALS.glow.clone();
+        m.name = 'sf-glow-own';
+        m.onBeforeCompile = MATERIALS.glow.onBeforeCompile;
+        m.customProgramCacheKey = MATERIALS.glow.customProgramCacheKey;
+        return m;
+    }
+    function instance(kind, type, team, faction) {
+        const g = template(kind, type, team, faction).clone(true);
         const wheels = [];
-        g.traverse((o) => { if (o.name === 'wheel') wheels.push(o); });
+        g.traverse((o) => {
+            if (o.name === 'wheel') wheels.push(o);
+            if (o.name === 'charge') o.traverse((m) => { if (m.isMesh) { m.material = ownGlowMaterial(); m.userData.ownMaterial = true; } });
+        });
         g.userData.wheels = wheels;
         return g;
+    }
+    // Translucent twins of the two shared materials (a cloaked unit as its owner sees it). Shared and cached:
+    // swap mesh.material = SF_MODELS.ghostMaterial(mesh.material) while cloaked, and back when it decloaks.
+    const ghosts = new Map();
+    function ghostMaterial(mat) {
+        if (!mat) return mat;
+        if (mat.userData && mat.userData.ghost) return mat;
+        let g = ghosts.get(mat);
+        if (!g) {
+            g = mat.clone();
+            g.name = (mat.name || 'sf') + '-ghost';
+            g.onBeforeCompile = mat.onBeforeCompile;
+            if (mat.customProgramCacheKey !== T.Material.prototype.customProgramCacheKey) g.customProgramCacheKey = mat.customProgramCacheKey;
+            g.transparent = true;
+            g.opacity = 0.38;
+            g.depthWrite = false;
+            g.userData = { ghost: true };
+            ghosts.set(mat, g);
+        }
+        return g;
+    }
+    // Pose helpers for the animated parts (the raw conventions are in the header).
+    function setDoors(obj, k) {
+        const open = (obj.userData.doorOpen || 1.9) * Math.max(0, Math.min(1, k));
+        const l = obj.getObjectByName('doorL'), r = obj.getObjectByName('doorR');
+        if (l) l.rotation.z = open;
+        if (r) r.rotation.z = -open;
+    }
+    function setCharge(obj, k, time = 0) {
+        const c = obj.getObjectByName('charge');
+        if (!c) return;
+        k = Math.max(0, Math.min(1, k));
+        // dim while empty, brighter as it fills, a quick throb once ready
+        const v = k >= 1 ? 2.2 + Math.sin(time * 6) * 0.6 : 0.25 + k * 1.4 + Math.sin(time * (2 + k * 4)) * 0.12 * k;
+        c.traverse((m) => { if (m.isMesh && m.userData.ownMaterial) m.material.emissiveIntensity = v; });
+        c.scale.setScalar(0.85 + 0.25 * k);
     }
     const teamOf = (c) => (typeof c === 'number' ? c : (CFG.TEAMS && CFG.TEAMS[0] ? CFG.TEAMS[0].color : 0x2f8fff));
 
@@ -836,14 +1273,19 @@ window.SF_MODELS = (() => {
     }
 
     return {
-        unit: (type, teamColor) => instance('unit', type, teamOf(teamColor)),
-        building: (type, teamColor) => instance('building', type, teamOf(teamColor)),
+        unit: (type, teamColor, faction) => instance('unit', type, teamOf(teamColor), factionFor('unit', type, faction)),
+        building: (type, teamColor, faction) => instance('building', type, teamOf(teamColor), factionFor('building', type, faction)),
         decor: (type) => instance('decor', type, 0x888888),
         shardCluster: () => instance('misc', 'shardCluster', 0x888888),
         spire: () => instance('misc', 'spire', 0x888888),
         // extras for the renderer / UI / preview
-        types: { unit: Object.keys(MAKERS.unit), building: Object.keys(MAKERS.building), decor: Object.keys(MAKERS.decor) },
-        colors: { shard: PAL.shard, energy: PAL.energy, tech: PAL.tech, warn: PAL.warn, rock: PAL.rock, ground: PAL.ground },
+        types: { unit: Object.keys(MAKERS.unit), building: Object.keys(MAKERS.building), decor: Object.keys(MAKERS.decor), factions: FACTIONS.slice() },
+        colors: { shard: PAL.shard, energy: PAL.energy, tech: PAL.tech, warn: PAL.warn, rock: PAL.rock, ground: PAL.ground,
+            hegemonyGlow: PAL.hegemonyGlow, violet: PAL.violet },
+        factionOf: (kind, type) => factionFor(kind, type),   // the default look of a type ('vanguard' | 'hegemony')
+        setDoors,       // setDoors(riftsiloObj, open01)
+        setCharge,      // setCharge(uplinkObj, charge01, timeSeconds)
+        ghostMaterial,  // ghostMaterial(material) → its shared translucent twin (cloak)
         materials: MATERIALS,   // { body, glow }: shared by every model; clone before changing one per entity
         triangles,      // triangles(object3d) → triangle count
     };
