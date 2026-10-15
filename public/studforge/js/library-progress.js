@@ -54,11 +54,7 @@
         });
         sf.on('step', step => { if (model) { saved.step = step; persist(); paint(); } });
         paint();
-        // Explicit shared links take precedence over the last locally opened build.
-        const params = new URLSearchParams(location.search);
-        if (state.lastModel && !['ref', 'idea', 'mosaic'].some(key => params.has(key)) && !sf.model && sf.reference) {
-            sf.reference.load(state.lastModel.replace(/^set-/, ''));
-        }
+        // The last kit opened here is offered as "resume" on the home screen (reference.js), not reopened unasked.
     }
     if (window.studForge) init(); else document.addEventListener('studforge:ready', init, { once: true });
 })();

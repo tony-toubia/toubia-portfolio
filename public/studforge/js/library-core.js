@@ -76,9 +76,13 @@
         return entries.filter(entry => tags.every(tag => entry.tags.includes(tag))
             && words.every(word => [entry.name, entry.prompt, entry.ref, entry.theme, entry.category, entry.year, entry.subject, ...entry.tags].join(' ').toLowerCase().includes(word)));
     }
-    function shouldBrowseOnStart(search, seen, lastModel) {
+    // The library is the home screen: every visit opens on it unless the address names a model to show
+    // (a share link: a real set, an idea, a mosaic or a local build). A saved last kit is offered on the
+    // home screen as "resume", never opened behind the user's back.
+    const SHARE_PARAMS = ['ref', 'idea', 'mosaic', 'build'];
+    function shouldBrowseOnStart(search) {
         const params = new URLSearchParams(search);
-        return !seen && !lastModel && !['ref', 'idea', 'mosaic'].some(key => params.has(key));
+        return !SHARE_PARAMS.some(key => params.has(key));
     }
     root.StudForgeLibrary = { readState, saveState, filterModels, inventory, resumeStep, buildKey, combineEntries, searchEntries, shouldBrowseOnStart };
 })(typeof window !== 'undefined' ? window : globalThis);

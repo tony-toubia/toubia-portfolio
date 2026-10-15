@@ -2,7 +2,7 @@
 // model by element type, baseplates, lighting moods, a live spin and a turntable video.
 //
 // Where it lives in the workbench shell:
-//   canvas view cluster   🧩 BY TYPE (the parts tray) and ⟳ SPIN (auto-rotate; shows the recording ring)
+//   canvas view cluster   🧩 PARTS LAYOUT (the parts tray) and ⟳ SPIN (auto-rotate; shows the recording ring)
 //   Style tab             SCENE: baseplate and lighting (section id 'studio')
 //   header Share menu     Snapshot (a PNG) and Record turntable video (a webm of one orbit)
 //
@@ -16,7 +16,7 @@
     const GLOW = 0xffe14d;   // the highlight pulse colour (the app's yellow, a touch warmer)
 
     const CSS = `
-/* canvas widgets (BY TYPE, SPIN) take the view cluster's .cam-btn look; recording shows on SPIN */
+/* canvas widgets (PARTS LAYOUT, SPIN) take the view cluster's .cam-btn look; recording shows on SPIN */
 .sfs-ring { width: 13px; height: 13px; border-radius: 50%; display: none; flex: none; background: conic-gradient(#ff6b6b calc(var(--p, 0) * 1%), rgba(255, 255, 255, 0.18) 0); box-shadow: 0 0 0 2px rgba(255, 107, 107, 0.25); }
 .cam-btn.rec { color: #ff8a8a; border-color: rgba(255, 107, 107, 0.7); cursor: default; }
 .cam-btn.rec .sfs-ring { display: block; }
@@ -211,7 +211,7 @@
         const navigationHint = viewportCard.querySelector('.viewport-hint'), originalHint = navigationHint?.textContent;
         trayTools.querySelector('[data-tray-fit]').addEventListener('click', () => { closeCard(); fitTray(); });
         style.textContent += '.sfs-tray-tools{position:absolute;top:60px;left:12px;right:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:#e2e8f0;background:#111827eb;border:1px solid var(--border-main);border-radius:8px;padding:6px 8px;pointer-events:none;z-index:6}.sfs-tray-tools[hidden]{display:none}.sfs-tray-tools button{pointer-events:auto;background:var(--bg-main);border:1px solid var(--border-main);color:var(--lego-yellow);padding:6px 10px;border-radius:6px;cursor:pointer}';
-        style.textContent += '@media(max-width:767px){.sfs-tray-tools{top:12px;right:58px;gap:6px;font-size:11px}.sfs-parts-inspect{top:12px!important;left:12px!important;right:58px!important;width:auto}}';
+        style.textContent += '@media(max-width:767px){.sfs-tray-tools{top:8px;left:8px;right:8px;gap:6px;font-size:11px}.sfs-parts-inspect{top:8px!important;left:8px!important;right:8px!important;width:auto}}';
         const origSetExplode = viewer.setExplode.bind(viewer);
         viewer.setExplode = function (v) {
             if (trayOn) { this.explodeProgress = Math.max(0, Math.min(1, v)); return; }   // the tray owns the positions for now
@@ -294,7 +294,7 @@
         function fitTray() {
             if (!trayLayout) return;
             const height=trayGroups.reduce((n,g)=>Math.max(n,g.bounds.max.y-g.bounds.min.y),0);
-            const padding={height:viewer.container.clientHeight,top:trayTools.offsetTop+trayTools.offsetHeight+12,bottom:72};
+            const padding={height:viewer.container.clientHeight,top:trayTools.offsetTop+trayTools.offsetHeight+12,bottom:viewer.bottomPad||72};
             const radius=trayCore.fitRadius(trayLayout.width+2,trayLayout.depth+3,viewer.camera,height,padding);
             viewer.partsRadius = radius; viewer.partsExtent = trayExtent;
             viewer.partsHeight = height+viewer.modelGroup.position.y;viewer.partsWidth=trayLayout.width+2;viewer.partsDepth=trayLayout.depth+3;
@@ -589,9 +589,9 @@
             b.setAttribute('aria-pressed', 'false');
             return sf.widget(b);
         };
-        const trayBtn = camBtn('🧩', 'BY TYPE', 'Sort every brick into a parts tray by type');
+        const trayBtn = camBtn('🧩', 'PARTS LAYOUT', 'Lay every piece out, sorted by type and colour'); trayBtn.id = 'btn-parts-layout';
         trayBtn.addEventListener('click', () => setTray(!trayOn));
-        const spinBtn = camBtn('⟳', 'SPIN', 'Spin the model round');
+        const spinBtn = camBtn('⟳', 'SPIN', 'Spin the model round'); spinBtn.id = 'btn-spin';
         spinBtn.addEventListener('click', () => { if (!recording) setSpin(!spinning); });
 
         if (sf.shareItem) {

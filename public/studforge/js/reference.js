@@ -4,9 +4,10 @@
 // A curated set of them is converted into StudForge models (data/omr/, loaded and expanded by
 // FORGE.omr in omr.js) whose bricks carry their LDraw part id, a 3x3 rotation and their real
 // instruction step. This feature adds:
-//   - one unified Library source (showPanel('library')): every converted set and local build,
-//     searchable, filtered by kind (vehicles, space, buildings...), as cards (name, set number, year, theme,
-//     pieces, steps). Picking one loads it and closes Make.
+//   - the kit library, the app's home screen (#home-library; showPanel('library') opens it): every converted set,
+//     starter idea and local build, searchable, filtered by labels and kind (vehicles, space, buildings...), as
+//     cards (name, set number, year, theme, pieces, steps), with "continue" / "resume your last kit" on top.
+//     Picking one loads it and leaves the home screen.
 //   - in the LEARN tab: the real-set card while one is shown (set, attribution, ⚒️ FORGE ONE LIKE THIS,
 //     ⏮ STEP 1), and BUILD A REAL ONE: the converted sets of the current model's subject
 //   - on the BUILD tab: a REFERENCE badge and the attribution line under #model-desc, and the step hint names
@@ -23,43 +24,68 @@
     const PRE = 'sfref';
     const storage = { getItem: key => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) };
     const CSS = `
-.${PRE}-browser { display: flex; flex-direction: column; gap: 10px; }
+.${PRE}-browser { display: flex; flex-direction: column; gap: 12px; }
 .${PRE}-intro { margin: 0; font-size: 14px; color: var(--text-secondary); line-height: 1.4; }
-.${PRE}-search { width: 100%; box-sizing: border-box; height: 40px; background: var(--bg-main); border: 1px solid var(--border-main); border-radius: 9px; color: #fff; font-family: var(--font-body); font-size: 16px; font-weight: 600; padding: 0 12px; outline: none; user-select: text; -webkit-user-select: text; }
+.${PRE}-toolbar { display: flex; flex-direction: column; gap: 10px; }
+.sf-home .${PRE}-toolbar { position: sticky; top: 0; z-index: 3; margin: 0 -24px; padding: 12px 24px 10px; background: rgba(12, 15, 23, 0.94); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid transparent; }
+.sf-home .${PRE}-toolbar.stuck { border-bottom-color: var(--border-main); }
+.${PRE}-searchwrap { position: relative; }
+.${PRE}-searchwrap::before { content: ''; position: absolute; left: 14px; top: 50%; width: 11px; height: 11px; margin-top: -8px; border: 2px solid var(--text-muted); border-radius: 50%; pointer-events: none; }
+.${PRE}-searchwrap::after { content: ''; position: absolute; left: 26px; top: 50%; width: 6px; height: 2px; margin-top: 3px; background: var(--text-muted); transform: rotate(45deg); pointer-events: none; }
+.${PRE}-search { width: 100%; box-sizing: border-box; height: 44px; background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; color: #fff; font-family: var(--font-body); font-size: 16px; font-weight: 600; padding: 0 14px 0 40px; outline: none; user-select: text; -webkit-user-select: text; transition: border-color 0.15s, box-shadow 0.15s; }
 .${PRE}-search::placeholder { color: var(--text-muted); font-weight: 500; }
-.${PRE}-search:focus { border-color: var(--border-active); }
+.${PRE}-search:focus { border-color: var(--border-active); box-shadow: 0 0 0 3px rgba(242, 205, 55, 0.1); }
 .${PRE}-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.${PRE}-chips .tool-chip { min-height: 32px; font-size: 13px; white-space: nowrap; }
+.${PRE}-chips .tool-chip { min-height: 34px; padding: 4px 12px; font-size: 14px; white-space: nowrap; border-radius: 999px; }
 .${PRE}-chips .tool-chip i { font-style: normal; font-family: var(--font-mono); font-size: 10px; font-weight: 500; color: var(--text-muted); }
-.${PRE}-chips .tool-chip.on { background: rgba(242, 205, 55, 0.1); color: var(--lego-yellow); }
+.${PRE}-chips .tool-chip.on { background: rgba(242, 205, 55, 0.12); color: var(--lego-yellow); border-color: var(--lego-yellow); }
+.${PRE}-chips .tool-chip.on i { color: rgba(242, 205, 55, 0.7); }
 .${PRE}-bar { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-height: 14px; }
 .${PRE}-count { font-family: var(--font-heading); font-size: 9px; font-weight: 700; letter-spacing: 1.2px; color: var(--text-muted); }
 .${PRE}-status { font-family: var(--font-heading); font-size: 9px; font-weight: 700; letter-spacing: 0.8px; color: var(--lego-yellow); text-align: right; }
 .${PRE}-status.err { color: #f87171; }
 .${PRE}-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(160px, 100%), 1fr)); gap: 8px; }
-.${PRE}-card { display: flex; flex-direction: column; gap: 3px; text-align: left; background: var(--bg-main); border: 1px solid var(--border-main); border-radius: 10px; padding: 10px 11px; cursor: pointer; color: inherit; font: inherit; min-width: 0; transition: border-color 0.15s ease, transform 0.15s ease; }
-.${PRE}-card:hover, .${PRE}-card:focus-visible { border-color: var(--lego-yellow); transform: translateY(-1px); outline: none; }
+.sf-home .${PRE}-grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
+.${PRE}-card { display: flex; flex-direction: column; gap: 3px; text-align: left; background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 12px; padding: 8px 8px 11px; cursor: pointer; color: inherit; font: inherit; min-width: 0; transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease; }
+.${PRE}-card:hover, .${PRE}-card:focus-visible { border-color: var(--lego-yellow); transform: translateY(-2px); box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35); outline: none; }
+.${PRE}-card > :not(.${PRE}-thumb):not(.${PRE}-idea-icon) { margin-left: 4px; margin-right: 4px; }
 .${PRE}-card.on { border-color: var(--lego-yellow); box-shadow: inset 0 0 0 1px var(--lego-yellow); }
 .${PRE}-card.busy { opacity: 0.65; cursor: progress; }
 .${PRE}-card.busy .${PRE}-meta::after { content: ' · LOADING…'; color: var(--lego-yellow); }
 .${PRE}-tile { position: relative; min-width: 0; }
-.${PRE}-tile .${PRE}-card { width: 100%; height: 100%; padding-top: 38px; }
-.${PRE}-thumb { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; border-radius: 8px; }
-.${PRE}-favorite { position: absolute; top: 5px; right: 5px; width: 32px; height: 32px; border: 1px solid var(--border-main); border-radius: 8px; background: var(--bg-panel); color: var(--lego-yellow); cursor: pointer; font-size: 18px; }
+.${PRE}-tile .${PRE}-card { width: 100%; height: 100%; }
+.${PRE}-thumb, .${PRE}-idea-icon { width: 100%; aspect-ratio: 4 / 3; border-radius: 8px; margin-bottom: 6px; background: radial-gradient(ellipse at 50% 62%, #222b3b 0%, #141a25 62%, #10151e 100%); }
+.${PRE}-thumb { object-fit: contain; display: block; }
+.${PRE}-favorite { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; background: rgba(9, 12, 19, 0.7); color: var(--lego-yellow); cursor: pointer; font-size: 17px; line-height: 1; backdrop-filter: blur(4px); }
+.${PRE}-favorite[aria-pressed="false"] { color: var(--text-secondary); }
+.${PRE}-favorite:hover { border-color: var(--lego-yellow); color: var(--lego-yellow); }
 .${PRE}-top { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 10px; color: var(--lego-yellow); letter-spacing: 0.3px; }
-.${PRE}-top .ico { font-size: 15px; line-height: 1; }
+.${PRE}-top .ico { font-size: 14px; line-height: 1; }
 .${PRE}-top .yr { color: var(--text-muted); margin-left: auto; }
-.${PRE}-name { font-family: var(--font-body); font-size: 15px; font-weight: 700; color: #fff; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.${PRE}-theme { font-size: 12px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.${PRE}-meta { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); letter-spacing: 0.3px; }
-.${PRE}-labels { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
-.${PRE}-labels > span { font-size: 11px; border-radius: 4px; background: rgba(242,205,55,.12); color: var(--lego-yellow); padding: 2px 5px; }
-.${PRE}-filter-more > summary { cursor: pointer; font-size: 13px; color: var(--text-secondary); padding: 5px 0; }
+.${PRE}-name { font-family: var(--font-body); font-size: 16px; font-weight: 700; color: #fff; line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.${PRE}-theme { font-size: 13px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.${PRE}-meta { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); letter-spacing: 0.3px; margin-top: auto; padding-top: 3px; }
+.${PRE}-labels { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.${PRE}-labels:empty { display: none; }
+.${PRE}-labels > span { font-size: 11px; font-weight: 700; border-radius: 4px; background: rgba(242,205,55,.1); color: var(--lego-yellow); padding: 1px 6px; }
+.${PRE}-labels > span.alt { background: rgba(255,255,255,.06); color: var(--text-secondary); }
+.${PRE}-resume { display: grid; grid-template-columns: 76px 1fr auto; align-items: center; gap: 14px; padding: 10px 12px 10px 10px; border: 1px solid rgba(242, 205, 55, 0.45); border-radius: 12px; background: linear-gradient(90deg, rgba(242, 205, 55, 0.1), rgba(242, 205, 55, 0.02) 70%); cursor: pointer; color: inherit; font: inherit; text-align: left; width: 100%; }
+.${PRE}-resume[hidden] { display: none; }
+.${PRE}-resume:hover { border-color: var(--lego-yellow); }
+.${PRE}-resume .rs-thumb { width: 76px; height: 57px; border-radius: 8px; object-fit: contain; background: radial-gradient(ellipse at 50% 62%, #222b3b 0%, #141a25 70%); display: grid; place-items: center; font-size: 30px; }
+.${PRE}-resume .rs-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.${PRE}-resume .rs-kicker { font-family: var(--font-heading); font-size: 9px; font-weight: 800; letter-spacing: 1.3px; color: var(--lego-yellow); }
+.${PRE}-resume .rs-name { font-size: 17px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.${PRE}-resume .rs-meta { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.${PRE}-resume .rs-go { font-family: var(--font-heading); font-size: 10px; font-weight: 800; letter-spacing: 1px; color: #0c0f17; background: var(--lego-yellow); border-radius: 8px; padding: 10px 14px; white-space: nowrap; }
+.${PRE}-filter-more > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-secondary); padding: 2px 0; width: max-content; }
+.${PRE}-filter-more > summary:hover { color: #fff; }
 .${PRE}-filter-more .${PRE}-chips { margin-top: 7px; }
-.${PRE}-idea-icon { display: grid; place-items: center; aspect-ratio: 4 / 3; font-size: 52px; background: rgba(255,255,255,.03); border-radius: 8px; }
+.${PRE}-idea-icon { display: grid; place-items: center; font-size: 52px; }
 .${PRE}-saved-actions { display: flex; gap: 5px; padding: 6px; }
 .${PRE}-saved-actions button { border: 1px solid var(--border-main); background: var(--bg-panel); color: var(--text-secondary); border-radius: 6px; min-width: 32px; min-height: 32px; cursor: pointer; }
 .${PRE}-tile:has(.${PRE}-saved-actions) .${PRE}-card { height: calc(100% - 44px); }
+.${PRE}-empty .tool-chip { margin-left: 8px; }
 .${PRE}-empty { grid-column: 1 / -1; font-size: 14px; color: var(--text-muted); padding: 14px 0; text-align: center; }
 .${PRE}-foot { margin: 2px 0 0; font-size: 11px; color: var(--text-muted); line-height: 1.4; }
 .${PRE}-hint { font-size: 13px; color: var(--text-secondary); line-height: 1.45; margin: 0 0 10px; }
@@ -79,6 +105,16 @@
 @media (max-width: 767px) {
   .${PRE}-chips { flex-wrap: nowrap; overflow-x: auto; margin: 0 -12px; padding: 0 12px 2px; scrollbar-width: none; }
   .${PRE}-chips::-webkit-scrollbar { display: none; }
+  .sf-home .${PRE}-chips { margin: 0 -16px; padding: 0 16px 2px; }
+  .sf-home .${PRE}-toolbar { margin: 0 -16px; padding: 10px 16px 8px; gap: 8px; }
+  .sf-home .${PRE}-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .sf-home .${PRE}-name { font-size: 15px; }
+  .sf-home .${PRE}-theme { font-size: 12px; }
+  .sf-home .${PRE}-favorite { top: 10px; right: 10px; width: 30px; height: 30px; }
+  .${PRE}-resume { grid-template-columns: 60px 1fr auto; gap: 10px; padding: 8px 10px 8px 8px; }
+  .${PRE}-resume .rs-thumb { width: 60px; height: 45px; font-size: 24px; }
+  .${PRE}-resume .rs-name { font-size: 15px; }
+  .${PRE}-resume .rs-go { padding: 9px 10px; }
 }
 @media print { .${PRE}-now .${PRE}-row { display: none !important; } }
 `;
@@ -234,6 +270,7 @@
                 console.warn('StudForge real set', id, e);
                 loading = null; status = '✗ COULD NOT LOAD THAT SET'; statusErr = true; refresh();
                 if (sf.toast) sf.toast('Could not load that real set');
+                if (!sf.model && sf.openHome && !sf.isHome) sf.openHome();   // a broken share link lands on the library
             }
         }
 
@@ -307,8 +344,8 @@
             b.innerHTML = (e.thumbnail ? `<img class="${PRE}-thumb" src="${esc(previewURL(e.thumbnail))}" alt="" loading="lazy">` : '') + `<span class="${PRE}-top"><span class="ico" aria-hidden="true">${iconOf(e.subject)}</span>#${esc(e.id)}${e.year ? `<span class="yr">${esc(e.year)}</span>` : ''}</span>`
                 + `<span class="${PRE}-name">${esc(e.name)}</span>`
                 + (e.theme ? `<span class="${PRE}-theme">${esc(themeText(e.theme))}</span>` : '')
-                + (e.missing && e.missing.length ? `<span class="${PRE}-meta">Source omits ${esc(e.missing.join(', ').toLowerCase())}</span>` : '')
-                + `<span class="${PRE}-meta">${esc(e.pieces || '?')} PCS${e.steps ? ` · ${esc(e.steps)} ${e.stepKind === 'layers' ? 'LAYERS' : 'STEPS'}` : ''} · OPEN KIT →</span>`;
+                + `<span class="${PRE}-meta">${esc(e.pieces || '?')} PCS${e.steps ? ` · ${esc(e.steps)} ${e.stepKind === 'layers' ? 'LAYERS' : 'STEPS'}` : ''}</span>`;
+            if (e.missing && e.missing.length) b.title += `. The community file omits ${e.missing.join(', ').toLowerCase()}.`;
             b.addEventListener('click', () => loadSet(e.id));
             previewFallback(b, iconOf(e.subject));
             const favorite = el('button', `${PRE}-favorite`); favorite.type = 'button';
@@ -346,18 +383,24 @@
         ];
         const core = window.StudForgeLibrary;
         let query = '', selectedTags = [], entries = [];
-        const src = sf.addSource({ id: SOURCE, icon: '🧱', label: 'Browse library', hint: 'Sets, starter ideas and your builds', order: 5 });
-        const sb = src.body;
+        // The library is the home screen (main.js shows #home-library); Make's "Browse library" tile opens it.
+        const src = sf.addSource({ id: SOURCE, icon: '🧱', label: 'Browse library', hint: 'Sets, starter ideas and your builds', order: 5, open: () => sf.openHome && sf.openHome() });
+        const homeMount = document.getElementById('home-library');
+        const sb = homeMount || src.body;
         sb.innerHTML = `<div class="${PRE}-browser">
-  <p class="${PRE}-intro">Pick a kit and start building. Real sets, generated ideas and your saved builds, together.</p>
-  <input type="search" class="${PRE}-search" placeholder="Search kits, themes, set numbers or ideas" aria-label="Search library" enterkeyhint="search" autocomplete="off" spellcheck="false">
-  <div class="${PRE}-chips" role="group" aria-label="Filter library by labels"></div>
-  <details class="${PRE}-filter-more"><summary>Themes & more labels</summary><div class="${PRE}-chips ${PRE}-themes" role="group" aria-label="Filter library by theme"></div></details>
+  <button type="button" class="${PRE}-resume" hidden></button>
+  <div class="${PRE}-toolbar">
+    <div class="${PRE}-searchwrap"><input type="search" class="${PRE}-search" placeholder="Search kits, themes, set numbers or ideas" aria-label="Search the kit library" enterkeyhint="search" autocomplete="off" spellcheck="false"></div>
+    <div class="${PRE}-chips" role="group" aria-label="Filter library by labels"></div>
+    <details class="${PRE}-filter-more"><summary>Themes & more labels</summary><div class="${PRE}-chips ${PRE}-themes" role="group" aria-label="Filter library by theme"></div></details>
+  </div>
   <div class="${PRE}-bar"><span class="${PRE}-count" role="status"></span><span class="${PRE}-status" role="status"></span></div>
   <div class="${PRE}-grid"><p class="${PRE}-empty">Loading the library…</p></div>
   <p class="${PRE}-foot">Your saved and recent builds stay in this browser. Community sets credit their LDraw OMR authors. <a href="models/ATTRIBUTION.md" target="_blank" rel="noopener">Model credits and licenses</a>. LEGO is a trademark of the LEGO Group, which does not sponsor or endorse this project.</p>
 </div>`;
         const search = sb.querySelector(`.${PRE}-search`), chips = sb.querySelector(`.${PRE}-chips`), themes = sb.querySelector(`.${PRE}-themes`), grid = sb.querySelector(`.${PRE}-grid`), count = sb.querySelector(`.${PRE}-count`);
+        const resume = sb.querySelector(`.${PRE}-resume`), toolbar = sb.querySelector(`.${PRE}-toolbar`);
+        const showing = () => (homeMount ? !!sf.isHome : true);
         function buildEntries() {
             const state = window.StudForgeLibraryState ||= core.readState(storage);
             entries = core.combineEntries(index || [], window.INSPIRATION_MODELS || [], sf.gallery?.list() || [], sf.gallery?.recent() || [], state.favorites);
@@ -369,13 +412,18 @@
                 for (const tag of [theme, kind].filter(Boolean)) if (!entry.tags.includes(tag)) entry.tags.push(tag);
             }
         }
+        // Label chips, most useful first; empty ones (no saves yet, say) stay out of the way unless selected.
+        const LABELS = ['Popular picks', 'Real set', 'Starter idea', 'Saved', 'Recent', 'Favorites', 'Generated'];
+        const CHIP_NAMES = { 'Real set': 'Real sets', 'Starter idea': 'Starter ideas' };
         function paintChips() {
-            const labels = ['Real set', 'Generated', 'Saved', 'Recent', 'Favorites', 'Popular picks', 'Starter idea'];
-            const extra = [...new Set(entries.flatMap(e => e.tags).filter(tag => !labels.includes(tag)))].sort();
-            const chip = ([tag, n]) => `<button type="button" class="tool-chip${(tag === 'All' ? !selectedTags.length : selectedTags.includes(tag)) ? ' on' : ''}" data-tag="${esc(tag)}" aria-pressed="${tag === 'All' ? !selectedTags.length : selectedTags.includes(tag)}">${esc(tag)} <i>${n}</i></button>`;
-            chips.innerHTML = [['All', entries.length], ...labels.map(tag => [tag, entries.filter(e => e.tags.includes(tag)).length])].map(chip).join('');
-            themes.innerHTML = [...new Set([...extra, ...selectedTags.filter(tag => !labels.includes(tag))])].map(tag => [tag, entries.filter(e => e.tags.includes(tag)).length]).map(chip).join('');
-            sb.querySelector(`.${PRE}-filter-more summary`).textContent = selectedTags.some(tag => !labels.includes(tag)) ? `Themes & more labels · ${selectedTags.filter(tag => !labels.includes(tag)).join(', ')}` : 'Themes & more labels';
+            const extra = [...new Set(entries.flatMap(e => e.tags).filter(tag => !LABELS.includes(tag)))].sort();
+            const chip = ([tag, n]) => `<button type="button" class="tool-chip${(tag === 'All' ? !selectedTags.length : selectedTags.includes(tag)) ? ' on' : ''}" data-tag="${esc(tag)}" aria-pressed="${tag === 'All' ? !selectedTags.length : selectedTags.includes(tag)}">${esc(CHIP_NAMES[tag] || tag)} <i>${n}</i></button>`;
+            const counts = Object.fromEntries(LABELS.map(tag => [tag, entries.filter(e => e.tags.includes(tag)).length]));
+            // "Generated" says nothing new while every generated kit is a starter idea.
+            const useful = tag => counts[tag] && !(tag === 'Generated' && counts.Generated === counts['Starter idea']);
+            chips.innerHTML = [['All', entries.length], ...LABELS.filter(tag => useful(tag) || selectedTags.includes(tag)).map(tag => [tag, counts[tag]])].map(chip).join('');
+            themes.innerHTML = [...new Set([...extra, ...selectedTags.filter(tag => !LABELS.includes(tag))])].map(tag => [tag, entries.filter(e => e.tags.includes(tag)).length]).map(chip).join('');
+            sb.querySelector(`.${PRE}-filter-more summary`).textContent = selectedTags.some(tag => !LABELS.includes(tag)) ? `Themes & more labels · ${selectedTags.filter(tag => !LABELS.includes(tag)).join(', ')}` : 'Themes & more labels';
         }
         function libraryCard(e) {
             const tile = e.ref ? setCard(e) : el('div', `${PRE}-tile`);
@@ -383,7 +431,8 @@
                 const button = el('button', `${PRE}-card`); button.type = 'button'; button.dataset.build = e.key;
                 button.title = `Open ${e.name || e.prompt}`;
                 button.innerHTML = (e.thumb ? `<img class="${PRE}-thumb" alt="" src="${esc(previewURL(e.thumb))}" loading="lazy">` : `<span class="${PRE}-idea-icon" aria-hidden="true">${esc(e.icon || '🧱')}</span>`)
-                    + `<span class="${PRE}-name">${esc(e.name || e.prompt)}</span><span class="${PRE}-meta">${e.pieces ? `${esc(e.pieces)} PCS · ` : ''}OPEN BUILD →</span>`;
+                    + `<span class="${PRE}-top"><span class="ico" aria-hidden="true">${esc(e.icon || '✨')}</span>${esc(String(e.category || 'Idea').toUpperCase())}</span>`
+                    + `<span class="${PRE}-name">${esc(e.name || e.prompt)}</span><span class="${PRE}-meta">${e.pieces ? `${esc(e.pieces)} PCS · ` : ''}FORGED IN SECONDS</span>`;
                 button.addEventListener('click', () => sf.gallery.open(e.savedEntry || e)); previewFallback(button, e.icon); tile.appendChild(button);
                 const favorite = el('button', `${PRE}-favorite`); favorite.type = 'button';
                 const state = window.StudForgeLibraryState;
@@ -393,7 +442,8 @@
                 tile.appendChild(favorite);
             }
             const button = tile.querySelector(`.${PRE}-card`);
-            button.insertAdjacentHTML('beforeend', `<span class="${PRE}-labels">${e.tags.filter(tag => ['Real set', 'Generated', 'Saved', 'Recent', 'Starter idea', 'Movable'].includes(tag)).map(tag => `<span>${esc(tag)}</span>`).join('')}</span>`);
+            const shown = ['Real set', 'Starter idea', 'Generated', 'Movable', 'Saved', 'Recent'];
+            button.insertAdjacentHTML('beforeend', `<span class="${PRE}-labels">${e.tags.filter(tag => shown.includes(tag) && !(tag === 'Generated' && e.tags.includes('Starter idea'))).map(tag => `<span${['Saved', 'Recent'].includes(tag) ? ' class="alt"' : ''}>${esc(tag)}</span>`).join('')}</span>`);
             if (e.savedEntry) {
                 const actions = el('div', `${PRE}-saved-actions`);
                 const copy = el('button', '', '🔗'); copy.type = 'button'; copy.setAttribute('aria-label', `Copy link to ${e.name || e.prompt}`); copy.addEventListener('click', () => sf.gallery.copy(e.savedEntry));
@@ -410,20 +460,53 @@
                 const reset = el('button', 'tool-chip', 'Clear filters'); reset.type = 'button';
                 reset.addEventListener('click', () => { selectedTags = []; query = ''; search.value = ''; paintBrowser(); }); empty.appendChild(reset); grid.appendChild(empty);
             }
-            for (const e of hits) grid.appendChild(libraryCard(e));
-            count.textContent = `${hits.length} OF ${entries.length} KITS & IDEAS`;
+            const frag = document.createDocumentFragment();
+            for (const e of hits) frag.appendChild(libraryCard(e));
+            grid.appendChild(frag);
+            count.textContent = hits.length === entries.length ? `${entries.length} KITS & IDEAS` : `${hits.length} OF ${entries.length} KITS & IDEAS`;
         }
-        const paintBrowser = () => { if (!index) return; buildEntries(); paintChips(); paintGrid(); refresh(); };
+        /** "Continue building" the kit left open this visit, or "resume" the last real set opened on this device. */
+        function paintResume() {
+            const m = sf.model, state = window.StudForgeLibraryState ||= core.readState(storage);
+            let html = '', act = null;
+            if (m) {
+                const e = isRef(m) ? entryOf(m.reference.setId) : null;
+                const thumb = e && e.thumbnail ? `<img class="rs-thumb" src="${esc(previewURL(e.thumbnail))}" alt="">` : `<span class="rs-thumb" aria-hidden="true">${esc(m.icon || '🧱')}</span>`;
+                const noun = m.stepKind === 'layers' ? 'Layer' : 'Step';
+                html = `${thumb}<span class="rs-text"><span class="rs-kicker">CONTINUE BUILDING</span><span class="rs-name">${esc(m.name)}</span><span class="rs-meta">${noun} ${sf.viewer.currentStep + 1} of ${sf.viewer.maxLayer + 1} · ${pieces(m)} pcs</span></span><span class="rs-go">BACK TO KIT →</span>`;
+                act = () => sf.closeHome();
+            } else if (state.lastModel) {
+                const id = state.lastModel.replace(/^set-/, ''), e = entryOf(id);
+                if (e) {
+                    const saved = state.progress[id] || state.progress[`set-${id}`];
+                    const step = saved && Number.isInteger(saved.step) ? saved.step + 1 : null;
+                    const thumb = e.thumbnail ? `<img class="rs-thumb" src="${esc(previewURL(e.thumbnail))}" alt="">` : `<span class="rs-thumb" aria-hidden="true">${iconOf(e.subject)}</span>`;
+                    html = `${thumb}<span class="rs-text"><span class="rs-kicker">RESUME YOUR LAST KIT</span><span class="rs-name">${esc(e.name)}</span><span class="rs-meta">#${esc(e.id)}${step ? ` · ${e.stepKind === 'layers' ? 'layer' : 'step'} ${step}${e.steps ? ` of ${esc(e.steps)}` : ''}` : ''} · saved on this device</span></span><span class="rs-go">RESUME →</span>`;
+                    act = () => loadSet(id);
+                }
+            }
+            resume.hidden = !html;
+            resume.innerHTML = html;
+            resume.onclick = act;
+            if (html) previewFallback(resume, m ? m.icon : '🧱');
+        }
+        let dirty = true;
+        const paintBrowser = () => {
+            if (!index) return;
+            if (!showing()) { dirty = true; return; }   // painted when the home screen opens
+            dirty = false; buildEntries(); paintChips(); paintGrid(); paintResume(); refresh();
+        };
         search.addEventListener('input', () => { query = search.value; paintGrid(); });
         sb.addEventListener('click', event => {
             const tag = event.target.closest('[data-tag]')?.dataset.tag; if (!tag) return;
             selectedTags = tag === 'All' ? [] : selectedTags.includes(tag) ? selectedTags.filter(t => t !== tag) : [...selectedTags, tag]; paintChips(); paintGrid();
         });
-        sf.on('source', id => { if (id === SOURCE) paintBrowser(); });
+        sf.on('home', open => { if (open) { if (dirty) paintBrowser(); else { paintResume(); refresh(); } } });
         sf.on('library:change', paintBrowser);
-        sf.library = { browse: () => sf.showSource(SOURCE), entries: () => entries.slice() };
-        const browse = document.getElementById('btn-library');
-        if (browse) browse.addEventListener('click', () => sf.library.browse());
+        // The search and filters stay pinned while the grid scrolls; a hairline shows once they float.
+        const scroller = document.getElementById('home-scroll');
+        if (scroller && homeMount) scroller.addEventListener('scroll', () => toolbar.classList.toggle('stuck', toolbar.getBoundingClientRect().top <= scroller.getBoundingClientRect().top + 1), { passive: true });
+        sf.library = { browse: () => (sf.openHome ? sf.openHome() : sf.showSource(SOURCE)), entries: () => entries.slice() };
 
         /* ── LEARN: the real set on show, and BUILD A REAL ONE ──── */
         const nowP = sf.registerPanel({ id: 'realsets-now', title: null, group: 'learn', order: 5 });
@@ -495,7 +578,7 @@
         try { refParam = new URLSearchParams(location.search).get('ref'); } catch (e) { /* no URL */ }
         if (refParam && /^[\w.-]{1,40}$/.test(refParam)) loadSet(refParam);
 
-        sf.reference = { load: loadSet, list: () => (index || []).slice(), get current() { return current ? current.model : null; }, forgeLikeThis, isReference: isRef, sourceId: SOURCE, browse: () => sf.showSource(SOURCE) };
+        sf.reference = { load: loadSet, list: () => (index || []).slice(), get current() { return current ? current.model : null; }, forgeLikeThis, isReference: isRef, sourceId: SOURCE, browse: () => sf.library.browse() };
     }
 
     if (window.studForge) init();
