@@ -7,8 +7,10 @@
     const DX8 = [1, -1, 0, 0, 1, 1, -1, -1];
     const DZ8 = [0, 0, 1, -1, 1, -1, 1, -1];
     const CATS = ['building', 'infantry', 'vehicle'];
-    const PRODUCER = { infantry: 'barracks', vehicle: 'factory' };
-    const HOVER_SHARD_BOOST = 1.15;
+    const PRODUCER = { building: 'core', infantry: 'barracks', vehicle: 'factory' };
+    const HOVER_SHARD_BOOST = 1.15;   // hover units with `shardBonus` skim over shard fields this much faster
+    const HEAL_EVENT_EVERY = 0.5;     // seconds between 'heal' events while a healer / repair bay works
+    const INCOME_EVENT_EVERY = 3;     // seconds between 'income' events from a Shard Siphon
 
     function angDiff(a, b) {
         let d = (b - a) % (Math.PI * 2);
@@ -411,16 +413,24 @@
             const C = this.cfg, out = [];
             const have = this._haveMap(team);
             const FAC = C.FACTIONS && C.FACTIONS[tm.faction];
+            const lanes = {}, caps = {};
+            for (const cat of CATS) { lanes[cat] = this.lanes(team, cat); caps[cat] = C.ECONOMY.queueMax * Math.max(1, lanes[cat]); }
             const pushOpt = (type, cat, def, reason) => {
                 const q = tm.queues[cat];
-                let queued = 0;
-                for (const it of q) if (it.type === type) queued++;
-                const head = q[0] && q[0].type === type ? q[0] : null;
+                // queued: how many of this type wait or build; building: how many are in production right now;
+                // progress: the most advanced one of them (0..1)
+                let queued = 0, building = 0, progress = 0, stalled = false;
+                for (const it of q) {
+                    if (it.type !== type) continue;
+                    queued++;
+                    if (it.active) { building++; if (it.stalled) stalled = true; }
+                    if (it.progress > progress) progress = it.progress;
+                }
                 out.push({
                     type, name: def.name, cat, cost: def.cost, time: def.time, locked: !!reason, reason: reason || '',
-                    queued, progress: head ? head.progress : 0, ready: cat === 'building' && tm.ready === type,
-                    paused: !!(head && (tm.credits <= 0 || (cat === 'building' && tm.ready) || !this._hasProducer(team, cat))),
-                    full: q.length >= C.ECONOMY.queueMax,
+                    queued, building, progress, ready: cat === 'building' && tm.ready === type,
+                    paused: !!(queued && (tm.credits <= 0 || stalled || (cat === 'building' && tm.ready) || !lanes[cat])),
+                    full: q.length >= caps[cat],
                 });
             };
             // buildings in config order with the superweapon last; units in the faction's roster order
@@ -434,6 +444,17 @@
                 pushOpt(type, def.from, def, this._lockReason(team, def.from, def, have));
             }
             return out;
+        }
+        // Production lanes: one per finished, live producer (barracks → infantry, war factory → vehicles), up to
+        // ECONOMY.maxLanes; the first `lanes` items of the queue build at the same time. Buildings keep one lane.
+        lanes(team, cat) {
+            if (!this.teams[team] || !PRODUCER[cat]) return 0;
+            const n = this._producers(team, cat).length;
+            return cat === 'building' ? Math.min(1, n) : Math.min(this.cfg.ECONOMY.maxLanes || 1, n);
+        }
+        // How many items the category's queue holds: ECONOMY.queueMax per lane (at least one lane's worth).
+        queueCap(team, cat) {
+            return this.cfg.ECONOMY.queueMax * Math.max(1, this.lanes(team, cat));
         }
         // May this team ever build this type (its faction's or shared, and on the mission's list)?
         allowed(team, type) {
@@ -453,6 +474,7 @@
                     case 'move': return this._cmdMove(team, cmd.ids, cmd.x, cmd.z, 'move');
                     case 'attackMove': return this._cmdMove(team, cmd.ids, cmd.x, cmd.z, 'attackMove');
                     case 'attack': return this._cmdAttack(team, cmd.ids, cmd.targetId);
+                    case 'heal': case 'repair': return this._cmdHeal(team, cmd.ids, cmd.targetId);
                     case 'stop': return this._cmdStop(team, cmd.ids);
                     case 'harvest': return this._cmdHarvest(team, cmd.ids, cmd.tx, cmd.tz);
                     case 'queue': return this._cmdQueue(team, cmd.item);
@@ -481,6 +503,7 @@
                 _hitBy: 0, _hitT: -99, _h: type === 'harvester' ? 'seek' : null, _tile: -1, _wait: 0, _refId: 0,
                 _prefX: NaN, _prefZ: NaN, _dock: null, _px: 0, _pz: 0,
                 cloaked: false, _cloak: !!def.cloak, _hunt: false, _patrol: null, _pk: 0,
+                stunned: 0, slowed: false, _slow: 0, healing: null, _healTgt: 0, _healEv: 0, _burstLeft: 0, _blocked: false,
             };
             this.entities.set(u.id, u);
             this._dirty = true;
@@ -502,6 +525,7 @@
             for (const ai of this.ais) ai.update(T);
             this._updatePower(false);
             for (const tm of this.teams) if (!tm.defeated) this._updateProduction(tm);
+            this._updateFields();
             for (const b of this._buildings) if (!b.dead) this._updateBuilding(b);
             for (const u of this._units) if (!u.dead) this._updateUnit(u);
             this._separate();
@@ -558,9 +582,15 @@
             return have;
         }
         _hasProducer(team, cat) {
-            const type = cat === 'building' ? 'core' : PRODUCER[cat];
+            const type = PRODUCER[cat];
             for (const b of this._blds()) if (b.team === team && !b.dead && b.type === type && b.built >= 1) return true;
             return false;
+        }
+        // Finished, live buildings that produce this category (cores for 'building').
+        _producers(team, cat) {
+            const type = PRODUCER[cat], out = [];
+            for (const b of this._blds()) if (b.team === team && !b.dead && b.type === type && b.built >= 1) out.push(b);
+            return out;
         }
         _lockReason(team, cat, def, have) {
             const B = this.cfg.BUILDINGS;
@@ -620,6 +650,7 @@
                 angle: this.faceOf(team) > 0 ? 0 : Math.PI, face: this.faceOf(team), turret: face, hp: def.hp, maxHp: def.hp, dead: false, built, state: 'idle', targetId: null,
                 firing: 99, carry: 0, radius: Math.max(def.w, def.d) / 2,
                 _cd: 0, _scan: 0, _rise: 1.2 + def.w * def.d * 0.15, _done: built >= 1,
+                stunned: 0, repairing: null, _healEv: 0, _burstLeft: 0, _inc: 0, _incT: 0,
             };
             if (def.superweapon) { b.charge = 0; b.ready = false; b._charge = 0; }
             const at = this.missionDef && this.missionDef.autoTag;
@@ -709,15 +740,22 @@
                     this.teams[b.team].stats.unitsBuilt++;
                 }
             }
-            if (!def.weapon) return;
             const tm = this.teams[b.team];
+            if (b.stunned > 0) {
+                b.stunned = Math.max(0, b.stunned - T);
+                if (def.weapon || def.repair) { b.state = 'idle'; b.targetId = null; b.repairing = null; return; }
+            }
+            if (def.income && !tm.lowPower) this._siphon(b, def, tm);
+            if (def.repair) this._repairBay(b, def);
+            if (!def.weapon) return;
             if (tm.lowPower) { b.state = 'idle'; b.targetId = null; return; }
             const wpn = this.cfg.WEAPONS[def.weapon];
+            const minR = wpn.minRange || 0;
             if (b._cd > 0) b._cd -= T;
             let tgt = b.targetId ? this.entities.get(b.targetId) : null;
-            if (tgt && (tgt.dead || !this.isVisible(b.team, tgt) || this._rangeTo(b, tgt) > wpn.range)) tgt = null;
+            if (tgt) { const d = tgt.dead ? 0 : this._rangeTo(b, tgt); if (tgt.dead || !this.isVisible(b.team, tgt) || d > wpn.range || d < minR) tgt = null; }
             b._scan -= T;
-            if (!tgt && b._scan <= 0) { b._scan = 0.3; tgt = this._acquire(b, wpn.range, 0); }
+            if (!tgt && b._scan <= 0) { b._scan = 0.3; tgt = this._acquire(b, wpn.range, minR); }
             b.targetId = tgt ? tgt.id : null;
             if (!tgt) { b.state = 'idle'; return; }
             b.state = 'attack';
@@ -725,6 +763,42 @@
             const want = Math.atan2(ap.z - b.z, ap.x - b.x);
             b.turret = turnToward(b.turret, want, 3.5 * T);
             if (Math.abs(angDiff(b.turret, want)) < 0.12 && b._cd <= 0) this._fire(b, def.weapon, wpn, tgt, ap);
+        }
+
+        // Shard Siphon: credits per second while powered (× the team's income rate, like harvesting), with an
+        // 'income' event every few seconds for floating text.
+        _siphon(b, def, tm) {
+            const T = this.cfg.TICK, gain = def.income * T * tm.income;
+            tm.credits += gain; tm.stats.creditsHarvested += gain;
+            b._inc += gain; b._incT += T;
+            if (b._incT >= INCOME_EVENT_EVERY - 1e-9) {
+                this._ev({ type: 'income', team: b.team, id: b.id, amount: Math.round(b._inc), x: b.x, z: b.z });
+                b._inc = 0; b._incT = 0;
+            }
+        }
+        // Repair Bay: heals the most damaged friendly unit of its class (vehicles) in range, passing units included.
+        _repairBay(b, def) {
+            const T = this.cfg.TICK, R = def.repair;
+            const tgt = this._healTarget(b, R.targets, R.radius, true);
+            if (!tgt) { b.repairing = null; b._healEv = 0; return; }
+            if (b.repairing !== tgt.id) b._healEv = 0;
+            b.repairing = tgt.id;
+            this._applyHeal(b, tgt, R.rate * T, 'repair');
+        }
+        // Gravity Wells: enemy units inside a powered, working field are slowed (e.slowed, e._slow = the fraction).
+        _updateFields() {
+            for (const u of this._units) { u.slowed = false; u._slow = 0; }
+            const B = this.cfg.BUILDINGS;
+            for (const b of this._buildings) {
+                if (b.dead || b.built < 1 || b.stunned > 0) continue;
+                const f = B[b.type].field;
+                if (!f || this.teams[b.team].lowPower) continue;
+                this._near(b.x, b.z, f.radius + 1, (u) => {
+                    if (u.dead || u.team === b.team) return;
+                    if (Math.hypot(u.x - b.x, u.z - b.z) > f.radius) return;
+                    u.slowed = true; u._slow = Math.max(u._slow, f.slow);
+                });
+            }
         }
 
         // ================= power, production =================
@@ -751,46 +825,86 @@
             for (const cat of CATS) {
                 const q = tm.queues[cat];
                 if (!q.length) continue;
-                if (cat === 'building' && tm.ready) continue;
-                if (!this._hasProducer(tm.id, cat)) continue;
-                const it = q[0];
-                const def = cat === 'building' ? C.BUILDINGS[it.type] : C.UNITS[it.type];
-                let dp = Math.min(slow * T / Math.max(0.1, def.time), 1 - it.progress);
-                let want = def.cost * (it.progress + dp) - it.paid;
-                if (want > tm.credits + 1e-9) {
-                    if (tm.credits <= 1e-9) {
-                        it.stalled = true;
-                        if (tm.ai === false) this._alert(tm.id, 'Not enough credits', undefined, undefined, 'credits', 12);
-                        continue;
+                const prods = this._producers(tm.id, cat);
+                const lanes = cat === 'building' ? Math.min(1, prods.length) : Math.min(C.ECONOMY.maxLanes || 1, prods.length);
+                this._assignLanes(tm, cat, q, prods, lanes);
+                if (!lanes || (cat === 'building' && tm.ready)) continue;
+                const done = [];
+                // the first `lanes` items build side by side, each at full speed and each paying as it goes;
+                // when credits run short the oldest item is served first
+                for (let k = 0; k < lanes && k < q.length; k++) {
+                    const it = q[k];
+                    const def = cat === 'building' ? C.BUILDINGS[it.type] : C.UNITS[it.type];
+                    let dp = Math.min(slow * T / Math.max(0.1, def.time), 1 - it.progress);
+                    let want = def.cost * (it.progress + dp) - it.paid;
+                    if (want > tm.credits + 1e-9) {
+                        if (tm.credits <= 1e-9) {
+                            it.stalled = true;
+                            if (tm.ai === false) this._alert(tm.id, 'Not enough credits', undefined, undefined, 'credits', 12);
+                            continue;
+                        }
+                        dp *= tm.credits / want; want = tm.credits;
                     }
-                    dp *= tm.credits / want; want = tm.credits;
+                    it.stalled = false;
+                    want = Math.max(0, want);
+                    tm.credits = Math.max(0, tm.credits - want);
+                    it.paid += want; it.progress += dp;
+                    tm.stats.creditsSpent += want;
+                    if (it.progress >= 1 - 1e-7) done.push(it);
                 }
-                it.stalled = false;
-                want = Math.max(0, want);
-                tm.credits = Math.max(0, tm.credits - want);
-                it.paid += want; it.progress += dp;
-                tm.stats.creditsSpent += want;
-                if (it.progress >= 1 - 1e-7) {
-                    q.shift();
-                    this._ev({ type: 'complete', team: tm.id, what: it.type, cat });
+                for (const it of done) {
+                    q.splice(q.indexOf(it), 1);
+                    this._ev({ type: 'complete', team: tm.id, what: it.type, cat, producer: it.producer || 0 });
                     if (cat === 'building') { tm.ready = it.type; tm.readyPaid = it.paid; }
-                    else this._produceUnit(tm, it.type, cat);
+                    else this._produceUnit(tm, it.type, cat, it.producer);
                 }
+                if (done.length) this._assignLanes(tm, cat, q, prods, lanes);
             }
         }
-        _produceUnit(tm, type, cat) {
-            // the producer nearest to the rally point (or the newest)
+        // Mark the first `lanes` queue items active and give each its own producer: an item keeps the building it
+        // started in while that stands; a new one takes the free producer nearest the rally point (or the newest).
+        _assignLanes(tm, cat, q, prods, lanes) {
+            const used = new Set();
+            const ok = (id) => prods.some((b) => b.id === id);
+            for (let k = 0; k < q.length; k++) {
+                const it = q[k];
+                if (k < lanes) {
+                    it.active = true;
+                    if (it.producer && ok(it.producer) && !used.has(it.producer)) used.add(it.producer);
+                    else it.producer = 0;
+                } else { it.active = false; it.producer = 0; }
+            }
+            const rally = cat === 'building' ? null : tm.rally[cat];
+            for (let k = 0; k < lanes && k < q.length; k++) {
+                const it = q[k];
+                if (it.producer) continue;
+                let best = null, bd = Infinity;
+                for (const b of prods) {
+                    if (used.has(b.id)) continue;
+                    const d = rally ? Math.hypot(b.x - rally.x, b.z - rally.z) : -b.id;
+                    if (d < bd) { bd = d; best = b; }
+                }
+                if (best) { it.producer = best.id; used.add(best.id); }
+            }
+        }
+        _produceUnit(tm, type, cat, producerId) {
+            // the item's own producer; if that is gone, the one nearest to the rally point (or the newest)
             const ptype = PRODUCER[cat];
             const rally = tm.rally[cat];
-            let prod = null, bd = Infinity;
-            for (const b of this._blds()) {
-                if (b.team !== tm.id || b.dead || b.type !== ptype || b.built < 1) continue;
-                const d = rally ? Math.hypot(b.x - rally.x, b.z - rally.z) : -b.id;
-                if (d < bd) { bd = d; prod = b; }
+            let prod = producerId ? this.entities.get(producerId) : null;
+            if (prod && (prod.dead || prod.built < 1 || prod.team !== tm.id || prod.type !== ptype)) prod = null;
+            if (!prod) {
+                let bd = Infinity;
+                for (const b of this._blds()) {
+                    if (b.team !== tm.id || b.dead || b.type !== ptype || b.built < 1) continue;
+                    const d = rally ? Math.hypot(b.x - rally.x, b.z - rally.z) : -b.id;
+                    if (d < bd) { bd = d; prod = b; }
+                }
             }
             if (!prod) return;
             const p = this._exitPoint(prod);
             const u = this.spawnUnit(tm.id, type, p.x, p.z);
+            u.from = prod.id;
             const f = this.faceOf(tm.id);
             u.angle = u.turret = f * Math.PI / 2;
             tm.stats.unitsBuilt++;
@@ -905,7 +1019,7 @@
         }
         _setOrder(u, order, gx, gz) {
             u._order = order; u._gx = gx; u._gz = gz; u._vmax = 0;
-            u.targetId = null; u._chaseX = NaN;
+            u.targetId = null; u._chaseX = NaN; u._blocked = false; u._healTgt = 0;
             if (u.type === 'harvester') u._h = 'move';
             u._stuck = 0;
         }
@@ -941,6 +1055,7 @@
             const ez = reached ? (gfree ? nd.z : ((gt / w) | 0) + 0.5) : undefined;
             const p = this.path.smooth(tl, u.x, u.z, ex, ez);
             u._path = p.length ? p : null; u._pi = 0;
+            u._blocked = !reached && u._order === 'attackMove' && Math.hypot(nd.x - (tl[tl.length - 1] % w + 0.5), nd.z - ((tl[tl.length - 1] / w) | 0) - 0.5) > 2;
             this._resetStuck(u);
         }
         _repath(u) {
@@ -950,6 +1065,7 @@
         }
         _cmdAttack(team, ids, targetId) {
             const t = this.entities.get(targetId);
+            if (t && !t.dead && t.team === team) return this._cmdHeal(team, ids, targetId);   // healers onto an ally
             if (!t || t.dead || t.team === team || !this.isKnown(team, t)) return false;
             const units = this._ownUnits(team, ids).filter((u) => this.cfg.UNITS[u.type].weapon);
             if (!units.length) return false;
@@ -963,7 +1079,7 @@
             const units = this._ownUnits(team, ids);
             if (!units.length) return false;
             for (const u of units) {
-                u._order = null; u._path = null; u._need = null; u.targetId = null;
+                u._order = null; u._path = null; u._need = null; u.targetId = null; u._healTgt = 0; u._blocked = false;
                 u._ax = u.x; u._az = u.z; u.state = 'idle';
                 if (u.type === 'harvester') { this._releaseClaim(u); u._h = 'idle'; }
             }
@@ -988,8 +1104,8 @@
             if (!this.allowed(team, type)) return false;
             if (this._lockReason(team, cat, def, this._haveMap(team))) return false;
             const q = tm.queues[cat];
-            if (q.length >= C.ECONOMY.queueMax) return false;
-            q.push({ type, progress: 0, paid: 0 });
+            if (q.length >= this.queueCap(team, cat)) return false;
+            q.push({ type, progress: 0, paid: 0, active: false, producer: 0 });
             return true;
         }
         _cmdCancel(team, type) {
@@ -1064,11 +1180,15 @@
                 if (d > r || d < minR) return;
                 if (vis[(e.z | 0) * w + (e.x | 0)] !== 2) return;
                 // armed units first (artillery above all: fragile and deadly), then harvesters, then the rest
-                const sc = d + (U[e.type].weapon ? (e.type === 'artillery' ? -1.5 : 0) : (e.type === 'harvester' ? 1.2 : 2));
+                const sc = d + (U[e.type].weapon ? (U[e.type].minRange ? -1.5 : 0) : (e.type === 'harvester' ? 1.2 : 2));
                 if (sc < bs) { bs = sc; best = e; }
             });
+            const B = this.cfg.BUILDINGS;
             for (const b of this._blds()) {
                 if (b.team === s.team || b.dead) continue;
+                // walls are never picked on sight (units walk around them); a blocked attack-move or an explicit
+                // attack order targets them
+                if (B[b.type].wall) continue;
                 if (Math.abs(b.x - s.x) > r + 3 || Math.abs(b.z - s.z) > r + 3) continue;
                 const d = this._rangeTo(s, b);
                 if (d > r || d < minR) continue;
@@ -1081,12 +1201,23 @@
         _updateUnit(u) {
             const C = this.cfg, T = C.TICK, def = C.UNITS[u.type];
             u.firing += T;
+            // stunned (EMP): no moving, no firing, until it wears off
+            if (u.stunned > 0) {
+                u.stunned = Math.max(0, u.stunned - T);
+                return;
+            }
             if (u._cd > 0) u._cd -= T;
             if (u._need && this._budget > 0) this._servicePath(u);
             if (u.type === 'harvester') { this._updateHarvester(u, def); return; }
+            if (def.heal) { this._updateHealer(u, def); return; }
             const wpn = def.weapon ? C.WEAPONS[def.weapon] : null;
-            const minR = def.minRange || 0;
+            const minR = Math.max(def.minRange || 0, (wpn && wpn.minRange) || 0);
             let tgt = u.targetId ? this.entities.get(u.targetId) : null;
+            if (u.targetId && !tgt) {
+                // the target is already gone (a projectile killed it last tick): carry on with the attack-move
+                u.targetId = null;
+                if (u._order === 'attackMove') this._requestPath(u, u._gx, u._gz);
+            }
             if (tgt && (tgt.dead || !(u._order === 'attack' ? this.isKnown(u.team, tgt) : this.isVisible(u.team, tgt)))) {
                 if (u._order === 'attack') {
                     // lost it: walk to where it was last seen
@@ -1148,19 +1279,143 @@
                 else if (!u._order) this._requestPath(u, u._ax, u._az);
             }
             if (u._order === 'attack' && !tgt) { u._order = null; u._ax = u.x; u._az = u.z; }
+            // an attack-move that could not reach its goal (walled off): break through the nearest enemy building
+            if (wpn && u._blocked && u._order === 'attackMove' && !u._path && !u._need) {
+                u._blocked = false;
+                const wall = this._blockingBuilding(u, def.sight + 3);
+                if (wall) { u.targetId = wall.id; u._chaseX = NaN; u._repT = 0; return; }
+            }
+            this._moveTail(u, def);
+        }
+        // Path following / arrival / idle, shared by every kind of unit.
+        _moveTail(u, def) {
+            const T = this.cfg.TICK;
+            // a blocked attack-move stays an attack-move on arrival, so the unit then breaks through (see above)
+            const ends = (o) => o === 'move' || (o === 'attackMove' && !u._blocked);
             if (u._path) {
                 u.state = 'move';
                 if (this._moveAlong(u, def)) {
-                    if (u._order === 'move' || u._order === 'attackMove') { u._order = null; u._ax = u.x; u._az = u.z; }
+                    if (ends(u._order)) { u._order = null; u._ax = u.x; u._az = u.z; }
                     u.state = 'idle'; u._vmax = 0;
                 }
             } else if (u._need) {
                 u.state = u._order ? 'move' : 'idle';
             } else {
-                if (u._order === 'move' || u._order === 'attackMove') { u._order = null; u._ax = u.x; u._az = u.z; }
+                if (ends(u._order)) { u._order = null; u._ax = u.x; u._az = u.z; }
                 u.state = 'idle';
                 if (def.turret) u.turret = turnToward(u.turret, u.angle, 2 * T);
             }
+        }
+        // The nearest known enemy building (walls first) for a unit whose attack-move was blocked.
+        _blockingBuilding(u, r) {
+            let best = null, bs = Infinity;
+            for (const b of this._blds()) {
+                if (b.team === u.team || b.dead) continue;
+                if (Math.abs(b.x - u.x) > r + 2 || Math.abs(b.z - u.z) > r + 2) continue;
+                const d = this._rangeTo(u, b);
+                if (d > r || !this.isKnown(u.team, b)) continue;
+                const sc = d - (this.cfg.BUILDINGS[b.type].wall ? 1.5 : 0);
+                if (sc < bs) { bs = sc; best = b; }
+            }
+            return best;
+        }
+
+        // ================= healers: medics, acolytes (infantry), engineers (buildings) =================
+        // The most damaged friendly target of a class ('inf' | 'vehicle' | 'bld') within r of src (not src itself).
+        _healTarget(src, cls, r, fromFootprint) {
+            let best = null, bs = 0.9999;
+            const U = this.cfg.UNITS;
+            if (cls === 'bld') {
+                for (const b of this._blds()) {
+                    if (b.team !== src.team || b.dead || b === src || b.built < 1 || b.hp >= b.maxHp) continue;
+                    if (Math.abs(b.x - src.x) > r + 3 || Math.abs(b.z - src.z) > r + 3) continue;
+                    if (this._rangeTo(src, b) > r) continue;
+                    const f = b.hp / b.maxHp;
+                    if (f < bs) { bs = f; best = b; }
+                }
+                return best;
+            }
+            this._near(src.x, src.z, r + 2, (e) => {
+                if (e.team !== src.team || e.dead || e === src || e.hp >= e.maxHp) return;
+                const d = U[e.type];
+                if (cls === 'inf' ? d.armor !== 'inf' : d.from !== cls) return;
+                const dist = fromFootprint ? this._rangeTo(e, src) : this._rangeTo(src, e);
+                if (dist > r) return;
+                const f = e.hp / e.maxHp;
+                if (f < bs || (f === bs && best && e.id < best.id)) { bs = f; best = e; }
+            });
+            return best;
+        }
+        _applyHeal(src, tgt, amt, kind) {
+            tgt.hp = Math.min(tgt.maxHp, tgt.hp + amt);
+            src._healEv -= this.cfg.TICK;
+            if (src._healEv <= 0) {
+                src._healEv = HEAL_EVENT_EVERY;
+                this._ev({ type: 'heal', id: src.id, team: src.team, target: tgt.id, x: src.x, z: src.z, tx: tgt.x, tz: tgt.z, kind });
+            }
+        }
+        // A healer has no weapon. It heals the most damaged ally of its class in reach (stopping to do so unless
+        // it was told to move), walks to an ally it was ordered onto ('heal'/'repair' command), and when idle
+        // goes to hurt allies it can see (engineers: damaged buildings within 3 tiles).
+        _updateHealer(u, def) {
+            const T = this.cfg.TICK, H = def.heal, kind = H.targets === 'bld' ? 'repair' : 'heal';
+            let tgt = null;
+            if (u._order === 'heal') {
+                const o = this.entities.get(u._healTgt);
+                if (!o || o.dead || o.team !== u.team || o.hp >= o.maxHp) {
+                    u._order = null; u._healTgt = 0; u._path = null; u._need = null; u._ax = u.x; u._az = u.z;
+                } else if (this._rangeTo(u, o) <= H.radius) {
+                    tgt = o; u._path = null; u._need = null;
+                } else {
+                    u._repT -= T;
+                    const ap = o.kind === 'building' ? this._aimPoint(o, u) : o;
+                    if ((!u._path && !u._need) || (u._repT <= 0 && Math.hypot(ap.x - u._chaseX, ap.z - u._chaseZ) > 1)) {
+                        u._repT = 0.8; u._chaseX = ap.x; u._chaseZ = ap.z;
+                        this._requestPath(u, ap.x, ap.z);
+                    }
+                    u.healing = null; u.state = 'move';
+                    // the path ended but the ally is still out of reach (blocked off): give up
+                    if (u._path && this._moveAlong(u, def) && this._rangeTo(u, o) > H.radius + 1.5) { u._order = null; u._healTgt = 0; }
+                    return;
+                }
+            }
+            if (!tgt && u._order !== 'move') {
+                tgt = this._healTarget(u, H.targets, H.radius, false);
+                // on an attack-move, only stop for allies that are really hurt (else keep up with the group)
+                if (tgt && u._order === 'attackMove' && tgt.hp > tgt.maxHp * 0.85 && u._path) tgt = null;
+            }
+            if (tgt) {
+                if (u.healing !== tgt.id) u._healEv = 0;
+                u.healing = tgt.id; u.state = 'heal';
+                u.angle = turnToward(u.angle, Math.atan2(tgt.z - u.z, tgt.x - u.x), def.turn * T);
+                u.turret = u.angle;
+                this._applyHeal(u, tgt, H.rate * T, kind);
+                if (u._order === 'attackMove' && u._path) this._resetStuck(u);
+                return;
+            }
+            u.healing = null;
+            if (!u._order && !u._path && !u._need) {
+                u._scan -= T;
+                if (u._scan <= 0) {
+                    u._scan = 1;
+                    const far = this._healTarget(u, H.targets, H.targets === 'bld' ? 3 : def.sight, false);
+                    if (far) { u._order = 'heal'; u._healTgt = far.id; u._chaseX = NaN; u._repT = 0; return; }
+                }
+            }
+            this._moveTail(u, def);
+        }
+        _cmdHeal(team, ids, targetId) {
+            const t = this.entities.get(targetId);
+            if (!t || t.dead || t.team !== team) return false;
+            const U = this.cfg.UNITS;
+            const cls = t.kind === 'building' ? 'bld' : (U[t.type].armor === 'inf' ? 'inf' : U[t.type].from);
+            const units = this._ownUnits(team, ids).filter((u) => U[u.type].heal && U[u.type].heal.targets === cls && u !== t);
+            if (!units.length) return false;
+            for (const u of units) {
+                this._setOrder(u, 'heal', t.x, t.z);
+                u._healTgt = t.id; u._path = null; u._need = null; u._chaseX = NaN; u._repT = 0;
+            }
+            return true;
         }
         _aimAndFire(u, def, wpn, tgt) {
             const T = this.cfg.TICK;
@@ -1178,18 +1433,71 @@
             if (aimed && u._cd <= 0) this._fire(u, def.weapon, wpn, tgt, ap);
         }
         _fire(s, key, wpn, tgt, ap) {
-            s._cd = wpn.cooldown * (0.95 + this.rng() * 0.1);
+            // a burst weapon fires `burst` shots `burstGap` apart, then the cooldown starts (an interrupted burst
+            // finishes on the next target)
+            let burst = 0;
+            if (wpn.burst > 1) {
+                if (s._burstLeft > 0) s._burstLeft--; else s._burstLeft = wpn.burst - 1;
+                burst = wpn.burst - s._burstLeft;   // 1-based shot number within the burst
+            }
+            s._cd = burst && s._burstLeft > 0 ? wpn.burstGap : wpn.cooldown * (0.95 + this.rng() * 0.1);
             s.firing = 0;
+            if (wpn.chain) { this._fireChain(s, key, wpn, tgt, ap); return; }
             const dist = Math.hypot(ap.x - s.x, ap.z - s.z);
             const bullet = wpn.projectile === 'bullet' || !wpn.speed;
             const dur = bullet ? 0 : dist / wpn.speed;
             const pid = bullet ? 0 : this._pid++;
-            this._ev({ type: 'shot', from: s.id, team: s.team, x: s.x, z: s.z, tx: ap.x, tz: ap.z, weapon: key, proj: wpn.projectile, dur, pid, target: tgt.id });
+            const ev = { type: 'shot', from: s.id, team: s.team, x: s.x, z: s.z, tx: ap.x, tz: ap.z, weapon: key, proj: wpn.projectile, dur, pid, target: tgt.id };
+            if (burst) ev.burst = burst;
+            this._ev(ev);
             if (bullet) { this._hit(s.team, s.id, key, wpn, tgt, ap.x, ap.z); return; }
             this.projectiles.push({
                 id: pid, team: s.team, from: s.id, weapon: key, kind: wpn.projectile, sx: s.x, sz: s.z, x: s.x, z: s.z,
                 tx: ap.x, tz: ap.z, targetId: tgt.id, homing: wpn.projectile !== 'arc', t: 0, dur: Math.max(0.05, dur), speed: wpn.speed,
             });
+        }
+        // Chain lightning: hits the target, then jumps to the nearest other (uncloaked) enemy unit within chain.range of
+        // the last one hit, up to chain.jumps times, damage × falloff per jump. Instant: one 'shot' event with
+        // proj 'chain' and points [{x, z, id}] (target first), and one 'impact' per point.
+        _fireChain(s, key, wpn, tgt, ap) {
+            const ch = wpn.chain;
+            const hit = [tgt], ids = new Set([tgt.id]);
+            let cur = tgt;
+            for (let j = 0; j < (ch.jumps || 0); j++) {
+                let best = null, bd = Infinity;
+                this._near(cur.x, cur.z, ch.range + 1, (e) => {
+                    if (e.team === s.team || e.dead || e.cloaked || ids.has(e.id)) return;
+                    const d = Math.hypot(e.x - cur.x, e.z - cur.z) - e.radius;
+                    if (d <= ch.range && d < bd) { bd = d; best = e; }
+                });
+                if (!best) break;
+                hit.push(best); ids.add(best.id); cur = best;
+            }
+            const points = hit.map((e, k) => (k === 0 ? { x: ap.x, z: ap.z, id: e.id } : { x: e.x, z: e.z, id: e.id }));
+            this._ev({ type: 'shot', from: s.id, team: s.team, x: s.x, z: s.z, tx: ap.x, tz: ap.z, weapon: key, proj: 'chain', dur: 0, pid: 0, target: tgt.id, points });
+            let dmg = wpn.damage;
+            hit.forEach((e, k) => {
+                this._ev({ type: 'impact', x: points[k].x, z: points[k].z, weapon: key, proj: 'chain', splash: 0, id: e.id });
+                if (!e.dead) this._damage(e, dmg * (wpn.vs[this._armor(e)] || 0), s.id, s.team);
+                if (wpn.stun) this._stun(e, wpn.stun);
+                dmg *= ch.falloff === undefined ? 1 : ch.falloff;
+            });
+        }
+        // EMP: vehicles and defences (buildings with a weapon, field or repair bay) stop for `dur` seconds;
+        // infantry are immune.
+        _stun(e, dur) {
+            if (!e || e.dead || !(dur > 0)) return;
+            if (e.kind === 'unit') {
+                const d = this.cfg.UNITS[e.type];
+                if (d.armor === 'inf' || d.stunImmune) return;
+            } else {
+                const d = this.cfg.BUILDINGS[e.type];
+                if (!d.weapon && !d.field && !d.repair) return;
+            }
+            const was = e.stunned > 0;
+            e.stunned = Math.max(e.stunned || 0, dur);
+            if (e.kind === 'unit' && !was) { e.state = 'idle'; }
+            this._ev({ type: 'stun', id: e.id, team: e.team, dur, x: e.x, z: e.z });
         }
         _updateProjectiles() {
             const T = this.cfg.TICK, W = this.cfg.WEAPONS;
@@ -1235,8 +1543,12 @@
                     if (b.team === team || b.dead || b === direct) continue;
                     if (this._rangeTo({ x: ix, z: iz }, b) <= r) victims.push(b);
                 }
-                for (const e of victims) this._damage(e, 0.5 * wpn.damage * (wpn.vs[this._armor(e)] || 0), fromId, team);
+                for (const e of victims) {
+                    this._damage(e, 0.5 * wpn.damage * (wpn.vs[this._armor(e)] || 0), fromId, team);
+                    if (wpn.stun) this._stun(e, wpn.stun);
+                }
             }
+            if (wpn.stun && direct) this._stun(direct, wpn.stun);
         }
         _damage(e, amt, fromId, fromTeam) {
             if (e.dead || !(amt > 0)) return;
@@ -1305,8 +1617,9 @@
             if (!def.turret) u.turret = u.angle;
             else if (!u.targetId) u.turret = turnToward(u.turret, u.angle, 2.5 * T);
             let spd = u._vmax && u.state !== 'attack' ? Math.min(def.speed, u._vmax) : def.speed;
-            // hover units skim over shard fields a little faster
-            if (def.hover && this.map.tiles[(u.z | 0) * this.map.w + (u.x | 0)] === 2) spd *= HOVER_SHARD_BOOST;
+            // fast hover units (shardBonus) skim over shard fields a little faster; gravity wells slow enemies
+            if (def.hover && def.shardBonus && this.map.tiles[(u.z | 0) * this.map.w + (u.x | 0)] === 2) spd *= HOVER_SHARD_BOOST;
+            if (u.slowed) spd *= 1 - u._slow;
             const stp = Math.min(d, spd * f * T);
             if (stp > 1e-4) this._tryMove(u, u.x + dx / d * stp, u.z + dz / d * stp);
             // stuck detection (only while we should be making headway)

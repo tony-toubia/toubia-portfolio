@@ -94,7 +94,7 @@ window.SF_CONFIG = (() => {
                     weapon: 'sentryGun', desc: 'A machine-gun post that shreds infantry. Weak against vehicles.' },
         howitzer: { name: 'Howitzer',      faction: 'vanguard', w: 2, d: 2, hp: 650, armor: 'bld', cost: 1300, time: 14, power: -40, requires: ['radar'], sight: 6,
                     weapon: 'howitzer', desc: 'Long-range artillery emplacement. Cannot hit anything closer than 3 tiles.' },
-        gravwell: { name: 'Gravity Well',  faction: 'hegemony', w: 1, d: 1, hp: 420, armor: 'bld', cost: 700, time: 8, power: -35, requires: ['barracks'], sight: 6,
+        gravwell: { name: 'Gravity Well',  faction: 'hegemony', w: 1, d: 1, hp: 420, armor: 'bld', cost: 500, time: 8, power: -20, requires: ['barracks'], sight: 6,
                     field: { radius: 4, slow: 0.5 }, desc: 'Halves the speed of enemy units around it. Needs power.' },
         siphon:   { name: 'Shard Siphon',  faction: 'hegemony', w: 2, d: 2, hp: 600, armor: 'bld', cost: 1500, time: 14, power: -30, requires: ['refinery'], sight: 4,
                     income: 7, desc: 'Draws shard energy from deep below: a slow, steady trickle of credits.' },
@@ -112,16 +112,22 @@ window.SF_CONFIG = (() => {
         tank:      { name: 'Battle Tank', faction: 'vanguard', from: 'vehicle',  cost: 800,  time: 9,  hp: 420, armor: 'heavy', speed: 2.0, turn: 3,  weapon: 'cannon', sight: 5.5, radius: 0.55, requires: [], turret: true },
         trooper:      { name: 'Pulse Trooper', faction: 'hegemony', from: 'infantry', cost: 120, time: 4, hp: 50, armor: 'inf', speed: 1.9, turn: 10, weapon: 'pulse', sight: 5, radius: 0.22, requires: [] },
         shocktrooper: { name: 'Shock Trooper', faction: 'hegemony', from: 'infantry', cost: 320, time: 6, hp: 55, armor: 'inf', speed: 1.5, turn: 10, weapon: 'shock', sight: 5, radius: 0.22, requires: [] },
-        skimmer:      { name: 'Skimmer',       faction: 'hegemony', from: 'vehicle', cost: 420, time: 6, hp: 130, armor: 'light', speed: 4.3, turn: 7, weapon: 'twinPulse', sight: 7, radius: 0.45, requires: [], hover: true },
+        skimmer:      { name: 'Skimmer',       faction: 'hegemony', from: 'vehicle', cost: 420, time: 6, hp: 130, armor: 'light', speed: 4.3, turn: 7, weapon: 'twinPulse', sight: 7, radius: 0.45, requires: [], hover: true, shardBonus: true },
         lancer:       { name: 'Lancer',        faction: 'hegemony', from: 'vehicle', cost: 850, time: 9, hp: 360, armor: 'heavy', speed: 2.4, turn: 3.5, weapon: 'beam', sight: 5.5, radius: 0.55, requires: [], turret: true },
         // Cloaked: enemies cannot see or target it unless one of their units or buildings is within `revealRange`,
         // or it fired in the last `cloakDelay` seconds.
         phantom:      { name: 'Phantom',       faction: 'hegemony', from: 'vehicle', cost: 1000, time: 11, hp: 380, armor: 'heavy', speed: 2.6, turn: 4, weapon: 'phase', sight: 6, radius: 0.55, requires: ['techlab'],
                         turret: true, cloak: true, revealRange: 2.5, cloakDelay: 2.5 },
+        // (Roster balance pass, from AI-vs-AI runs with the new units: Acolyte heal 9→6 hp/s — Hegemony infantry
+        // comes in smaller, cheaper squads and full-rate acolytes made them too hard to wear down, most of all on hard;
+        // Gravity Well cost 700→500 and power −35→−20 — at the old price the computer paid for a field instead of
+        // guns and lost more games than it won, and the extra reactors it needed stalled the build order.)
         // Roster expansion. New keys a unit can carry:
         //   heal: { radius, rate, targets: 'inf' | 'vehicle' | 'bld' }: restores hp of the nearest damaged friendly
         //     target of that class in radius (hp/s), walking towards hurt allies when idle. No weapon.
         //   stunImmune (infantry are always immune to stun).
+        //   shardBonus: a hover unit with this flag moves 15% faster over shard tiles (the fast ones: Skimmer, Wisp;
+        //     the heavy Obliterator hovers without it).
         sniper:    { name: 'Sniper',      faction: 'vanguard', from: 'infantry', cost: 450, time: 7, hp: 45, armor: 'inf', speed: 1.4, turn: 10, weapon: 'sniper', sight: 8, radius: 0.22, requires: ['radar'] },
         medic:     { name: 'Field Medic', faction: 'vanguard', from: 'infantry', cost: 250, time: 5, hp: 60, armor: 'inf', speed: 1.7, turn: 10, weapon: null, sight: 5, radius: 0.22, requires: [],
                      heal: { radius: 2.5, rate: 9, targets: 'inf' } },
@@ -132,10 +138,10 @@ window.SF_CONFIG = (() => {
         bulwark:   { name: 'Bulwark',     faction: 'vanguard', from: 'vehicle', cost: 1800, time: 18, hp: 1100, armor: 'heavy', speed: 1.3, turn: 2, weapon: 'twinCannon', sight: 6, radius: 0.75, requires: ['techlab'], turret: true },
         disruptor: { name: 'Disruptor',   faction: 'hegemony', from: 'infantry', cost: 380, time: 6, hp: 55, armor: 'inf', speed: 1.6, turn: 10, weapon: 'emp', sight: 5, radius: 0.22, requires: ['radar'] },
         acolyte:   { name: 'Acolyte',     faction: 'hegemony', from: 'infantry', cost: 280, time: 5, hp: 60, armor: 'inf', speed: 1.8, turn: 10, weapon: null, sight: 5, radius: 0.22, requires: [],
-                     heal: { radius: 2.5, rate: 9, targets: 'inf' } },
+                     heal: { radius: 2.5, rate: 6, targets: 'inf' } },
         stalker:   { name: 'Stalker',     faction: 'hegemony', from: 'infantry', cost: 500, time: 7, hp: 80, armor: 'inf', speed: 2.2, turn: 10, weapon: 'stalkerBlade', sight: 5, radius: 0.22, requires: ['techlab'],
                      cloak: true, revealRange: 1.8, cloakDelay: 2 },
-        wisp:      { name: 'Wisp Drone',  faction: 'hegemony', from: 'vehicle', cost: 250, time: 3.5, hp: 70, armor: 'light', speed: 5.2, turn: 9, weapon: 'wispZap', sight: 9, radius: 0.3, requires: [], hover: true },
+        wisp:      { name: 'Wisp Drone',  faction: 'hegemony', from: 'vehicle', cost: 250, time: 3.5, hp: 70, armor: 'light', speed: 5.2, turn: 9, weapon: 'wispZap', sight: 9, radius: 0.3, requires: [], hover: true, shardBonus: true },
         arcwalker: { name: 'Arc Walker',  faction: 'hegemony', from: 'vehicle', cost: 1000, time: 11, hp: 300, armor: 'heavy', speed: 2.1, turn: 3.5, weapon: 'arc', sight: 5.5, radius: 0.55, requires: ['radar'], turret: true },
         obliterator: { name: 'Obliterator', faction: 'hegemony', from: 'vehicle', cost: 1900, time: 18, hp: 700, armor: 'heavy', speed: 1.5, turn: 2, weapon: 'obliterate', sight: 7, radius: 0.75, requires: ['techlab'], turret: true, hover: true },
         artillery: { name: 'Artillery',   faction: 'vanguard', from: 'vehicle',  cost: 950,  time: 11, hp: 180, armor: 'light', speed: 1.6, turn: 2.5, weapon: 'artillery', sight: 6, radius: 0.55, requires: ['techlab'], minRange: 3 },

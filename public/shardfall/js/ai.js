@@ -4,18 +4,26 @@
     'use strict';
     const SF = window.SF = window.SF || {};
 
-    // [type, how many we want] in priority order; the first unmet step is built next, so lost buildings are rebuilt.
+    // [type, how many we want, condition?] in priority order; the first unmet step is built next, so lost buildings
+    // are rebuilt. A step with a condition is skipped while the condition is false.
     // (The computer doesn't need the minimap, so the radar only comes when the tech lab needs it.)
-    // 'turret' stands for the faction's base defence (Gun Turret / Pulse Spire); the superweapon building is added
-    // after the tech lab on hard, and in missions that allow it.
+    // 'turret' stands for the faction's base defence (Gun Turret / Pulse Spire), 'guard' for its second defence
+    // (Sentry Post / Gravity Well), 'siege' for its emplacement (Howitzer; the Hegemony has none and skips it);
+    // the superweapon building is added after the tech lab on hard, and in missions that allow it.
+    // Conditions: 'eco2' a second production building once the economy supports it, 'late3' a third war factory on
+    // hard late in the game, 'rich' (Shard Siphon) when credits pile up, or mid-game with a full harvester fleet.
     const PLANS = {
         easy: [['reactor', 1], ['refinery', 1], ['barracks', 1], ['reactor', 2], ['factory', 1], ['turret', 1], ['radar', 1],
-            ['reactor', 3], ['techlab', 1], ['turret', 2]],
+            ['reactor', 3], ['techlab', 1], ['turret', 2], ['repairbay', 1]],
         normal: [['reactor', 1], ['refinery', 1], ['barracks', 1], ['reactor', 2], ['factory', 1], ['turret', 1], ['refinery', 2],
-            ['reactor', 3], ['radar', 1], ['turret', 2], ['techlab', 1], ['reactor', 4]],
+            ['reactor', 3], ['barracks', 2, 'eco2'], ['radar', 1], ['factory', 2, 'eco2'], ['guard', 1], ['turret', 2], ['repairbay', 1],
+            ['siphon', 1, 'rich'], ['techlab', 1], ['reactor', 4], ['siege', 1]],
         hard: [['reactor', 1], ['refinery', 1], ['barracks', 1], ['reactor', 2], ['factory', 1], ['refinery', 2], ['turret', 1],
-            ['reactor', 3], ['radar', 1], ['techlab', 1], ['turret', 2], ['reactor', 4]],
+            ['reactor', 3], ['barracks', 2, 'eco2'], ['radar', 1], ['factory', 2, 'eco2'], ['techlab', 1], ['guard', 1], ['repairbay', 1],
+            ['siphon', 1, 'rich'], ['turret', 2], ['reactor', 4], ['siege', 1], ['factory', 3, 'late3'], ['siphon', 2, 'rich']],
     };
+    const GUARD = { vanguard: 'sentry', hegemony: 'gravwell' };
+    const SIEGE_BLD = { vanguard: 'howitzer', hegemony: null };
     // harvesters per refinery, and the cap
     const HARV = { easy: [1.5, 2], normal: [1.5, 3], hard: [2, 4] };
     const ARMY_CAP = { easy: 22, normal: 34, hard: 44 };
@@ -46,20 +54,31 @@
         return p;
     }
 
-    // Unit roles per faction: cheap infantry, anti-armour infantry, main battle vehicle, fast raider, tech unit.
+    // Unit roles per faction: cheap infantry, anti-armour infantry, main battle vehicle, fast raider, tech unit;
+    // roster expansion: healer, engineer (Vanguard), anti-infantry specialist (sniper, vs infantry-heavy enemies),
+    // anti-vehicle specialist (disruptor, vs vehicle-heavy enemies), cloaked infantry (stalker, harvester hunts),
+    // scout (early scouting), second main (arc walker), siege vehicle (salvo / obliterator, against bases), super-heavy.
     const ROLES = {
-        vanguard: { inf: 'rifleman', at: 'rocketeer', main: 'tank', fast: 'buggy', tech: 'artillery' },
-        hegemony: { inf: 'trooper', at: 'shocktrooper', main: 'lancer', fast: 'skimmer', tech: 'phantom' },
+        vanguard: { inf: 'rifleman', at: 'rocketeer', main: 'tank', fast: 'buggy', tech: 'artillery',
+                    heal: 'medic', eng: 'engineer', antiInf: 'sniper', antiVeh: null, stealth: null,
+                    scout: 'scout', main2: null, siege: 'salvo', heavy: 'bulwark' },
+        hegemony: { inf: 'trooper', at: 'shocktrooper', main: 'lancer', fast: 'skimmer', tech: 'phantom',
+                    heal: 'acolyte', eng: null, antiInf: null, antiVeh: 'disruptor', stealth: 'stalker',
+                    scout: 'wisp', main2: 'arcwalker', siege: 'obliterator', heavy: null },
     };
-    // Vehicle mix: share of tech units, share of fast units (at least fastMin, at most fastMax of them).
+    // Vehicle mix: share of tech units, share of fast units (at least fastMin, at most fastMax of them); siege and
+    // heavy shares (mid/late game), and the share of second-main vehicles among the mains.
     const MIX = {
-        vanguard: { tech: 0.25, fast: 0.15, fastMin: 0, fastMax: 99 },
-        hegemony: { tech: 0.25, fast: 0.25, fastMin: 2, fastMax: 4 },
+        vanguard: { tech: 0.2, fast: 0.12, fastMin: 0, fastMax: 99, siege: 0.15, heavy: 0.15, main2: 0 },
+        hegemony: { tech: 0.2, fast: 0.22, fastMin: 2, fastMax: 4, siege: 0.15, heavy: 0, main2: 0.3 },
     };
+    // Vehicles that shell bases from range when a wave reaches them.
+    const SIEGE_UNITS = { artillery: 1, salvo: 1, obliterator: 1 };
     function factionPlan(plan, sim, team, diff) {
         const C = window.SF_CONFIG, tm = sim.teams[team];
         const F = (C.FACTIONS && C.FACTIONS[tm.faction]) || { defense: 'turret', superweapon: null };
-        const p = plan.map(([t, n]) => [t === 'turret' ? F.defense : t, n]);
+        const sub = { turret: F.defense, guard: GUARD[tm.faction], siege: SIEGE_BLD[tm.faction] };
+        const p = plan.map(([t, n, cond]) => [sub[t] !== undefined ? sub[t] : t, n, cond]).filter(([t]) => t && C.BUILDINGS[t]);
         const sw = F.superweapon;
         if (sw && C.BUILDINGS[sw] && sim.allowed(team, sw) && (diff === 'hard' || sim.mission)) {
             const i = p.findIndex((s) => s[0] === 'techlab');
@@ -109,6 +128,9 @@
             this.defendUntil = 0; this.lastDefend = -99; this.lastStage = -99;
             this.scoutIdx = 0;
             this._reach = { ver: -1, count: 0 };
+            this.scoutId = 0; this.scoutDone = false; this.scoutPts = null; this.scoutK = 0; this.scoutBuilt = false;
+            this.parked = new Map();       // damaged vehicles sent to the repair bay: id → give-up time
+            this.lastEng = -99;
         }
 
         homeOf(team) {
@@ -124,7 +146,7 @@
             const s = sim.map.starts[team];
             return { x: s.tx + 1.5, z: s.tz + 1.5 };
         }
-        isDefense(type) { const d = window.SF_CONFIG.BUILDINGS[type]; return !!(d && d.weapon); }
+        isDefense(type) { const d = window.SF_CONFIG.BUILDINGS[type]; return !!(d && (d.weapon || d.field)); }
         ok(type) { return this.sim.allowed(this.team, type); }
 
         update(dt) {
@@ -157,7 +179,7 @@
                 } else if (sim.isVisible(me, e)) {
                     threats.push(e);
                     if (e.type === 'harvester') { enemyHarv.push(e); this.harvSeen.set(e.id, { x: e.x, z: e.z, t: sim.time }); }
-                    if (e.type === 'artillery') this.sawArtillery = sim.time;
+                    if (window.SF_CONFIG.UNITS[e.type].minRange) this.sawArtillery = sim.time;
                     this.seen.set(e.id, { armor: window.SF_CONFIG.UNITS[e.type].armor, t: sim.time });
                 }
             }
@@ -204,13 +226,14 @@
         economy(tm) {
             const sim = this.sim, B = window.SF_CONFIG.BUILDINGS, U = window.SF_CONFIG.UNITS, c = this.counts;
             const cmd = (item) => sim.command(this.team, { type: 'queue', item });
+            const lanesI = sim.lanes(this.team, 'infantry'), lanesV = sim.lanes(this.team, 'vehicle');
             // harvesters first
             const refs = c.refinery || 0;
             const [per, cap] = HARV[this.diff];
             const wantH = refs ? Math.min(cap, Math.floor(refs * per + 0.5)) : 0;
             const haveH = (c.harvester || 0) + this.queued(tm, 'harvester');
             const vq = tm.queues.vehicle;
-            if (c.factory && haveH < wantH && vq.length < 2 && !vq.some((it) => it.type === 'harvester')) {
+            if (c.factory && haveH < wantH && vq.length < lanesV + 1 && !vq.some((it) => it.type === 'harvester')) {
                 cmd('harvester');
             }
             // next building
@@ -224,7 +247,7 @@
                 if (!c.harvester && tm.credits + this.spareValue() >= 0 && tm.credits < B.refinery.cost && this.t - (this.lastSell || -99) > 3) this.sellSpare();
                 if (sim.time > 30) return;
             }
-            // army (keep the queues short so credits flow where they're needed)
+            // army (keep the queues short — one or two items per lane — so credits flow where they're needed)
             const pendingB = tm.queues.building.length > 0 || tm.ready;
             const ecoReady = c.factory && haveH >= wantH;
             const reserve = ecoReady ? (pendingB ? 200 : 0) : (pendingB ? 700 : 300);
@@ -234,35 +257,71 @@
             const rich = tm.credits > 1500 ? 1 : 0;
             // enemy artillery shreds infantry: lean on vehicles once we've seen it
             const artThreat = c.factory && sim.time - (this.sawArtillery || -999) < 180 && inf.length > 0.3 * (this.army.length + 1);
-            const R = this.roles, ok = (t) => this.ok(t);
-            const first = (...list) => list.find(ok) || null;
-            if (c.barracks && (!artThreat || (tm.credits > 700 && vq.length >= this.st.vehQ)) && tm.queues.infantry.length < this.st.infQ + rich) {
-                const rockets = inf.filter((u) => u.type === R.at).length;
-                // anti-armour share: the style's default, pulled toward what the enemy actually fields
-                let wantRocket = c.factory ? this.st.rocket : 0.3;
-                if (this.seen.size >= 4) {
-                    let inf = 0;
-                    for (const k of this.seen.values()) if (k.armor === 'inf') inf++;
-                    const armour = 1 - inf / this.seen.size;
-                    wantRocket = Math.max(0.2, Math.min(0.8, 0.5 * wantRocket + 0.5 * (armour * 0.9 + 0.1)));
-                }
-                const pick = rockets < (inf.length + 1) * wantRocket ? first(R.at, R.inf) : first(R.inf, R.at);
+            // what the enemy fields: share of infantry among the enemy units seen lately
+            let seenInf = 0.5;
+            if (this.seen.size >= 4) { let n = 0; for (const k of this.seen.values()) if (k.armor === 'inf') n++; seenInf = n / this.seen.size; }
+            if (c.barracks && (!artThreat || (tm.credits > 700 && vq.length >= this.st.vehQ)) && tm.queues.infantry.length < lanesI * this.st.infQ + rich) {
+                const pick = this.pickInfantry(tm, inf, seenInf);
                 if (pick) cmd(pick);
             }
-            if (c.factory && vq.length < this.st.vehQ + rich && haveH >= wantH) {
-                const n = veh.length + 1;
-                const count = (t) => veh.filter((u) => u.type === t).length;
-                const mains = count(R.main), techs = count(R.tech), fasts = count(R.fast);
-                let pick = R.main;
-                // Vanguard: tanks, a few buggies, artillery once the tech lab is up. Hegemony: lancers hold the line,
-                // a pack of skimmers raids, phantoms flank and hunt harvesters.
-                const mix = MIX[this.faction];
-                if (c.techlab && techs < n * mix.tech) pick = R.tech;
-                else if (mains >= 1 && fasts < Math.min(mix.fastMax, Math.max(mix.fastMin, n * mix.fast))) pick = R.fast;
-                pick = first(pick, R.main, R.fast);
-                if (pick && sim._lockReason(this.team, 'vehicle', U[pick], c)) pick = first(R.main, R.fast);
+            if (c.factory && vq.length < lanesV * this.st.vehQ + rich && haveH >= wantH) {
+                const pick = this.pickVehicle(tm, veh, seenInf);
                 if (pick) cmd(pick);
             }
+        }
+        // Can we queue this unit right now (our faction's, allowed by the mission, prerequisites standing)?
+        can(type) {
+            const U = window.SF_CONFIG.UNITS;
+            return !!(type && U[type] && this.ok(type) && !this.sim._lockReason(this.team, U[type].from, U[type], this.counts));
+        }
+        pickInfantry(tm, inf, seenInf) {
+            const R = this.roles, U = window.SF_CONFIG.UNITS, t = this.sim.time, c = this.counts;
+            const count = (type) => inf.filter((u) => u.type === type).length + this.queued(tm, type);
+            const combat = inf.filter((u) => !U[u.type].heal).length;
+            // one healer for every six fighting infantry
+            if (this.can(R.heal) && combat >= 5 && count(R.heal) < Math.floor(combat / 6)) return R.heal;
+            // an engineer or two to patch the base up after attacks
+            if (this.can(R.eng)) {
+                const hurt = this.blds.some((b) => b.hp < b.maxHp * 0.7);
+                const want = hurt ? (this.diff === 'hard' ? 2 : 1) : (t > 420 ? 1 : 0);
+                if (count(R.eng) < want) return R.eng;
+            }
+            // a few cloaked stalkers to hunt harvesters
+            // (at most one every 50 s, so losses on raids don't drain the treasury)
+            if (this.can(R.stealth) && t > 300 && t - (this.lastStealth || -99) > 50 && count(R.stealth) < (this.diff === 'hard' ? 3 : 2)) {
+                this.lastStealth = t; return R.stealth;
+            }
+            // anti-armour share: the style's default, pulled toward what the enemy actually fields
+            let wantRocket = c.factory ? this.st.rocket : 0.3;
+            if (this.seen.size >= 4) wantRocket = Math.max(0.2, Math.min(0.8, 0.5 * wantRocket + 0.5 * ((1 - seenInf) * 0.9 + 0.1)));
+            const at = count(R.at) + (R.antiVeh ? count(R.antiVeh) : 0);
+            if (at < (combat + 1) * wantRocket) {
+                // against a vehicle-heavy enemy, EMP troops take a share of the anti-armour slots
+                if (this.can(R.antiVeh) && seenInf < 0.45 && count(R.antiVeh) < (at + 1) * 0.4) return R.antiVeh;
+                if (this.can(R.at)) return R.at;
+            }
+            // against an infantry-heavy enemy, snipers take a share of the rifle slots
+            if (this.can(R.antiInf) && seenInf > 0.55 && count(R.antiInf) < (combat + 1) * 0.25) return R.antiInf;
+            if (this.can(R.inf)) return R.inf;
+            return this.can(R.at) ? R.at : null;
+        }
+        pickVehicle(tm, veh, seenInf) {
+            const R = this.roles, t = this.sim.time, c = this.counts, mix = MIX[this.faction];
+            const count = (type) => (type ? veh.filter((u) => u.type === type).length + this.queued(tm, type) : 0);
+            const n = veh.length + 1;
+            // one early scout to find the enemy base and fields
+            if (!this.scoutBuilt && t < 400 && this.can(R.scout) && count(R.main) >= 1) { this.scoutBuilt = true; return R.scout; }
+            const mains = count(R.main) + count(R.main2);
+            let pick = R.main;
+            // Vanguard: tanks, a few buggies, artillery and salvo launchers, Bulwarks late. Hegemony: lancers and arc
+            // walkers hold the line, a pack of skimmers raids, phantoms flank, obliterators break bases late.
+            if (c.techlab && count(R.tech) < n * mix.tech && this.can(R.tech)) pick = R.tech;
+            else if (t > 360 && mix.siege && count(R.siege) < n * mix.siege && this.can(R.siege)) pick = R.siege;
+            else if (t > 540 && mix.heavy && count(R.heavy) < n * mix.heavy && this.can(R.heavy)) pick = R.heavy;
+            else if (mains >= 1 && count(R.fast) < Math.min(mix.fastMax, Math.max(mix.fastMin, n * mix.fast)) && this.can(R.fast)) pick = R.fast;
+            else if (mix.main2 && this.can(R.main2) && count(R.main2) < (mains + 1) * (mix.main2 + (seenInf > 0.6 ? 0.2 : 0))) pick = R.main2;
+            if (!this.can(pick)) pick = [R.main, R.fast].find((x) => this.can(x)) || null;
+            return pick;
         }
         spareValue() {
             const B = window.SF_CONFIG.BUILDINGS, f = window.SF_CONFIG.ECONOMY.sellRefund;
@@ -277,12 +336,20 @@
                 if (b) { this.sim.command(this.team, { type: 'sell', id: b.id }); this.lastSell = this.t; return; }
             }
         }
+        // Plan step conditions (see PLANS).
+        cond(name, tm) {
+            const t = this.sim.time, h = this.counts.harvester || 0;
+            if (name === 'eco2') return (h >= 3 && t > 300 && tm.credits > 600) || tm.credits > 2200;
+            if (name === 'late3') return this.diff === 'hard' && t > 840 && h >= 3 && tm.credits > 1500;
+            if (name === 'rich') return (tm.credits > 1400 && t > 300) || (t > 600 && h >= 3 && tm.credits > 600);
+            return true;
+        }
         nextBuilding(tm) {
             const B = window.SF_CONFIG.BUILDINGS, c = this.counts;
             let pick = null;
-            for (const [type, n] of this.plan) {
+            for (const [type, n, cond] of this.plan) {
                 if ((this.skip[type] || 0) > this.t) continue;
-                if ((c[type] || 0) < n) { pick = type; break; }
+                if ((c[type] || 0) < n && (!cond || this.cond(cond, tm))) { pick = type; break; }
             }
             if (!pick) return null;
             const p = tm.power, use = Math.max(0, -(B[pick].power || 0));
@@ -416,7 +483,8 @@
         // The most valuable known enemy building, weighed against how far it is (from the wave, or our base).
         pickTarget(from) {
             from = from || this.base;
-            const VALUE = { core: 14, uplink: 12, riftsilo: 12, factory: 10, refinery: 9, barracks: 6, reactor: 5, techlab: 5, radar: 4, turret: -2, spire: -2 };
+            const VALUE = { core: 14, uplink: 12, riftsilo: 12, factory: 10, refinery: 9, siphon: 8, barracks: 6, reactor: 5, techlab: 5, repairbay: 5,
+                radar: 4, turret: -2, spire: -2, sentry: -1, howitzer: 2, gravwell: -1, wall: -6 };
             let best = null, bs = Infinity;
             for (const k of this.known.values()) {
                 const sc = Math.hypot(k.x - from.x, k.z - from.z) - (VALUE[k.type] || 0);
@@ -468,7 +536,13 @@
             for (const id of this.wave) { const e = sim.entities.get(id); if (!e || e.dead) this.wave.delete(id); }
             for (const id of this.raid) { const e = sim.entities.get(id); if (!e || e.dead) this.raid.delete(id); }
             for (const [id, until] of this.flank) { const e = sim.entities.get(id); if (!e || e.dead || t > until || (!e._order && !e._path)) this.flank.delete(id); }
-            const home = this.army.filter((u) => !this.wave.has(u.id) && !this.raid.has(u.id));
+            for (const [id, until] of this.parked) { const e = sim.entities.get(id); if (!e || e.dead || t > until || e.hp >= e.maxHp * 0.97) this.parked.delete(id); }
+            this.scouting();
+            this.engineers();
+            // engineers stay home; the scout and vehicles at the repair bay sit out the waves
+            const U = window.SF_CONFIG.UNITS;
+            const home = this.army.filter((u) => !this.wave.has(u.id) && !this.raid.has(u.id) && !this.parked.has(u.id) &&
+                u.id !== this.scoutId && !(U[u.type].heal && U[u.type].heal.targets === 'bld'));
             const ids = (list) => list.map((u) => u.id);
             const easy = this.diff === 'easy';
             // defend
@@ -477,13 +551,16 @@
                 this.lastThreat = t;
                 if (t - this.lastDefend > 2.5) {
                     this.lastDefend = t;
-                    const near = this.army.filter((u) => (this.wave.has(u.id) || this.raid.has(u.id)) ? Math.hypot(u.x - this.base.x, u.z - this.base.z) < 22 : true);
+                    const near = this.army.filter((u) => (this.wave.has(u.id) || this.raid.has(u.id)) ? Math.hypot(u.x - this.base.x, u.z - this.base.z) < 22
+                        : !this.parked.has(u.id) && u.id !== this.scoutId && !(U[u.type].heal && U[u.type].heal.targets === 'bld'));
                     const go = near.filter((u) => !(u.state === 'attack' && u.targetId));
                     if (go.length) sim.command(this.team, { type: 'attackMove', ids: ids(go), x: this.threat.x, z: this.threat.z });
                     for (const u of near) { this.wave.delete(u.id); this.raid.delete(u.id); }
                 }
                 return;
             }
+            // damaged vehicles at home go to the repair bay
+            this.parkDamaged(home);
             // regroup at the staging point
             if (t > this.defendUntil && t - this.lastStage > 6) {
                 this.lastStage = t;
@@ -508,12 +585,13 @@
                     for (const u of home) this.wave.add(u.id);
                 }
             }
-            // artillery sieges: shell the nearest building we know about (turrets first) from outside its reach
+            // siege vehicles (artillery, salvo launchers, obliterators): shell the nearest building we know about
+            // (defences first) from outside its reach
             if (this.wave.size && this.known.size && t - (this.lastSiege || -99) > 2) {
                 this.lastSiege = t;
                 for (const id of this.wave) {
                     const u = sim.entities.get(id);
-                    if (!u || u.type !== 'artillery' || u._order === 'attack') continue;
+                    if (!u || !SIEGE_UNITS[u.type] || u._order === 'attack') continue;
                     let best = null, bs = Infinity;
                     for (const k of this.known.values()) {
                         const e = sim.entities.get(k.id);
@@ -572,7 +650,75 @@
             for (const [id, ids] of byTarget) sim.command(this.team, { type: 'attack', ids, targetId: id });
         }
 
-        // ---------- raids (Hegemony): skimmer packs and cloaked phantom pairs hunt harvesters ----------
+        // ---------- scouting: one fast unit looks at the enemy base and their fields early on ----------
+        scouting() {
+            if (this.scoutDone) return;
+            const sim = this.sim, R = this.roles;
+            let u = this.scoutId ? sim.entities.get(this.scoutId) : null;
+            if (this.scoutId && (!u || u.dead)) { this.scoutDone = true; this.scoutId = 0; return; }
+            if (!u) {
+                if (this.t > this.cfg.firstWave + 120) { this.scoutDone = true; return; }
+                u = this.army.find((e) => e.type === R.scout && !this.wave.has(e.id) && !this.raid.has(e.id));
+                if (!u) return;
+                this.scoutId = u.id; this.scoutK = 0;
+                const es = this.enemyStart;
+                const pts = [sim._freePoint(es.x - this.fwd.x * 7, es.z - this.fwd.z * 7)];
+                const f = sim.map.fields.slice().sort((a, b) => Math.hypot(a.x - es.x, a.z - es.z) - Math.hypot(b.x - es.x, b.z - es.z));
+                for (const fd of f.slice(0, 3)) pts.push(sim._freePoint(fd.x, fd.z));
+                this.scoutPts = pts;
+            }
+            if (u._order || u._path || u._need || u.targetId) return;
+            if (this.scoutK >= this.scoutPts.length) {
+                sim.command(this.team, { type: 'move', ids: [u.id], x: this.staging.x, z: this.staging.z });
+                this.scoutDone = true; this.scoutId = 0;
+                return;
+            }
+            const p = this.scoutPts[this.scoutK++];
+            sim.command(this.team, { type: 'move', ids: [u.id], x: p.x, z: p.z });
+        }
+        // ---------- repairs: damaged vehicles park at the repair bay; engineers patch up the base ----------
+        parkDamaged(home) {
+            const sim = this.sim, U = window.SF_CONFIG.UNITS;
+            if (this.t - (this.lastPark || -99) < 3) return;
+            this.lastPark = this.t;
+            const bays = this.blds.filter((b) => window.SF_CONFIG.BUILDINGS[b.type].repair && b.built >= 1);
+            if (!bays.length) return;
+            const go = [];
+            for (const u of home) {
+                if (U[u.type].from !== 'vehicle' || u.targetId || u.hp > u.maxHp * 0.6) continue;
+                go.push(u);
+            }
+            for (const u of go) {
+                let bay = bays[0], bd = Infinity;
+                for (const b of bays) { const d = Math.hypot(b.x - u.x, b.z - u.z); if (d < bd) { bd = d; bay = b; } }
+                if (bd > 2.5) {
+                    const p = sim._freePoint(bay.x + (this.rng() - 0.5) * 2, bay.z + (this.rng() - 0.5) * 2);
+                    sim.command(this.team, { type: 'move', ids: [u.id], x: p.x, z: p.z });
+                }
+                this.parked.set(u.id, this.t + 60);
+            }
+        }
+        engineers() {
+            const sim = this.sim, U = window.SF_CONFIG.UNITS;
+            if (this.t - this.lastEng < 4) return;
+            this.lastEng = this.t;
+            const engs = this.army.filter((u) => U[u.type].heal && U[u.type].heal.targets === 'bld');
+            if (!engs.length) return;
+            const hurt = this.blds.filter((b) => b.built >= 1 && b.hp < b.maxHp * 0.92).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp);
+            for (const u of engs) {
+                if (u.healing || u._order === 'heal') continue;
+                if (hurt.length && !this.threat) {
+                    // the most damaged building nobody is repairing yet, else the most damaged
+                    const free = hurt.find((b) => !engs.some((e) => e !== u && e._healTgt === b.id)) || hurt[0];
+                    sim.command(this.team, { type: 'repair', ids: [u.id], targetId: free.id });
+                } else if (!u._order && !u._path && Math.hypot(u.x - this.base.x, u.z - this.base.z) > 7) {
+                    const p = sim._freePoint(this.base.x - this.fwd.x * 3, this.base.z - this.fwd.z * 3);
+                    sim.command(this.team, { type: 'move', ids: [u.id], x: p.x, z: p.z });
+                }
+            }
+        }
+
+        // ---------- raids (Hegemony): skimmer packs, stalker squads and cloaked phantom pairs hunt harvesters ----------
         raidTarget(from) {
             const sim = this.sim;
             from = from || this.base;
@@ -607,8 +753,10 @@
                 if (t - this.lastRaid < 40 || sim.time < 150) return;
                 const fast = home.filter((u) => u.type === R.fast && !u.targetId);
                 const ghosts = home.filter((u) => u.type === R.tech && !u.targetId);
+                const stalkers = R.stealth ? home.filter((u) => u.type === R.stealth && !u.targetId) : [];
                 let group = null;
                 if (fast.length >= 3) group = fast.slice(0, 4);
+                else if (stalkers.length >= 2) group = stalkers.slice(0, 3);
                 else if (ghosts.length >= 3 && this.harvSeen.size) group = ghosts.slice(0, 2);
                 if (!group) return;
                 const p = this.raidTarget();
@@ -703,4 +851,5 @@
     SF.AI.MIX = MIX;
     SF.AI.PLANS = PLANS;
     SF.AI.STYLES = STYLES;
+    SF.AI.GUARD = GUARD;
 })();
