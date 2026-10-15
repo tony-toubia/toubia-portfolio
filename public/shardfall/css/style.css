@@ -612,6 +612,42 @@ body.L-bottom .brief-body p { font-size: 14.5px; }
 body.L-bottom .brief-obj li { font-size: 16px; }
 body.L-bottom .end-btns .btn { flex: 1 1 40%; }
 body.L-bottom #btn-next { flex-basis: 100%; }
+/* ---------------------------------------------------------------- roster expansion: lanes, bigger rosters, walls, support */
+.tab .lanes { display: none; margin-left: 4px; padding: 1px 4px 0; font-style: normal; font-size: 11.5px; font-weight: 800; letter-spacing: 0.02em; line-height: 1.25; color: #04101c; background: var(--cyan); clip-path: polygon(3px 0, 100% 0, 100% 100%, 0 100%, 0 3px); }
+.tab.has-lanes .lanes { display: inline-block; }
+.tab.active .lanes { background: #bff4ff; }
+body .sheet .tab.has-lanes { letter-spacing: 0; font-size: 13px; }
+.tab.has-lanes .badge { right: auto; left: 5px; }
+.build-item .par { position: absolute; z-index: 3; left: 0; right: 0; top: 38%; transform: translateY(70%); display: none; text-align: center; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; color: var(--cyan); text-shadow: 0 1px 2px #000, 0 0 6px rgba(0, 0, 0, 0.8); }
+.build-item.multi.busy .par { display: block; }
+.build-item .nm.long { font-size: 11.5px; letter-spacing: 0; }
+/* desktop: a compact four-column grid when the longest category would overflow three */
+body.L-side.grid-compact .build-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+body.L-side.grid-compact .build-item { min-height: 56px; aspect-ratio: 1 / 1.14; }
+body.L-side.grid-compact .build-item .nm { font-size: 10.5px; letter-spacing: 0; padding: 1px 2px 2px; }
+body.L-side.grid-compact .build-item .cost { font-size: 11.5px; top: 2px; right: 3px; }
+body.L-side.grid-compact .build-item .cost svg { font-size: 9.5px; }
+body.L-side.grid-compact .build-item .why { font-size: 10px; }
+body.L-side.grid-compact .build-item .tag { font-size: 11.5px; letter-spacing: 0.02em; }
+body.L-side.grid-compact .build-item .qn { min-width: 17px; height: 17px; font-size: 12.5px; padding: 0 4px; }
+/* phone: the strip fades at an edge that has more items past it */
+body.L-bottom .build-item { width: 76px; height: 88px; }
+body.L-bottom .build-grid.more-r { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 34px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 34px), transparent); }
+body.L-bottom .build-grid.more-l { -webkit-mask-image: linear-gradient(90deg, transparent, #000 26px); mask-image: linear-gradient(90deg, transparent, #000 26px); }
+body.L-bottom .build-grid.more-l.more-r { -webkit-mask-image: linear-gradient(90deg, transparent, #000 26px, #000 calc(100% - 34px), transparent); mask-image: linear-gradient(90deg, transparent, #000 26px, #000 calc(100% - 34px), transparent); }
+/* wall placement: Done instead of Place/Cancel, with a queued count */
+#pb-done, .pb-count { display: none; }
+.placebar.wall #pb-done { display: inline-flex; }
+.placebar.wall #pb-ok, .placebar.wall #pb-cancel { display: none; }
+.placebar.wall .pb-count { display: inline-block; min-width: 0; padding: 0 4px; font-size: 15px; font-weight: 700; letter-spacing: 0.04em; color: var(--cyan); white-space: nowrap; }
+.placebar.wall .pb-count:empty { display: none; }
+body.L-bottom .placebar.wall .pb-hint { display: block; flex: 1 1 auto; min-width: 0; padding: 0 4px; font-size: 13.5px; line-height: 1.15; white-space: normal; }
+body.L-bottom .placebar.wall { left: calc(8px + var(--sl)); right: calc(8px + var(--sr)); transform: none; max-width: none; }
+/* selection panel: support states */
+.sel-sub .heal { color: #7dffa6; }
+.sel-sub .rep { color: #ffd27a; }
+.sel-sub .vi { color: #d3a6ff; }
+.sel-sub .stun { color: #9fe9ff; animation: blink 0.5s infinite; }
 @media (max-width: 374px) {
     body.L-bottom .power span { display: none; }
 }

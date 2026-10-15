@@ -12,7 +12,9 @@
     let voices = 0;
     const listener = { x: 0, z: 0, r: 14 };
     const GAP = { rifle: 0.045, mg: 0.04, rocket: 0.07, cannon: 0.06, turretGun: 0.06, artillery: 0.1, boom: 0.06, bigboom: 0.12, impact: 0.05, click: 0.03, select: 0.05, order: 0.06,
-        pulse: 0.05, twinPulse: 0.05, shock: 0.07, beam: 0.06, phase: 0.07, spireBeam: 0.1, lance: 0.3, rift: 0.3, siren: 1.2, launch: 0.5, radio: 0.3, cloak: 0.15, decloak: 0.15 };
+        pulse: 0.05, twinPulse: 0.05, shock: 0.07, beam: 0.06, phase: 0.07, spireBeam: 0.1, lance: 0.3, rift: 0.3, siren: 1.2, launch: 0.5, radio: 0.3, cloak: 0.15, decloak: 0.15,
+        sniper: 0.12, bikeGun: 0.04, twinCannon: 0.07, salvo: 0.05, sentryGun: 0.035, howitzer: 0.12, stalkerBlade: 0.08, emp: 0.09, arc: 0.1, obliterate: 0.3, wispZap: 0.05,
+        heal: 0.35, repair: 0.25, stun: 0.12, income: 2.5, wall: 0.05 };
 
     function ensure() {
         if (ctx) return ctx;
@@ -86,6 +88,24 @@
         beam(d, t) { tone(d, t, 0.17, 'sawtooth', 320, 290, 0.16, 0.004); tone(d, t, 0.17, 'square', 641, 600, 0.06, 0.004); noise(d, t, 0.15, 'highpass', 3000, 3000, 0.8, 0.12); },
         spireBeam(d, t) { tone(d, t, 0.32, 'sawtooth', 190, 130, 0.3, 0.004); tone(d, t, 0.28, 'sine', 1100, 420, 0.18, 0.004); noise(d, t, 0.3, 'bandpass', 2400, 900, 1.2, 0.22); },
         phase(d, t) { tone(d, t, 0.22, 'sine', 980, 180, 0.35, 0.003); noise(d, t, 0.2, 'lowpass', 2600, 500, 0.8, 0.3); },
+        // roster expansion weapons
+        sniper(d, t) { noise(d, t, 0.05, 'highpass', 5200, 3800, 0.9, 0.7, 0.001); tone(d, t, 0.05, 'square', 1800, 320, 0.16, 0.001); noise(d, t + 0.03, 0.55, 'bandpass', 1400, 380, 1.1, 0.16, 0.02); },
+        bikeGun(d, t) { noise(d, t, 0.035, 'bandpass', 3600, 2400, 1.5, 0.3); tone(d, t, 0.025, 'square', 360, 180, 0.04); },
+        twinCannon(d, t) { tone(d, t, 0.24, 'sine', 128, 40, 0.75); noise(d, t, 0.22, 'lowpass', 1500, 260, 0.8, 0.55); tone(d, t + 0.02, 0.1, 'triangle', 220, 90, 0.18); },
+        salvo(d, t) { noise(d, t, 0.5, 'bandpass', 500, 3200, 2.2, 0.32, 0.02); noise(d, t, 0.12, 'lowpass', 900, 300, 0.7, 0.3); tone(d, t, 0.1, 'triangle', 140, 60, 0.14); },
+        sentryGun(d, t) { noise(d, t, 0.03, 'bandpass', 3800, 2600, 1.6, 0.3); tone(d, t, 0.02, 'square', 420, 200, 0.04); },
+        howitzer(d, t) { tone(d, t, 0.6, 'sine', 80, 26, 0.95); noise(d, t, 0.55, 'lowpass', 800, 110, 0.7, 0.7); noise(d, t + 0.05, 0.3, 'bandpass', 500, 160, 0.9, 0.25); },
+        stalkerBlade(d, t) { tone(d, t, 0.14, 'sawtooth', 1200, 300, 0.14, 0.004); noise(d, t, 0.14, 'highpass', 4500, 2000, 0.8, 0.22, 0.01); },
+        emp(d, t) { tone(d, t, 0.22, 'square', 2400, 160, 0.13, 0.002); tone(d, t + 0.02, 0.18, 'sine', 90, 50, 0.3, 0.004); noise(d, t, 0.2, 'bandpass', 3000, 700, 2.5, 0.22); },
+        arc(d, t) { for (let i = 0; i < 5; i++) noise(d, t + i * 0.035 + Math.random() * 0.02, 0.05, 'bandpass', 2500 + Math.random() * 2500, 1800, 3, 0.3, 0.002); tone(d, t, 0.25, 'sawtooth', 110, 70, 0.14, 0.004); },
+        obliterate(d, t) { tone(d, t, 0.32, 'sawtooth', 160, 1400, 0.12, 0.25); tone(d, t, 0.32, 'sine', 320, 2600, 0.08, 0.25); tone(d, t + 0.32, 0.6, 'sawtooth', 240, 60, 0.4, 0.004); noise(d, t + 0.32, 0.7, 'lowpass', 3400, 120, 0.7, 0.75, 0.005); tone(d, t + 0.32, 0.8, 'sine', 62, 24, 0.8, 0.01); },
+        wispZap(d, t) { tone(d, t, 0.05, 'square', 2200, 900, 0.07, 0.002); },
+        // support
+        heal(d, t) { tone(d, t, 0.18, 'sine', 1320, 1320, 0.07, 0.01); tone(d, t + 0.07, 0.24, 'sine', 1760, 1760, 0.06, 0.01); tone(d, t, 0.3, 'triangle', 2640, 2640, 0.02, 0.02); },
+        repair(d, t) { noise(d, t, 0.12, 'bandpass', 5200, 4200, 2.5, 0.12, 0.004); tone(d, t + 0.02, 0.04, 'square', 1500, 1500, 0.04, 0.002); tone(d, t + 0.09, 0.04, 'square', 1300, 1300, 0.04, 0.002); },
+        stun(d, t) { tone(d, t, 0.35, 'square', 1600, 400, 0.08, 0.004); noise(d, t, 0.32, 'bandpass', 3800, 1200, 3, 0.16, 0.004); },
+        income(d, t) { tone(d, t, 0.12, 'triangle', 1568, 1568, 0.07, 0.004); tone(d, t + 0.08, 0.18, 'triangle', 2093, 2093, 0.06, 0.004); },
+        wall(d, t) { tone(d, t, 0.14, 'sine', 230, 80, 0.45); noise(d, t, 0.12, 'lowpass', 1400, 300, 0.8, 0.3); },
         // superweapons
         swready(d, t) { [660, 880, 1320, 1760].forEach((f, i) => tone(d, t + i * 0.09, 0.3, 'triangle', f, f, 0.22, 0.004)); tone(d, t + 0.36, 0.6, 'sine', 1760, 1760, 0.12, 0.01); },
         launch(d, t) { noise(d, t, 1.4, 'bandpass', 260, 2600, 1.4, 0.55, 0.25); tone(d, t, 1.2, 'sine', 70, 40, 0.6, 0.1); tone(d, t + 0.1, 0.9, 'sawtooth', 220, 880, 0.08, 0.3); },

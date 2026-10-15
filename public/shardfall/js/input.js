@@ -191,6 +191,8 @@
             const units = G.selUnits();
             if (ent && ent.team === G.team) {
                 if (dbl && ent.kind === 'unit') { this.selectType(ent.type); return; }
+                // a selection of only healers tapping a hurt ally: heal / repair it rather than select it
+                if (units.length && this.healers(units, ent).length === units.length) { this.smartOrder(x, y, true); return; }
                 G.select([id]); return;
             }
             if (units.length) { this.smartOrder(x, y, true); return; }
@@ -209,6 +211,8 @@
             const G = this.G, g = this.R.screenToGround(x, y); if (!g) return;
             const b = C.BUILDINGS[G.placing];
             const tx = Math.round(g.x - b.w / 2), tz = Math.round(g.z - b.d / 2);
+            // walls: every tap builds one there (no confirm step); the Done button leaves wall mode
+            if (G.wall) { G.moveGhost(tx, tz); G.wallAdd([{ tx, tz }]); return; }
             const gh = G.ghost;
             const inside = gh && g.x >= gh.tx && g.x < gh.tx + b.w && g.z >= gh.tz && g.z < gh.tz + b.d;
             if (inside && G.canPlaceGhost()) { G.placeAt(gh.tx, gh.tz); return; }
@@ -228,7 +232,11 @@
             const m = this.mouse;
             if (m) {
                 const far = Math.hypot(p.x - m.sx, p.y - m.sy) > DRAG_SLOP;
-                if (m.button === 0 && !this.G.placing && !this.G.mode) {
+                if (m.button === 0 && this.G.wall) {
+                    // hold-drag in wall mode: preview a line of walls from the press point
+                    if (far) m.wallDrag = true;
+                    if (m.wallDrag) { const a = this.tileAt(m.sx, m.sy), b = this.tileAt(p.x, p.y); if (a && b) this.G.setWallPreview(this.G.wallLine(a, b)); }
+                } else if (m.button === 0 && !this.G.placing && !this.G.mode) {
                     if (far) m.dragging = true;
                     if (m.dragging) this.drawBox(m.sx, m.sy, p.x, p.y);
                 } else if (m.button === 1 || m.button === 2) {
@@ -242,9 +250,16 @@
         mouseUp(e, p, cancelled) {
             const m = this.mouse; this.mouse = null;
             this.stage.classList.remove('cur-pan');
-            if (!m || cancelled) { this.hideBox(); return; }
+            if (!m || cancelled) { this.hideBox(); if (this.G.wall) this.G.setWallPreview([]); return; }
             const G = this.G;
             if (m.button === 0) {
+                if (G.wall) {
+                    const b = this.tileAt(p.x, p.y);
+                    if (m.wallDrag) { const a = this.tileAt(m.sx, m.sy); G.setWallPreview([]); if (a && b) G.wallAdd(G.wallLine(a, b)); }
+                    else if (b && (e.shiftKey || m.shift) && G.wall.anchor) { const line = G.wallLine(G.wall.anchor, b); if (line.length > 1) line.shift(); G.wallAdd(line); }
+                    else if (b) G.wallAdd([b]);
+                    return;
+                }
                 if (G.placing) { this.placeClick(p.x, p.y); return; }
                 if (G.mode === 'super') { const g = this.R.screenToGround(p.x, p.y); if (g) G.fireSuper(g.x, g.z); return; }
                 if (m.dragging) { this.hideBox(); this.finishBox(m.sx, m.sy, p.x, p.y, false, e.shiftKey); return; }
@@ -272,9 +287,23 @@
             const b = C.BUILDINGS[G.placing];
             G.moveGhost(Math.round(g.x - b.w / 2), Math.round(g.z - b.d / 2));
         }
+        // the footprint origin tile under a screen point for the building being placed
+        tileAt(x, y) {
+            const G = this.G, g = this.R.screenToGround(x, y), b = C.BUILDINGS[G.placing] || { w: 1, d: 1 };
+            return g ? { tx: Math.round(g.x - b.w / 2), tz: Math.round(g.z - b.d / 2) } : null;
+        }
         updateHover(p) {
             const G = this.G;
-            if (G.placing) { this.updateGhostFromMouse(p.x, p.y); this.setCursor('cur-place'); this.R.setHover(null); return; }
+            if (G.placing) {
+                this.updateGhostFromMouse(p.x, p.y); this.setCursor('cur-place'); this.R.setHover(null);
+                // wall mode with Shift held: preview the line from the last wall
+                if (G.wall && !(this.mouse && this.mouse.wallDrag)) {
+                    const t = this.tileAt(p.x, p.y), a = G.wall.anchor;
+                    if (this.keys.has('shift') && a && t) { const line = G.wallLine(a, t); if (line.length > 1) line.shift(); G.setWallPreview(line); }
+                    else if (G.wall.preview.length) G.setWallPreview([]);
+                }
+                return;
+            }
             if (G.mode === 'super') {
                 const g = this.R.screenToGround(p.x, p.y); if (g) G.aimSuper(g.x, g.z);
                 this.setCursor(G.superAim && !G.superAim.ok ? 'cur-noaim' : 'cur-target'); this.R.setHover(null); return;
@@ -331,6 +360,7 @@
             const id = this.R.pick(x, y, touch), target = id != null ? sim.entities.get(id) : null;
             const ids = units.map((u) => u.id);
             const armed = units.filter((u) => C.UNITS[u.type] && C.UNITS[u.type].weapon).map((u) => u.id);
+            if (this.healOrder(units, target)) return true;
             if (target && target.team !== team && !target.dead) {
                 if (!armed.length) { G.denied('No weapons'); return false; }
                 sim.command(team, { type: 'attack', ids: armed, targetId: target.id });
@@ -352,6 +382,38 @@
             }
             sim.command(team, { type: 'move', ids, x: g.x, z: g.z });
             this.R.marker(g.x, g.z, 'move'); G.audio.play('order');
+            return true;
+        }
+        // healers (medic / acolyte → infantry, engineer → structures) ordered onto a damaged friendly target
+        healers(units, target) {
+            if (!target || target.dead || target.team !== this.G.team || !(target.hp < target.maxHp)) return [];
+            const tu = target.kind === 'unit' ? C.UNITS[target.type] : null;
+            return units.filter((u) => {
+                const h = C.UNITS[u.type] && C.UNITS[u.type].heal; if (!h || u.id === target.id) return false;
+                if (h.targets === 'bld') return target.kind === 'building';
+                if (h.targets === 'inf') return !!tu && tu.armor === 'inf';
+                return !!tu && tu.armor !== 'inf';
+            });
+        }
+        healOrder(units, target) {
+            const G = this.G, sim = G.sim, team = G.team, hs = this.healers(units, target);
+            if (!hs.length) return false;
+            const hid = hs.map((u) => u.id), bld = target.kind === 'building';
+            // the simulation may take an explicit order; otherwise walk next to the target (healers work on idle allies in reach)
+            let ok = false;
+            for (const type of bld ? ['repair', 'heal'] : ['heal', 'repair']) { try { ok = sim.command(team, { type, ids: hid, targetId: target.id }); } catch (e) { ok = false; } if (ok) break; }
+            if (!ok) {
+                let gx = target.x, gz = target.z;
+                if (bld) {
+                    let cx = 0, cz = 0; for (const u of hs) { cx += u.x; cz += u.z; } cx /= hs.length; cz /= hs.length;
+                    gx = Math.max(target.tx - 0.6, Math.min(target.tx + target.w + 0.6, cx)); gz = Math.max(target.tz - 0.6, Math.min(target.tz + target.d + 0.6, cz));
+                    if (gx > target.tx - 0.6 && gx < target.tx + target.w + 0.6 && gz > target.tz - 0.6 && gz < target.tz + target.d + 0.6) gz = target.tz + target.d + 0.6;
+                }
+                sim.command(team, { type: 'move', ids: hid, x: gx, z: gz });
+            }
+            const rest = units.filter((u) => hid.indexOf(u.id) < 0).map((u) => u.id);
+            if (rest.length) sim.command(team, { type: 'move', ids: rest, x: target.x, z: target.z });
+            this.R.marker(target.x, target.z, bld ? 'repair' : 'heal'); G.audio.play('order'); G.setMode(null);
             return true;
         }
         rallyAt(x, y) {

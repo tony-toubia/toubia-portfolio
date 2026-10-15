@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=3">
+    <link rel="stylesheet" href="css/style.css?v=4">
 </head>
 <body>
     <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -80,8 +80,8 @@
             <div class="sheet">
                 <nav class="tabs" role="tablist">
                     <button class="tab active" data-tab="building" role="tab" type="button"><span class="tl-full">Buildings</span><span class="tl-short">Build</span><i class="badge"></i></button>
-                    <button class="tab" data-tab="infantry" role="tab" type="button"><span class="tl-full">Infantry</span><span class="tl-short">Infantry</span><i class="badge"></i></button>
-                    <button class="tab" data-tab="vehicle" role="tab" type="button"><span class="tl-full">Vehicles</span><span class="tl-short">Vehicles</span><i class="badge"></i></button>
+                    <button class="tab" data-tab="infantry" role="tab" type="button"><span class="tl-full">Infantry</span><span class="tl-short">Infantry</span><i class="lanes"></i><i class="badge"></i></button>
+                    <button class="tab" data-tab="vehicle" role="tab" type="button"><span class="tl-full">Vehicles</span><span class="tl-short">Vehicles</span><i class="lanes"></i><i class="badge"></i></button>
                     <button class="tab sheet-toggle" id="sheet-toggle" type="button" aria-label="Collapse build bar"><svg><use href="#i-chev"/></svg></button>
                 </nav>
                 <div class="build-grid" id="build-grid"></div>
@@ -111,8 +111,10 @@
 
         <div id="placebar" class="placebar hud-hide">
             <span class="pb-hint" id="pb-hint">Tap the map to position</span>
+            <span class="pb-count" id="pb-count"></span>
             <button class="pb-btn cancel" id="pb-cancel" type="button"><svg><use href="#i-close"/></svg><span>Cancel</span></button>
             <button class="pb-btn ok" id="pb-ok" type="button"><svg><use href="#i-check"/></svg><span>Place</span></button>
+            <button class="pb-btn ok" id="pb-done" type="button"><svg><use href="#i-check"/></svg><span>Done</span></button>
         </div>
         <div id="modebar" class="modebar hud-hide"><span id="mode-text">Attack-move: pick a target</span><button id="mode-fire" class="mode-fire" type="button" disabled><svg><use href="#i-target"/></svg><span>Fire</span></button><button id="mode-cancel" type="button" aria-label="Cancel"><svg><use href="#i-close"/></svg></button></div>
 
@@ -226,7 +228,8 @@
                             <li><b>Credits</b> come from <span class="cy">shards</span>. Harvesters mine them and unload at a Refinery.</li>
                             <li><b>Power</b>: every structure draws power. Build Reactors. Low power slows production and shuts down turrets and radar.</li>
                             <li><b>Build</b> from the sidebar. A finished structure waits as <b>READY</b>; place it near your base.</li>
-                            <li>Barracks train infantry, the War Factory builds vehicles. The Comms Array turns on the minimap.</li>
+                            <li>Barracks train infantry, the War Factory builds vehicles. <b>Each extra barracks or factory adds a production lane</b> (up to 5): that many units build at once and the queue grows. The Comms Array turns on the minimap.</li>
+                            <li><b>Support</b>: medics and acolytes heal infantry, engineers repair structures, a Repair Bay fixes parked vehicles. <b>Walls</b> are cheap blocks units must go around.</li>
                             <li><b>Two sides.</b> The <b class="blue">Vanguard</b> fields armour, artillery and gun turrets; the <b class="redt">Hegemony</b> fields fast skimmers, beam tanks, pulse spires and the cloaked Phantom (seen only up close or when it fires).</li>
                             <li><b>Superweapons</b>: the Orbital Uplink and the Rift Silo charge while powered. When the ring button by the minimap reads READY, use it and pick any explored spot. Everyone sees the warning ring before it lands.</li>
                             <li><b>Win</b> by destroying every enemy structure (in the campaign: complete the mission objectives). Lose all of yours and it is over.</li>
@@ -243,6 +246,7 @@
                             <dt>Double-tap a unit</dt><dd>select all of that type on screen</dd>
                             <dt>Side buttons</dt><dd>Army, Attack-move, Stop, Rally, Sell, Clear</dd>
                             <dt>Superweapon</dt><dd>tap the ring button, tap a spot, tap it again (or Fire) to launch</dd>
+                            <dt>Walls</dt><dd>tap tile after tile, then Done</dd>
                         </dl>
                     </section>
                     <section class="ctl ctl-mouse">
@@ -255,6 +259,7 @@
                             <dt>S</dt><dd>stop &nbsp;·&nbsp; <b>Q</b> select army &nbsp;·&nbsp; <b>H</b> home</dd>
                             <dt>Ctrl + 1–9</dt><dd>set group (1–9 recalls, twice to jump)</dd>
                             <dt>Arrows / edges / wheel</dt><dd>pan and zoom (WASD when nothing is selected)</dd>
+                            <dt>Walls</dt><dd>click tiles or drag a line; Shift-click continues from the last wall</dd>
                             <dt>Z</dt><dd>superweapon: click a spot to fire, right click cancels</dd>
                             <dt>Esc</dt><dd>cancel placement, deselect, pause</dd>
                         </dl>
@@ -296,16 +301,16 @@
 
     <script>window.SF_BOOT = { failed: [] };</script>
     <script src="vendor/three.min.js?v=2" onerror="SF_BOOT.failed.push('vendor/three.min.js')"></script>
-    <script src="js/config.js?v=3" onerror="SF_BOOT.failed.push('js/config.js')"></script>
-    <script src="js/models.js?v=3" onerror="SF_BOOT.failed.push('js/models.js')"></script>
-    <script src="js/map.js?v=3" onerror="SF_BOOT.failed.push('js/map.js')"></script>
-    <script src="js/sim.js?v=3" onerror="SF_BOOT.failed.push('js/sim.js')"></script>
-    <script src="js/ai.js?v=3" onerror="SF_BOOT.failed.push('js/ai.js')"></script>
-    <script src="js/missions.js?v=3" onerror="SF_BOOT.failed.push('js/missions.js')"></script>
-    <script src="js/audio.js?v=3" onerror="SF_BOOT.failed.push('js/audio.js')"></script>
-    <script src="js/render.js?v=3" onerror="SF_BOOT.failed.push('js/render.js')"></script>
-    <script src="js/input.js?v=3" onerror="SF_BOOT.failed.push('js/input.js')"></script>
-    <script src="js/ui.js?v=3" onerror="SF_BOOT.failed.push('js/ui.js')"></script>
-    <script src="js/main.js?v=3" onerror="SF_BOOT.failed.push('js/main.js')"></script>
+    <script src="js/config.js?v=4" onerror="SF_BOOT.failed.push('js/config.js')"></script>
+    <script src="js/models.js?v=4" onerror="SF_BOOT.failed.push('js/models.js')"></script>
+    <script src="js/map.js?v=4" onerror="SF_BOOT.failed.push('js/map.js')"></script>
+    <script src="js/sim.js?v=4" onerror="SF_BOOT.failed.push('js/sim.js')"></script>
+    <script src="js/ai.js?v=4" onerror="SF_BOOT.failed.push('js/ai.js')"></script>
+    <script src="js/missions.js?v=4" onerror="SF_BOOT.failed.push('js/missions.js')"></script>
+    <script src="js/audio.js?v=4" onerror="SF_BOOT.failed.push('js/audio.js')"></script>
+    <script src="js/render.js?v=4" onerror="SF_BOOT.failed.push('js/render.js')"></script>
+    <script src="js/input.js?v=4" onerror="SF_BOOT.failed.push('js/input.js')"></script>
+    <script src="js/ui.js?v=4" onerror="SF_BOOT.failed.push('js/ui.js')"></script>
+    <script src="js/main.js?v=4" onerror="SF_BOOT.failed.push('js/main.js')"></script>
 </body>
 </html>

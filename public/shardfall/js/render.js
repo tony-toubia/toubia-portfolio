@@ -16,7 +16,13 @@
     const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpS = new THREE.Vector3();
     const AX_X = new THREE.Vector3(1, 0, 0), AX_Y = new THREE.Vector3(0, 1, 0);
     // energy weapon colours (Hegemony): bolts, beams, their flashes and impacts
-    const ENERGY = { pulse: 0xc77dff, twinPulse: 0xe08cff, shock: 0xff5fd2, phase: 0x7ff6ff, beam: 0xe45cff, spireBeam: 0xff4fd0 };
+    const ENERGY = { pulse: 0xc77dff, twinPulse: 0xe08cff, shock: 0xff5fd2, phase: 0x7ff6ff, beam: 0xe45cff, spireBeam: 0xff4fd0,
+        emp: 0x8fe9ff, arc: 0xd9b8ff, obliterate: 0xff63ee, stalkerBlade: 0xff4fe0, wispZap: 0xcfa6ff };
+    // roster expansion: per-weapon beam looks (radius, life) and support-effect colours
+    const BEAM_LOOK = { spireBeam: [0.065, 0.26], obliterate: [0.11, 0.42], stalkerBlade: [0.035, 0.12] };
+    const HEAL_COL = 0x5dff8f, REPAIR_COL = 0xffc23a, FIELD_COL = 0xb26bff, STUN_COL = 0x9fe9ff;
+    // wall connector arms: N = −Z (towards the top of the screen), S = +Z, E = +X, W = −X
+    const WALL_DIRS = [['n', 0, -1], ['s', 0, 1], ['e', 1, 0], ['w', -1, 0]];
     const SW_COLOR = { lance: 0x9fe8ff, rift: 0xc45cff };
     const SW_WARN = { lance: 0xff5a3c, rift: 0xd66eff };
     const rgb = (hex, a) => [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255, a == null ? 1 : a];
@@ -202,6 +208,8 @@
             this.ghost = null; this.timers = [];
             if (this.aim) this.aim.obj.visible = false;
             if (this.strikeMarks) this.strikeMarks.clear();
+            this.floats = []; this.tempTethers = []; this.wallDirty = true;
+            if (this.planTiles) this.planTiles.count = this.planBlocks.count = 0;
         }
         buildGround(map) {
             const W = map.w, H = map.h, px = W <= 64 ? 16 : 8;
@@ -490,7 +498,7 @@
             mkPool('bolt', 32, () => ({ obj: new THREE.Mesh(unitBox, this.boltMat) }));
             const rocketGeo = new THREE.ConeGeometry(0.05, 0.28, 5); rocketGeo.rotateZ(-Math.PI / 2);
             const rocketMat = new THREE.MeshBasicMaterial({ color: 0xfff1d0, toneMapped: false });
-            mkPool('rocket', 24, () => ({ obj: new THREE.Mesh(rocketGeo, rocketMat) }));
+            mkPool('rocket', 40, () =>({ obj: new THREE.Mesh(rocketGeo, rocketMat) }));
             const arcGeo = new THREE.SphereGeometry(0.11, 8, 6), arcMat = add(0xffc06a);
             mkPool('arc', 16, () => ({ obj: new THREE.Mesh(arcGeo, arcMat) }));
             // energy bolts: a glowing capsule (colour per shot) with a hot white core
@@ -504,6 +512,36 @@
                 glow.renderOrder = core.renderOrder = 6; g.add(glow, core);
                 return { obj: g, glow, core };
             });
+            // chain lightning: many short jagged segments per shot (same open cylinder as the beams)
+            mkPool('zap', this.high ? 160 : 110, () => {
+                const g = new THREE.Group();
+                const glow = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: 0xc89bff, transparent: true, opacity: 0.6, depthWrite: false, toneMapped: false })), core = new THREE.Mesh(beamGeo, add(0xffffff));
+                glow.renderOrder = core.renderOrder = 6; g.add(glow, core);
+                return { obj: g, glow, core };
+            });
+            // heal / repair tethers, re-aimed every frame while a healer works
+            mkPool('tether', 32, () => {
+                const g = new THREE.Group();
+                const glow = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: HEAL_COL, transparent: true, opacity: 0.4, depthWrite: false, toneMapped: false })), core = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+                glow.renderOrder = core.renderOrder = 6; g.add(glow, core);
+                return { obj: g, glow, core };
+            });
+            // slowed units (inside an enemy gravity well): a violet ring under each
+            const slowGeo = new THREE.RingGeometry(0.7, 1, 28); slowGeo.rotateX(-Math.PI / 2);
+            this.slowMat = new THREE.MeshBasicMaterial({ color: FIELD_COL, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+            mkPool('slow', 48, () => { const m = new THREE.Mesh(slowGeo, this.slowMat); m.renderOrder = 3; return { obj: m }; });
+            // gravity-well field rings (one pair per well, child of its view)
+            this.fieldRingGeo = new THREE.RingGeometry(0.965, 1, 72); this.fieldRingGeo.rotateX(-Math.PI / 2);
+            this.fieldDiscGeo = new THREE.CircleGeometry(1, 48); this.fieldDiscGeo.rotateX(-Math.PI / 2);
+            // wall placement plan: tile squares + small blocks at every planned / previewed wall tile
+            const planTile = new THREE.PlaneGeometry(0.9, 0.9); planTile.rotateX(-Math.PI / 2);
+            const planBlock = new THREE.BoxGeometry(0.42, 0.55, 0.42); planBlock.translate(0, 0.275, 0);
+            this.planTiles = new THREE.InstancedMesh(planTile, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.5, depthWrite: false, toneMapped: false }), 64);
+            this.planBlocks = new THREE.InstancedMesh(planBlock, new THREE.MeshBasicMaterial({ color: 0x8fd0ff, transparent: true, opacity: 0.38, depthWrite: false, toneMapped: false }), 64);
+            for (const im of [this.planTiles, this.planBlocks]) { im.count = 0; im.frustumCulled = false; im.renderOrder = 4; this.fx.add(im); }
+            this.planTiles.setColorAt(0, new THREE.Color(1, 1, 1));
+            // floating text (income "+7", heal "+") drawn on the 2D overlay
+            this.floats = [];
             // superweapon: warning markers (visible through fog), strike effects, the Rift missile, the aim reticle
             const ringThin = new THREE.RingGeometry(0.95, 1, 64); ringThin.rotateX(-Math.PI / 2);
             const ringFat = new THREE.RingGeometry(0.8, 1, 64); ringFat.rotateX(-Math.PI / 2);
@@ -604,10 +642,46 @@
         // ------------------------------------------------------------ entity views
         teamColor(t) { return (C.TEAMS[t] || C.TEAMS[0]).color; }
         factionOf(t) { const T = this.sim && this.sim.teams[t]; return (T && T.faction) || (t ? 'hegemony' : 'vanguard'); }
+        // does SF_MODELS have a real model for this type (rather than its placeholder box)?
+        hasModel(kind, type) {
+            const M = window.SF_MODELS, T = M && M.types;
+            if (!T || !T[kind]) return true;
+            return T[kind].indexOf(type) >= 0;
+        }
+        // stand-in wall (post + four connector arms) until the models provide one, so joining still reads
+        wallFallback(team) {
+            this.wallMats = this.wallMats || {};
+            const key = team | 0;
+            if (!this.wallMats[key]) {
+                this.wallMats[key] = {
+                    body: new THREE.MeshStandardMaterial({ color: lin(0x7d858f), roughness: 0.85, metalness: 0.1, flatShading: true }),
+                    team: new THREE.MeshStandardMaterial({ color: lin(this.teamColor(team)), roughness: 0.6, metalness: 0.1, flatShading: true }),
+                    geo: { post: new THREE.BoxGeometry(0.42, 0.72, 0.42), cap: new THREE.BoxGeometry(0.46, 0.08, 0.46), arm: new THREE.BoxGeometry(0.5, 0.5, 0.26) },
+                };
+            }
+            const W = this.wallMats[key], g = new THREE.Group();
+            const post = new THREE.Mesh(W.geo.post, W.body); post.position.y = 0.36; post.name = 'post';
+            const cap = new THREE.Mesh(W.geo.cap, W.team); cap.position.y = 0.34; post.add(cap);
+            g.add(post);
+            for (const [d, dx, dz] of WALL_DIRS) {
+                const a = new THREE.Mesh(W.geo.arm, W.body); a.name = 'arm' + d.toUpperCase();
+                a.position.set(dx * 0.25, 0.25, dz * 0.25); if (dz) a.rotation.y = Math.PI / 2; a.visible = false;
+                g.add(a);
+            }
+            g.userData.height = 0.74;
+            return g;
+        }
+        setWallArms(v, arms) {
+            const M = window.SF_MODELS;
+            if (M && M.setWallArms && !v.wallStandIn) { try { M.setWallArms(v.model, arms); return; } catch (e) { /* fall through */ } }
+            for (const [d] of WALL_DIRS) { const a = v.parts.wallArms && v.parts.wallArms[d]; if (a) a.visible = !!arms[d]; }
+        }
         createView(e) {
             const M = window.SF_MODELS;
-            let model = null;
-            try { model = e.kind === 'unit' ? M.unit(e.type, this.teamColor(e.team), this.factionOf(e.team)) : M.building(e.type, this.teamColor(e.team), this.factionOf(e.team)); } catch (err) { model = null; }
+            let model = null, standIn = false;
+            const isWall = e.kind === 'building' && C.BUILDINGS[e.type] && C.BUILDINGS[e.type].wall;
+            if (isWall && !this.hasModel('building', e.type)) { model = this.wallFallback(e.team); standIn = true; }
+            if (!model) try { model = e.kind === 'unit' ? M.unit(e.type, this.teamColor(e.team), this.factionOf(e.team)) : M.building(e.type, this.teamColor(e.team), this.factionOf(e.team)); } catch (err) { model = null; }
             if (!model) { model = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshStandardMaterial({ color: this.teamColor(e.team) })); model.position.y = 0.25; }
             if (model.parent) model = model.clone();
             const obj = new THREE.Group(); obj.add(model);
@@ -618,11 +692,17 @@
             const wheels = wheelsSrc.filter((w) => isDescendant(model, w));
             const parts = { turret: findNamed(model, 'turret'), barrel: findNamed(model, 'barrel'), muzzle: findNamed(model, 'muzzle'), arm: findNamed(model, 'arm'), rotor: findNamed(model, 'rotor'), flag: findNamed(model, 'flag'), crane: findNamed(model, 'crane'), cargo: findNamed(model, 'cargo'), wheels, wheelR: (model.userData && model.userData.wheelRadius) || 0.15 };
             if (parts.barrel) parts.barrelX = parts.barrel.position.x;
+            parts.barrel2 = findNamed(model, 'barrel2'); if (parts.barrel2) parts.barrel2X = parts.barrel2.position.x;
             if (parts.arm) parts.armRot = parts.arm.rotation.z;
             // superweapon buildings: 'charge' glow (SF_MODELS.setCharge), 'doorL'/'doorR' (SF_MODELS.setDoors), 'missile';
             // skimmer: 'hover' node (bobbed). Fallbacks keep older models working.
             parts.charge = findNamed(model, 'charge'); parts.doorL = findNamed(model, 'doorL'); parts.doorR = findNamed(model, 'doorR'); parts.missile = findNamed(model, 'missile');
             parts.hover = findNamed(model, 'hover');
+            // roster expansion: twin barrels ('muzzle2'), walker body bob ('body'), spinning 'ring's / 'drill',
+            // repair bay crane ('arm' on a building), wall connectors ('armN/S/E/W')
+            parts.muzzle2 = findNamed(model, 'muzzle2'); parts.body = findNamed(model, 'body'); parts.drill = findNamed(model, 'drill');
+            parts.rings = []; model.traverse((o) => { if (o.name === 'ring') parts.rings.push(o); });
+            if (isWall) { parts.wallArms = {}; for (const [d] of WALL_DIRS) parts.wallArms[d] = findNamed(model, 'arm' + d.toUpperCase()); }
             if (parts.charge && !(M && M.setCharge)) {
                 parts.chargeMats = [];
                 parts.charge.traverse((o) => { if (o.isMesh) { o.material = cloneMat(o.material); eachMat(o.material, (m) => parts.chargeMats.push({ m, ei: m.emissiveIntensity != null ? m.emissiveIntensity : null, col: m.color ? m.color.clone() : null })); } });
@@ -632,13 +712,29 @@
             const v = { id: e.id, ent: e, team: e.team, kind: e.kind, type: e.type, obj, model, parts, height, def,
                 radius: e.kind === 'unit' ? def.radius : Math.max(def.w, def.d) / 2,
                 ang: e.angle || 0, tur: e.turret != null ? e.turret : (e.angle || 0), x: e.x, z: e.z, lastHp: e.hp, dmgT: -99, recoil: 0, phase: Math.random() * 6,
-                smokeAcc: 0, remembered: false, shown: false, frame: 0, cloakK: 0, cloakOn: false, doorK: 0, launchT: -99, hover: !!((def && def.hover) || (model.userData && model.userData.hover) || parts.hover) };
+                smokeAcc: 0, remembered: false, shown: false, frame: 0, cloakK: 0, cloakOn: false, doorK: 0, launchT: -99, hover: !!((def && def.hover) || (model.userData && model.userData.hover) || parts.hover),
+                wall: !!isWall, wallStandIn: standIn, wallKey: '', spinT: 0, muzzleFlip: false,
+                walker: e.kind === 'unit' && (e.type === 'arcwalker' || !!(model.userData && model.userData.walker)) };
+            if (def && def.field && def.field.radius) {
+                // gravity well: a faint ground ring at the field's edge, a soft disc and an inward ripple
+                const R = def.field.radius;
+                const mk = (geo, op) => { const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: FIELD_COL, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })); m.renderOrder = 2; m.position.y = 0.035; return m; };
+                const field = new THREE.Group(), edge = mk(this.fieldRingGeo, 0.5), disc = mk(this.fieldDiscGeo, 0.05), ripple = mk(this.fieldRingGeo, 0.3);
+                edge.scale.setScalar(R); disc.scale.setScalar(R); field.add(disc, edge, ripple); field.visible = false;
+                obj.add(field);
+                parts.field = { group: field, edge, disc, ripple, R };
+            }
             obj.position.set(e.x, 0, e.z);
             this.root.add(obj);
             this.views.set(e.id, v);
+            if (isWall) this.wallDirty = true;
             return v;
         }
-        disposeView(v) { if (v.obj.parent) v.obj.parent.remove(v.obj); }
+        disposeView(v) {
+            if (v.obj.parent) v.obj.parent.remove(v.obj);
+            if (v.wall) this.wallDirty = true;
+            if (v.parts.field) for (const m of [v.parts.field.edge, v.parts.field.disc, v.parts.field.ripple]) m.material.dispose();
+        }
         tileVisible(x, z) {
             if (this.reveal) return true;
             const sim = this.sim, tx = Math.floor(x), tz = Math.floor(z);
@@ -712,6 +808,7 @@
         syncEntities(dt) {
             const sim = this.sim, alpha = clamp(sim.alpha || 0, 0, 1), frame = ++this.frameNo;
             const lowPower = sim.teams[this.team] && sim.teams[this.team].lowPower;
+            const slowList = this.slowList = [], tethers = this.tetherList = [];
             for (const e of sim.entities.values()) {
                 let v = this.views.get(e.id);
                 if (!v) v = this.createView(e);
@@ -763,6 +860,15 @@
                         if (mining && Math.random() < dt * 6) this.harvestSpark(x + Math.cos(v.ang) * 0.7, z + Math.sin(v.ang) * 0.7);
                     }
                     if (v.parts.cargo) { const cap = C.UNITS[e.type] && C.UNITS[e.type].capacity || 500; v.parts.cargo.scale.y = Math.max(0.001, clamp((e.carry || 0) / cap, 0, 1)); }
+                    if (v.walker && !(e.stunned > 0)) {
+                        // four-legged walker: the body rocks with its stride, and breathes a little at rest
+                        v.phase += moved * 7;
+                        const bn = v.parts.body || v.model, y0 = v.parts.body ? (v.bodyY0 != null ? v.bodyY0 : (v.bodyY0 = bn.position.y)) : 0;
+                        bn.position.y = y0 + (moved > 0.0005 ? Math.abs(Math.sin(v.phase)) * 0.03 : Math.sin(this.time * 1.6 + v.phase) * 0.008);
+                        bn.rotation.x = moved > 0.0005 ? Math.sin(v.phase) * 0.04 : bn.rotation.x * 0.9;
+                    }
+                    if (v.parts.rings.length) this.spinRings(v, dt, true);
+                    if (e.healing != null && e.healing !== false) tethers.push({ src: v, tid: e.healing, kind: v.def.heal && v.def.heal.targets !== 'inf' ? 'repair' : 'heal' });
                 } else {
                     v.obj.position.set(x, 0, z);
                     const built = e.built == null ? 1 : clamp(e.built, 0, 1);
@@ -777,12 +883,24 @@
                     if (v.parts.flag) v.parts.flag.rotation.y = Math.sin(this.time * 1.7 + v.phase) * 0.25;
                     if (v.parts.crane) v.parts.crane.rotation.y = Math.sin(this.time * 0.23 + v.phase) * 0.9;
                     if (v.parts.charge || v.parts.doorL || v.parts.doorR || v.parts.missile) this.animSuper(v, e, built, dt);
+                    const tm = sim.teams[e.team], powered = built >= 1 && !(tm && tm.lowPower) && e.powered !== false && !(e.stunned > 0);
+                    if (v.parts.rings.length || v.parts.drill) this.spinRings(v, dt, powered);
+                    if (v.parts.field) this.animField(v, powered, dt);
+                    if ((v.def.repair && v.parts.arm) || e.repairing != null) this.animCrane(v, e, dt, tethers, powered);
                 }
+                if (e.stunned > 0) this.stunFx(v, dt);
+                if (e.slowed && e.kind === 'unit') slowList.push(v);
                 if (v.parts.turret && e.turret != null) {
                     v.tur += angDiff(v.tur, e.turret) * (1 - Math.exp(-dt * 10));
                     v.parts.turret.rotation.y = -(v.tur - (e.kind === 'unit' ? v.ang : 0));
                 }
-                if (v.parts.barrel) { v.recoil = Math.max(0, v.recoil - dt * 6); v.parts.barrel.position.x = v.parts.barrelX - v.recoil * 0.1; }
+                if (v.parts.barrel) {
+                    v.recoil = Math.max(0, v.recoil - dt * 6);
+                    // twin barrels: the one that just fired kicks back
+                    const two = !!v.parts.barrel2;
+                    v.parts.barrel.position.x = v.parts.barrelX - (two && v.muzzleFlip ? 0 : v.recoil * 0.1);
+                    if (two) v.parts.barrel2.position.x = v.parts.barrel2X - (v.muzzleFlip ? v.recoil * 0.1 : 0);
+                }
                 // damage smoke / fire
                 const hpf = e.hp / (e.maxHp || 1);
                 if (hpf < 0.55 && (e.kind === 'building' ? (e.built == null || e.built >= 1) : true)) {
@@ -801,6 +919,145 @@
                 if (v.kind === 'building' && v.team !== this.team && v.remembered && !v.diedSeen && !this.buildingSeen(v.ent)) { v.obj.visible = true; v.stale = true; v.shown = true; continue; }
                 this.disposeView(v); this.views.delete(id); this.selection.delete(id);
             }
+            if (this.wallDirty) this.updateWalls();
+        }
+
+        // ------------------------------------------------------------ roster expansion: animated parts + support fx
+        // walls join their same-team neighbours (N/S/E/W) with connector arms
+        updateWalls() {
+            this.wallDirty = false;
+            const at = new Map();
+            for (const v of this.views.values()) if (v.wall && !(v.ent && v.ent.dead && !v.remembered)) at.set(v.team + ':' + v.ent.tx + ',' + v.ent.tz, v);
+            for (const v of this.views.values()) {
+                if (!v.wall) continue;
+                const arms = {}; let key = '';
+                for (const [d, dx, dz] of WALL_DIRS) { const n = at.get(v.team + ':' + (v.ent.tx + dx) + ',' + (v.ent.tz + dz)); arms[d] = !!n; key += n ? d : '-'; }
+                if (key !== v.wallKey) { v.wallKey = key; this.setWallArms(v, arms); }
+            }
+        }
+        // gravity-well rings, siphon drill, wisp / arc-walker rings: SF_MODELS.spin by a per-view clock that only runs
+        // while powered (so rings never jump when power comes back); `arm: false` leaves a repair bay's crane to animCrane
+        spinRings(v, dt, on) {
+            if (on) v.spinT += dt;
+            const M = window.SF_MODELS;
+            if (M && M.spin) { try { M.spin(v.model, v.spinT, { powered: on, arm: false }); return; } catch (e) { /* fall back */ } }
+            if (!on) return;
+            v.parts.rings.forEach((r, i) => {
+                r.rotation.y += dt * (1.4 + i * 0.5) * (i % 2 ? -1 : 1);
+                if (v.kind === 'building') { if (r.userData.y0 == null) r.userData.y0 = r.position.y; r.position.y = r.userData.y0 + Math.sin(v.spinT * 1.8 + i * 1.9) * 0.05; }
+            });
+            if (v.parts.drill) v.parts.drill.rotation.y += dt * 5;
+        }
+        animField(v, powered, dt) {
+            const f = v.parts.field;
+            f.group.visible = powered && !this.attract;
+            if (!f.group.visible) return;
+            const ph = ((this.time * 0.45 + v.phase) % 1);
+            f.edge.material.opacity = 0.32 + Math.sin(this.time * 2.2 + v.phase) * 0.1;
+            f.ripple.scale.setScalar(f.R * (1 - ph) + 0.05); f.ripple.material.opacity = 0.32 * Math.sin(ph * Math.PI);
+            if (Math.random() < dt * 3) {
+                // a mote drifting inwards along the field
+                const a = Math.random() * TAU, r = f.R * (0.7 + Math.random() * 0.3);
+                this.sparks.emit(v.x + Math.cos(a) * r, 0.12, v.z + Math.sin(a) * r, -Math.cos(a) * r * 0.6, 0.1, -Math.sin(a) * r * 0.6, 1.2, 0.12, 0.03, [0.8, 0.55, 1, 0.8], [0.5, 0.3, 1, 0], 0, 0);
+            }
+        }
+        // repair bay crane: swings to face the vehicle it is fixing (SF_MODELS.aimArm), sways while idle
+        animCrane(v, e, dt, tethers, powered) {
+            const tgt = e.repairing != null ? this.views.get(e.repairing) : null, arm = v.parts.arm, M = window.SF_MODELS;
+            const working = !!(tgt && tgt.shown);
+            if (working) tethers.push({ src: v, tid: e.repairing, kind: 'repair', fromArm: true });
+            if (!arm) return;
+            const prev = arm.rotation.y;
+            if (working) {
+                if (M && M.aimArm && v.model.userData.craneArm) M.aimArm(v.model, tgt.x - v.x, tgt.z - v.z, Math.min(1, dt * 5));
+                else arm.rotation.y = prev + angDiff(prev, -Math.atan2(tgt.z - v.z, tgt.x - v.x)) * Math.min(1, dt * 5);
+                return;
+            }
+            // idle: the models sway it (spin with arm: true), eased so it glides back from an aimed pose
+            if (!powered) return;
+            v.craneT = (v.craneT || 0) + dt;
+            if (M && M.spin) { try { M.spin(v.model, v.craneT, { powered, arm: true }); } catch (err) { /* ignore */ } }
+            else arm.rotation.y = Math.sin(v.craneT * 0.3 + v.phase) * 1.2;
+            const want = arm.rotation.y;
+            arm.rotation.y = prev + angDiff(prev, want) * Math.min(1, dt * 2);
+        }
+        // stunned (EMP): crackling sparks over the body and the odd tiny arc
+        stunFx(v, dt) {
+            if (!v.shown) return;
+            const r = v.kind === 'unit' ? v.radius : Math.max(v.def.w, v.def.d) * 0.4;
+            if (Math.random() < dt * (this.high ? 28 : 16)) {
+                const a = Math.random() * TAU, rr = r * (0.4 + Math.random() * 0.7);
+                this.sparks.emit(v.x + Math.cos(a) * rr, 0.1 + Math.random() * v.height, v.z + Math.sin(a) * rr, (Math.random() - 0.5) * 1.5, 0.5 + Math.random() * 1.2, (Math.random() - 0.5) * 1.5, 0.25, 0.22, 0.03, [0.9, 1, 1, 1], [0.4, 0.75, 1, 0], 2, 3);
+            }
+            if (Math.random() < dt * 9) {
+                const a = Math.random() * TAU, b = a + 1 + Math.random() * 2, y = 0.15 + Math.random() * v.height * 0.8;
+                this.zapLine([new THREE.Vector3(v.x + Math.cos(a) * r, y, v.z + Math.sin(a) * r), new THREE.Vector3(v.x + Math.cos(b) * r, y + (Math.random() - 0.5) * 0.3, v.z + Math.sin(b) * r)], STUN_COL, 0.12, 0.14, 0.016);
+            }
+        }
+        // per frame after syncEntities: heal/repair tethers and slow rings
+        updateSupport(dt) {
+            const tp = this.pools.tether.items, sp = this.pools.slow.items;
+            const list = (this.tetherList || []).slice();
+            // event-driven tethers for healers whose entity carries no `healing` field
+            this.tempTethers = (this.tempTethers || []).filter((t) => t.until > this.time);
+            for (const t of this.tempTethers) { const v = this.views.get(t.sid); if (v && !list.some((l) => l.src === v)) list.push({ src: v, tid: t.tid, kind: t.kind }); }
+            let ti = 0;
+            for (const t of list) {
+                const s = t.src, g = this.views.get(t.tid);
+                if (!s || !g || !s.shown || !g.shown || ti >= tp.length || s === g) continue;
+                const it = tp[ti++]; it.obj.visible = true; it.active = true;
+                const col = t.kind === 'repair' ? REPAIR_COL : HEAL_COL;
+                it.glow.material.color.setHex(col);
+                it.core.material.color.setHex(t.kind === 'repair' ? 0xfff2c4 : 0xeaffef);
+                // origin: the healer's injector / torch / staff ('muzzle'), or the crane's welding head (a 'muzzle' under 'arm')
+                if (s.parts.muzzle) { s.obj.updateMatrixWorld(true); s.parts.muzzle.getWorldPosition(tmpV); }
+                else if (t.fromArm && s.parts.arm) { s.obj.updateMatrixWorld(true); s.parts.arm.getWorldPosition(tmpV); tmpV.y = Math.max(tmpV.y, s.height * 0.8); }
+                else tmpV.set(s.x, s.kind === 'unit' ? Math.max(0.25, s.height * 0.6) : s.height * 0.7, s.z);
+                const ty = g.kind === 'unit' ? Math.max(0.2, g.height * 0.5) : Math.min(1, g.height * 0.5);
+                tmpV2.set(g.x, ty, g.z).sub(tmpV); const d = Math.max(0.01, tmpV2.length()); tmpV2.divideScalar(d);
+                it.obj.position.copy(tmpV); it.obj.quaternion.setFromUnitVectors(AX_X, tmpV2); it.obj.scale.set(d, 1, 1);
+                const fl = 0.75 + 0.25 * Math.sin(this.time * 23 + s.phase * 5) * Math.sin(this.time * 7.3);
+                const r = (t.kind === 'repair' ? 0.022 : 0.018) * (0.85 + Math.random() * 0.3);
+                it.core.scale.set(1, r, r); it.glow.scale.set(1, r * 3.2, r * 3.2);
+                it.core.material.opacity = 0.85 * fl; it.glow.material.opacity = 0.42 * fl;
+                // a mote travelling along the tether
+                if (Math.random() < dt * 10) { const k = Math.random(); const c = rgb(col); this.sparks.emit(tmpV.x + tmpV2.x * d * k, tmpV.y + tmpV2.y * d * k, tmpV.z + tmpV2.z * d * k, tmpV2.x * 1.5, 0.2, tmpV2.z * 1.5, 0.3, 0.1, 0.03, [1, 1, 1, 0.9], [c[0], c[1], c[2], 0], 0, 0); }
+            }
+            for (; ti < tp.length; ti++) if (tp[ti].active) this.release(tp[ti]);
+            let si = 0;
+            for (const v of this.slowList || []) {
+                if (!v.shown || si >= sp.length) continue;
+                const it = sp[si++]; it.obj.visible = true; it.active = true;
+                const ph = (this.time * 1.3 + v.phase) % 1;
+                it.obj.position.set(v.x, 0.045, v.z); it.obj.scale.setScalar(Math.max(0.28, v.radius * 1.2) * (1.15 - ph * 0.3));
+                if (Math.random() < dt * 3) this.sparks.emit(v.x + (Math.random() - 0.5) * v.radius * 2, v.height * (0.6 + Math.random() * 0.5), v.z + (Math.random() - 0.5) * v.radius * 2, 0, -0.6, 0, 0.6, 0.1, 0.03, [0.85, 0.6, 1, 0.8], [0.55, 0.3, 1, 0], 0, 0);
+            }
+            this.slowMat.opacity = 0.3 + Math.sin(this.time * 5) * 0.1;
+            for (; si < sp.length; si++) if (sp[si].active) this.release(sp[si]);
+        }
+        // a jagged electric polyline through points (Vector3s); `jag` = sideways jitter, `r` = core radius
+        zapLine(points, color, life, jag, r) {
+            jag = jag == null ? 0.18 : jag; r = r || 0.02;
+            for (let i = 0; i < points.length - 1; i++) {
+                const a = points[i], b = points[i + 1], d = a.distanceTo(b);
+                const n = Math.max(2, Math.min(9, Math.ceil(d / 0.38)));
+                let prev = a.clone();
+                for (let k = 1; k <= n; k++) {
+                    const t = k / n, p = new THREE.Vector3().lerpVectors(a, b, t);
+                    if (k < n) { const j = jag * Math.sin(t * Math.PI) * (0.6 + Math.random() * 0.8); p.x += (Math.random() - 0.5) * 2 * j; p.y += (Math.random() - 0.5) * j; p.z += (Math.random() - 0.5) * 2 * j; }
+                    const it = this.take('zap');
+                    tmpV.subVectors(p, prev); const len = Math.max(0.01, tmpV.length()); tmpV.divideScalar(len);
+                    it.obj.position.copy(prev); it.obj.quaternion.setFromUnitVectors(AX_X, tmpV); it.obj.scale.set(len, 1, 1);
+                    it.glow.material.color.setHex(color); it.t = 0; it.life = life * (0.8 + Math.random() * 0.4); it.r = r;
+                    it.core.scale.set(1, r, r); it.glow.scale.set(1, r * 3.5, r * 3.5);
+                    prev = p;
+                }
+            }
+        }
+        floatText(x, z, text, color, opts) {
+            opts = opts || {};
+            if (this.floats.length > 60) this.floats.shift();
+            this.floats.push({ x, z, y: opts.y || 0.9, text, color: color || '#9dffb8', t: 0, life: opts.life || 1.5, size: opts.size || 1, rise: opts.rise == null ? 0.9 : opts.rise });
         }
 
         // ------------------------------------------------------------ events → effects
@@ -816,29 +1073,84 @@
                     case 'harvest': { const e = this.sim.entities.get(ev.id); if (e && this.tileVisible(e.x, e.z)) for (let i = 0; i < 6; i++) this.harvestSpark(e.x, e.z); break; }
                     case 'superweapon': if (ev.phase === 'warn') this.strikeWarn(ev); else if (ev.phase === 'strike') this.strikeFx(ev); break;
                     case 'cloak': { const v = this.views.get(ev.id); if (v && (v.team === this.team || v.shown)) this.shimmer(v.x, v.z, v.radius, ev.on); break; }
+                    case 'heal': this.fxHeal(ev); break;
+                    case 'stun': { const v = this.views.get(ev.id); if (v && v.shown) { this.flash(v.x, v.height * 0.6, v.z, 1.1, 0.14, STUN_COL); for (let i = 0; i < 14; i++) { const a = Math.random() * TAU; this.sparks.emit(v.x, v.height * 0.5, v.z, Math.cos(a) * 2.4, Math.random() * 2, Math.sin(a) * 2.4, 0.3, 0.16, 0.02, [1, 1, 1, 1], [0.4, 0.8, 1, 0], 2, 4); } } break; }
+                    case 'income': if (ev.team === this.team && ev.x != null && this.seenAt(ev.x, ev.z)) this.floatText(ev.x, ev.z, '+' + Math.round(ev.amount || 0), '#7dffcf', { y: 1.3, life: 1.8, rise: 1.1 }); break;
                 }
             }
         }
         seenAt(x, z) { return this.tileVisible(x, z); }
+        // heal / repair tick (every ~0.5 s per healer): '+' motes on healed infantry, welding sparks on repairs
+        fxHeal(ev) {
+            const g = this.views.get(ev.target), s = this.views.get(ev.id);
+            const tx = g ? g.x : ev.tx, tz = g ? g.z : ev.tz;
+            if (tx == null || !(g ? g.shown : this.seenAt(tx, tz))) return;
+            const se = s && s.ent;
+            if (se && se.healing === undefined && se.repairing === undefined && ev.target != null) {
+                this.tempTethers = this.tempTethers || [];
+                const ex = this.tempTethers.find((t) => t.sid === ev.id);
+                if (ex) { ex.tid = ev.target; ex.until = this.time + 0.62; } else this.tempTethers.push({ sid: ev.id, tid: ev.target, kind: ev.kind || 'heal', until: this.time + 0.62 });
+            }
+            const h = g ? (g.kind === 'unit' ? Math.max(0.25, g.height * 0.6) : Math.min(1.1, g.height * 0.6)) : 0.4;
+            if (ev.kind === 'repair') {
+                for (let i = 0; i < 9; i++) this.sparks.emit(tx + (Math.random() - 0.5) * 0.3, h, tz + (Math.random() - 0.5) * 0.3, (Math.random() - 0.5) * 2.6, 0.8 + Math.random() * 1.8, (Math.random() - 0.5) * 2.6, 0.32 + Math.random() * 0.2, 0.12, 0.02, [1, 0.95, 0.6, 1], [1, 0.55, 0.1, 0], 1.5, 7);
+                this.flash(tx, h, tz, 0.45, 0.08, REPAIR_COL);
+            } else {
+                for (let i = 0; i < 2; i++) this.floatText(tx + (Math.random() - 0.5) * 0.5, tz + (Math.random() - 0.5) * 0.3, '+', '#6dff9a', { y: h + 0.1, life: 0.9, size: 0.85 + Math.random() * 0.3, rise: 0.6 });
+                for (let i = 0; i < 6; i++) this.sparks.emit(tx + (Math.random() - 0.5) * 0.4, 0.1 + Math.random() * h, tz + (Math.random() - 0.5) * 0.4, 0, 0.7 + Math.random() * 0.5, 0, 0.6, 0.13, 0.03, [0.75, 1, 0.8, 1], [0.3, 1, 0.5, 0], 0, 0);
+            }
+        }
         muzzlePos(v, out) {
             if (v && v.shown && v.parts.muzzle) { v.obj.updateMatrixWorld(true); v.parts.muzzle.getWorldPosition(out); return out; }
             if (v) return out.set(v.x, v.height * 0.6, v.z);
             return null;
         }
+        // chain lightning: one jagged violet-white polyline muzzle → target → each jump (points: [{x, z, id}])
+        fxChain(ev, w) {
+            const pts = Array.isArray(ev.points) && ev.points.length ? ev.points : [{ x: ev.tx, z: ev.tz }];
+            const seen = this.seenAt(ev.x, ev.z) || pts.some((p) => p && this.seenAt(p.x, p.z));
+            if (!seen) return;
+            const v = this.views.get(ev.from);
+            const start = this.muzzlePos(v, new THREE.Vector3()) || new THREE.Vector3(ev.x, 0.6, ev.z);
+            const path = [start];
+            for (const p of pts) {
+                if (!p || p.x == null) continue;
+                const pv = p.id != null ? this.views.get(p.id) : null;
+                path.push(new THREE.Vector3(p.x, pv && pv.shown ? Math.min(1, Math.max(0.2, pv.height * 0.55)) : this.findTargetHeight(p.x, p.z), p.z));
+            }
+            if (path.length < 2) return;
+            const col = ENERGY[ev.weapon] || ENERGY.arc;
+            this.zapLine(path, col, 0.3, 0.24, 0.034);
+            this.later(0.07, () => this.zapLine(path, 0xffffff, 0.16, 0.32, 0.016));
+            this.later(0.15, () => this.zapLine(path, col, 0.12, 0.28, 0.02));
+            this.flash(start.x, start.y, start.z, 0.8, 0.12, col);
+            for (let i = 1; i < path.length; i++) this.flash(path[i].x, path[i].y, path[i].z, 0.7, 0.12, col);
+            if (v) v.recoil = 1;
+        }
         fxShot(ev) {
             const sx = ev.x, sz = ev.z, tx = ev.tx, tz = ev.tz;
+            const w = C.WEAPONS[ev.weapon] || { projectile: 'bullet', speed: 0 };
+            if (ev.proj === 'chain' || w.projectile === 'chain') { this.fxChain(ev, w); return; }
             if (!this.seenAt(sx, sz) && !this.seenAt(tx, tz)) return;
             const v = this.views.get(ev.from);
-            const w = C.WEAPONS[ev.weapon] || { projectile: 'bullet', speed: 0 };
-            const start = this.muzzlePos(v, new THREE.Vector3()) || new THREE.Vector3(sx, 0.4, sz);
+            // twin-barrelled guns alternate muzzles
+            let mz = null;
+            if (v && v.parts.muzzle2) { v.muzzleFlip = !v.muzzleFlip; if (v.muzzleFlip && v.shown) { v.obj.updateMatrixWorld(true); mz = v.parts.muzzle2.getWorldPosition(new THREE.Vector3()); } }
+            const start = mz || this.muzzlePos(v, new THREE.Vector3()) || new THREE.Vector3(sx, 0.4, sz);
             if (v) v.recoil = 1;
+            if (ev.weapon === 'salvo') { start.x += (Math.random() - 0.5) * 0.22; start.z += (Math.random() - 0.5) * 0.22; }
             const tv = this.findTargetHeight(tx, tz);
             const end = new THREE.Vector3(tx, tv, tz);
+            if (ev.weapon === 'salvo') { end.x += (Math.random() - 0.5) * 0.5; end.z += (Math.random() - 0.5) * 0.5; }
             const dist = start.distanceTo(end);
             const ecol = ENERGY[ev.weapon] || 0xd77bff;
             // muzzle flash
-            if (this.seenAt(sx, sz) && (w.projectile === 'bolt' || w.projectile === 'beam')) {
-                this.flash(start.x, start.y, start.z, ev.weapon === 'spireBeam' ? 1.0 : ev.weapon === 'shock' || ev.weapon === 'phase' ? 0.7 : 0.42, 0.09, ecol);
+            if (this.seenAt(sx, sz) && ev.weapon === 'obliterate') {
+                // the lance charges for a blink, then fires: inward motes, a big flash
+                for (let i = 0; i < 16; i++) { const a = Math.random() * TAU, el = (Math.random() - 0.5) * 2, r = 0.6; this.sparks.emit(start.x + Math.cos(a) * r, start.y + el * 0.3, start.z + Math.sin(a) * r, -Math.cos(a) * r * 4, -el * 1.2, -Math.sin(a) * r * 4, 0.22, 0.16, 0.04, [1, 0.8, 1, 0.6], [1, 1, 1, 1], 0, 0); }
+                this.flash(start.x, start.y, start.z, 1.6, 0.2, ecol);
+            } else if (this.seenAt(sx, sz) && (w.projectile === 'bolt' || w.projectile === 'beam')) {
+                this.flash(start.x, start.y, start.z, ev.weapon === 'spireBeam' ? 1.0 : ev.weapon === 'shock' || ev.weapon === 'phase' || ev.weapon === 'emp' ? 0.7 : 0.42, 0.09, ecol);
             } else if (this.seenAt(sx, sz)) {
                 const big = w.projectile === 'shell' || w.projectile === 'arc';
                 this.flash(start.x, start.y, start.z, big ? 0.9 : w.projectile === 'rocket' ? 0.6 : 0.38, big ? 0.12 : 0.07, big ? 0xffc070 : 0xffe2a8);
@@ -847,8 +1159,10 @@
             const kind = w.projectile;
             if (kind === 'bullet') {
                 const it = this.take('tracer'); it.kind = 'tracer'; it.s = start; it.e = end; it.t = 0; it.dur = Math.max(0.05, dist / 60); it.len = Math.min(0.9, dist * 0.5);
+                // the sniper's round: a hair-thin bright streak hanging in the air for a moment
+                if (ev.weapon === 'sniper') this.beam(start, end, 0xfff0c0, 0.01, 0.16, 'shot');
             } else if (kind === 'rocket') {
-                const it = this.take('rocket'); it.kind = 'rocket'; it.s = start; it.e = end; it.t = 0; it.dur = ev.dur > 0 ? ev.dur : Math.max(0.08, dist / (w.speed || 12)); it.arc = 0.25 + dist * 0.04; it.acc = 0;
+                const it = this.take('rocket'); it.kind = 'rocket'; it.s = start; it.e = end; it.t = 0; it.dur = ev.dur > 0 ? ev.dur : Math.max(0.08, dist / (w.speed || 12)); it.arc = (ev.weapon === 'salvo' ? 0.6 + Math.random() * 0.5 : 0.25) + dist * 0.04; it.acc = 0;
             } else if (kind === 'shell') {
                 const it = this.take('bolt'); it.kind = 'bolt'; it.s = start; it.e = end; it.t = 0; it.dur = ev.dur > 0 ? ev.dur : Math.max(0.06, dist / (w.speed || 18)); it.len = 0.45;
             } else if (kind === 'arc') {
@@ -858,7 +1172,8 @@
                 it.size = ev.weapon === 'shock' ? 0.11 : ev.weapon === 'phase' ? 0.1 : 0.065;
                 it.glow.material.color.setHex(ecol); it.obj.scale.setScalar(it.size);
             } else if (kind === 'beam') {
-                this.beam(start, end, ecol, ev.weapon === 'spireBeam' ? 0.065 : 0.04, ev.weapon === 'spireBeam' ? 0.26 : 0.17, 'shot');
+                const look = BEAM_LOOK[ev.weapon] || [0.04, 0.17];
+                this.beam(start, end, ecol, look[0], look[1], 'shot');
             }
         }
         beam(start, end, color, r, life, mode) {
@@ -891,7 +1206,7 @@
             if (!this.seenAt(ev.x, ev.z)) return;
             const w = C.WEAPONS[ev.weapon] || {}; const p = w.projectile;
             const y = this.findTargetHeight(ev.x, ev.z) * 0.6;
-            if (p === 'beam' || p === 'bolt') {
+            if (p === 'beam' || p === 'bolt' || p === 'chain') {
                 const c = rgb(ENERGY[ev.weapon] || 0xd77bff), big = (ev.splash || 0) >= 0.4 || ev.weapon === 'spireBeam';
                 for (let i = 0; i < (big ? 12 : 5); i++) this.sparks.emit(ev.x, y + 0.05, ev.z, (Math.random() - 0.5) * 3, Math.random() * 2.2, (Math.random() - 0.5) * 3, 0.25, big ? 0.22 : 0.13, 0.02, [1, 1, 1, 1], [c[0], c[1], c[2], 0], 2, 6);
                 this.flash(ev.x, y + 0.1, ev.z, big ? 1.3 : 0.5, big ? 0.16 : 0.08, ENERGY[ev.weapon] || 0xd77bff);
@@ -1159,6 +1474,16 @@
                 if (it.t >= it.life) { this.release(it); continue; }
                 this.beamStyle(it, it.t / it.life);
             }
+            for (const it of this.pools.zap.items) {
+                if (!it.active) continue;
+                it.t += dt;
+                if (it.t >= it.life) { this.release(it); continue; }
+                const k = it.t / it.life, f = (1 - k) * (0.55 + 0.45 * Math.random());
+                const r = it.r * (1 - k * 0.5);
+                it.core.scale.set(1, r, r); it.glow.scale.set(1, r * 3.5, r * 3.5);
+                it.core.material.opacity = f; it.glow.material.opacity = 0.6 * f;
+            }
+            if (this.floats.length) { for (const f of this.floats) f.t += dt; this.floats = this.floats.filter((f) => f.t < f.life); }
             for (const it of this.pools.missile.items) {
                 if (!it.active) continue;
                 it.t += dt / it.dur;
@@ -1225,7 +1550,7 @@
         setSelection(ids) { this.selection = new Set(ids); }
         setHover(id) { this.hover = id; }
         marker(x, z, kind) {
-            const colors = { move: 0x5cff8a, attack: 0xff4d3d, attackMove: 0xffa63a, harvest: 0x40f0c8, rally: 0x5aaeff, place: 0x5aaeff };
+            const colors = { move: 0x5cff8a, attack: 0xff4d3d, attackMove: 0xffa63a, harvest: 0x40f0c8, rally: 0x5aaeff, place: 0x5aaeff, heal: HEAL_COL, repair: REPAIR_COL };
             const it = this.take('marker'); it.obj.position.set(x, 0.05, z); it.obj.material.color.setHex(colors[kind] || colors.move); it.t = 0; it.s = kind === 'attack' ? 1.2 : 1;
         }
         // rallies: [{ x, z, fromX, fromZ }] (up to two)
@@ -1242,7 +1567,13 @@
                 for (let i = 0; i < b.w * b.d; i++) { tmpM.makeTranslation((i % b.w) + 0.5, 0.04, Math.floor(i / b.w) + 0.5); tiles.setMatrixAt(i, tmpM); tiles.setColorAt(i, col); }
                 group.add(tiles);
                 let model = null;
-                try { model = window.SF_MODELS.building(type, this.teamColor(this.team), this.factionOf(this.team)); if (model.parent) model = model.clone(); } catch (e) { model = null; }
+                if (b.wall && !this.hasModel('building', type)) model = this.wallFallback(this.team);
+                else try { model = window.SF_MODELS.building(type, this.teamColor(this.team), this.factionOf(this.team)); if (model.parent) model = model.clone(); } catch (e) { model = null; }
+                if (model && b.wall) {
+                    const M = window.SF_MODELS, none = { n: false, s: false, e: false, w: false };
+                    if (M && M.setWallArms && this.hasModel('building', type)) { try { M.setWallArms(model, none); } catch (e) { /* ignore */ } }
+                    else for (const [d] of WALL_DIRS) { const a = findNamed(model, 'arm' + d.toUpperCase()); if (a) a.visible = false; }
+                }
                 const gm = this.ghostMat = this.ghostMat || new THREE.MeshBasicMaterial({ color: 0x8fd0ff, transparent: true, opacity: 0.42, depthWrite: false, toneMapped: false });
                 if (model) { model.traverse((o) => { if (o.isMesh) { o.material = gm; o.castShadow = false; } }); model.position.set(b.w / 2, 0, b.d / 2); group.add(model); }
                 group.traverse((o) => { o.renderOrder = 4; });
@@ -1262,6 +1593,21 @@
             }
             if (g.tiles.instanceColor) g.tiles.instanceColor.needsUpdate = true;
             this.ghostMat.color.setHex(ok ? 0x8fd0ff : 0xff6a5a);
+        }
+        // wall placement plan: [{ tx, tz, kind: 'pending' | 'ok' | 'bad' }] — queued walls waiting for production and the
+        // line being dragged; null/[] clears it
+        setWallPlan(tiles) {
+            const T = this.planTiles, B = this.planBlocks; if (!T) return;
+            const list = (tiles || []).slice(0, 64), col = new THREE.Color();
+            const colors = { pending: 0x5fe8ff, ok: 0x39ff7a, bad: 0xff3b30 };
+            let nb = 0;
+            list.forEach((t, i) => {
+                tmpM.makeTranslation(t.tx + 0.5, 0.045, t.tz + 0.5); T.setMatrixAt(i, tmpM);
+                col.setHex(colors[t.kind] || colors.ok); T.setColorAt(i, col);
+                if (t.kind !== 'bad') { tmpM.makeTranslation(t.tx + 0.5, 0, t.tz + 0.5); B.setMatrixAt(nb++, tmpM); }
+            });
+            T.count = list.length; B.count = nb;
+            T.instanceMatrix.needsUpdate = true; B.instanceMatrix.needsUpdate = true; if (T.instanceColor) T.instanceColor.needsUpdate = true;
         }
         updateOverlays(dt) {
             const ringPool = this.pools.ring.items, brPool = this.pools.bracket.items;
@@ -1317,6 +1663,19 @@
                     g.font = '700 ' + Math.round(fs * 0.5) + 'px "Saira Condensed", "Arial Narrow", sans-serif';
                     g.strokeText('STRIKE', p.x, p.y - fs * 0.85); g.fillText('STRIKE', p.x, p.y - fs * 0.85);
                 }
+            }
+            if (this.floats.length) {
+                g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+                for (const f of this.floats) {
+                    const k = f.t / f.life, p = this.worldToScreen(f.x, f.y + f.rise * (1 - Math.pow(1 - k, 2)), f.z);
+                    if (p.behind || p.x < -30 || p.y < -30 || p.x > w + 30 || p.y > h + 30) continue;
+                    const fs = Math.round(clamp(scale * 0.5, 13, 22) * f.size);
+                    g.globalAlpha = k < 0.15 ? k / 0.15 : k > 0.65 ? Math.max(0, (1 - k) / 0.35) : 1;
+                    g.font = '800 ' + fs + 'px "Saira Condensed", "Arial Narrow", sans-serif';
+                    g.lineWidth = Math.max(2.5, fs * 0.2); g.strokeStyle = 'rgba(2,8,6,0.8)'; g.strokeText(f.text, p.x, p.y);
+                    g.fillStyle = f.color; g.fillText(f.text, p.x, p.y);
+                }
+                g.globalAlpha = 1;
             }
             for (const v of this.views.values()) {
                 if (!v.shown) continue;
@@ -1540,6 +1899,7 @@
             this.placeCamera();
             if (this.sim) {
                 this.syncEntities(dt);
+                this.updateSupport(dt);
                 this.updateFog(dt);
                 this.groundTimer += dt;
                 if (this.groundTimer > 0.5) {
