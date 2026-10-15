@@ -29,7 +29,7 @@ window.SF_CONFIG = (() => {
                     makes: 'vehicle', desc: 'Builds vehicles, including harvesters.' },
         radar:    { name: 'Comms Array',   w: 2, d: 2, hp: 600,  armor: 'bld', cost: 800,  time: 10, power: -40, requires: ['refinery'], sight: 8,
                     desc: 'Turns on the minimap while powered.' },
-        turret:   { name: 'Gun Turret',    w: 1, d: 1, hp: 450,  armor: 'bld', cost: 600,  time: 8,  power: -20, requires: ['barracks'], sight: 7,
+        turret:   { name: 'Gun Turret',    w: 1, d: 1, hp: 450,  armor: 'bld', cost: 700,  time: 8,  power: -20, requires: ['barracks'], sight: 7,
                     weapon: 'turretGun', desc: 'Defends the base. Needs power.' },
         techlab:  { name: 'Tech Lab',      w: 2, d: 2, hp: 700,  armor: 'bld', cost: 1500, time: 15, power: -60, requires: ['factory', 'radar'], sight: 4,
                     desc: 'Unlocks artillery and rocket troopers’ upgrades.' },
@@ -40,14 +40,14 @@ window.SF_CONFIG = (() => {
         rifleman:  { name: 'Rifleman',    from: 'infantry', cost: 100,  time: 4,  hp: 55,  armor: 'inf',   speed: 1.6, turn: 10, weapon: 'rifle',  sight: 5,   radius: 0.22, requires: [] },
         rocketeer: { name: 'Rocketeer',   from: 'infantry', cost: 300,  time: 6,  hp: 50,  armor: 'inf',   speed: 1.4, turn: 10, weapon: 'rocket', sight: 5,   radius: 0.22, requires: [] },
         harvester: { name: 'Harvester',   from: 'vehicle',  cost: 1000, time: 12, hp: 650, armor: 'heavy', speed: 1.5, turn: 3,  weapon: null,     sight: 4,   radius: 0.6,  requires: [],
-                     capacity: 500, harvestRate: 40, unloadRate: 160 },
+                     capacity: 500, harvestRate: 45, unloadRate: 180 },
         buggy:     { name: 'Scout Buggy', from: 'vehicle',  cost: 450,  time: 6,  hp: 160, armor: 'light', speed: 3.6, turn: 6,  weapon: 'mg',     sight: 7,   radius: 0.45, requires: [] },
         tank:      { name: 'Battle Tank', from: 'vehicle',  cost: 800,  time: 9,  hp: 420, armor: 'heavy', speed: 2.0, turn: 3,  weapon: 'cannon', sight: 5.5, radius: 0.55, requires: [], turret: true },
         artillery: { name: 'Artillery',   from: 'vehicle',  cost: 950,  time: 11, hp: 180, armor: 'light', speed: 1.6, turn: 2.5, weapon: 'artillery', sight: 6, radius: 0.55, requires: ['techlab'], minRange: 3 },
     };
 
     const ECONOMY = {
-        startCredits: 2500,
+        startCredits: 3000,
         shardPerTile: 400,      // a fresh shard tile
         shardRegrow: 6,         // per second, per tile next to a shard spire, up to shardPerTile
         lowPowerSlowdown: 0.5,  // production speed when power used > power made

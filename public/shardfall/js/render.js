@@ -996,9 +996,17 @@
         fitWidth(tiles) { const vf = this.camera.fov * DEG; this.cam.dist = clamp(tiles / (2 * Math.tan(vf / 2) * this.camera.aspect), this.cam.minDist, this.cam.maxDist); this.placeCamera(); }
         setZoomLimits(min, max) { this.cam.minDist = min; this.cam.maxDist = max; this.cam.dist = clamp(this.cam.dist, min, max); this.placeCamera(); }
         clampCam() {
+            // Keep the view over the map: the screen's centre, top and bottom edges hit the ground at known offsets from
+            // the camera's target, so the target is held far enough from each map edge that at most ~1 tile of
+            // off-map ground shows (the bases start in corners, so this matters from the first frame).
             const W = this.W || 64, H = this.H || 64, c = this.cam;
-            c.x = clamp(c.x, -1, W + 1); c.z = clamp(c.z, -1, H + 2);
             c.dist = clamp(c.dist, c.minDist, c.maxDist);
+            const p = this.pitch, vf = this.camera.fov * DEG, hgt = c.dist * Math.sin(p), back = c.dist * Math.cos(p);
+            const bot = back - hgt / Math.tan(p + vf / 2);
+            const top = p - vf / 2 > 0.05 ? hgt / Math.tan(p - vf / 2) - back : H;
+            const half = this.viewWidthAt(c.dist) / 2, slack = 1;
+            c.x = half * 2 >= W + 2 * slack ? W / 2 : clamp(c.x, half - slack, W - half + slack);
+            c.z = top + bot >= H + 2 * slack ? H / 2 : clamp(c.z, top - slack, H - bot + slack);
         }
         placeCamera() {
             this.clampCam();

@@ -17,6 +17,10 @@
     // harvesters per refinery, and the cap
     const HARV = { easy: [1.5, 2], normal: [1.5, 3], hard: [2, 4] };
     const ARMY_CAP = { easy: 22, normal: 34, hard: 44 };
+    // Late game the caps grow (from minute 10, up to +60% by minute 20) and waves may use the whole army, so two
+    // turtled bases cannot hold each other off forever.
+    const lateness = (t) => Math.min(1, Math.max(0, (t - 600) / 600));
+    const armyCap = (diff, t) => Math.round(ARMY_CAP[diff] * (1 + 0.6 * lateness(t)));
     // Each computer player picks a style per game, so matches play out differently:
     //   balanced: the plan as written; rush: fewer turrets, tech last, earlier and more frequent (smaller) waves,
     //   infantry-heavy; armor: tech lab early, tank/artillery-heavy, bigger and later waves.
@@ -163,7 +167,7 @@
             const pendingB = tm.queues.building.length > 0 || tm.ready;
             const ecoReady = c.factory && haveH >= wantH;
             const reserve = ecoReady ? (pendingB ? 200 : 0) : (pendingB ? 700 : 300);
-            if (tm.credits < reserve || this.army.length >= ARMY_CAP[this.diff]) return;
+            if (tm.credits < reserve || this.army.length >= armyCap(this.diff, sim.time)) return;
             const inf = this.army.filter((u) => U[u.type].from === 'infantry');
             const veh = this.army.filter((u) => U[u.type].from === 'vehicle');
             const rich = tm.credits > 1500 ? 1 : 0;
@@ -390,9 +394,9 @@
                 if (stray.length) sim.command(this.team, { type: 'move', ids: ids(stray), x: this.staging.x, z: this.staging.z });
             }
             // launch a wave on the timer, or counter-attack right after beating off an attack
-            const cap = Math.min(22, Math.round(ARMY_CAP[this.diff] * 0.75));
+            const late = lateness(t), cap = Math.round(Math.min(22 + 30 * late, armyCap(this.diff, t) * (0.75 + 0.25 * late)));
             const need = Math.max(3, Math.round(Math.min(cap, this.cfg.waveSize + this.waveNo * this.cfg.waveGrowth) * this.st.need));
-            const full = home.length >= ARMY_CAP[this.diff] * 0.85;
+            const full = home.length >= armyCap(this.diff, t) * 0.85;
             const timer = full || t >= this.nextWave && (home.length >= need || (this.waveNo < 3 && t >= this.nextWave + 45 && home.length >= Math.max(3, Math.ceil(need * 0.6))));
             const counter = !easy && this.waveNo > 0 && this.lastThreat !== undefined && t - this.lastThreat > 4 && t - this.lastThreat < 15 &&
                 this.wave.size === 0 && home.length >= Math.max(5, Math.ceil(need * 0.9)) && t - this.waveIssued > 40;
