@@ -1090,11 +1090,10 @@
             for (const [id, m] of this.strikeMarks) if (!seen.has(id)) { this.release(m); this.strikeMarks.delete(id); }
             for (const it of pool) if (it.active && !this.strikeMarks.has(it.sid)) this.release(it);
         }
-        // seconds until a pending strike lands; `t` is read as the sim time it lands (falls back to "seconds left")
+        // seconds until a pending strike lands: `at` is the sim time of impact, `t` the seconds left
         strikeLeft(st) {
-            const warn = st.warn || 5, now = this.sim.time;
-            let left = st.t - now;
-            if (left < -0.3 || left > warn + 0.3) left = st.t;
+            const warn = st.warn || 5;
+            const left = st.at != null ? st.at - this.sim.time : st.t;
             return clamp(left, 0, warn);
         }
         // superweapon targeting reticle: { x, z, r, ok, kind } or null

@@ -540,7 +540,7 @@
                 if (ev.type === 'alert' && ev.team === G.team) {
                     const t = String(ev.text || ''), low = t.toLowerCase();
                     let kind = 'info', snd = null;
-                    if (/superweapon|lance|rift/.test(low)) { kind = /ready/.test(low) ? 'good' : /detected/.test(low) ? 'danger' : 'warn'; snd = /detected/.test(low) ? 'attack' : null; }
+                    if (/superweapon|lance|rift/.test(low)) { kind = /enemy/.test(low) ? 'danger' : /ready/.test(low) ? 'good' : 'warn'; snd = /enemy/.test(low) ? 'attack' : null; }
                     else if (/attack|lost|destroy/.test(low)) { kind = 'danger'; snd = /attack/.test(low) ? 'attack' : 'error'; }
                     else if (/restored|online|complete|ready/.test(low)) { kind = 'good'; }
                     else if (/power/.test(low)) { kind = 'warn'; snd = 'lowpower'; }
