@@ -243,17 +243,33 @@
         return { w: W, h: H, tiles, shards, spires: [], starts: [sA, sB], decor: [], fields, seed, shardVersion: 0 };
     }
 
-    // SF.generateMap({ seed, size }) → map (see the simulation contract). Extra fields: `fields` [{x, z, r}]
+    // SF.generateMap({ seed, size, clear? }) → map (see the simulation contract). Extra fields: `fields` [{x, z, r}]
     // (shard field centres, world units), `seed`, `shardVersion` (the sim bumps it whenever shard tiles appear
     // or disappear, so a renderer can rebuild its shard meshes lazily).
     SF.generateMap = function (opts) {
         const cfg = window.SF_CONFIG;
         const size = Math.max(40, Math.min(128, (opts && opts.size) || 64));
         const seed = ((opts && opts.seed) >>> 0) || 1;
-        for (let attempt = 0; attempt < 40; attempt++) {
-            const m = tryGenerate((seed + attempt * 7919) >>> 0, size, size, cfg);
-            if (m) { m.seed = seed; return m; }
-        }
-        return openMap(seed, size, size, cfg);
+        let m = null;
+        for (let attempt = 0; attempt < 40 && !m; attempt++) m = tryGenerate((seed + attempt * 7919) >>> 0, size, size, cfg);
+        if (!m) m = openMap(seed, size, size, cfg);
+        m.seed = seed;
+        if (opts && Array.isArray(opts.clear)) clearAreas(m, opts.clear);
+        return m;
     };
+
+    // Missions: turn rock into open ground inside circles ({ x, z, r } in world units), so scripted bases and
+    // routes have room. Opening rock never disconnects anything, so the map stays fully reachable.
+    function clearAreas(m, areas) {
+        const W = m.w, H = m.h;
+        for (const a of areas) {
+            if (!a || !isFinite(a.x) || !isFinite(a.z) || !(a.r > 0)) continue;
+            for (let z = Math.floor(a.z - a.r); z <= a.z + a.r; z++) for (let x = Math.floor(a.x - a.r); x <= a.x + a.r; x++) {
+                if (x < 0 || z < 0 || x >= W || z >= H) continue;
+                if (Math.hypot(x + 0.5 - a.x, z + 0.5 - a.z) > a.r) continue;
+                if (m.tiles[z * W + x] === 1) m.tiles[z * W + x] = 0;
+            }
+            m.decor = m.decor.filter((d) => !((d.type === 'rock' || d.type === 'boulder' || d.type === 'tree') && Math.hypot(d.x - a.x, d.z - a.z) < a.r + 0.3));
+        }
+    }
 })();
