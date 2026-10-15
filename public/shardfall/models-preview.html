@@ -65,19 +65,26 @@
     scene.add(sun, sun.target);
 
     // ------------------------------------------------------------------ layout every model, both teams
-    const items = [];   // { kind, type, team, obj, x, z, label, foot }
+    const items = [];   // { kind, type, team, faction, obj, x, z, el, nolabel }
     const BTYPES = Object.keys(C.BUILDINGS), UTYPES = Object.keys(C.UNITS);
+    const FACTIONS = Object.keys(C.FACTIONS || { vanguard: 1, hegemony: 1 });
+    // what each faction fields: shared buildings + its own; its unit roster (config order)
+    const fBuildings = (f) => BTYPES.filter((t) => !C.BUILDINGS[t].faction || C.BUILDINGS[t].faction === f);
+    const fUnits = (f) => (C.FACTIONS && C.FACTIONS[f] ? C.FACTIONS[f].units : UTYPES.filter((t) => (C.UNITS[t].faction || f) === f));
     let worldW = 0, worldD = 0;
-    function place(kind, type, team, x, z) {
-        let obj;
-        if (kind === 'unit') obj = M.unit(type, TEAMS[team]);
-        else if (kind === 'building') obj = M.building(type, TEAMS[team]);
-        else if (kind === 'decor') obj = M.decor(type);
-        else if (type === 'shardCluster') obj = M.shardCluster();
-        else obj = M.spire();
+    const rowZ = {};    // named rows → z centre, for the RTS-zoom focus presets
+    let superX = 20;    // x of the defences / superweapons, for the 'defence' preset
+    function make(kind, type, team, faction) {
+        if (kind === 'unit') return M.unit(type, TEAMS[team], faction);
+        if (kind === 'building') return M.building(type, TEAMS[team], faction);
+        if (kind === 'decor') return M.decor(type);
+        return type === 'shardCluster' ? M.shardCluster() : M.spire();
+    }
+    function place(kind, type, team, x, z, faction) {
+        const obj = make(kind, type, team, faction);
         obj.position.set(x, 0, z);
         scene.add(obj);
-        const it = { kind, type, team, obj, x, z };
+        const it = { kind, type, team, faction: obj.userData.faction, obj, x, z };
         items.push(it);
         return it;
     }
@@ -102,33 +109,47 @@
         scene.add(new THREE.LineSegments(t, lineMat));
     }
     (function layout() {
-        // buildings: one row per team, footprints aligned to whole tiles
+        // buildings: one row per faction in its usual team colour (Vanguard blue, Hegemony red), footprints on tiles
         let z = 0;
-        for (let team = 0; team < 2; team++) {
+        FACTIONS.forEach((f, team) => {
             let x = 0;
-            for (const t of BTYPES) {
+            for (const t of fBuildings(f)) {
                 const b = C.BUILDINGS[t];
                 const cx = x + b.w / 2, cz = z + 1.5;
-                place('building', t, team, cx, cz);
+                place('building', t, team, cx, cz, f);
+                if (t === 'uplink' || t === 'riftsilo') superX = Math.max(superX, cx - 1.5);
                 footprintGrid(cx, cz, b.w, b.d);
                 x += b.w + 1;
             }
             worldW = Math.max(worldW, x - 1);
+            rowZ['b' + f] = z + 1.5;
             z += 4.5;
-        }
-        // units: one row per team
-        for (let team = 0; team < 2; team++) {
+        });
+        // units: one row per faction, then the same rosters in the other team colour (ownership vs design language)
+        const SQUAD = { vanguard: ['rifleman', 'rocketeer'], hegemony: ['trooper', 'shocktrooper'] };
+        const unitRow = (f, team, key) => {
             let x = 0.6;
-            for (const t of UTYPES) {
-                const r = C.UNITS[t].radius;
-                place('unit', t, team, x + 0.6, z + 0.6);
-                circle(x + 0.6, z + 0.6, r);
+            for (const t of fUnits(f)) {
+                place('unit', t, team, x + 0.6, z + 0.6, f);
+                circle(x + 0.6, z + 0.6, C.UNITS[t].radius);
                 x += 2.0;
             }
             // a mixed squad to judge readability in a crowd
-            for (let i = 0; i < 5; i++) place('unit', i % 2 ? 'rocketeer' : 'rifleman', team, x + 0.5 + (i % 3) * 0.48, z + 0.25 + Math.floor(i / 3) * 0.5);
+            const sq = SQUAD[f] || [fUnits(f)[0], fUnits(f)[1]];
+            for (let i = 0; i < 5; i++) place('unit', sq[i % 2], team, x + 0.5 + (i % 3) * 0.48, z + 0.25 + Math.floor(i / 3) * 0.5, f).nolabel = true;
+            // a cloaked Phantom as its owner sees it (translucent twins of the shared materials)
+            if (fUnits(f).includes('phantom') && key[0] === 'u') {
+                const g = place('unit', 'phantom', team, x + 2.6, z + 0.6, f);
+                g.obj.traverse((o) => { if (o.isMesh) { o.material = M.ghostMaterial(o.material); o.castShadow = false; } });
+                g.label = 'phantom (cloaked)';
+                x += 1.4;
+            }
+            worldW = Math.max(worldW, x + 1.6);
+            rowZ[key] = z + 0.6;
             z += 2;
-        }
+        };
+        FACTIONS.forEach((f, team) => unitRow(f, team, 'u' + f));
+        FACTIONS.forEach((f, team) => unitRow(f, 1 - team, 'x' + f));
         // decor, a shard field and a spire
         z += 0.6;
         let x = 0.5;
@@ -142,6 +163,7 @@
             if (i || j) s.nolabel = true;
         }
         footprintGrid(x + 2, z + 1, 4, 2);
+        rowZ.decor = z + 0.5;
         worldD = z + 2;
     })();
 
@@ -167,13 +189,17 @@
         const aspect = innerWidth / innerHeight;
         const vFov = camera.fov * Math.PI / 180, hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
         const needW = (worldW + 1.5) / 2 / Math.tan(hFov / 2), needD = (worldD + 1.5) * Math.sin(PITCH) / 2 / Math.tan(vFov / 2);
-        view.x = worldW / 2; view.z = worldD / 2; view.dist = Math.max(needW, needD) * 1.05;
+        view.x = worldW / 2; view.z = worldD / 2; view.dist = Math.max(needW, needD) * 1.14;
     }
     function rtsView() {
         // The in-game zoom: ~10 tiles across on a phone in portrait, ~25 on a desktop (40° vertical fov).
         view.dist = Q.get('dist') ? +Q.get('dist') : (innerWidth < 700 ? 30 : 22);
         const f = Q.get('focus') || 'mix';
-        const at = { buildings: [7, 4], units: [6.5, 10.5], decor: [8, 14], mix: [6, 8] }[f] || [6, 8];
+        // buildings / units / decor / mix (phase 1) + hegemony (Hegemony base and army) and swap (team colours swapped)
+        const at = { buildings: [7, (rowZ.bvanguard + rowZ.bhegemony) / 2], units: [6.5, (rowZ.uvanguard + rowZ.uhegemony) / 2],
+            hegemony: [7, (rowZ.bhegemony + rowZ.uhegemony) / 2], swap: [6.5, (rowZ.xvanguard + rowZ.xhegemony) / 2],
+            tanks: [8.6, (rowZ.uvanguard + rowZ.xhegemony) / 2], decor: [8, rowZ.decor], mix: [6, rowZ.uvanguard - 1],
+            defence: [superX, (rowZ.bvanguard + rowZ.bhegemony) / 2] }[f] || [6, 8];
         view.x = Q.get('cx') ? +Q.get('cx') : at[0];
         view.z = Q.get('cz') ? +Q.get('cz') : at[1];
     }
@@ -190,15 +216,13 @@
         if (it.nolabel) continue;
         const el = document.createElement('div');
         el.className = 'lbl ' + (it.team === 0 ? 't0' : it.team === 1 ? 't1' : 'tn');
-        el.textContent = it.type === 'shardCluster' ? 'shards (by amount)' : it.type;
+        el.textContent = it.label ? it.label : it.type === 'shardCluster' ? 'shards (by amount)' : it.kind === 'misc' && it.type === 'spire' ? 'shard spire' : it.type;
         it.el = el;
         labelsEl.appendChild(el);
     }
-    // squad members after the 6 unit types are not labelled
-    { let n = 0; for (const it of items) if (it.kind === 'unit') { n++; if ((n - 1) % 11 >= 6 && it.el) { it.el.remove(); it.el = null; } } }
     const v3 = new THREE.Vector3();
     function updateLabels() {
-        const show = mode !== 'sheet' && Q.get('labels') !== '0';
+        const show = mode !== 'sheet' && Q.get('labels') !== '0' && !(mode === 'overview' && innerWidth < 700);
         labelsEl.style.display = show ? '' : 'none';
         if (!show) return;
         for (const it of items) {
@@ -215,8 +239,17 @@
     // ------------------------------------------------------------------ close-up sheet (one viewport per model)
     const sheetEls = [];
     const sheetList = [];
-    for (const t of BTYPES) for (const team of [0, 1]) sheetList.push({ kind: 'building', type: t, team });
-    for (const t of UTYPES) for (const team of [0, 1]) sheetList.push({ kind: 'unit', type: t, team });
+    // shared buildings: Vanguard look (blue) and Hegemony look (red); faction buildings and units in both colours
+    for (const t of BTYPES) {
+        const own = C.BUILDINGS[t].faction;
+        if (own) for (const team of [0, 1]) sheetList.push({ kind: 'building', type: t, team, faction: own });
+        else FACTIONS.forEach((f, team) => sheetList.push({ kind: 'building', type: t, team, faction: f }));
+    }
+    for (const t of UTYPES) {
+        const own = C.UNITS[t].faction;
+        if (own) for (const team of [0, 1]) sheetList.push({ kind: 'unit', type: t, team, faction: own });
+        else FACTIONS.forEach((f, team) => sheetList.push({ kind: 'unit', type: t, team, faction: f }));
+    }
     for (const t of ['rock', 'boulder', 'crystal', 'tree']) sheetList.push({ kind: 'decor', type: t, team: -1 });
     sheetList.push({ kind: 'misc', type: 'shardCluster', team: -1 }, { kind: 'misc', type: 'spire', team: -1 });
     if (Q.get('only')) {
@@ -239,11 +272,11 @@
     const sheetCam = new THREE.PerspectiveCamera(30, 1, 0.05, 100);
     let sheetObj = null;
     function sheetModel(s) {
-        if (s.kind === 'unit') return M.unit(s.type, TEAMS[s.team]);
-        if (s.kind === 'building') return M.building(s.type, TEAMS[s.team]);
-        if (s.kind === 'decor') return M.decor(s.type);
-        return s.type === 'spire' ? M.spire() : M.shardCluster();
+        const o = make(s.kind, s.type, s.team, s.faction);
+        poseParts(o, s.type, sheetT);
+        return o;
     }
+    const sheetT = Q.get('t') ? +Q.get('t') : 0;
     function renderSheet() {
         const cols = Q.get('cols') ? +Q.get('cols') : innerWidth < 700 ? 3 : 6;
         const cw = Math.floor(innerWidth / cols), rows = Math.ceil(sheetList.length / cols);
@@ -273,7 +306,8 @@
             if (!sheetEls[i]) {
                 const el = document.createElement('div');
                 el.className = 'cell';
-                el.textContent = s.type + (s.team >= 0 ? ' · ' + (cols <= 3 ? C.TEAMS[s.team].name[0] : C.TEAMS[s.team].name) : '') + ' · ' + M.triangles(sheetObj) + (cols <= 3 ? '△' : ' tris');
+                const fn = s.faction ? (C.FACTIONS && C.FACTIONS[s.faction] ? C.FACTIONS[s.faction].name : s.faction) : '';
+                el.textContent = (s.kind === 'misc' && s.type === 'spire' ? 'shard spire' : s.type) + (s.team >= 0 ? ' · ' + (cols <= 3 ? fn[0] + (s.team ? 'r' : 'b') : fn + (s.team ? ' red' : ' blue')) : '') + ' · ' + M.triangles(sheetObj) + (cols <= 3 ? '△' : ' tris');
                 document.body.appendChild(el);
                 sheetEls[i] = el;
             }
@@ -289,14 +323,15 @@
             rifleman: ['muzzle'], rocketeer: ['muzzle'], buggy: ['muzzle', '#wheels'], harvester: ['arm', 'cargo', '#wheels'],
             tank: ['turret', 'barrel', 'muzzle'], artillery: ['barrel', 'muzzle', '#wheels'],
             core: ['flag'], refinery: ['dock'], factory: ['exit'], barracks: ['exit'], radar: ['rotor'], turret: ['turret', 'barrel', 'muzzle'],
+            // phase 2
+            trooper: ['muzzle'], shocktrooper: ['muzzle'], skimmer: ['muzzle', 'hover', '!wheels'], lancer: ['turret', 'barrel', 'muzzle', '!wheels'],
+            phantom: ['turret', 'muzzle', '!wheels'], spire: ['turret', 'muzzle'], uplink: ['charge'], riftsilo: ['doorL', 'doorR', 'missile'],
         };
         const rows = [], fails = [];
         const box = new THREE.Box3(), wp = new THREE.Vector3();
         const EPS = 0.005;
-        function check(kind, type, team) {
-            const make = () => kind === 'unit' ? M.unit(type, TEAMS[team]) : kind === 'building' ? M.building(type, TEAMS[team])
-                : kind === 'decor' ? M.decor(type) : type === 'spire' ? M.spire() : M.shardCluster();
-            const g = make(), g2 = make();
+        function check(kind, type, team, faction) {
+            const g = make(kind, type, team, faction), g2 = make(kind, type, team, faction);
             g.updateMatrixWorld(true);
             const tris = M.triangles(g);
             let meshes = 0; g.traverse((o) => { if (o.isMesh) meshes++; });
@@ -309,8 +344,20 @@
             if (kind === 'unit') hx = hz = C.UNITS[type].radius;
             else if (kind === 'building') { hx = C.BUILDINGS[type].w / 2; hz = C.BUILDINGS[type].d / 2; }
             else hx = hz = 0.5;
-            const over = Math.max(box.max.x - hx, -hx - box.min.x, box.max.z - hz, -hz - box.min.z);
+            const overOf = (bx) => Math.max(bx.max.x - hx, -hx - bx.min.x, bx.max.z - hz, -hz - bx.min.z);
+            const over = overOf(box);
             if (over > EPS) problems.push(`outside footprint by ${over.toFixed(3)}`);
+            // posed parts must stay in the footprint too (rift silo doors fully open, hover craft at the top of its bob)
+            if (g.getObjectByName('doorL')) {
+                const gp = make(kind, type, team, faction);
+                M.setDoors(gp, 1);
+                gp.updateMatrixWorld(true);
+                const ob = new THREE.Box3().setFromObject(gp);
+                if (overOf(ob) > EPS) problems.push(`doors open outside footprint by ${overOf(ob).toFixed(3)}`);
+                if (ob.max.y <= box.max.y - 0.001 && ob.max.y < 1.0) problems.push('doors do not open upwards');
+                const dl = gp.getObjectByName('doorL'), dr = gp.getObjectByName('doorR');
+                if (!(dl.rotation.z > 1 && dr.rotation.z < -1)) problems.push('setDoors did not open both doors');
+            }
             if (box.min.y < (kind === 'unit' || kind === 'building' ? -0.06 : -0.15)) problems.push(`below ground ${box.min.y.toFixed(2)}`);
             // rotating parts must stay in the footprint whatever their angle (turret, rotor, crane)
             for (const nm of ['turret', 'rotor', 'crane']) {
@@ -328,9 +375,26 @@
                 if (nm !== 'crane' && rad > room + EPS) problems.push(`${nm} sweep r ${rad.toFixed(2)} > ${room.toFixed(2)}`);
             }
             // required children
-            for (const r of REQ[type] || []) {
+            for (const r of (kind === 'unit' || kind === 'building' ? REQ[type] : null) || []) {
                 if (r === '#wheels') { if (!(g.userData.wheels && g.userData.wheels.length)) problems.push('no wheels'); }
+                else if (r === '!wheels') { if (g.userData.wheels && g.userData.wheels.length) problems.push('should have no wheels'); }
                 else if (!g.getObjectByName(r)) problems.push(`missing '${r}'`);
+            }
+            if (type === 'skimmer' && !(g.userData.hover && g.userData.hoverHeight > 0)) problems.push('skimmer: userData.hover/hoverHeight');
+            // the uplink's charge glow: glow meshes with a material per instance that setCharge drives
+            const cg = g.getObjectByName('charge');
+            if (cg) {
+                const ms = [], ms2 = [];
+                cg.traverse((o) => { if (o.isMesh) ms.push(o); });
+                g2.getObjectByName('charge').traverse((o) => { if (o.isMesh) ms2.push(o); });
+                if (!ms.length || !ms.every((o) => o.userData.ownMaterial && o.material.emissive)) problems.push('charge: no own glow material');
+                else if (ms[0].material === ms2[0].material) problems.push('charge material shared between instances');
+                else {
+                    M.setCharge(g, 0); const lo = ms[0].material.emissiveIntensity;
+                    M.setCharge(g, 1); const hi = ms[0].material.emissiveIntensity;
+                    if (!(hi > lo * 2)) problems.push(`setCharge range ${lo.toFixed(2)}..${hi.toFixed(2)}`);
+                    M.setCharge(g, 0);
+                }
             }
             const mz = g.getObjectByName('muzzle');
             if (mz) { mz.getWorldPosition(wp); if (wp.x <= 0) problems.push('muzzle not towards +X'); }
@@ -339,18 +403,32 @@
             // a new group per call, sharing geometry & materials
             if (g === g2) problems.push('same group returned twice');
             let gm = null, gm2 = null;
-            g.traverse((o) => { if (o.isMesh && !gm) gm = o; });
-            g2.traverse((o) => { if (o.isMesh && !gm2) gm2 = o; });
+            g.traverse((o) => { if (o.isMesh && !o.userData.ownMaterial && !gm) gm = o; });
+            g2.traverse((o) => { if (o.isMesh && !o.userData.ownMaterial && !gm2) gm2 = o; });
             if (gm.geometry !== gm2.geometry || gm.material !== gm2.material) problems.push('geometry/material not shared');
             if (g.userData.wheels && g.userData.wheels.length && g.userData.wheels[0] === g2.userData.wheels[0]) problems.push('wheels shared between clones');
-            const row = { kind, type, team, tris, meshes, w: (box.max.x - box.min.x).toFixed(2), d: (box.max.z - box.min.z).toFixed(2), top: box.max.y.toFixed(2), problems };
+            if (faction && g.userData.faction !== faction) problems.push(`faction ${g.userData.faction} ≠ ${faction}`);
+            const row = { kind, type, team, faction: g.userData.faction, tris, meshes, w: (box.max.x - box.min.x).toFixed(2), d: (box.max.z - box.min.z).toFixed(2), top: box.max.y.toFixed(2), problems };
             rows.push(row);
-            if (problems.length) fails.push(`${type}${team >= 0 ? '/' + team : ''}: ${problems.join(', ')}`);
+            if (problems.length) fails.push(`${type}${team >= 0 ? '/' + team : ''}${faction ? '/' + faction[0] : ''}: ${problems.join(', ')}`);
         }
-        for (const team of [0, 1]) {
-            for (const t of UTYPES) check('unit', t, team);
-            for (const t of BTYPES) check('building', t, team);
+        // every unit and building, both team colours, in both faction looks
+        for (const team of [0, 1]) for (const f of FACTIONS) {
+            for (const t of UTYPES) check('unit', t, team, f);
+            for (const t of BTYPES) check('building', t, team, f);
         }
+        // default looks: a type's own faction (config), else Vanguard (the phase 1 look)
+        for (const t of UTYPES) { const u = M.unit(t, TEAMS[0]); if (u.userData.faction !== (C.UNITS[t].faction || 'vanguard')) fails.push(`${t}: default faction ${u.userData.faction}`); }
+        for (const t of BTYPES) { const u = M.building(t, TEAMS[0]); if (u.userData.faction !== (C.BUILDINGS[t].faction || 'vanguard')) fails.push(`${t}: default faction ${u.userData.faction}`); }
+        // the Hegemony look really differs (geometry or colours) for every shared building and the harvester
+        const firstMesh = (o) => { let m = null; o.traverse((c) => { if (c.isMesh && !m) m = c; }); return m; };
+        for (const [kind, t] of [...BTYPES.filter((t) => !C.BUILDINGS[t].faction).map((t) => ['building', t]), ['unit', 'harvester']]) {
+            const v = make(kind, t, 0, 'vanguard'), h = make(kind, t, 0, 'hegemony');
+            if (firstMesh(v).geometry === firstMesh(h).geometry || M.triangles(h) < M.triangles(v)) fails.push(`${t}: Hegemony look not distinct`);
+        }
+        // every type in SF_CONFIG has a real model and is listed in SF_MODELS.types
+        for (const t of UTYPES) if (!M.types.unit.includes(t)) fails.push(`types.unit lacks ${t}`);
+        for (const t of BTYPES) if (!M.types.building.includes(t)) fails.push(`types.building lacks ${t}`);
         for (const t of ['rock', 'boulder', 'crystal', 'tree']) check('decor', t, -1);
         check('misc', 'shardCluster', -1); check('misc', 'spire', -1);
         // team colours are baked into per-team geometry; all models share the two materials
@@ -359,25 +437,40 @@
         const tb = b.getObjectByName('turret').children.find((o) => o.isMesh);
         if (!ta || !tb || ta.geometry === tb.geometry || ta.material !== tb.material) fails.push('team geometry/material sharing wrong');
         const mats = new Set();
-        for (const r of [a, b, M.building('core', TEAMS[0]), M.spire()]) r.traverse((o) => { if (o.isMesh) mats.add(o.material); });
+        for (const r of [a, b, M.building('core', TEAMS[0]), M.spire(), M.unit('lancer', TEAMS[1]), M.building('core', TEAMS[1], 'hegemony'),
+            M.building('uplink', TEAMS[0]), M.building('riftsilo', TEAMS[1])]) r.traverse((o) => { if (o.isMesh && !o.userData.ownMaterial) mats.add(o.material); });
         if (mats.size > 2) fails.push(`expected 2 shared materials, found ${mats.size}`);
+        const gb = M.ghostMaterial(M.materials.body), gg = M.ghostMaterial(M.materials.glow);
+        if (!(gb.transparent && gb.opacity < 1 && gb !== M.materials.body && M.ghostMaterial(M.materials.body) === gb && M.ghostMaterial(gb) === gb
+            && gg.onBeforeCompile === M.materials.glow.onBeforeCompile && gg.emissive)) fails.push('ghostMaterial wrong');
         const result = { pass: fails.length === 0, fails, rows };
         window.SF_MODEL_CHECK = result;
         const body = document.getElementById('checkBody');
         document.querySelector('#check summary').innerHTML = result.pass
             ? `<span class="ok">All ${rows.length} model checks pass</span>` : `<span class="bad">${fails.length} check(s) failed</span>`;
         let html = fails.map((f) => `<div class="bad">${f}</div>`).join('');
-        html += '<table><tr><th>model</th><th>team</th><th>tris</th><th>meshes</th><th>w×d</th><th>top</th><th></th></tr>';
-        for (const r of rows) html += `<tr><td>${r.type}</td><td>${r.team < 0 ? '–' : r.team}</td><td>${r.tris}</td><td>${r.meshes}</td><td>${r.w}×${r.d}</td><td>${r.top}</td><td class="${r.problems.length ? 'bad' : 'ok'}">${r.problems.length ? '✗' : '✓'}</td></tr>`;
+        html += '<table><tr><th>model</th><th>team</th><th>look</th><th>tris</th><th>meshes</th><th>w×d</th><th>top</th><th></th></tr>';
+        for (const r of rows) html += `<tr><td>${r.type}</td><td>${r.team < 0 ? '–' : r.team}</td><td>${r.faction ? r.faction.slice(0, 3) : '–'}</td><td>${r.tris}</td><td>${r.meshes}</td><td>${r.w}×${r.d}</td><td>${r.top}</td><td class="${r.problems.length ? 'bad' : 'ok'}">${r.problems.length ? '✗' : '✓'}</td></tr>`;
         body.innerHTML = html + '</table>';
         if (Q.get('check') === '1') document.getElementById('check').open = true;
     }
 
     // ------------------------------------------------------------------ animation of named parts (pivot sanity)
     let t0 = performance.now();
+    // phase 2 parts: hover bob, rift silo doors + missile, uplink charge glow (a 12 s charge → ready cycle)
+    function poseParts(o, type, t) {
+        const hv = o.getObjectByName('hover'); if (hv) hv.position.y = Math.sin(t * 2.4 + o.position.x) * 0.03;
+        if (o.getObjectByName('doorL')) {
+            const k = Math.max(0, Math.min(1, Math.sin(t * 0.7) * 1.4));
+            M.setDoors(o, k);
+            const mis = o.getObjectByName('missile'); if (mis) mis.position.y = 0.24 + 0.2 * k;
+        }
+        if (o.getObjectByName('charge')) M.setCharge(o, Math.min(1, (t % 12) / 9), t);
+    }
     function animateParts(t) {
         for (const it of items) {
             const o = it.obj;
+            poseParts(o, it.type, t);
             const tur = o.getObjectByName('turret'); if (tur) tur.rotation.y = Math.sin(t * 0.8) * 1.2;
             const bar = o.getObjectByName('barrel'); if (bar && it.type !== 'artillery') bar.rotation.z = Math.max(0, Math.sin(t * 1.3)) * 0.25;
             const rot = o.getObjectByName('rotor'); if (rot) rot.rotation.y = t * 1.2;

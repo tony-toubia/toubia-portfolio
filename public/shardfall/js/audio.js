@@ -1,5 +1,6 @@
 // Shardfall: small synthesized WebAudio sounds (no samples, no voice). Weapons, explosions, production chimes,
-// UI clicks and alert stings. Positional sounds are attenuated by distance from the camera's focus and panned.
+// UI clicks, alert stings, energy weapons, superweapon launches/strikes, radio blips and objective chimes.
+// Positional sounds are attenuated by distance from the camera's focus and panned.
 (function () {
     'use strict';
     const SF = window.SF = window.SF || {};
@@ -10,7 +11,8 @@
     const last = {};
     let voices = 0;
     const listener = { x: 0, z: 0, r: 14 };
-    const GAP = { rifle: 0.045, mg: 0.04, rocket: 0.07, cannon: 0.06, turretGun: 0.06, artillery: 0.1, boom: 0.06, bigboom: 0.12, impact: 0.05, click: 0.03, select: 0.05, order: 0.06 };
+    const GAP = { rifle: 0.045, mg: 0.04, rocket: 0.07, cannon: 0.06, turretGun: 0.06, artillery: 0.1, boom: 0.06, bigboom: 0.12, impact: 0.05, click: 0.03, select: 0.05, order: 0.06,
+        pulse: 0.05, twinPulse: 0.05, shock: 0.07, beam: 0.06, phase: 0.07, spireBeam: 0.1, lance: 0.3, rift: 0.3, siren: 1.2, launch: 0.5, radio: 0.3, cloak: 0.15, decloak: 0.15 };
 
     function ensure() {
         if (ctx) return ctx;
@@ -77,6 +79,26 @@
         lowpower(d, t) { tone(d, t, 0.28, 'sawtooth', 520, 260, 0.15, 0.01); tone(d, t + 0.32, 0.36, 'sawtooth', 420, 180, 0.15, 0.01); },
         attack(d, t) { [0, 0.16, 0.32].forEach((o, i) => tone(d, t + o, 0.12, 'square', i === 2 ? 988 : 740, i === 2 ? 988 : 740, 0.14, 0.004)); },
         ready(d, t) { tone(d, t, 0.12, 'triangle', 988, 988, 0.2); tone(d, t + 0.12, 0.2, 'triangle', 1319, 1319, 0.2); },
+        // Hegemony energy weapons
+        pulse(d, t) { tone(d, t, 0.07, 'square', 1500, 520, 0.12, 0.002); noise(d, t, 0.05, 'bandpass', 4200, 2600, 2, 0.16); },
+        twinPulse(d, t) { tone(d, t, 0.05, 'square', 1700, 700, 0.1, 0.002); tone(d, t + 0.045, 0.05, 'square', 1600, 650, 0.08, 0.002); },
+        shock(d, t) { tone(d, t, 0.2, 'sawtooth', 700, 110, 0.22, 0.003); noise(d, t, 0.16, 'bandpass', 1800, 600, 1.5, 0.35); },
+        beam(d, t) { tone(d, t, 0.17, 'sawtooth', 320, 290, 0.16, 0.004); tone(d, t, 0.17, 'square', 641, 600, 0.06, 0.004); noise(d, t, 0.15, 'highpass', 3000, 3000, 0.8, 0.12); },
+        spireBeam(d, t) { tone(d, t, 0.32, 'sawtooth', 190, 130, 0.3, 0.004); tone(d, t, 0.28, 'sine', 1100, 420, 0.18, 0.004); noise(d, t, 0.3, 'bandpass', 2400, 900, 1.2, 0.22); },
+        phase(d, t) { tone(d, t, 0.22, 'sine', 980, 180, 0.35, 0.003); noise(d, t, 0.2, 'lowpass', 2600, 500, 0.8, 0.3); },
+        // superweapons
+        swready(d, t) { [660, 880, 1320, 1760].forEach((f, i) => tone(d, t + i * 0.09, 0.3, 'triangle', f, f, 0.22, 0.004)); tone(d, t + 0.36, 0.6, 'sine', 1760, 1760, 0.12, 0.01); },
+        launch(d, t) { noise(d, t, 1.4, 'bandpass', 260, 2600, 1.4, 0.55, 0.25); tone(d, t, 1.2, 'sine', 70, 40, 0.6, 0.1); tone(d, t + 0.1, 0.9, 'sawtooth', 220, 880, 0.08, 0.3); },
+        siren(d, t) { for (let i = 0; i < 4; i++) tone(d, t + i * 0.28, 0.26, 'square', i % 2 ? 620 : 860, i % 2 ? 620 : 860, 0.13, 0.01); },
+        lance(d, t) { tone(d, t, 1.0, 'sine', 2600, 160, 0.45, 0.004); noise(d, t, 1.8, 'lowpass', 4200, 80, 0.6, 1.0, 0.01); tone(d, t, 1.4, 'sine', 58, 24, 1.0, 0.01); noise(d, t + 0.15, 1.0, 'bandpass', 900, 200, 0.7, 0.4); },
+        rift(d, t) { tone(d, t, 0.75, 'sine', 40, 380, 0.5, 0.6); noise(d, t, 0.75, 'lowpass', 150, 3200, 0.9, 0.5, 0.6); noise(d, t + 0.78, 1.7, 'lowpass', 1500, 60, 0.6, 1.0, 0.01); tone(d, t + 0.78, 1.3, 'sine', 70, 22, 1.0, 0.01); },
+        cloak(d, t) { tone(d, t, 0.25, 'triangle', 1900, 3600, 0.08, 0.02); noise(d, t, 0.25, 'highpass', 5000, 8000, 0.6, 0.05, 0.05); },
+        decloak(d, t) { tone(d, t, 0.22, 'triangle', 3400, 1500, 0.08, 0.01); },
+        // missions
+        radio(d, t) { noise(d, t, 0.09, 'bandpass', 2400, 1800, 1.5, 0.12); tone(d, t + 0.02, 0.05, 'square', 1250, 1250, 0.07, 0.002); tone(d, t + 0.09, 0.06, 'square', 1650, 1650, 0.07, 0.002); },
+        objective(d, t) { [784, 1175, 1568].forEach((f, i) => tone(d, t + i * 0.1, 0.32, 'triangle', f, f, 0.2, 0.004)); },
+        objnew(d, t) { tone(d, t, 0.14, 'triangle', 660, 660, 0.18, 0.004); tone(d, t + 0.14, 0.24, 'triangle', 990, 990, 0.18, 0.004); },
+        objfail(d, t) { [523, 415, 311].forEach((f, i) => tone(d, t + i * 0.16, 0.3, 'sawtooth', f, f * 0.97, 0.12, 0.01)); },
         win(d, t) { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(d, t + i * 0.12, 0.5, 'triangle', f, f, 0.24, 0.006)); },
         lose(d, t) { [440, 392, 349, 262].forEach((f, i) => tone(d, t + i * 0.2, 0.55, 'sawtooth', f, f * 0.98, 0.12, 0.01)); },
     };
@@ -88,15 +110,18 @@
         const now = ctx.currentTime;
         const gap = GAP[name] || 0.02;
         if (last[name] && now - last[name] < gap) return;
-        if (voices > 28 && name !== 'attack' && name !== 'lowpower') return;
+        if (voices > 28 && name !== 'attack' && name !== 'lowpower' && !(o && o.far)) return;
         last[name] = now;
         let vol = (o && o.vol) || 1, pan = 0;
         if (o && o.x != null) {
             const dx = o.x - listener.x, dz = o.z - listener.z, d = Math.hypot(dx, dz), r = listener.r;
-            if (d > r * 2.6) return;
-            vol *= d < r ? 1 : Math.max(0, 1 - (d - r) / (r * 1.6));
-            pan = dx / (r * 1.4);
-            if (vol < 0.03) return;
+            if (o.far) { vol *= d < r ? 1 : Math.max(0.35, 1 - (d - r) / (r * 4)); pan = Math.max(-0.6, Math.min(0.6, dx / (r * 2))); }
+            else {
+                if (d > r * 2.6) return;
+                vol *= d < r ? 1 : Math.max(0, 1 - (d - r) / (r * 1.6));
+                pan = dx / (r * 1.4);
+                if (vol < 0.03) return;
+            }
         }
         try { fn(out(vol, pan), now + 0.005); } catch (e) { /* audio graph failure is never fatal */ }
     }

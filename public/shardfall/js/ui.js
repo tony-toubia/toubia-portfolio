@@ -1,6 +1,7 @@
 // Shardfall: HUD and menus. Top bar (credits, power, clock), build sidebar / phone bottom sheet, minimap,
-// selection panel + action buttons, toasts, start / how-to / pause / end screens. Reads the sim; issues commands
-// only through the game controller (main.js).
+// selection panel + action buttons, superweapon button, mission objectives + radio messages, toasts, title (skirmish
+// setup + campaign mission list), briefing / how-to / pause / end screens. Reads the sim; issues commands only through
+// the game controller (main.js).
 (function () {
     'use strict';
     const SF = window.SF = window.SF || {};
@@ -10,6 +11,12 @@
     const fmtTime = (s) => { s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60), r = s % 60; return m >= 60 ? Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0') + ':' + String(r).padStart(2, '0') : m + ':' + String(r).padStart(2, '0'); };
     const nameOf = (type) => (C.BUILDINGS[type] || C.UNITS[type] || { name: type }).name;
     const STATE_TEXT = { idle: 'Standing by', move: 'Moving', attack: 'Engaging', harvest: 'Harvesting', return: 'Returning to refinery', unload: 'Unloading' };
+    const FACTIONS = C.FACTIONS || {};
+    const SUPERS = C.SUPERWEAPONS || {};
+    const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const facName = (f) => (FACTIONS[f] && FACTIONS[f].name) || (f ? f[0].toUpperCase() + f.slice(1) : '');
+    const otherFac = (f) => (f === 'hegemony' ? 'vanguard' : 'hegemony');
+    const superOf = (f) => { const b = FACTIONS[f] && C.BUILDINGS[FACTIONS[f].superweapon]; return b && SUPERS[b.superweapon]; };
 
     class UI {
         constructor(G) {
@@ -19,12 +26,14 @@
             this.items = new Map();
             this.toasts = [];
             this.recent = new Map();
-            this.tick = 0; this.mmTick = 0; this.selKey = '';
+            this.tick = 0; this.mmTick = 0; this.selKey = ''; this.objTick = 0; this.objKey = '';
+            this.radioQ = []; this.radioCur = null; this.speakers = new Map(); this.swReady = false;
             this.touch = window.matchMedia && matchMedia('(pointer: coarse)').matches;
             document.body.classList.toggle('touch', this.touch);
             this.mm = $('minimap'); this.mmCtx = this.mm.getContext('2d');
             this.bind();
             if (window.ResizeObserver) new ResizeObserver(() => { this.measureSheet(); this.sizeMinimap(); }).observe(document.querySelector('.sheet'));
+            if (window.ResizeObserver) new ResizeObserver(() => this.measureHud()).observe($('mhud'));
             this.layout();
         }
 
@@ -39,7 +48,28 @@
             click('btn-quit', () => G.quit());
             click('btn-again', () => G.restart());
             click('btn-title', () => G.quit());
-            click('btn-start', () => G.start(this.difficulty()));
+            click('btn-next', () => G.nextMission());
+            click('btn-start', () => G.start({ kind: 'skirmish', faction: this.faction(), difficulty: this.difficulty() }));
+            click('btn-mode-skirmish', () => this.showPane('skirmish'));
+            click('btn-mode-campaign', () => { if (G.missions().length) this.showPane('campaign'); else this.toast('The campaign is not available in this build', 'warn'); });
+            document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => { G.audio.unlock(); G.audio.play('click'); this.showPane(b.dataset.go); }));
+            click('btn-brief-start', () => G.start({ kind: 'mission', index: this.briefIndex }));
+            click('btn-brief-back', () => this.showTitle('campaign'));
+            $('sw-btn').addEventListener('click', () => { G.audio.unlock(); G.superClick(); });
+            click('mode-fire', () => G.fireSuper());
+            $('obj-toggle').addEventListener('click', () => { G.audio.play('click'); this.setObjCollapsed(!this.objCollapsed); });
+            $('radio').addEventListener('click', () => { G.audio.play('click'); this.nextRadio(); });
+            document.querySelectorAll('#fac-seg button').forEach((b) => b.addEventListener('click', () => {
+                G.audio.unlock(); G.audio.play('select');
+                this.setFaction(b.dataset.fac);
+                try { localStorage.setItem('shardfall.faction', b.dataset.fac); } catch (e) { /* blocked */ }
+            }));
+            document.querySelectorAll('#fac-seg button').forEach((b) => {
+                const f = FACTIONS[b.dataset.fac] || {}, sw = superOf(b.dataset.fac);
+                b.querySelector('.fac-tag').textContent = f.tagline || '';
+                b.querySelector('.fac-sw').textContent = sw ? 'Superweapon: ' + sw.name : '';
+            });
+            try { const f = localStorage.getItem('shardfall.faction'); if (f === 'vanguard' || f === 'hegemony') this.setFaction(f); } catch (e) { /* blocked */ }
             click('btn-howto', () => this.show('howto', true));
             click('btn-howto2', () => this.show('howto', true));
             document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => { G.audio.play('click'); this.hide('howto'); }));
@@ -86,6 +116,12 @@
             if (window.self !== window.top && !/[?&]standalone=1\b/.test(location.search)) document.body.classList.add('in-iframe');
         }
         difficulty() { const b = document.querySelector('#diff-seg button.on'); return b ? b.dataset.diff : 'normal'; }
+        faction() { const b = document.querySelector('#fac-seg button.on'); return b ? b.dataset.fac : 'vanguard'; }
+        setFaction(f) {
+            document.querySelectorAll('#fac-seg button').forEach((o) => { o.classList.toggle('on', o.dataset.fac === f); o.setAttribute('aria-checked', o.dataset.fac === f); });
+            $('diff-h').textContent = 'Opponent: the ' + facName(otherFac(f));
+            document.body.classList.toggle('pick-hegemony', f === 'hegemony');
+        }
 
         layout() {
             const w = window.innerWidth, h = window.innerHeight, B = document.body;
@@ -132,7 +168,61 @@
         // ------------------------------------------------------------ screens
         show(name, on) { $('scr-' + name).classList.toggle('show', on !== false); }
         hide(name) { $('scr-' + name).classList.remove('show'); }
-        hideAll() { ['start', 'howto', 'pause', 'end'].forEach((n) => this.hide(n)); }
+        hideAll() { ['start', 'brief', 'howto', 'pause', 'end'].forEach((n) => this.hide(n)); }
+
+        // ------------------------------------------------------------ title: home / skirmish / campaign + briefing
+        showTitle(pane) { this.hide('brief'); this.show('start'); this.showPane(pane || 'home'); }
+        showPane(p) {
+            const scr = $('scr-start');
+            scr.dataset.pane = p; scr.scrollTop = 0;
+            if (p === 'campaign') this.renderMissions();
+            const L = this.G.missions(), n = L.filter((m) => this.G.missionDone(m.id)).length;
+            $('camp-prog').textContent = L.length ? n + '/' + L.length : '';
+            $('btn-mode-campaign').classList.toggle('unavailable', !L.length);
+            $('camp-sub').textContent = L.length ? L.length + ' missions: the war for Kessar' : 'Not available in this build';
+        }
+        escapeTitle() {
+            if ($('scr-brief').classList.contains('show')) { this.showTitle('campaign'); return true; }
+            const scr = $('scr-start');
+            if (scr.classList.contains('show') && scr.dataset.pane !== 'home') { this.showPane('home'); return true; }
+            return false;
+        }
+        renderMissions() {
+            const G = this.G, list = $('mission-list'), L = G.missions();
+            list.innerHTML = '';
+            L.forEach((m, i) => {
+                const done = G.missionDone(m.id), open = G.missionUnlocked(i), f = m.faction || 'vanguard';
+                const li = document.createElement('li');
+                const b = document.createElement('button');
+                b.type = 'button'; b.className = 'mission ' + f + (done ? ' done' : '') + (open ? '' : ' locked');
+                b.dataset.index = i;
+                const state = done ? svg('i-check') + '<span>Complete</span>' : open ? '<svg class="go"><use href="#i-back"/></svg><span>Ready</span>' : svg('i-lock') + '<span>Locked</span>';
+                b.innerHTML = '<span class="ms-n">' + String(i + 1).padStart(2, '0') + '</span>' +
+                    '<span class="ms-txt"><b>' + esc(m.title) + '</b><small>' + esc(m.summary || '') + '</small><em>' + svg(f === 'hegemony' ? 'i-hegemony' : 'i-vanguard') + 'Play as the ' + esc(facName(f)) + '</em></span>' +
+                    '<span class="ms-state">' + state + '</span>';
+                b.setAttribute('aria-label', 'Mission ' + (i + 1) + ': ' + m.title + (done ? ', complete' : open ? '' : ', locked'));
+                b.addEventListener('click', () => {
+                    G.audio.unlock();
+                    if (!open) { G.audio.play('error'); this.toast('Complete mission ' + i + ' first', 'warn'); return; }
+                    G.audio.play('click'); this.showBriefing(i);
+                });
+                li.appendChild(b); list.appendChild(li);
+            });
+        }
+        showBriefing(i) {
+            const G = this.G, m = G.missions()[i]; if (!m) return;
+            this.briefIndex = i;
+            const f = m.faction || 'vanguard', ef = m.enemyFaction || otherFac(f);
+            $('scr-brief').className = 'screen modal brief show ' + f;
+            $('brief-kicker').innerHTML = svg(f === 'hegemony' ? 'i-hegemony' : 'i-vanguard') + 'Mission ' + (i + 1) + ' · ' + esc(facName(f)) + ' vs ' + esc(facName(ef));
+            $('brief-title').textContent = m.title;
+            const paras = Array.isArray(m.briefing) ? m.briefing : (m.briefing ? [m.briefing] : [m.summary || '']);
+            $('brief-body').innerHTML = paras.map((t) => '<p>' + esc(t) + '</p>').join('');
+            $('brief-obj').innerHTML = (m.objectives || []).filter((o) => !o.hidden).map((o) => '<li' + (o.optional ? ' class="opt"' : '') + '><i></i><span>' + esc(o.text) + (o.optional ? ' <small>optional</small>' : '') + '</span></li>').join('') || '<li><i></i><span>Destroy every enemy structure</span></li>';
+            $('btn-brief-start').textContent = G.missionDone(m.id) ? 'Replay mission' : 'Start mission';
+            this.hide('start');
+            $('scr-brief').scrollTop = 0;
+        }
         loading(on, text, err) {
             const L = $('loading');
             if (text) $('loading-text').textContent = text;
@@ -143,10 +233,24 @@
             $('btn-sound').innerHTML = svg(muted ? 'i-mute' : 'i-sound');
             $('btn-sound2').textContent = 'Sound: ' + (muted ? 'Off' : 'On');
         }
-        showEnd(win, stats) {
-            const s = $('scr-end'); s.classList.toggle('lose', !win);
-            $('end-title').textContent = win ? 'Victory' : 'Defeat';
-            $('end-sub').textContent = win ? 'The Hegemony has fallen. The shard fields are yours.' : 'Your last structure has fallen. The Hegemony holds the field.';
+        showEnd(win, stats, mi) {
+            const G = this.G, s = $('scr-end'); s.classList.toggle('lose', !win);
+            const enemy = G.factionName(1 - G.team);
+            $('end-title').classList.toggle('long', !!mi);
+            $('btn-next').hidden = !(mi && win && mi.hasNext);
+            if (mi) {
+                $('end-title').textContent = win ? 'Mission complete' : 'Mission failed';
+                const last = win && !mi.hasNext;
+                $('end-sub').textContent = (mi.reason ? mi.reason + '. ' : '') + (last ? 'The war for Kessar is won. Campaign complete.' : 'Mission ' + (mi.index + 1) + ': ' + mi.mission.title + (win ? ' complete.' : ' failed.'));
+                $('btn-again').textContent = win ? 'Replay' : 'Retry';
+                $('btn-again').classList.toggle('primary', !win || !mi.hasNext);
+                $('btn-title').textContent = 'Campaign';
+            } else {
+                $('end-title').textContent = win ? 'Victory' : 'Defeat';
+                $('end-sub').textContent = win ? 'The ' + enemy + ' has fallen. The shard fields are yours.' : 'Your last structure has fallen. The ' + enemy + ' holds the field.';
+                $('btn-again').textContent = 'Play again'; $('btn-again').classList.add('primary');
+                $('btn-title').textContent = 'Title';
+            }
             const rows = [['Time', fmtTime(stats.time)], ['Units built', stats.unitsBuilt], ['Units lost', stats.unitsLost], ['Enemy units destroyed', stats.kills], ['Structures destroyed', stats.buildingsDestroyed], ['Credits harvested', Math.round(stats.harvested).toLocaleString('en-US')]];
             $('end-stats').innerHTML = rows.map((r) => '<div class="stat"><b>' + r[1] + '</b><span>' + r[0] + '</span></div>').join('');
             this.show('end');
@@ -156,6 +260,13 @@
         startGame() {
             const G = this.G;
             this.credShown = this.credTarget = G.sim.teams[G.team].credits;
+            document.body.classList.toggle('fac-hegemony', G.factionOf(G.team) === 'hegemony');
+            $('btn-restart').textContent = G.mission ? 'Restart mission' : 'Restart skirmish';
+            $('btn-quit').textContent = G.mission ? 'Quit to campaign' : 'Quit to title';
+            this.swReady = false; this.lastSw = '';
+            this.clearRadio(); this.speakers.clear();
+            this.objKey = ''; this.objFlash = {};
+            this.setObjCollapsed(!this.side);
             this.buildSidebar();
             this.clearToasts();
             this.selKey = '';
@@ -167,7 +278,9 @@
         buildSidebar() {
             const G = this.G, grid = $('build-grid');
             grid.innerHTML = ''; this.items.clear();
-            const opts = G.sim.options(G.team);
+            const opts = this.sideOptions();
+            this.itemsKey = opts.map((o) => o.type).join(',');
+            const fac = G.factionOf(G.team);
             for (const o of opts) {
                 const el = document.createElement('button');
                 el.type = 'button'; el.className = 'build-item'; el.dataset.type = o.type;
@@ -175,7 +288,7 @@
                 el.innerHTML = '<span class="thumb"></span><span class="lock">' + svg('i-lock') + '</span><span class="why"></span>' +
                     '<span class="sweep"></span><span class="cost">' + svg('i-shard') + o.cost + '</span><span class="qn"></span><span class="tag"></span>' +
                     '<span class="x" role="button" aria-label="Cancel">' + svg('i-close') + '</span><span class="nm">' + nameOf(o.type) + '</span><span class="pbar2"><i></i></span>';
-                const thumb = G.render.thumbnail(o.cat === 'building' ? 'building' : 'unit', o.type, G.team);
+                const thumb = G.render.thumbnail(o.cat === 'building' ? 'building' : 'unit', o.type, G.team, fac);
                 if (thumb) el.querySelector('.thumb').style.backgroundImage = 'url(' + thumb + ')';
                 const it = { el, type: o.type, cat: o.cat, last: {} };
                 this.items.set(o.type, it);
@@ -183,6 +296,11 @@
                 grid.appendChild(el);
             }
             this.setTab(this.tab);
+        }
+        // the build options for the player's side: only shared types and the player's faction's own
+        sideOptions() {
+            const G = this.G, f = G.factionOf(G.team);
+            return G.sim.options(G.team).filter((o) => { const d = C.BUILDINGS[o.type] || C.UNITS[o.type]; return !d || !d.faction || !f || d.faction === f; });
         }
         bindItem(it) {
             const G = this.G, el = it.el;
@@ -200,7 +318,9 @@
         }
         refreshReadyLabels() { for (const [, it] of this.items) it.last.tag = null; }
         updateSidebar() {
-            const G = this.G, T = G.sim.teams[G.team], opts = G.sim.options(G.team);
+            const G = this.G, T = G.sim.teams[G.team], opts = this.sideOptions();
+            const key = opts.map((o) => o.type).join(',');
+            if (key !== this.itemsKey) this.buildSidebar();
             const bBusy = T.queues.building.length > 0 || !!T.ready;
             const badges = { building: '', infantry: '', vehicle: '' };
             const readyLabel = this.touch ? 'tap to place' : 'click to place';
@@ -297,6 +417,14 @@
                     g.fillRect(e.x * k - s / 2, e.z * k - s / 2, s, s);
                 }
             }
+            // superweapon strike warnings (everyone sees them)
+            const strikes = sim.strikes || [];
+            for (const st of strikes) {
+                const d = SUPERS[st.kind] || { radius: 3 }, pulse = 0.6 + 0.4 * Math.sin(performance.now() / 120);
+                g.strokeStyle = st.kind === 'rift' ? 'rgba(214,110,255,' + pulse + ')' : 'rgba(255,90,70,' + pulse + ')';
+                g.lineWidth = Math.max(1.5, S / 90);
+                g.beginPath(); g.arc(st.x * k, st.z * k, Math.max(4, d.radius * k), 0, Math.PI * 2); g.stroke();
+            }
             // camera footprint
             const c = G.render.viewCorners();
             g.strokeStyle = 'rgba(255,255,255,0.9)'; g.lineWidth = Math.max(1, S / 160);
@@ -325,10 +453,10 @@
                 const key = 's' + e.id;
                 if (key !== this.selKey || force) {
                     this.selKey = key;
-                    const th = G.render.thumbnail(e.kind === 'unit' ? 'unit' : 'building', e.type, e.team);
+                    const th = G.render.thumbnail(e.kind === 'unit' ? 'unit' : 'building', e.type, e.team, G.factionOf(e.team));
                     $('sel-portrait').className = 'portrait' + (own ? '' : ' enemy');
                     $('sel-portrait').innerHTML = th ? '<i style="background-image:url(' + th + ')"></i>' : '';
-                    $('sel-name').innerHTML = def.name + '<span class="tm ' + (own ? 'blue' : 'red') + '">' + (C.TEAMS[e.team] || {}).name + '</span>';
+                    $('sel-name').innerHTML = esc(def.name) + '<span class="tm ' + (own ? 'blue' : 'red') + '">' + esc(G.factionName(e.team)) + '</span>';
                 }
                 const hp = Math.max(0, Math.ceil(e.hp)), f = Math.max(0, Math.min(1, e.hp / e.maxHp));
                 $('sel-hpfill').style.width = (f * 100) + '%';
@@ -338,11 +466,15 @@
                 if (e.kind === 'unit') {
                     sub = '<b>' + (STATE_TEXT[e.state] || 'Standing by') + '</b>';
                     if (e.type === 'harvester' && own) sub += ' · <span class="cy">' + Math.round(e.carry || 0) + ' / ' + (def.capacity || 500) + '</span> shards';
+                    else if (e.cloaked && own) sub += ' · <span class="cy">cloaked</span>';
+                    else if (def.cloak && own) sub += ' · <span class="warn">revealed</span>';
                     else if (def.weapon) sub += ' · ' + def.weapon.replace(/([A-Z])/g, ' $1').toLowerCase();
                 } else {
                     const pw = def.power || 0;
                     sub = (e.built != null && e.built < 1) ? '<b>Constructing ' + Math.round(e.built * 100) + '%</b>' : '<b>' + (pw >= 0 ? '+' : '') + pw + ' power</b>';
-                    if (own) {
+                    const sw = def.superweapon && G.sim.teams[e.team].super;
+                    if (sw && sw.building === e.id && (e.built == null || e.built >= 1)) sub += ' · <span class="cy">' + (sw.ready ? 'READY' : 'charging ' + Math.floor(sw.charge * 100) + '%') + '</span>';
+                    else if (own) {
                         if (makes === 'infantry' || makes === 'vehicle') sub += ' · ' + (this.touch ? 'Rally button: set rally' : 'Right-click: set rally');
                         else if (e.type !== 'core') sub += ' · sells for ' + Math.round(def.cost * C.ECONOMY.sellRefund);
                     }
@@ -358,7 +490,7 @@
                     this.selKey = key;
                     const box = $('sel-multi'); box.innerHTML = '';
                     for (const r of rows) {
-                        const th = G.render.thumbnail(r.kind === 'unit' ? 'unit' : 'building', r.type, r.team);
+                        const th = G.render.thumbnail(r.kind === 'unit' ? 'unit' : 'building', r.type, r.team, G.factionOf(r.team));
                         const c = document.createElement('button'); c.type = 'button'; c.className = 'chip'; c.title = nameOf(r.type) + ' — tap to select only these';
                         c.innerHTML = (th ? '<i style="background-image:url(' + th + ')"></i>' : '') + '<b>' + r.n + '</b><span class="hp"><u></u></span>';
                         c.addEventListener('click', (ev) => { G.audio.play('select'); const ids = G.selEntities().filter((e) => e.type === r.type && e.team === r.team).map((e) => e.id); if (ev.shiftKey) G.select(G.sel.filter((i) => ids.indexOf(i) < 0)); else G.select(ids); });
@@ -408,13 +540,18 @@
                 if (ev.type === 'alert' && ev.team === G.team) {
                     const t = String(ev.text || ''), low = t.toLowerCase();
                     let kind = 'info', snd = null;
-                    if (/attack|lost|destroy/.test(low)) { kind = 'danger'; snd = /attack/.test(low) ? 'attack' : 'error'; }
+                    if (/superweapon|lance|rift/.test(low)) { kind = /enemy/.test(low) ? 'danger' : /ready/.test(low) ? 'good' : 'warn'; snd = /enemy/.test(low) ? 'attack' : null; }
+                    else if (/attack|lost|destroy/.test(low)) { kind = 'danger'; snd = /attack/.test(low) ? 'attack' : 'error'; }
                     else if (/restored|online|complete|ready/.test(low)) { kind = 'good'; }
                     else if (/power/.test(low)) { kind = 'warn'; snd = 'lowpower'; }
                     else if (/credit|funds|cash/.test(low)) { kind = 'warn'; snd = 'error'; }
                     const fresh = !(this.recent.get(t) && performance.now() - this.recent.get(t) < 3500);
                     this.toast(t, kind, ev.x, ev.z);
                     if (snd && fresh) G.audio.play(snd);
+                } else if (ev.type === 'objective') {
+                    this.onObjective(ev);
+                } else if (ev.type === 'message') {
+                    this.pushRadio(ev);
                 } else if (ev.type === 'complete' && ev.team === G.team) {
                     if (ev.cat === 'building') { this.toast(nameOf(ev.what) + ' ready — ' + (this.touch ? 'tap' : 'click') + ' it to place', 'good'); G.audio.play('build'); if (!this.side) this.setTab('building'); }
                     else G.audio.play('unit');
@@ -423,9 +560,124 @@
         }
         modeBar() {
             const G = this.G, bar = $('modebar');
-            const on = G.mode === 'attackMove' || G.mode === 'rally';
+            const sup = G.mode === 'super';
+            const on = G.mode === 'attackMove' || G.mode === 'rally' || sup;
             bar.classList.toggle('show', on); document.body.classList.toggle('mode-on', on);
-            if (on) $('mode-text').textContent = G.mode === 'rally' ? (this.touch ? 'Rally: tap the ground' : 'Rally: click the ground') : (this.touch ? 'Attack-move: tap a target' : 'Attack-move: click a target');
+            bar.classList.toggle('super', sup);
+            const st = sup && G.superState();
+            bar.classList.toggle('rift', !!(st && st.type === 'rift'));
+            const aim = G.superAim, fire = $('mode-fire');
+            fire.hidden = !(sup && this.touch);
+            fire.disabled = !(aim && aim.ok);
+            bar.classList.toggle('bad', !!(sup && aim && !aim.ok));
+            if (!on) return;
+            let t;
+            if (sup) {
+                const d = G.superDef() || { name: 'Superweapon' };
+                if (aim && !aim.ok) t = 'Not explored: pick another spot';
+                else if (this.touch) t = aim ? d.name + ': tap again to fire' : d.name + ': tap a target';
+                else t = d.name + ': click to fire';
+            } else t = G.mode === 'rally' ? (this.touch ? 'Rally: tap the ground' : 'Rally: click the ground') : (this.touch ? 'Attack-move: tap a target' : 'Attack-move: click a target');
+            if ($('mode-text').textContent !== t) $('mode-text').textContent = t;
+        }
+
+        // ------------------------------------------------------------ superweapon button
+        updateSuper() {
+            const G = this.G, T = G.sim.teams[G.team], s = T && T.super, btn = $('sw-btn');
+            const show = !!s;
+            if (btn.hidden === show) { btn.hidden = !show; document.body.classList.toggle('has-sw', show); }
+            if (!s) { this.swReady = false; return; }
+            const d = SUPERS[s.type] || { name: 'Superweapon' };
+            const pct = Math.max(0, Math.min(100, Math.floor((s.charge || 0) * 100)));
+            const paused = !s.ready && !!T.lowPower;
+            const key = s.type + pct + (s.ready ? 'R' : '') + (paused ? 'P' : '') + (G.mode === 'super' ? 'M' : '');
+            if (key !== this.lastSw) {
+                this.lastSw = key;
+                $('sw-fg').style.strokeDashoffset = String(100 - (s.ready ? 100 : pct));
+                btn.classList.toggle('ready', !!s.ready); btn.classList.toggle('paused', paused); btn.classList.toggle('on', G.mode === 'super');
+                btn.classList.toggle('rift', s.type === 'rift');
+                $('sw-ico').innerHTML = '<use href="#' + (s.type === 'rift' ? 'i-rift' : 'i-lance') + '"/>';
+                $('sw-lbl').textContent = s.ready ? 'READY' : paused ? 'NO POWER' : pct + '%';
+                const tip = d.name + (s.ready ? ': ready, ' + (this.touch ? 'tap' : 'click (Z)') + ' to target' : paused ? ': charging paused (low power)' : ': charging ' + pct + '%');
+                btn.title = tip; btn.setAttribute('aria-label', tip);
+            }
+            if (s.ready && !this.swReady) G.audio.play('swready');
+            this.swReady = !!s.ready;
+        }
+
+        // ------------------------------------------------------------ mission objectives
+        setObjCollapsed(c) {
+            this.objCollapsed = !!c;
+            $('objectives').classList.toggle('collapsed', this.objCollapsed);
+            $('obj-toggle').setAttribute('aria-expanded', String(!this.objCollapsed));
+        }
+        missionObjectives() {
+            const G = this.G, M = G.sim && G.sim.mission;
+            if (M && Array.isArray(M.objectives)) return M.objectives;
+            const def = G.mission;
+            return def ? (def.objectives || []).map((o) => ({ id: o.id, text: o.text, done: false, failed: false, progress: '', optional: !!o.optional, hidden: !!o.hidden })) : [];
+        }
+        updateObjectives(force) {
+            const G = this.G; if (!G.mission) return;
+            const objs = this.missionObjectives().filter((o) => !o.hidden);
+            const key = objs.map((o) => o.id + (o.done ? 'D' : '') + (o.failed ? 'F' : '') + '|' + (o.progress || '') + '|' + (this.objFlash[o.id] ? 'X' : '')).join(';');
+            if (key === this.objKey && !force) return;
+            this.objKey = key;
+            const req = objs.filter((o) => !o.optional), done = req.filter((o) => o.done).length;
+            $('obj-count').textContent = done + '/' + req.length;
+            const cur = req.find((o) => !o.done && !o.failed) || objs.find((o) => !o.done && !o.failed);
+            $('obj-cur').textContent = cur ? cur.text : (req.length && done === req.length ? 'All objectives complete' : '');
+            $('obj-list').innerHTML = objs.map((o) => '<li class="' + (o.done ? 'done' : o.failed ? 'failed' : '') + (o.optional ? ' opt' : '') + (this.objFlash[o.id] ? ' flash' : '') + '">' +
+                '<i>' + (o.done ? svg('i-check') : o.failed ? svg('i-close') : '') + '</i><span>' + esc(o.text) + (o.optional ? ' <small>optional</small>' : '') + '</span>' +
+                (o.progress && !o.done && !o.failed ? '<b>' + esc(o.progress) + '</b>' : '') + '</li>').join('');
+        }
+        onObjective(ev) {
+            const G = this.G, text = ev.text || '';
+            if (ev.failed) { this.toast('Objective failed: ' + text, 'danger'); G.audio.play('objfail'); }
+            else if (ev.done) { this.toast('Objective complete: ' + text, 'good'); G.audio.play('objective'); }
+            else if (text) { this.toast('New objective: ' + text, 'info'); G.audio.play('objnew'); }
+            if (ev.id != null) {
+                this.objFlash[ev.id] = true; this.updateObjectives(true);
+                setTimeout(() => { delete this.objFlash[ev.id]; this.updateObjectives(true); }, 1600);
+            }
+            if (!ev.done && !ev.failed && this.objCollapsed && !this.side) { /* phone: the header line shows the new one */ }
+        }
+
+        // ------------------------------------------------------------ radio messages (queued, ~5-7 s each, tap to skip)
+        pushRadio(m) {
+            if (!m || !m.text) return;
+            this.radioQ.push({ from: m.from || 'Command', text: String(m.text), portrait: m.portrait });
+            if (this.radioQ.length > 8) this.radioQ.splice(0, this.radioQ.length - 8);
+            if (!this.radioCur) this.nextRadio(); else this.radioMore();
+        }
+        speakerSide(m) {
+            if (m.portrait && FACTIONS[m.portrait]) return m.portrait;
+            const G = this.G, me = G.factionOf(G.team);
+            if (!this.speakers.has(m.from)) this.speakers.set(m.from, this.speakers.size === 0 ? me : otherFac(me));
+            return this.speakers.get(m.from);
+        }
+        nextRadio() {
+            const box = $('radio'), m = this.radioQ.shift();
+            this.radioCur = m || null;
+            if (!m) { box.hidden = true; box.classList.remove('show'); return; }
+            const side = this.speakerSide(m);
+            const initials = m.from.replace(/^(cmdr|commander|overseer|lt|lieutenant|capt|captain|gen|general|col|colonel|maj|major|sgt)\.?\s+/i, '').split(/\s+/).map((w) => w[0] || '').join('').slice(0, 2).toUpperCase();
+            box.className = 'radio show ' + side;
+            $('r-portrait').innerHTML = svg(side === 'hegemony' ? 'i-hegemony' : 'i-vanguard') + '<b>' + esc(initials) + '</b>';
+            $('r-from').textContent = m.from;
+            $('r-text').textContent = m.text;
+            this.radioDur = Math.max(5, Math.min(7.5, 3.6 + m.text.length * 0.035));
+            this.radioLeft = this.radioDur;
+            const t = $('r-timer'); t.style.animation = 'none'; void t.offsetWidth; t.style.animation = 'radiotimer ' + this.radioDur + 's linear forwards';
+            box.hidden = false;
+            this.radioMore();
+            this.G.audio.play('radio');
+        }
+        radioMore() { $('r-more').textContent = this.radioQ.length ? '+' + this.radioQ.length : ''; }
+        clearRadio() { this.radioQ = []; this.radioCur = null; const b = $('radio'); b.hidden = true; b.classList.remove('show'); }
+        measureHud() {
+            const h = document.body.classList.contains('mission') ? Math.round($('mhud').getBoundingClientRect().height) : 0;
+            if (h !== this.mhudH) { this.mhudH = h; document.documentElement.style.setProperty('--mhud-h', h + 'px'); }
         }
         placeBar() {
             const G = this.G, bar = $('placebar');
@@ -441,8 +693,10 @@
         update(dt, force) {
             const G = this.G; if (!G.sim) return;
             this.updateTop(dt);
-            this.tick += dt; this.mmTick += dt;
-            if (this.tick > 0.1 || force) { this.tick = 0; this.updateSidebar(); this.updateSelection(force); this.modeBar(); this.placeBar(); }
+            this.tick += dt; this.mmTick += dt; this.objTick += dt;
+            if (this.tick > 0.1 || force) { this.tick = 0; this.updateSidebar(); this.updateSelection(force); this.modeBar(); this.placeBar(); this.updateSuper(); }
+            if (this.objTick > 0.25 || force) { this.objTick = 0; this.updateObjectives(force); this.measureHud(); }
+            if (this.radioCur && !G.paused) { this.radioLeft -= dt; if (this.radioLeft <= 0) this.nextRadio(); }
             if (this.mmTick > 0.15 || force) { this.mmTick = 0; this.drawMinimap(); }
         }
     }

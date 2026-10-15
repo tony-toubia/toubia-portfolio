@@ -8,6 +8,7 @@
     const DZ8 = [0, 0, 1, -1, 1, -1, 1, -1];
     const CATS = ['building', 'infantry', 'vehicle'];
     const PRODUCER = { infantry: 'barracks', vehicle: 'factory' };
+    const HOVER_SHARD_BOOST = 1.15;
 
     function angDiff(a, b) {
         let d = (b - a) % (Math.PI * 2);
@@ -246,12 +247,19 @@
         constructor(opts) {
             opts = opts || {};
             const cfg = this.cfg = window.SF_CONFIG;
-            this.seed = (opts.seed === undefined ? 12345 : opts.seed) >>> 0;
-            this.size = opts.size || 64;
+            // A mission (js/missions.js) fixes the map, the sides and the starting forces; the player is team 0.
+            const M = this.missionDef = opts.mission || null;
+            const mm = (M && M.map) || {};
+            this.seed = ((M && mm.seed !== undefined) ? mm.seed : (opts.seed === undefined ? 12345 : opts.seed)) >>> 0;
+            this.size = (M && mm.size) || opts.size || 64;
             this.difficulty = cfg.AI[opts.difficulty] ? opts.difficulty : 'normal';
-            this.playerTeam = opts.playerTeam === undefined ? 0 : opts.playerTeam;
+            this.playerTeam = M ? 0 : (opts.playerTeam === undefined ? 0 : opts.playerTeam);
             this.mirrorFronts = opts.mirrorFronts !== false;
-            this.map = SF.generateMap({ seed: this.seed, size: this.size });
+            this.map = SF.generateMap({ seed: this.seed, size: this.size, clear: mm.clear });
+            const FAC = cfg.FACTIONS || {};
+            let facs = M ? [M.faction, M.enemyFaction] : (Array.isArray(opts.factions) ? opts.factions.slice(0, 2) : ['vanguard', 'hegemony']);
+            facs = [0, 1].map((t) => (FAC[facs[t]] ? facs[t] : (t === 0 ? 'vanguard' : 'hegemony')));
+            const side = M ? [M.player || {}, M.enemy || {}] : [{}, {}];
             const w = this.map.w, h = this.map.h, n = w * h;
             this.block = new Uint8Array(n);    // 0 free, 1 rock, 2 spire, 3 building
             this.occ = new Int32Array(n);      // building id per tile
@@ -267,13 +275,22 @@
             this._pid = 1;
             this.winner = null;
             this.rng = SF.rng((this.seed ^ 0x5bd1e995) >>> 0);
-            const aiTeams = Array.isArray(opts.aiTeams) ? opts.aiTeams : (this.playerTeam === null ? [0, 1] : [1 - this.playerTeam]);
+            this.strikes = [];          // pending superweapon strikes: { id, team, kind, x, z, t (seconds left), warn, at, radius }
+            this._sid = 1;
+            this._tags = new Map();     // mission tag → entities (kept after death, for objectives)
+            this.mission = null;
+            const aiTeams = Array.isArray(opts.aiTeams) ? opts.aiTeams
+                : M ? (cfg.AI[side[1].ai] ? [1] : []) : (this.playerTeam === null ? [0, 1] : [1 - this.playerTeam]);
             this.teams = [0, 1].map((t) => {
-                const diff = (opts.aiDifficulty && cfg.AI[opts.aiDifficulty[t]]) ? opts.aiDifficulty[t] : this.difficulty;
+                let diff = (opts.aiDifficulty && cfg.AI[opts.aiDifficulty[t]]) ? opts.aiDifficulty[t] : this.difficulty;
+                if (M && t === 1 && cfg.AI[side[1].ai] && !(opts.aiDifficulty && cfg.AI[opts.aiDifficulty[1]])) diff = side[1].ai;
                 const ai = aiTeams.indexOf(t) >= 0;
+                const f = facs[t];
                 return {
-                    id: t, name: cfg.TEAMS[t].name, color: cfg.TEAMS[t].color,
-                    credits: cfg.ECONOMY.startCredits, power: { made: 0, used: 0 }, lowPower: false, radar: false,
+                    id: t, name: FAC[f] ? FAC[f].name : cfg.TEAMS[t].name, color: cfg.TEAMS[t].color, faction: f,
+                    credits: side[t].credits !== undefined ? side[t].credits : cfg.ECONOMY.startCredits,
+                    power: { made: 0, used: 0 }, lowPower: false, radar: false,
+                    allow: Array.isArray(side[t].allow) ? new Set(side[t].allow) : null, super: null,
                     ai, difficulty: diff, income: ai ? cfg.AI[diff].income : 1,
                     queues: { building: [], infantry: [], vehicle: [] }, ready: null, readyPaid: 0,
                     rally: { infantry: null, vehicle: null },
@@ -299,8 +316,10 @@
                 if (this.map.tiles[i] !== 1 && this.block[i] !== 2 && this._regrow.indexOf(i) < 0) this._regrow.push(i);
             }
             // starting bases
-            const startUnits = opts.startUnits || ['buggy', 'rifleman', 'rifleman', 'rifleman'];
+            const START_UNITS = { vanguard: ['buggy', 'rifleman', 'rifleman', 'rifleman'], hegemony: ['skimmer', 'trooper', 'trooper', 'trooper'] };
             for (let t = 0; t < 2; t++) {
+                if (side[t].start === false) continue;
+                const startUnits = opts.startUnits || START_UNITS[facs[t]] || START_UNITS.vanguard;
                 const s = this.map.starts[t];
                 this._addBuilding(t, 'core', s.tx, s.tz, 1);
                 const cx = s.tx + 1.5, cz = s.tz + 1.5;
@@ -313,6 +332,7 @@
                 });
                 this._explore(t, cx, cz, 13);
             }
+            if (M) this._missionSetup(M, side);
             this._refreshLists();
             this._updatePower(true);
             this._updateFog();
@@ -351,6 +371,7 @@
         // Is the entity visible to the team right now (units: its tile; buildings: any footprint tile)?
         isVisible(team, e) {
             if (e.team === team) return true;
+            if (e.cloaked) return false;   // a cloaked unit is hidden from its enemies whatever the fog says
             const vis = this.teams[team].vis, w = this.map.w;
             if (e.kind === 'unit') return vis[(e.z | 0) * w + (e.x | 0)] === 2;
             for (let z = e.tz; z < e.tz + e.d; z++) for (let x = e.tx; x < e.tx + e.w; x++) if (vis[z * w + x] === 2) return true;
@@ -389,6 +410,7 @@
             if (!tm) return [];
             const C = this.cfg, out = [];
             const have = this._haveMap(team);
+            const FAC = C.FACTIONS && C.FACTIONS[tm.faction];
             const pushOpt = (type, cat, def, reason) => {
                 const q = tm.queues[cat];
                 let queued = 0;
@@ -401,16 +423,26 @@
                     full: q.length >= C.ECONOMY.queueMax,
                 });
             };
-            for (const type in C.BUILDINGS) {
-                const def = C.BUILDINGS[type];
-                if (def.buildable === false) continue;
-                pushOpt(type, 'building', def, this._lockReason(team, 'building', def, have));
-            }
-            for (const type in C.UNITS) {
+            // buildings in config order with the superweapon last; units in the faction's roster order
+            const blds = Object.keys(C.BUILDINGS).filter((type) => C.BUILDINGS[type].buildable !== false && this.allowed(team, type));
+            blds.sort((a, b) => (C.BUILDINGS[a].superweapon ? 1 : 0) - (C.BUILDINGS[b].superweapon ? 1 : 0));
+            for (const type of blds) pushOpt(type, 'building', C.BUILDINGS[type], this._lockReason(team, 'building', C.BUILDINGS[type], have));
+            const units = FAC ? FAC.units : Object.keys(C.UNITS);
+            for (const type of units) {
                 const def = C.UNITS[type];
+                if (!def || !this.allowed(team, type)) continue;
                 pushOpt(type, def.from, def, this._lockReason(team, def.from, def, have));
             }
             return out;
+        }
+        // May this team ever build this type (its faction's or shared, and on the mission's list)?
+        allowed(team, type) {
+            const C = this.cfg, tm = this.teams[team];
+            const def = C.BUILDINGS[type] || C.UNITS[type];
+            if (!tm || !def) return false;
+            if (def.faction && def.faction !== tm.faction) return false;
+            if (tm.allow && !tm.allow.has(type)) return false;
+            return true;
         }
 
         command(team, cmd) {
@@ -428,6 +460,7 @@
                     case 'place': return this._cmdPlace(team, cmd.item, cmd.tx, cmd.tz);
                     case 'sell': return this._cmdSell(team, cmd.id);
                     case 'rally': return this._cmdRally(team, cmd.cat, cmd.x, cmd.z);
+                    case 'superweapon': return this._cmdSuper(team, cmd.x, cmd.z);
                 }
             } catch (err) {
                 if (typeof console !== 'undefined') console.error('Shardfall command failed', cmd, err);
@@ -447,6 +480,7 @@
                 _ax: p.x, _az: p.z, _stuck: 0, _stuckT: 0, _sx: p.x, _sz: p.z, _chaseX: NaN, _chaseZ: NaN, _repT: 0,
                 _hitBy: 0, _hitT: -99, _h: type === 'harvester' ? 'seek' : null, _tile: -1, _wait: 0, _refId: 0,
                 _prefX: NaN, _prefZ: NaN, _dock: null, _px: 0, _pz: 0,
+                cloaked: false, _cloak: !!def.cloak, _hunt: false, _patrol: null, _pk: 0,
             };
             this.entities.set(u.id, u);
             this._dirty = true;
@@ -472,9 +506,14 @@
             for (const u of this._units) if (!u.dead) this._updateUnit(u);
             this._separate();
             this._updateProjectiles();
+            this._updateCloak();
+            this._updateStrikes();
+            this._updateSuper();
             if (this.tick % 20 === 0) this._regrowShards();
             if (this.tick % 2 === 0) this._updateFog();
-            this._checkDefeat();
+            if (this.tick % 20 === 10) this._updateScripted();
+            if (this.mission) { if (this.tick % 5 === 0) this._missionUpdate(); }
+            else this._checkDefeat();
             this.time += T;
             this.tick++;
         }
@@ -582,6 +621,9 @@
                 firing: 99, carry: 0, radius: Math.max(def.w, def.d) / 2,
                 _cd: 0, _scan: 0, _rise: 1.2 + def.w * def.d * 0.15, _done: built >= 1,
             };
+            if (def.superweapon) { b.charge = 0; b.ready = false; b._charge = 0; }
+            const at = this.missionDef && this.missionDef.autoTag;
+            if (at && at[type] && this._tags) this._tag(b, at[type]);
             this.entities.set(b.id, b);
             const w = this.map.w;
             for (let z2 = tz; z2 < tz + def.d; z2++) for (let x2 = tx; x2 < tx + def.w; x2++) {
@@ -654,6 +696,12 @@
             }
             if (!b._done) {
                 b._done = true;
+                if (def.superweapon) {
+                    const sw = this.cfg.SUPERWEAPONS[def.superweapon];
+                    this._alert(b.team, def.name + ' online', b.x, b.z, 'swon' + b.id);
+                    this._alert(1 - b.team, 'Enemy superweapon detected', b.x, b.z, 'swdet' + b.id);
+                    b.charge = Math.max(0, b._charge) / sw.charge;
+                }
                 if (def.freeUnit) {
                     const p = this._exitPoint(b);
                     const u = this.spawnUnit(b.team, def.freeUnit, p.x, p.z);
@@ -937,6 +985,7 @@
             let def = C.BUILDINGS[type], cat = 'building';
             if (def) { if (def.buildable === false) return false; }
             else { def = C.UNITS[type]; if (!def) return false; cat = def.from; }
+            if (!this.allowed(team, type)) return false;
             if (this._lockReason(team, cat, def, this._haveMap(team))) return false;
             const q = tm.queues[cat];
             if (q.length >= C.ECONOMY.queueMax) return false;
@@ -1010,7 +1059,7 @@
             let best = null, bs = Infinity;
             const U = this.cfg.UNITS;
             this._near(s.x, s.z, r + 1, (e) => {
-                if (e.team === s.team || e.dead) return;
+                if (e.team === s.team || e.dead || e.cloaked) return;
                 const d = Math.hypot(e.x - s.x, e.z - s.z) - e.radius;
                 if (d > r || d < minR) return;
                 if (vis[(e.z | 0) * w + (e.x | 0)] !== 2) return;
@@ -1024,7 +1073,7 @@
                 const d = this._rangeTo(s, b);
                 if (d > r || d < minR) continue;
                 if (!this.isVisible(s.team, b)) continue;
-                const sc = d + (b.type === 'turret' ? 1 : 4);
+                const sc = d + (this.cfg.BUILDINGS[b.type].weapon ? 1 : 4);
                 if (sc < bs) { bs = sc; best = b; }
             }
             return best;
@@ -1051,13 +1100,13 @@
                 }
                 tgt = null;
             }
-            // auto-acquire / retaliate
+            // auto-acquire / retaliate (an idle cloaked unit holds its fire, so it stays hidden: an ambush stance)
             if (wpn && !tgt && u._order !== 'move' && u._order !== 'attack') {
                 u._scan -= T;
                 if (u._scan <= 0) {
                     u._scan = 0.3;
                     const r = u._order === 'attackMove' ? Math.max(wpn.range, Math.min(def.sight, wpn.range + 2)) : wpn.range + 1;
-                    let c = this._acquire(u, r, minR);
+                    let c = (u._cloak && !u._order) ? null : this._acquire(u, r, minR);
                     if (!c && u._hitBy && this.time - u._hitT < 3 && !u._order) {
                         const a = this.entities.get(u._hitBy);
                         if (a && !a.dead && this.isVisible(u.team, a) && Math.hypot(a.x - u.x, a.z - u.z) < def.sight + 2) c = a;
@@ -1135,7 +1184,7 @@
             const bullet = wpn.projectile === 'bullet' || !wpn.speed;
             const dur = bullet ? 0 : dist / wpn.speed;
             const pid = bullet ? 0 : this._pid++;
-            this._ev({ type: 'shot', from: s.id, team: s.team, x: s.x, z: s.z, tx: ap.x, tz: ap.z, weapon: key, dur, pid });
+            this._ev({ type: 'shot', from: s.id, team: s.team, x: s.x, z: s.z, tx: ap.x, tz: ap.z, weapon: key, proj: wpn.projectile, dur, pid, target: tgt.id });
             if (bullet) { this._hit(s.team, s.id, key, wpn, tgt, ap.x, ap.z); return; }
             this.projectiles.push({
                 id: pid, team: s.team, from: s.id, weapon: key, kind: wpn.projectile, sx: s.x, sz: s.z, x: s.x, z: s.z,
@@ -1173,7 +1222,7 @@
         }
         _armor(e) { return e.kind === 'building' ? this.cfg.BUILDINGS[e.type].armor : this.cfg.UNITS[e.type].armor; }
         _hit(team, fromId, key, wpn, direct, ix, iz) {
-            this._ev({ type: 'impact', x: ix, z: iz, weapon: key, splash: wpn.splash || 0 });
+            this._ev({ type: 'impact', x: ix, z: iz, weapon: key, proj: wpn.projectile, splash: wpn.splash || 0 });
             if (direct && !direct.dead) this._damage(direct, wpn.damage * (wpn.vs[this._armor(direct)] || 0), fromId, team);
             if (wpn.splash > 0) {
                 const r = wpn.splash;
@@ -1201,7 +1250,7 @@
             if (e.dead) return;
             e.dead = true; e.hp = 0; e._deadTick = this.tick; e.state = 'idle';
             this._ev({ type: 'death', id: e.id, team: e.team, kind: e.kind, what: e.type, x: e.x, z: e.z, sold: !!sold });
-            const tm = this.teams[e.team], en = byTeam >= 0 ? this.teams[byTeam] : null;
+            const tm = this.teams[e.team], en = byTeam >= 0 && byTeam !== e.team ? this.teams[byTeam] : null;
             if (e.kind === 'building') {
                 this._removeBuildingTiles(e);
                 this._dirty = true;
@@ -1255,7 +1304,9 @@
             if (def.turn < 8) f = diff > 1.3 ? 0 : Math.max(0.2, Math.cos(diff));
             if (!def.turret) u.turret = u.angle;
             else if (!u.targetId) u.turret = turnToward(u.turret, u.angle, 2.5 * T);
-            const spd = u._vmax && u.state !== 'attack' ? Math.min(def.speed, u._vmax) : def.speed;
+            let spd = u._vmax && u.state !== 'attack' ? Math.min(def.speed, u._vmax) : def.speed;
+            // hover units skim over shard fields a little faster
+            if (def.hover && this.map.tiles[(u.z | 0) * this.map.w + (u.x | 0)] === 2) spd *= HOVER_SHARD_BOOST;
             const stp = Math.min(d, spd * f * T);
             if (stp > 1e-4) this._tryMove(u, u.x + dx / d * stp, u.z + dz / d * stp);
             // stuck detection (only while we should be making headway)
@@ -1474,6 +1525,432 @@
                 map.shards[i] = Math.min(max, was + g);
                 if (map.tiles[i] !== 2) { map.tiles[i] = 2; map.shardVersion++; }
             }
+        }
+
+        // ================= cloak =================
+        // A cloaked unit (Phantom) is hidden from the enemy unless it fired in the last `cloakDelay` seconds or one
+        // of the enemy's units or buildings is within `revealRange` tiles. `entity.cloaked` is true while hidden.
+        _updateCloak() {
+            const U = this.cfg.UNITS;
+            for (const u of this._units) {
+                if (!u._cloak || u.dead) continue;
+                const def = U[u.type];
+                let seen = u.firing < def.cloakDelay;
+                if (!seen) seen = this._enemyWithin(u, def.revealRange);
+                const hidden = !seen;
+                if (hidden !== u.cloaked) {
+                    u.cloaked = hidden;
+                    this._ev({ type: 'cloak', id: u.id, team: u.team, on: hidden });
+                }
+            }
+        }
+        _enemyWithin(u, r) {
+            let found = false;
+            this._near(u.x, u.z, r + 1, (e) => {
+                if (found || e.team === u.team || e.dead) return;
+                if (Math.hypot(e.x - u.x, e.z - u.z) <= r) found = true;
+            });
+            if (found) return true;
+            for (const b of this._buildings) {
+                if (b.team === u.team || b.dead) continue;
+                if (Math.abs(b.x - u.x) > r + 3 || Math.abs(b.z - u.z) > r + 3) continue;
+                if (this._rangeTo(u, b) <= r) return true;
+            }
+            return false;
+        }
+
+        // ================= superweapons =================
+        // Each superweapon building charges for SUPERWEAPONS[kind].charge seconds while powered; team.super shows
+        // the most charged one. A destroyed building loses its charge; firing restarts it at 0.
+        _updateSuper() {
+            const T = this.cfg.TICK, B = this.cfg.BUILDINGS, SW = this.cfg.SUPERWEAPONS;
+            const best = [null, null];
+            for (const b of this._buildings) {
+                if (b.dead || !b._done) continue;
+                const def = B[b.type];
+                if (!def.superweapon) continue;
+                const sw = SW[def.superweapon], tm = this.teams[b.team];
+                if (!b.ready && !tm.lowPower && !tm.defeated) {
+                    b._charge = Math.min(sw.charge, b._charge + T);
+                    if (b._charge >= sw.charge) {
+                        b.ready = true;
+                        this._alert(b.team, sw.name + ' ready', b.x, b.z, 'swready' + b.id);
+                        this._alert(1 - b.team, 'Enemy ' + sw.name + ' ready', b.x, b.z, 'swenemy' + b.id);
+                    }
+                }
+                b.charge = Math.max(0, b._charge) / sw.charge;
+                const cur = best[b.team];
+                if (!cur || b._charge > cur._charge || (b._charge === cur._charge && b.id < cur.id)) best[b.team] = b;
+            }
+            for (const tm of this.teams) {
+                const b = best[tm.id];
+                if (!b) { tm.super = null; continue; }
+                const kind = B[b.type].superweapon;
+                const s = tm.super || (tm.super = {});
+                s.type = kind; s.kind = kind; s.name = SW[kind].name; s.building = b.id;
+                s.charge = b.charge; s.ready = b.ready; s.radius = SW[kind].radius; s.paused = !b.ready && tm.lowPower;
+                s.eta = b.ready ? 0 : (SW[kind].charge - Math.max(0, b._charge));
+            }
+        }
+        _cmdSuper(team, x, z) {
+            const tm = this.teams[team];
+            if (!tm.super) this._updateSuper();
+            const s = tm.super;
+            if (!s || !s.ready || !isFinite(x) || !isFinite(z)) return false;
+            const w = this.map.w, h = this.map.h;
+            if (x < 0 || z < 0 || x >= w || z >= h) return false;
+            if (tm.vis[(z | 0) * w + (x | 0)] < 1) return false;           // explored ground only
+            const b = this.entities.get(s.building);
+            if (!b || b.dead || !b.ready) return false;
+            const sw = this.cfg.SUPERWEAPONS[s.kind];
+            b.ready = false; b._charge = 0; b.charge = 0;
+            const st = { id: this._sid++, team, kind: s.kind, x, z, t: sw.warn, warn: sw.warn, at: this.time + sw.warn, radius: sw.radius, from: b.id };
+            this.strikes.push(st);
+            this._ev({ type: 'superweapon', team, kind: s.kind, x, z, phase: 'warn', warn: sw.warn, radius: sw.radius, id: st.id, from: b.id });
+            for (const t of [0, 1]) this._ev({ type: 'alert', team: t, text: 'Superweapon launched', x, z });
+            s.ready = false; s.charge = 0; s.eta = sw.charge;
+            if (this.mission) this._missionOnSuper(team);
+            return true;
+        }
+        _updateStrikes() {
+            if (!this.strikes.length) return;
+            const T = this.cfg.TICK;
+            const keep = [];
+            for (const st of this.strikes) {
+                st.t -= T;
+                if (st.t > 1e-9) { keep.push(st); continue; }
+                this._strike(st);
+            }
+            this.strikes = keep;
+        }
+        // Damage × vs[armor], falling off linearly from the centre to damage × falloff at the edge of the radius.
+        // It hurts everything under it, the owner's own units included.
+        _strike(st) {
+            const sw = this.cfg.SUPERWEAPONS[st.kind], R = sw.radius;
+            this._ev({ type: 'superweapon', team: st.team, kind: st.kind, x: st.x, z: st.z, phase: 'strike', radius: R, id: st.id });
+            const hits = [];
+            for (const e of this.entities.values()) {
+                if (e.dead) continue;
+                const d = e.kind === 'building' ? this._rangeTo({ x: st.x, z: st.z }, e) : Math.max(0, Math.hypot(e.x - st.x, e.z - st.z) - e.radius);
+                if (d > R) continue;
+                hits.push([e, this.strikeDamage(st.kind, d, this._armor(e))]);
+            }
+            for (const [e, amt] of hits) this._damage(e, amt, 0, st.team);
+            this._explore(st.team, st.x, st.z, R + 1);
+        }
+        // Strike damage at distance d from the centre against an armor class (also used by the AI and the tests).
+        strikeDamage(kind, d, armor) {
+            const sw = this.cfg.SUPERWEAPONS[kind];
+            if (!sw || d > sw.radius) return 0;
+            return sw.damage * (1 - (1 - sw.falloff) * Math.max(0, d) / sw.radius) * (sw.vs[armor] || 0);
+        }
+
+        // ================= scripted units (missions) =================
+        // Hunters keep attack-moving at the nearest enemy building (then unit); patrols walk their loop.
+        _updateScripted() {
+            for (const u of this._units) {
+                if (u.dead || (!u._hunt && !u._patrol)) continue;
+                if (u._order || u.targetId || u._path || u._need) continue;
+                if (u._patrol) {
+                    const p = u._patrol[u._pk++ % u._patrol.length];
+                    this._orderSingle(u, p.x, p.z, 'attackMove');
+                    continue;
+                }
+                let best = null, bd = Infinity;
+                for (const b of this._buildings) {
+                    if (b.dead || b.team === u.team) continue;
+                    const d = Math.hypot(b.x - u.x, b.z - u.z);
+                    if (d < bd) { bd = d; best = b; }
+                }
+                if (!best) for (const e of this._units) {
+                    if (e.dead || e.team === u.team || e.cloaked) continue;
+                    const d = Math.hypot(e.x - u.x, e.z - u.z);
+                    if (d < bd) { bd = d; best = e; }
+                }
+                if (best) {
+                    const ap = best.kind === 'building' ? this._aimPoint(best, u) : best;
+                    this._orderSingle(u, ap.x, ap.z, 'attackMove');
+                }
+            }
+        }
+
+        // ================= missions =================
+        _side(t) { return t === 'player' || t === undefined ? this.playerTeam : t === 'enemy' ? 1 - this.playerTeam : (t | 0); }
+        _tag(e, tag) {
+            if (!tag) return;
+            e.tag = tag;
+            let l = this._tags.get(tag);
+            if (!l) this._tags.set(tag, l = []);
+            l.push(e);
+        }
+        // Every entity ever given this mission tag (dead ones included).
+        tagged(tag) { return this._tags.get(tag) || []; }
+        // Nearest spot to (tx, tz) where a building of `type` fits (open ground, no shards), ignoring build radius.
+        _placeNear(type, tx, tz) {
+            const def = this.cfg.BUILDINGS[type], w = this.map.w, h = this.map.h;
+            const fits = (x0, z0) => {
+                if (x0 < 0 || z0 < 0 || x0 + def.w > w || z0 + def.d > h) return false;
+                for (let z = z0; z < z0 + def.d; z++) for (let x = x0; x < x0 + def.w; x++) {
+                    const i = z * w + x;
+                    if (this.block[i] !== 0 || this.map.shards[i] > 0) return false;
+                }
+                return true;
+            };
+            tx |= 0; tz |= 0;
+            for (let r = 0; r < 20; r++) {
+                let best = null, bd = Infinity;
+                for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) !== r || !fits(tx + dx, tz + dz)) continue;
+                    const d = dx * dx + dz * dz;
+                    if (d < bd) { bd = d; best = { tx: tx + dx, tz: tz + dz }; }
+                }
+                if (best) return best;
+            }
+            return null;
+        }
+        _spawnGroup(team, list, at, spread) {
+            const out = [];
+            const n = list.length;
+            list.forEach((type, k) => {
+                if (!this.cfg.UNITS[type]) return;
+                const a = k * 2.399963, r = n > 1 ? (spread || 0.8) * Math.sqrt(k + 0.5) : 0;
+                const u = this.spawnUnit(team, type, at.x + Math.cos(a) * r, at.z + Math.sin(a) * r, true);
+                const face = Math.atan2(this.map.h / 2 - u.z, this.map.w / 2 - u.x);
+                u.angle = u.turret = face;
+                out.push(u);
+            });
+            return out;
+        }
+        _missionSetup(M, side) {
+            for (let t = 0; t < 2; t++) {
+                const sd = side[t];
+                for (const bd of sd.buildings || []) {
+                    if (!this.cfg.BUILDINGS[bd.type]) continue;
+                    const sp = this._placeNear(bd.type, bd.tx, bd.tz);
+                    if (!sp) continue;
+                    const b = this._addBuilding(t, bd.type, sp.tx, sp.tz, 1);
+                    this._tag(b, bd.tag);
+                    if (b._charge !== undefined && bd.delay) b._charge = -bd.delay;   // superweapon: starts charging later
+                    this.teams[t].stats.buildingsBuilt++;
+                }
+                for (const ud of sd.units || []) {
+                    const types = Array.isArray(ud.type) ? ud.type : new Array(ud.count || 1).fill(ud.type);
+                    for (const u of this._spawnGroup(t, types, ud, ud.spread)) {
+                        this._tag(u, ud.tag);
+                        if (ud.patrol) u._patrol = ud.patrol.map((p) => ({ x: p.x, z: p.z }));
+                        if (ud.hunt) u._hunt = true;
+                        if (ud.angle !== undefined) u.angle = u.turret = ud.angle;
+                    }
+                }
+                // explore around everything this side starts with
+                for (const e of this.entities.values()) if (e.team === t) this._explore(t, e.x, e.z, e.kind === 'building' ? 8 : 6);
+            }
+            this.mission = {
+                id: M.id, title: M.title, status: 'active', time: 0, reason: '',
+                objectives: (M.objectives || []).map((o) => ({
+                    id: o.id, text: o.text, kind: o.kind, done: false, failed: false, progress: '', optional: !!o.optional, hidden: !!o.hidden,
+                })),
+            };
+            this._mObj = new Map();
+            (M.objectives || []).forEach((o, k) => this._mObj.set(o.id, { def: o, pub: this.mission.objectives[k], since: o.hidden ? null : 0 }));
+            this._mTrig = (M.triggers || []).map((tr) => ({ def: tr, fired: 0, next: null, pending: [] }));
+        }
+        _missionOnSuper(team) {
+            if (team === this.playerTeam || this.mission.status !== 'active') return;
+            for (const o of this._mObj.values()) {
+                if (o.def.failOn === 'enemySuperweapon' && !o.pub.done && !o.pub.failed) this._setObj(o, false, true);
+            }
+        }
+        _setObj(o, done, failed) {
+            if (o.pub.done === done && o.pub.failed === failed) return;
+            o.pub.done = done; o.pub.failed = failed;
+            this._ev({ type: 'objective', id: o.pub.id, done, failed, text: o.pub.text, optional: o.pub.optional, progress: o.pub.progress });
+        }
+        _revealObj(id) {
+            const o = this._mObj.get(id);
+            if (!o || o.since !== null) return;
+            o.since = this.time; o.pub.hidden = false;
+            this._evalObj(o);
+            this._ev({ type: 'objective', id, done: false, failed: false, text: o.pub.text, optional: o.pub.optional, revealed: true, progress: o.pub.progress });
+        }
+        _inArea(team, a, types) {
+            let n = 0;
+            for (const u of this._units) {
+                if (u.dead || u.team !== team || (types && types.indexOf(u.type) < 0)) continue;
+                if (Math.hypot(u.x - a.x, u.z - a.z) <= a.r) n++;
+            }
+            return n;
+        }
+        _evalObj(o) {
+            const d = o.def, me = this.playerTeam, en = 1 - me, pub = o.pub;
+            const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+            const types = d.type ? (Array.isArray(d.type) ? d.type : [d.type]) : null;
+            switch (d.kind) {
+                case 'build': {
+                    let n = 0;
+                    for (const b of this._buildings) if (!b.dead && b.team === me && b.built >= 1 && (!types || types.indexOf(b.type) >= 0)) n++;
+                    const need = d.count || 1;
+                    pub.progress = `${Math.min(n, need)}/${need}`;
+                    return n >= need;
+                }
+                case 'harvest': {
+                    const got = this.teams[me].stats.creditsHarvested;
+                    pub.progress = `${Math.min(d.credits, Math.floor(got))}/${d.credits}`;
+                    return got >= d.credits;
+                }
+                case 'army': {
+                    let n = 0;
+                    for (const u of this._units) if (!u.dead && u.team === me && u.type !== 'harvester' && (!types || types.indexOf(u.type) >= 0)) n++;
+                    const need = d.count || 1;
+                    pub.progress = `${Math.min(n, need)}/${need}`;
+                    return n >= need;
+                }
+                case 'survive': {
+                    const left = Math.max(0, d.seconds - (this.time - (o.since || 0)));
+                    pub.progress = fmt(Math.ceil(left));
+                    return left <= 0;
+                }
+                case 'destroyAll': {
+                    let n = 0;
+                    for (const b of this._buildings) if (!b.dead && b.team === en) n++;
+                    pub.progress = n ? `${n} left` : '';
+                    return n === 0;
+                }
+                case 'destroy': {
+                    const list = d.tag ? this.tagged(d.tag) : (d.ids || []).map((id) => this.entities.get(id)).filter(Boolean);
+                    const dead = list.filter((e) => e.dead).length;
+                    const need = d.count || list.length;
+                    pub.progress = `${Math.min(dead, need)}/${need}`;
+                    return list.length > 0 && dead >= need;
+                }
+                case 'reach': {
+                    const n = this._inArea(me, d.area, types);
+                    const need = d.count || 1;
+                    if (need > 1) pub.progress = `${Math.min(n, need)}/${need}`;
+                    return n >= need;
+                }
+                case 'protect': {
+                    const list = this.tagged(d.tag);
+                    const alive = list.filter((e) => !e.dead).length;
+                    const need = d.count || list.length;
+                    pub.progress = `${alive}/${list.length}`;
+                    return alive < need ? 'fail' : false;
+                }
+            }
+            return false;
+        }
+        _trigCond(at) {
+            if (typeof at === 'number') return this.time >= at;
+            if (!at) return false;
+            if (at.objective) { const o = this._mObj.get(at.objective); return !!(o && o.pub.done); }
+            if (at.all) return at.all.every((id) => { const o = this._mObj.get(id); return !!(o && o.pub.done); });
+            if (at.failed) { const o = this._mObj.get(at.failed); return !!(o && o.pub.failed); }
+            if (at.area) return this._inArea(this._side(at.team), at.area, at.types) >= (at.count || 1);
+            if (at.destroyed) { const l = this.tagged(at.destroyed); return l.length > 0 && l.every((e) => e.dead); }
+            if (at.lost) return this.tagged(at.lost).some((e) => e.dead);    // any tagged entity died
+            if (at.seen) return this.tagged(at.seen).some((e) => !e.dead && this.isVisible(this.playerTeam, e));
+            if (at.spotted) {   // the enemy can see one of the player's units (tagged ones, if a tag is given)
+                const list = at.spotted === true ? this._units.filter((u) => u.team === this.playerTeam) : this.tagged(at.spotted);
+                return list.some((u) => !u.dead && u.kind === 'unit' && this.isVisible(1 - this.playerTeam, u));
+            }
+            if (at.superReady) { const s = this.teams[this._side(at.superReady)].super; return !!(s && s.ready); }
+            return false;
+        }
+        _trigDo(actions) {
+            for (const a of actions || []) {
+                if (a.message) this._ev({ type: 'message', from: a.message.from, text: a.message.text, portrait: a.message.portrait || null, side: a.message.side || null });
+                if (a.objective) for (const id of [].concat(a.objective)) this._revealObj(id);
+                if (a.credits) { const tm = this.teams[this._side(a.credits.team)]; tm.credits += a.credits.amount || 0; }
+                if (a.reveal) this._explore(this._side(a.reveal.team), a.reveal.x, a.reveal.z, a.reveal.r || 6);
+                if (a.allow) {
+                    const tm = this.teams[this._side(a.allow.team)];
+                    if (tm.allow) for (const ty of a.allow.add || []) tm.allow.add(ty);
+                }
+                if (a.alert) this._alert(this.playerTeam, a.alert.text || a.alert, a.alert.x, a.alert.z, 'mission' + this.time);
+                if (a.spawn) {
+                    const sp = a.spawn, team = this._side(sp.team === undefined ? 'enemy' : sp.team);
+                    const units = this._spawnGroup(team, sp.units || [], sp.at, sp.spread);
+                    for (const u of units) {
+                        this._tag(u, sp.tag);
+                        this._ev({ type: 'spawn', id: u.id, team, what: u.type });
+                    }
+                    let goal = sp.attackMove || sp.move;
+                    if (goal === 'base') goal = this._baseOf(1 - team);
+                    if (goal && units.length) this._groupMove(units, goal.x, goal.z, sp.move ? 'move' : 'attackMove');
+                    if (sp.hunt !== false && sp.attackMove) for (const u of units) u._hunt = true;
+                }
+                if (a.end) this._missionEnd(a.end.status || 'won', a.end.reason || '');
+            }
+        }
+        _baseOf(team) {
+            let core = null, any = null;
+            for (const b of this._blds()) {
+                if (b.dead || b.team !== team) continue;
+                if (b.type === 'core') core = b; else if (!any) any = b;
+            }
+            const b = core || any;
+            if (b) return { x: b.x, z: b.z };
+            const s = this.map.starts[team];
+            return { x: s.tx + 1.5, z: s.tz + 1.5 };
+        }
+        _missionUpdate() {
+            const m = this.mission;
+            m.time = this.time;
+            if (m.status !== 'active') return;
+            if (this._dirty) this._refreshLists();
+            // objectives
+            for (const o of this._mObj.values()) {
+                if (o.since === null || o.pub.failed || o.pub.done) continue;
+                const r = this._evalObj(o);
+                if (r === 'fail') this._setObj(o, false, true);
+                else if (r === true) this._setObj(o, true, false);
+            }
+            // triggers: each fires once (or every `every` s from `at` while under `until`/`count`); `delay` postpones it
+            for (const tr of this._mTrig) {
+                const d = tr.def;
+                if (tr.pending.length) tr.pending = tr.pending.filter((at) => { if (this.time >= at) { this._trigDo(d.do); return false; } return true; });
+                if (d.every) {
+                    if (tr.next === null) { if (this._trigCond(d.at === undefined ? 0 : d.at)) tr.next = this.time; else continue; }
+                    if ((d.until !== undefined && this.time > d.until) || (d.count && tr.fired >= d.count)) continue;
+                    if (this.time >= tr.next) { tr.fired++; tr.next += d.every; this._trigDo(d.do); }
+                    continue;
+                }
+                if (tr.fired || !this._trigCond(d.at)) continue;
+                tr.fired = 1;
+                if (d.delay) tr.pending.push(this.time + d.delay); else this._trigDo(d.do);
+                if (m.status !== 'active') return;
+            }
+            // win / lose
+            const me = this.playerTeam, M = this.missionDef;
+            for (const o of this._mObj.values()) {
+                if (!o.pub.optional && o.pub.failed) { this._missionEnd('lost', 'Objective failed: ' + o.pub.text); return; }
+            }
+            for (const c of M.lose || ['noBuildings']) {
+                if (c === 'noBuildings' && !this._buildings.some((b) => !b.dead && b.team === me)) { this._missionEnd('lost', 'Your base was destroyed'); return; }
+                if (c === 'noUnits' && !this._units.some((u) => !u.dead && u.team === me)) { this._missionEnd('lost', 'Your forces were wiped out'); return; }
+                if (c && c.protect) {
+                    const list = this.tagged(c.protect);
+                    if (list.length && list.filter((e) => !e.dead).length < (c.min || 1)) { this._missionEnd('lost', c.reason || 'A unit you had to protect was lost'); return; }
+                }
+            }
+            const req = [...this._mObj.values()].filter((o) => !o.pub.optional);
+            const met = (o) => (o.def.kind === 'protect' ? !o.pub.failed : o.pub.done);
+            if ((M.win || 'objectives') === 'objectives' && req.some((o) => o.def.kind !== 'protect') && req.every(met)) {
+                this._missionEnd('won', 'All objectives complete');
+            }
+        }
+        _missionEnd(status, reason) {
+            const m = this.mission;
+            if (!m || m.status !== 'active') return;
+            m.status = status; m.reason = reason; m.time = this.time;
+            const me = this.playerTeam;
+            if (status === 'won') for (const o of this._mObj.values()) if (o.def.kind === 'protect' && !o.pub.failed && o.since !== null) this._setObj(o, true, false);
+            this._ev({ type: 'mission', status, reason });
+            this.winner = status === 'won' ? me : 1 - me;
+            this.teams[1 - this.winner].defeated = true;
+            this._alert(this.winner, 'Victory');
+            this._alert(1 - this.winner, 'Defeat');
+            this._ev({ type: 'gameover', winner: this.winner });
         }
 
         // ================= fog of war =================
