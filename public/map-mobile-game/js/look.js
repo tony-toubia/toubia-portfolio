@@ -19,44 +19,98 @@ window.PH = window.PH || {};
   // Shared uniforms: one update per frame drives every material that uses them.
   Look.uniforms = {
     time: { value: 0 },
-    push: { value: new THREE.Vector4(0, 0, 0, 0) },    // x, z, radius, strength - the player
-    push2: { value: new THREE.Vector4(0, 0, 0, 0) },   // the monster or boss
+    push: { value: new THREE.Vector4(0, 0, 0, 0) },    // legacy handle (kept synced with pushers[0])
+    push2: { value: new THREE.Vector4(0, 0, 0, 0) },   // legacy handle (kept synced with pushers[1])
+    pushers: { value: Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, 0, 0)) }, // player, monster, trail stamps & squad
     rimColor: { value: new THREE.Color(0xffe6c4) },
-    rimStrength: { value: 0.38 },
+    backRimColor: { value: new THREE.Color(0x6ea8ff) },
+    shadowTint: { value: new THREE.Color(0x1c2238) },
+    sunDir: { value: new THREE.Vector3(-0.45, 0.85, 0.55).normalize() },
+    rimStrength: { value: 0.42 },
+    specStrength: { value: 0.26 },
+    playerScreen: { value: new THREE.Vector4(0.5, 0.5, 0, 0) }, // xy = screen UV, z = view depth, w = enabled
+    screenRes: { value: new THREE.Vector2(1024, 768) },
   };
 
   let gradient = null;
-  /** Three flat light bands. Nearest filtering is what makes the steps hard. */
+  /** Four crisp light bands: deep shadow, mid-shadow, lit diffuse, and bright key highlight. */
   Look.gradientMap = () => {
     if (gradient) return gradient;
-    gradient = new THREE.DataTexture(new Uint8Array([64, 135, 225]), 3, 1, THREE.LuminanceFormat);
+    gradient = new THREE.DataTexture(new Uint8Array([58, 126, 198, 255]), 4, 1, THREE.LuminanceFormat);
     gradient.minFilter = gradient.magFilter = THREE.NearestFilter;
     gradient.generateMipmaps = false;
     gradient.needsUpdate = true;
     return gradient;
   };
 
-  /** Add a rim light to a toon material: light the silhouette edges. */
-  Look.addRim = (mat) => {
+  /**
+   * Add sun-aware directional rim lighting, stepped specular highlight,
+   * ambient shadow tinting, and optional screen-space dither cutaway for tall props.
+   */
+  Look.addRim = (mat, opts = {}) => {
+    const cutaway = !!opts.cutaway;
+    const spec = opts.spec !== undefined ? opts.spec : 1.0;
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.rimColor = Look.uniforms.rimColor;
+      sh.uniforms.backRimColor = Look.uniforms.backRimColor;
+      sh.uniforms.shadowTint = Look.uniforms.shadowTint;
+      sh.uniforms.sunDir = Look.uniforms.sunDir;
       sh.uniforms.rimStrength = Look.uniforms.rimStrength;
-      sh.fragmentShader = 'uniform vec3 rimColor;\nuniform float rimStrength;\n' + sh.fragmentShader.replace(
+      sh.uniforms.specStrength = Look.uniforms.specStrength;
+      if (cutaway) {
+        sh.uniforms.uPlayerScreen = Look.uniforms.playerScreen;
+        sh.uniforms.uScreenRes = Look.uniforms.screenRes;
+      }
+      sh.fragmentShader = `
+uniform vec3 rimColor;
+uniform vec3 backRimColor;
+uniform vec3 shadowTint;
+uniform vec3 sunDir;
+uniform float rimStrength;
+uniform float specStrength;
+${cutaway ? 'uniform vec4 uPlayerScreen;\nuniform vec2 uScreenRes;\n' : ''}` + sh.fragmentShader.replace(
         'gl_FragColor = vec4( outgoingLight, diffuseColor.a );',
-        `float rimK = 1.0 - clamp( dot( normal, normalize( vViewPosition ) ), 0.0, 1.0 );
-        outgoingLight += rimColor * rimStrength * pow( rimK, 2.6 );
+        `${cutaway ? `
+        if ( uPlayerScreen.w > 0.5 && vViewPosition.z < uPlayerScreen.z - 0.8 ) {
+          vec2 scrUv = gl_FragCoord.xy / max( uScreenRes, vec2( 1.0 ) );
+          vec2 dScr = ( scrUv - uPlayerScreen.xy ) * vec2( uScreenRes.x / max( uScreenRes.y, 1.0 ), 1.0 );
+          float rCut = length( dScr );
+          if ( rCut < 0.13 ) {
+            // 4x4 ordered Bayer dither so occluding tree crowns & pillars dissolve cleanly
+            vec2 px = mod( floor( gl_FragCoord.xy ), 4.0 );
+            float bayer = fract( dot( px, vec2( 0.5, 0.25 ) ) + fract( px.x * 0.125 + px.y * 0.375 ) );
+            float keep = smoothstep( 0.035, 0.13, rCut );
+            if ( keep < bayer * 0.85 + 0.1 ) discard;
+          }
+        }` : ''}
+        vec3 viewDir = normalize( vViewPosition );
+        vec3 vSun = normalize( ( viewMatrix * vec4( sunDir, 0.0 ) ).xyz );
+        float sunFacing = dot( normal, vSun );
+        float rimK = 1.0 - clamp( dot( normal, viewDir ), 0.0, 1.0 );
+        float rimPow = pow( rimK, 2.35 );
+        float keyMask = smoothstep( -0.25, 0.55, sunFacing );
+        vec3 dirRim = mix( backRimColor * 0.55, rimColor * 1.25, keyMask );
+        outgoingLight += dirRim * rimStrength * rimPow;
+        // Stepped toon specular highlight on grazed/lit edges
+        vec3 halfVec = normalize( vSun + viewDir );
+        float specDot = max( 0.0, dot( normal, halfVec ) );
+        float specBand = smoothstep( 0.88, 0.93, specDot ) * smoothstep( -0.1, 0.35, sunFacing );
+        outgoingLight += rimColor * ( specStrength * ${spec.toFixed(2)} * specBand );
+        // Enrich dark shadow bands with biome shadow tint so shadows never look flat grey
+        float lumOut = dot( outgoingLight, vec3( 0.299, 0.587, 0.114 ) );
+        outgoingLight = mix( outgoingLight + shadowTint * diffuseColor.rgb * 0.22, outgoingLight, smoothstep( 0.04, 0.28, lumOut ) );
         gl_FragColor = vec4( outgoingLight, diffuseColor.a );`);
     };
-    mat.customProgramCacheKey = () => 'ph-rim';
+    mat.customProgramCacheKey = () => 'ph-rim-' + (cutaway ? 'cut-' : '') + spec.toFixed(2);
     return mat;
   };
 
-  Look.toonMaterial = ({ flatShading, ...params }) => {
+  Look.toonMaterial = ({ flatShading, cutaway, spec, ...params }) => {
     // r128's toon material has no flatShading option, but honours the flag
     // when it is set afterwards (it only switches on a shader define).
     const m = new THREE.MeshToonMaterial({ gradientMap: Look.gradientMap(), ...params });
     if (flatShading) m.flatShading = true;
-    return Look.addRim(m);
+    return Look.addRim(m, { cutaway, spec });
   };
 
   const OUTLINE = new THREE.MeshBasicMaterial({ color: 0x0b0c14, side: THREE.BackSide });
@@ -75,9 +129,10 @@ window.PH = window.PH || {};
     // The standard materials were partly metallic, which darkens their diffuse;
     // toon has no metalness, so carry that darkening over or everything washes out.
     const color = m.color.clone().multiplyScalar(1 - (m.metalness || 0) * 0.8);
+    const spec = 0.6 + (m.metalness || 0) * 0.9 + (1 - (m.roughness !== undefined ? m.roughness : 0.7)) * 0.5;
     const t = Look.toonMaterial({
       color, emissive: m.emissive || new THREE.Color(0), emissiveIntensity: m.emissiveIntensity !== undefined ? m.emissiveIntensity : 1,
-      vertexColors: m.vertexColors, flatShading: m.flatShading, map: m.map || null, side: m.side,
+      vertexColors: m.vertexColors, flatShading: m.flatShading, map: m.map || null, normalMap: m.normalMap || null, side: m.side, spec,
     });
     converted.set(m, t);
     return t;
@@ -141,33 +196,40 @@ window.PH = window.PH || {};
 
   /**
    * Wind for instanced foliage. Sways by height above the ground (local y),
-   * and bends away from the player and the monster.
+   * and bends away from the player, monster, squad, and lingering trail stamps.
    */
   Look.windify = (mat, amp = 0.12) => {
     const prev = mat.onBeforeCompile;
     mat.onBeforeCompile = (sh, r) => {
       if (prev) prev(sh, r);
       sh.uniforms.uTime = Look.uniforms.time;
-      sh.uniforms.uPush = Look.uniforms.push;
-      sh.uniforms.uPush2 = Look.uniforms.push2;
-      sh.vertexShader = 'uniform float uTime;\nuniform vec4 uPush;\nuniform vec4 uPush2;\n' + sh.vertexShader.replace('#include <project_vertex>', `
+      sh.uniforms.uPushers = Look.uniforms.pushers;
+      sh.vertexShader = 'uniform float uTime;\nuniform vec4 uPushers[8];\n' + sh.vertexShader.replace('#include <project_vertex>', `
         vec4 mvPosition = vec4( transformed, 1.0 );
         #ifdef USE_INSTANCING
           mvPosition = instanceMatrix * mvPosition;
         #endif
         vec4 wpos = modelMatrix * mvPosition;
         float hgt = max( 0.0, position.y );
-        float sway = sin( uTime * 1.6 + wpos.x * 0.35 + wpos.z * 0.22 ) + 0.5 * sin( uTime * 2.7 + wpos.x * 0.9 - wpos.z * 0.4 );
-        wpos.x += sway * ${amp.toFixed(3)} * hgt;
-        wpos.z += sway * ${(amp * 0.6).toFixed(3)} * hgt;
-        vec2 dp = wpos.xz - uPush.xy;
-        float kp = max( 0.0, 1.0 - length( dp ) / max( uPush.z, 0.001 ) ) * uPush.w;
-        wpos.xz += normalize( dp + vec2( 0.0001 ) ) * kp * hgt * 0.75;
-        wpos.y -= kp * hgt * 0.3;
-        vec2 dq = wpos.xz - uPush2.xy;
-        float kq = max( 0.0, 1.0 - length( dq ) / max( uPush2.z, 0.001 ) ) * uPush2.w;
-        wpos.xz += normalize( dq + vec2( 0.0001 ) ) * kq * hgt * 0.9;
-        wpos.y -= kq * hgt * 0.35;
+        float gust = sin( uTime * 1.65 + wpos.x * 0.35 + wpos.z * 0.22 ) + 0.55 * sin( uTime * 2.8 + wpos.x * 0.9 - wpos.z * 0.4 ) + 0.25 * cos( uTime * 4.1 - wpos.x * 0.5 + wpos.z * 0.7 );
+        wpos.x += gust * ${amp.toFixed(3)} * hgt;
+        wpos.z += gust * ${(amp * 0.65).toFixed(3)} * hgt;
+        vec2 totalPush = vec2( 0.0 );
+        float totalDepress = 0.0;
+        for ( int i = 0; i < 8; i++ ) {
+          vec4 p = uPushers[ i ];
+          if ( p.w <= 0.001 ) continue;
+          vec2 dp = wpos.xz - p.xy;
+          float dist = length( dp );
+          float falloff = max( 0.0, 1.0 - dist / max( p.z, 0.001 ) );
+          float k = falloff * falloff * p.w;
+          totalPush += ( dp / max( dist, 0.001 ) ) * k * 0.85;
+          totalDepress = max( totalDepress, k * 0.38 );
+        }
+        float pushLen = length( totalPush );
+        if ( pushLen > 1.15 ) totalPush *= 1.15 / pushLen;
+        wpos.xz += totalPush * hgt;
+        wpos.y -= min( 0.55, totalDepress ) * hgt;
         mvPosition = viewMatrix * wpos;
         gl_Position = projectionMatrix * mvPosition;`);
     };
@@ -181,9 +243,9 @@ window.PH = window.PH || {};
   // contrast, vignette. Day is warm and saturated; dusk turns violet in the
   // shadows; the final night is red and closed-in.
   Look.GRADES = [
-    { shadow: [0.93, 0.99, 1.07], high: [1.06, 1.02, 0.92], sat: 1.2, contrast: 1.08, vignette: 0.26, bloom: 0.7 },
-    { shadow: [0.96, 0.86, 1.14], high: [1.1, 0.97, 0.9], sat: 1.12, contrast: 1.1, vignette: 0.36, bloom: 0.9 },
-    { shadow: [0.9, 0.76, 0.86], high: [1.14, 0.88, 0.8], sat: 1.02, contrast: 1.12, vignette: 0.5, bloom: 1.1 },
+    { shadow: [0.93, 0.99, 1.07], high: [1.06, 1.02, 0.92], sat: 1.22, contrast: 1.09, vignette: 0.26, bloom: 0.75 },
+    { shadow: [0.96, 0.86, 1.14], high: [1.1, 0.97, 0.9], sat: 1.14, contrast: 1.11, vignette: 0.36, bloom: 0.95 },
+    { shadow: [0.9, 0.76, 0.86], high: [1.14, 0.88, 0.8], sat: 1.04, contrast: 1.13, vignette: 0.5, bloom: 1.15 },
   ];
 
   /**
@@ -210,7 +272,7 @@ window.PH = window.PH || {};
     } else {
       rt = new THREE.WebGLRenderTarget(size.x, size.y, sceneOpts);
     }
-    // Bloom at a quarter and an eighth of the screen: cheap, and wide.
+    // Bloom at a quarter and an eighth of the screen: Dual-Kawase / 4-tap box downsample + Gaussian blur.
     const small = { ...base, depthBuffer: false, stencilBuffer: false };
     const b1 = [new THREE.WebGLRenderTarget(1, 1, small), new THREE.WebGLRenderTarget(1, 1, small)];
     const b2 = [new THREE.WebGLRenderTarget(1, 1, small), new THREE.WebGLRenderTarget(1, 1, small)];
@@ -219,18 +281,36 @@ window.PH = window.PH || {};
     const pass = (fragmentShader, uniforms) => new THREE.ShaderMaterial({ uniforms, vertexShader: vert, fragmentShader,
       depthTest: false, depthWrite: false, toneMapped: false, defines: hdr ? { HDR: 1 } : {} });
     const bright = pass(`
-      uniform sampler2D tDiffuse; uniform float uThreshold;
+      uniform sampler2D tDiffuse; uniform float uThreshold; uniform vec2 uTexel;
       varying vec2 vUv;
-      void main() {
-        vec3 c = texture2D( tDiffuse, vUv ).rgb;
+      vec3 extract( vec3 c ) {
         #ifdef HDR
-          vec3 b = max( c - uThreshold, 0.0 );          // only what is brighter than a lit surface can be
+          return max( c - uThreshold, 0.0 );
         #else
           float l = max( c.r, max( c.g, c.b ) );
-          vec3 b = c * smoothstep( uThreshold, 1.0, l );
+          return c * smoothstep( uThreshold, 1.0, l );
         #endif
-        gl_FragColor = vec4( b, 1.0 );
-      }`, { tDiffuse: { value: null }, uThreshold: { value: hdr ? 1.0 : 0.82 } });
+      }
+      void main() {
+        // 5-tap Dual-Kawase downsample filter prevents shimmering on tiny sparks & eyes
+        vec3 c = extract( texture2D( tDiffuse, vUv ).rgb ) * 0.5;
+        c += extract( texture2D( tDiffuse, vUv + vec2(  uTexel.x,  uTexel.y ) ).rgb ) * 0.125;
+        c += extract( texture2D( tDiffuse, vUv + vec2( -uTexel.x,  uTexel.y ) ).rgb ) * 0.125;
+        c += extract( texture2D( tDiffuse, vUv + vec2(  uTexel.x, -uTexel.y ) ).rgb ) * 0.125;
+        c += extract( texture2D( tDiffuse, vUv + vec2( -uTexel.x, -uTexel.y ) ).rgb ) * 0.125;
+        gl_FragColor = vec4( c, 1.0 );
+      }`, { tDiffuse: { value: null }, uThreshold: { value: hdr ? 1.0 : 0.82 }, uTexel: { value: new THREE.Vector2(1 / 512, 1 / 512) } });
+    const down = pass(`
+      uniform sampler2D tDiffuse; uniform vec2 uTexel;
+      varying vec2 vUv;
+      void main() {
+        vec3 c = texture2D( tDiffuse, vUv ).rgb * 0.5;
+        c += texture2D( tDiffuse, vUv + vec2(  uTexel.x,  uTexel.y ) ).rgb * 0.125;
+        c += texture2D( tDiffuse, vUv + vec2( -uTexel.x,  uTexel.y ) ).rgb * 0.125;
+        c += texture2D( tDiffuse, vUv + vec2(  uTexel.x, -uTexel.y ) ).rgb * 0.125;
+        c += texture2D( tDiffuse, vUv + vec2( -uTexel.x, -uTexel.y ) ).rgb * 0.125;
+        gl_FragColor = vec4( c, 1.0 );
+      }`, { tDiffuse: { value: null }, uTexel: { value: new THREE.Vector2(1 / 256, 1 / 256) } });
     const blur = pass(`
       uniform sampler2D tDiffuse; uniform vec2 uDir;
       varying vec2 vUv;
@@ -251,22 +331,33 @@ window.PH = window.PH || {};
         return mix( c * 12.92, 1.055 * pow( c, vec3( 0.41666 ) ) - 0.055, step( 0.0031308, c ) );
       }
       void main() {
-        // Heat shimmer: each ripple is a thin ring that bends the image outward.
+        // Heat shimmer & shockwave distortion: each ripple bends the image outward and adds chromatic fringe.
         vec2 uv = vUv;
-        float aspect = uRes.x / uRes.y;
+        float aspect = uRes.x / max( uRes.y, 1.0 );
+        float chromaK = uHurt * 0.0045;
         for ( int i = 0; i < 4; i++ ) {
           vec4 r = uRipple[ i ];
           if ( r.w <= 0.0 ) continue;
           vec2 d = uv - r.xy;
           d.x *= aspect;
           float dist = length( d );
-          float k = smoothstep( 0.06, 0.0, abs( dist - r.z ) ) * r.w;
+          float k = smoothstep( 0.065, 0.0, abs( dist - r.z ) ) * r.w;
           vec2 dir = d / max( dist, 0.0001 );
           dir.x /= aspect;
-          uv -= dir * k * 0.016;
+          uv -= dir * k * 0.018;
+          chromaK += k * 0.0055;
         }
-        vec3 c = texture2D( tDiffuse, uv ).rgb;
-        vec3 glow = ( texture2D( tBloom1, vUv ).rgb * 0.8 + texture2D( tBloom2, vUv ).rgb * 1.2 ) * uBloom;
+        vec2 centerVec = vUv - 0.5;
+        vec2 caOffset = centerVec * chromaK;
+        vec3 c;
+        if ( chromaK > 0.0002 ) {
+          c.r = texture2D( tDiffuse, uv + caOffset ).r;
+          c.g = texture2D( tDiffuse, uv ).g;
+          c.b = texture2D( tDiffuse, uv - caOffset ).b;
+        } else {
+          c = texture2D( tDiffuse, uv ).rgb;
+        }
+        vec3 glow = ( texture2D( tBloom1, vUv ).rgb * 0.85 + texture2D( tBloom2, vUv ).rgb * 1.25 ) * uBloom;
         #ifdef HDR
           // Over-bright cores roll off instead of clipping, then glow is added and it all goes to display space.
           c = c / ( 1.0 + max( c - 1.0, 0.0 ) * 0.5 );
@@ -279,10 +370,10 @@ window.PH = window.PH || {};
         c = ( c - 0.5 ) * uContrast + 0.5;
         c *= mix( uShadow, uHigh, smoothstep( 0.05, 0.85, l ) );
         vec2 d = vUv - 0.5;
-        d.x *= uRes.x / uRes.y;
+        d.x *= aspect;
         float v = smoothstep( 0.95, 0.25, length( d ) );
         c *= mix( 1.0 - uVignette, 1.0, v );
-        c = mix( c, c * vec3( 1.2, 0.55, 0.55 ), uHurt * ( 1.0 - v ) );
+        c = mix( c, c * vec3( 1.22, 0.52, 0.52 ), uHurt * ( 1.0 - v ) );
         c += vec3( 0.55, 0.65, 1.0 ) * uFlash * 0.38;      // the storm's lightning lights the whole sky
         float n = fract( sin( dot( gl_FragCoord.xy + uTime, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
         c += ( n - 0.5 ) / 255.0;
@@ -312,9 +403,12 @@ window.PH = window.PH || {};
         renderer.getDrawingBufferSize(size);
         rt.setSize(size.x, size.y);
         mat.uniforms.uRes.value.set(size.x, size.y);
+        Look.uniforms.screenRes.value.set(size.x, size.y);
         const w1 = Math.max(1, size.x >> 2), h1 = Math.max(1, size.y >> 2), w2 = Math.max(1, size.x >> 3), h2 = Math.max(1, size.y >> 3);
         b1.forEach((t) => t.setSize(w1, h1));
         b2.forEach((t) => t.setSize(w2, h2));
+        bright.uniforms.uTexel.value.set(1 / Math.max(1, size.x), 1 / Math.max(1, size.y));
+        down.uniforms.uTexel.value.set(1 / w1, 1 / h1);
         this.w1 = w1; this.h1 = h1; this.w2 = w2; this.h2 = h2;
       },
       /** Blend the stage grades by a fractional stage, 0..2. */
@@ -340,7 +434,7 @@ window.PH = window.PH || {};
         if (this.bloomOn) {
           bright.uniforms.tDiffuse.value = rt.texture; draw(bright, b1[0]);
           blurInto(b1, this.w1, this.h1);
-          blur.uniforms.tDiffuse.value = b1[0].texture; blur.uniforms.uDir.value.set(0, 0); draw(blur, b2[0]);   // downsample
+          down.uniforms.tDiffuse.value = b1[0].texture; draw(down, b2[0]);   // 5-tap Kawase downsample
           blurInto(b2, this.w2, this.h2);
         }
         quad.material = mat;

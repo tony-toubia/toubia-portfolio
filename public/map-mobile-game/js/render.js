@@ -24,6 +24,7 @@ window.PH = window.PH || {};
   const V3 = () => new THREE.Vector3();
   const _m = new THREE.Matrix4();
   const _q = new THREE.Quaternion();
+  const _e = new THREE.Euler();
   const _p = new THREE.Vector3();
   const _s = new THREE.Vector3();
   const _c = new THREE.Color();
@@ -58,6 +59,17 @@ window.PH = window.PH || {};
       if (this.n >= this.max) return;
       _p.set(x, y, z);
       _q.setFromAxisAngle(_up, rotY);
+      _s.set(sx, sy, sz);
+      _m.compose(_p, _q, _s);
+      this.mesh.setMatrixAt(this.n, _m);
+      if (this.colors) { _c.setRGB(r, g, b); this.mesh.setColorAt(this.n, _c); }
+      this.n++;
+    }
+    addRot(x, y, z, rx, ry, rz, sx, sy, sz, r = 1, g = 1, b = 1) {
+      if (this.n >= this.max) return;
+      _p.set(x, y, z);
+      _e.set(rx, ry, rz);
+      _q.setFromEuler(_e);
       _s.set(sx, sy, sz);
       _m.compose(_p, _q, _s);
       this.mesh.setMatrixAt(this.n, _m);
@@ -155,7 +167,7 @@ window.PH = window.PH || {};
       // Real shadows from the sun. Only big character parts and solid scenery
       // cast; creatures keep their cheap blob shadows.
       r.shadowMap.enabled = true;
-      r.shadowMap.type = THREE.PCFShadowMap;
+      r.shadowMap.type = THREE.PCFSoftShadowMap;
 
       const scene = this.scene = new THREE.Scene();
       scene.background = new THREE.Color(0x14182a);
@@ -175,10 +187,10 @@ window.PH = window.PH || {};
       const sun = new THREE.DirectionalLight(0xfff5e0, 1.0);
       sun.position.set(-6, 14, 8);
       sun.castShadow = true;
-      const sm = this.maxDpr >= 2 ? 1024 : 2048;
+      const sm = this.maxDpr >= 2 ? 1536 : 2048;
       sun.shadow.mapSize.set(sm, sm);
-      sun.shadow.bias = -0.0006;
-      sun.shadow.normalBias = 0.03;
+      sun.shadow.bias = -0.0005;
+      sun.shadow.normalBias = 0.025;
       sun.shadow.camera.near = 1;
       sun.shadow.camera.far = 90;
       scene.add(sun);
@@ -203,8 +215,11 @@ window.PH = window.PH || {};
       this.buildParticles();
       this.buildTelegraphs();
       this.buildEffects();
+      this.buildPickups();
       this.emojiCache = new Map();
       this.sprites = [];
+      this.grassTrail = [];     // lingering grass-parting trail behind moving entities
+      this.trailTimer = 0;
 
       this.player = null;
       this.hunterVis = new Map();
@@ -229,7 +244,20 @@ window.PH = window.PH || {};
 
     buildGround() {
       // A detail texture, tinted by the vertex colours: grass strokes in a few
-      // greens, specks of soil and the odd pale pebble.
+      // greens, specks of soil and the odd pale pebble, paired with a matching
+      // tangent-space normal map so grazing dusk/night light catches micro-relief.
+      const pebbles = [];
+      const bladesList = [];
+      for (let i = 0; i < 5200; i++) {
+        bladesList.push({
+          x: Math.random() * 512, y: Math.random() * 512,
+          len: 3 + Math.random() * 7, a: -Math.PI / 2 + (Math.random() - 0.5) * 1.1,
+          v: 170 + Math.random() * 85, w: 1 + Math.random(), al: 0.35 + Math.random() * 0.4,
+        });
+      }
+      for (let i = 0; i < 85; i++) {
+        pebbles.push({ x: Math.random() * 512, y: Math.random() * 512, r: 1.2 + Math.random() * 2.5 });
+      }
       const tex = canvasTexture(512, (g, s) => {
         g.fillStyle = '#d8dcd0';
         g.fillRect(0, 0, s, s);
@@ -238,32 +266,57 @@ window.PH = window.PH || {};
           g.fillStyle = `rgba(${v},${v + 6},${v - 10},0.18)`;
           g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
         }
-        for (let i = 0; i < 5200; i++) {          // blades: short strokes leaning every which way
-          const x = Math.random() * s, y = Math.random() * s, len = 3 + Math.random() * 7, a = -Math.PI / 2 + (Math.random() - 0.5) * 1.1;
-          const v = 170 + Math.random() * 85;
-          g.strokeStyle = `rgba(${v * 0.82},${v},${v * 0.72},${0.35 + Math.random() * 0.4})`;
-          g.lineWidth = 1 + Math.random();
-          g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len); g.stroke();
+        for (const b of bladesList) {             // blades: short strokes leaning every which way
+          g.strokeStyle = `rgba(${b.v * 0.82},${b.v},${b.v * 0.72},${b.al})`;
+          g.lineWidth = b.w;
+          g.beginPath(); g.moveTo(b.x, b.y); g.lineTo(b.x + Math.cos(b.a) * b.len, b.y + Math.sin(b.a) * b.len); g.stroke();
         }
         for (let i = 0; i < 420; i++) {           // soil specks
           g.fillStyle = `rgba(120,100,80,${0.25 + Math.random() * 0.3})`;
           g.fillRect(Math.random() * s, Math.random() * s, 1 + Math.random() * 2, 1 + Math.random() * 2);
         }
-        for (let i = 0; i < 70; i++) {            // pebbles
-          const x = Math.random() * s, y = Math.random() * s, r = 1 + Math.random() * 2.2;
-          g.fillStyle = 'rgba(255,255,250,0.7)'; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
-          g.fillStyle = 'rgba(90,85,80,0.5)'; g.beginPath(); g.arc(x + r * 0.4, y + r * 0.4, r * 0.7, 0, Math.PI * 2); g.fill();
+        for (const p of pebbles) {                // pebbles
+          g.fillStyle = 'rgba(255,255,250,0.75)'; g.beginPath(); g.arc(p.x, p.y, p.r, 0, Math.PI * 2); g.fill();
+          g.fillStyle = 'rgba(90,85,80,0.5)'; g.beginPath(); g.arc(p.x + p.r * 0.4, p.y + p.r * 0.4, p.r * 0.7, 0, Math.PI * 2); g.fill();
         }
       });
-      tex.anisotropy = 4;
-      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      const normCv = document.createElement('canvas');
+      normCv.width = normCv.height = 512;
+      {
+        const g = normCv.getContext('2d'), s = 512;
+        g.fillStyle = 'rgb(128,128,255)';
+        g.fillRect(0, 0, s, s);
+        for (let i = 0; i < 320; i++) {
+          const x = Math.random() * s, y = Math.random() * s, r = 6 + Math.random() * 22;
+          const nx = Math.round(128 + (Math.random() - 0.5) * 32), ny = Math.round(128 + (Math.random() - 0.5) * 32);
+          g.fillStyle = `rgba(${nx},${ny},248,0.28)`;
+          g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+        }
+        for (const b of bladesList) {
+          const nx = Math.round(128 + Math.cos(b.a + 1.57) * 38), ny = Math.round(128 + Math.sin(b.a + 1.57) * 38);
+          g.strokeStyle = `rgba(${nx},${ny},242,0.45)`;
+          g.lineWidth = b.w;
+          g.beginPath(); g.moveTo(b.x, b.y); g.lineTo(b.x + Math.cos(b.a) * b.len, b.y + Math.sin(b.a) * b.len); g.stroke();
+        }
+        for (const p of pebbles) {
+          g.fillStyle = 'rgb(168,168,245)'; g.beginPath(); g.arc(p.x - p.r * 0.25, p.y - p.r * 0.25, p.r, 0, Math.PI * 2); g.fill();
+          g.fillStyle = 'rgb(92,92,240)'; g.beginPath(); g.arc(p.x + p.r * 0.3, p.y + p.r * 0.3, p.r * 0.85, 0, Math.PI * 2); g.fill();
+        }
+      }
+      const normTex = new THREE.CanvasTexture(normCv);
+      tex.anisotropy = normTex.anisotropy = 4;
+      tex.wrapS = tex.wrapT = normTex.wrapS = normTex.wrapT = THREE.RepeatWrapping;
       this.groundSize = 96;
       this.groundSnap = 24;           // a multiple of the 8-unit texture tile, so snapping is seamless
       tex.repeat.set(this.groundSize / 8, this.groundSize / 8);
-      const geo = new THREE.PlaneGeometry(this.groundSize, this.groundSize, 48, 48);
+      normTex.repeat.set(this.groundSize / 8, this.groundSize / 8);
+      const geo = new THREE.PlaneGeometry(this.groundSize, this.groundSize, 64, 64);
       geo.rotateX(-Math.PI / 2);
       geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(geo.attributes.position.count * 3), 3));
-      const mat = new THREE.MeshLambertMaterial({ map: tex, vertexColors: true });
+      const mat = new THREE.MeshStandardMaterial({
+        map: tex, normalMap: normTex, normalScale: new THREE.Vector2(0.45, 0.45),
+        vertexColors: true, roughness: 0.88, metalness: 0.04,
+      });
       this.ground = new THREE.Mesh(geo, mat);
       this.ground.receiveShadow = true;
       this.scene.add(this.ground);
@@ -277,7 +330,7 @@ window.PH = window.PH || {};
         const a = (k / 3) * Math.PI + 0.3, lean = 0.14 * (k - 1), w = 0.09, h = 0.45 + k * 0.08;
         const cx = Math.cos(a) * w, cz = Math.sin(a) * w, tx = Math.cos(a + 1.3) * lean, tz = Math.sin(a + 1.3) * lean;
         blades.push(-cx, 0, -cz, cx, 0, cz, tx, h, tz);
-        bcol.push(0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 2.6, 2.8, 1.6);   // dark roots, sunlit yellow-green tips
+        bcol.push(0.62, 0.65, 0.6, 0.62, 0.65, 0.6, 2.7, 2.9, 1.65);   // dark AO roots, sunlit yellow-green tips
       }
       const tuft = new THREE.BufferGeometry();
       tuft.setAttribute('position', new THREE.Float32BufferAttribute(blades, 3));
@@ -318,9 +371,9 @@ window.PH = window.PH || {};
       this.bushMat = L.windify(L.toonMaterial({ color: 0xffffff, flatShading: true }), 0.04);
       this.bushes = inst(bush, this.bushMat, 260, true);
       this.bushOutline = inst(bush, L.windify(new THREE.MeshBasicMaterial({ color: 0x0b0c14, side: THREE.BackSide }), 0.04), 260);
-      // Ruins: broken stone pillars.
+      // Ruins: broken stone pillars (with dithered cutaway when blocking the player).
       const pillar = new THREE.BoxGeometry(0.55, 1, 0.55); pillar.translate(0, 0.5, 0);
-      this.ruinMat = L.toonMaterial({ color: 0x2c2f37, flatShading: true });
+      this.ruinMat = L.toonMaterial({ color: 0x2c2f37, flatShading: true, cutaway: true });
       this.ruins = inst(pillar, this.ruinMat, 200);
       this.ruinOutline = inst(pillar, L.outlineMaterial, 200);
       // Rocks get the same toon look.
@@ -345,7 +398,7 @@ window.PH = window.PH || {};
       };
       this.capMat.customProgramCacheKey = () => 'ph-rim-cap';
       this.mCaps = inst(mcap, this.capMat, 400, true);
-      // Standing stones carved with glowing runes.
+      // Standing stones carved with glowing runes (dithered cutaway when blocking player).
       const stone = new THREE.BoxGeometry(0.7, 2.2, 0.45, 1, 3, 1).toNonIndexed();
       {
         const P = stone.attributes.position;
@@ -358,7 +411,7 @@ window.PH = window.PH || {};
       const runeBar = (w, h, x, y, rz) => { const g = new THREE.BoxGeometry(w, h, 0.03); g.rotateZ(rz); g.translate(x, y, 0.2); return g; };
       const rune = mergeGeos([runeBar(0.05, 0.62, 0, 1.25, 0), runeBar(0.04, 0.3, 0.09, 1.38, 0.65), runeBar(0.04, 0.3, -0.09, 1.38, -0.65),
         runeBar(0.2, 0.04, 0, 0.92, 0), runeBar(0.04, 0.2, 0.08, 1.05, -0.4)]);
-      this.stones = inst(stone, L.toonMaterial({ color: 0x3a3e49, flatShading: true }), 60);
+      this.stones = inst(stone, L.toonMaterial({ color: 0x3a3e49, flatShading: true, cutaway: true }), 60);
       this.stoneOutline = inst(stone, L.outlineMaterial, 60);
       this.runeMat = new THREE.MeshBasicMaterial({ color: 0x7fd0ff });
       this.runeMat.toneMapped = false;
@@ -372,10 +425,9 @@ window.PH = window.PH || {};
       // Pebbles, mostly along the worn paths.
       const pebble = new THREE.DodecahedronGeometry(0.1, 0); pebble.scale(1, 0.6, 1); pebble.translate(0, 0.03, 0);
       this.pebbles = inst(pebble, L.toonMaterial({ color: 0x6a6866, flatShading: true }), 900, true);
-      // Ponds: an irregular sheet of dark water that catches the sun, on a
-      // muddy bank, ringed with reeds and dotted with lily pads.
+      // Ponds: animated water, bubbling bog, fractured ice, or glowing magma crust.
       const blob = (r0, seed) => {
-        const g = new THREE.CircleGeometry(r0, 18);
+        const g = new THREE.CircleGeometry(r0, 24);
         const P = g.attributes.position;
         for (let i = 1; i < P.count; i++) {
           const a = Math.atan2(P.getY(i), P.getX(i)), k = 1 + Math.sin(a * 3 + seed) * 0.12 + Math.sin(a * 5 - seed * 2) * 0.08;
@@ -384,7 +436,66 @@ window.PH = window.PH || {};
         g.rotateX(-Math.PI / 2);
         return g;
       };
+      this.pondUniforms = { uPoolKind: { value: 0 } }; // 0=water, 1=bog, 2=ice, 3=lava
       this.pondMat = new THREE.MeshStandardMaterial({ color: 0x06161c, roughness: 0.2, metalness: 0.25, polygonOffset: true, polygonOffsetFactor: -2 });
+      this.pondMat.onBeforeCompile = (sh) => {
+        sh.uniforms.uTime = L.uniforms.time;
+        sh.uniforms.uPoolKind = this.pondUniforms.uPoolKind;
+        sh.uniforms.uPushers = L.uniforms.pushers;
+        sh.vertexShader = 'varying vec2 vPondLocal;\nvarying vec3 vPondWorld;\n' + sh.vertexShader.replace('#include <project_vertex>', `
+          vPondLocal = position.xz;
+          vec4 mvPosition = vec4( transformed, 1.0 );
+          #ifdef USE_INSTANCING
+            mvPosition = instanceMatrix * mvPosition;
+          #endif
+          vec4 wpos = modelMatrix * mvPosition;
+          vPondWorld = wpos.xyz;
+          mvPosition = viewMatrix * wpos;
+          gl_Position = projectionMatrix * mvPosition;`);
+        sh.fragmentShader = 'uniform float uTime;\nuniform float uPoolKind;\nuniform vec4 uPushers[8];\nvarying vec2 vPondLocal;\nvarying vec3 vPondWorld;\n' + sh.fragmentShader.replace(
+          'gl_FragColor = vec4( outgoingLight, diffuseColor.a );',
+          `float rLocal = length( vPondLocal );
+          vec2 wp = vPondWorld.xz;
+          float w1 = sin( wp.x * 2.6 + uTime * 1.9 + sin( wp.y * 1.8 - uTime * 1.2 ) );
+          float w2 = cos( wp.y * 3.1 - uTime * 1.5 + cos( wp.x * 2.2 + uTime * 1.4 ) );
+          float caustic = smoothstep( 0.35, 0.92, ( w1 + w2 ) * 0.5 );
+          // Interactive wading ripples from player/monster/squad
+          float wade = 0.0;
+          for ( int i = 0; i < 4; i++ ) {
+            vec4 pu = uPushers[ i ];
+            if ( pu.w <= 0.01 ) continue;
+            float d = length( wp - pu.xy );
+            if ( d < 2.2 ) {
+              float ring = abs( fract( d * 1.6 - uTime * 1.8 ) - 0.5 );
+              wade += smoothstep( 0.14, 0.02, ring ) * ( 1.0 - d / 2.2 ) * pu.w;
+            }
+          }
+          if ( uPoolKind < 0.5 ) {
+            // Water: shoreline foam + turquoise caustics + wading rings
+            float shore = smoothstep( 0.74, 0.96, rLocal + w1 * 0.035 );
+            float foamLine = smoothstep( 0.08, 0.01, abs( rLocal + w1 * 0.035 - 0.89 ) );
+            outgoingLight += vec3( 0.08, 0.24, 0.32 ) * caustic * ( 1.0 - shore * 0.5 );
+            outgoingLight = mix( outgoingLight, vec3( 0.55, 0.78, 0.88 ), ( foamLine * 0.55 + shore * 0.22 + min( 1.0, wade ) * 0.65 ) );
+          } else if ( uPoolKind < 1.5 ) {
+            // Bog: bubbling toxic mire rings + bioluminescent sheen
+            float mire = smoothstep( 0.2, 0.85, sin( wp.x * 1.9 + w2 ) * cos( wp.y * 1.9 - w1 ) );
+            outgoingLight += vec3( 0.09, 0.22, 0.04 ) * mire + vec3( 0.22, 0.45, 0.08 ) * ( caustic * 0.45 + min( 1.0, wade ) * 0.5 );
+          } else if ( uPoolKind < 2.5 ) {
+            // Ice: crystalline frost veins & bright specular cracks
+            float crack = smoothstep( 0.92, 0.985, abs( sin( wp.x * 3.4 + wp.y * 2.1 + w1 * 0.4 ) ) );
+            float frost = smoothstep( 0.68, 0.98, rLocal );
+            outgoingLight += vec3( 0.35, 0.6, 0.85 ) * crack * 0.6 + vec3( 0.45, 0.68, 0.88 ) * frost * 0.35;
+          } else {
+            // Lava: glowing convection fissures through dark basalt crust + bright shore rim
+            float fissure = smoothstep( 0.25, 0.85, ( w1 + w2 ) * 0.5 );
+            float hotCore = smoothstep( 0.68, 0.95, ( w1 + w2 ) * 0.5 );
+            float rimHeat = smoothstep( 0.75, 0.98, rLocal );
+            outgoingLight = mix( vec3( 0.05, 0.02, 0.015 ), vec3( 1.35, 0.28, 0.04 ), fissure );
+            outgoingLight += vec3( 1.6, 0.95, 0.2 ) * hotCore + vec3( 0.9, 0.2, 0.02 ) * rimHeat * 0.5;
+          }
+          gl_FragColor = vec4( outgoingLight, diffuseColor.a );`);
+      };
+      this.pondMat.customProgramCacheKey = () => 'ph-pond-fx';
       this.ponds = inst(blob(1, 1.3), this.pondMat, 48);
       this.ponds.count0 = 48;
       this.banks = inst(blob(1.25, 1.3), new THREE.MeshLambertMaterial({ color: 0x1c150d, polygonOffset: true, polygonOffsetFactor: -1 }), 48);
@@ -398,12 +509,12 @@ window.PH = window.PH || {};
       const limb = (r0, r1, len, x, y, z, rx, rz) => { const g = new THREE.CylinderGeometry(r1, r0, len, 5); g.translate(0, len / 2, 0); g.rotateZ(rz); g.rotateX(rx); g.translate(x, y, z); return g; };
       const deadTree = mergeGeos([limb(0.22, 0.12, 2.4, 0, 0, 0, 0, 0.08), limb(0.1, 0.03, 1.1, 0.05, 1.5, 0, 0.2, -0.9), limb(0.09, 0.03, 0.9, -0.02, 1.9, 0, -0.4, 0.8),
         limb(0.07, 0.02, 0.8, 0.1, 2.25, 0, 0.6, -0.3), limb(0.08, 0.02, 0.7, 0, 1.1, 0.05, -1.0, 0.2)]);
-      this.deadTrees = inst(deadTree, L.toonMaterial({ color: 0x2b2019, flatShading: true }), 60);
+      this.deadTrees = inst(deadTree, L.toonMaterial({ color: 0x2b2019, flatShading: true, cutaway: true }), 60);
       this.deadTreeOutline = inst(deadTree, L.outlineMaterial, 60);
       // Crystal clusters: three tall shards (ice in the tundra, magma in the wastes).
       const shard = (h, w, x, z, rx, rz) => { const g = new THREE.OctahedronGeometry(1, 0); g.scale(w, h, w); g.translate(0, h * 0.8, 0); g.rotateX(rx); g.rotateZ(rz); g.translate(x, 0, z); return g; };
       const cluster = mergeGeos([shard(0.9, 0.22, 0, 0, 0, 0.05), shard(0.6, 0.17, 0.28, 0.08, 0.15, -0.45), shard(0.5, 0.15, -0.25, 0.12, -0.2, 0.5), shard(0.35, 0.12, 0.05, -0.28, -0.5, 0.1)]);
-      this.crystalMat = L.toonMaterial({ color: 0x9fd4ff, emissive: 0x3a8acc, emissiveIntensity: 0.35, flatShading: true });
+      this.crystalMat = L.toonMaterial({ color: 0x9fd4ff, emissive: 0x3a8acc, emissiveIntensity: 0.35, flatShading: true, spec: 1.8 });
       this.crystalGlow = 0.35;
       this.crystals = inst(cluster, this.crystalMat, 60, true);
       this.crystalOutline = inst(cluster, L.outlineMaterial, 60);
@@ -448,7 +559,7 @@ window.PH = window.PH || {};
       const trunk = new THREE.CylinderGeometry(0.16, 0.24, 1.6, 6); trunk.translate(0, 0.8, 0);
       const crown = new THREE.ConeGeometry(1.15, 2.6, 7); crown.translate(0, 2.7, 0);
       this.trunks = inst(trunk, L.toonMaterial({ color: 0x1e120a, flatShading: true }), 220);
-      this.crownMat = L.windify(L.toonMaterial({ color: 0xffffff, flatShading: true }), 0.03);
+      this.crownMat = L.windify(L.toonMaterial({ color: 0xffffff, flatShading: true, cutaway: true }), 0.03);
       this.crowns = inst(crown, this.crownMat, 220, true);
       this.crownOutline = inst(crown, L.windify(new THREE.MeshBasicMaterial({ color: 0x0b0c14, side: THREE.BackSide }), 0.03), 220);
       for (const m of [this.trunks, this.crowns]) { m.castShadow = true; m.receiveShadow = true; }
@@ -842,7 +953,7 @@ window.PH = window.PH || {};
       const segGeo = new THREE.BoxGeometry(1, 1, 1);
       const segMat = glow(0xffffff);
       segMat.transparent = true; segMat.blending = THREE.AdditiveBlending; segMat.depthWrite = false;
-      this.segments = new Batch(S, segGeo, segMat, 160, true);
+      this.segments = new Batch(S, segGeo, segMat, 480, true);
 
       // Bio Field: a soft additive disc that follows the player.
       const fieldTex = canvasTexture(128, (g, s) => {
@@ -863,6 +974,73 @@ window.PH = window.PH || {};
 
       // Magnet / pickup radius hint, shown briefly when it grows.
       this.ringGeo = new THREE.RingGeometry(0.96, 1, 48); this.ringGeo.rotateX(-Math.PI / 2);
+    }
+
+    /**
+     * Stylized 3D pickups (supply chest, med-heart crystal, magnet field core),
+     * replacing the old flat 2D OS emoji sprites.
+     */
+    buildPickups() {
+      this.pickupPool = [];
+      const L = PH.Look;
+      const makePickupModel = (kind) => {
+        const g = new THREE.Group();
+        if (kind === 'chest') {
+          const box = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.4, 0.44), L.toonMaterial({ color: 0x3b4454, flatShading: true, spec: 1.5 }));
+          box.position.y = 0.2;
+          const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.62, 6, 1, false, 0, Math.PI), L.toonMaterial({ color: 0x4c586e, flatShading: true, spec: 1.5 }));
+          lid.rotation.z = Math.PI / 2;
+          lid.rotation.y = Math.PI / 2;
+          lid.position.y = 0.4;
+          const bandMat = new THREE.MeshBasicMaterial({ color: 0xffd24a });
+          bandMat.toneMapped = false;
+          bandMat.color.multiplyScalar(2.0);
+          for (const x of [-0.18, 0.18]) {
+            const strap = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.46, 0.48), bandMat);
+            strap.position.set(x, 0.24, 0);
+            g.add(strap);
+          }
+          const lock = new THREE.Mesh(new THREE.OctahedronGeometry(0.09, 0), bandMat);
+          lock.position.set(0, 0.34, 0.24);
+          g.add(box, lid, lock);
+          L.stylize(g, 0.045, 4);
+        } else if (kind === 'heart') {
+          const coreMat = L.toonMaterial({ color: 0xff3b5c, emissive: 0xff1e42, emissiveIntensity: 0.55, flatShading: true, spec: 1.8 });
+          const oct = new THREE.Mesh(new THREE.OctahedronGeometry(0.26, 0), coreMat);
+          oct.scale.set(1.1, 1.35, 0.85);
+          oct.position.y = 0.32;
+          const crossMat = new THREE.MeshBasicMaterial({ color: 0xffeef2 });
+          crossMat.toneMapped = false;
+          crossMat.color.multiplyScalar(2.1);
+          const bar1 = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.1, 0.1), crossMat);
+          const bar2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.38, 0.1), crossMat);
+          bar1.position.y = bar2.position.y = 0.32;
+          g.add(oct, bar1, bar2);
+          L.stylize(g, 0.04, 3);
+        } else {
+          // Magnet: glowing U-core attractor with cobalt/crimson poles and electric tips
+          const arch = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.065, 6, 12, Math.PI), L.toonMaterial({ color: 0xe63946, emissive: 0x991122, emissiveIntensity: 0.35, flatShading: true, spec: 1.6 }));
+          arch.position.y = 0.32;
+          const tipMat = new THREE.MeshBasicMaterial({ color: 0x70d6ff });
+          tipMat.toneMapped = false;
+          tipMat.color.multiplyScalar(2.3);
+          for (const s of [-1, 1]) {
+            const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.16, 6), L.toonMaterial({ color: 0x2b59c3, flatShading: true }));
+            leg.position.set(s * 0.18, 0.24, 0);
+            const tip = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.08, 0.14), tipMat);
+            tip.position.set(s * 0.18, 0.14, 0);
+            g.add(leg, tip);
+          }
+          g.add(arch);
+          L.stylize(g, 0.04, 4);
+        }
+        g.visible = false;
+        this.scene.add(g);
+        return { root: g, kind };
+      };
+      for (let i = 0; i < 12; i++) {
+        this.pickupPool.push({ chest: makePickupModel('chest'), heart: makePickupModel('heart'), magnet: makePickupModel('magnet') });
+      }
     }
 
     /**
@@ -887,6 +1065,13 @@ window.PH = window.PH || {};
       });
       this.halos = new Batch(S, haloGeo, additive({ map: haloTex }), 900, true);
       this.halos.mesh.renderOrder = 2;
+
+      // Tumbling 3D shatter shards (chitin, rock, ice & ember chunks)
+      const shardGeo = new THREE.OctahedronGeometry(0.14, 0);
+      shardGeo.scale(1.25, 0.65, 0.9);
+      const shardMat = PH.Look.toonMaterial({ color: 0xffffff, flatShading: true, spec: 1.4 });
+      this.shards = new Batch(S, shardGeo, shardMat, 260, true);
+      this.shardList = [];
 
       // Shockwave rings for abilities, slams, elite and boss kills.
       const waveGeo = new THREE.RingGeometry(0.72, 1, 56); waveGeo.rotateX(-Math.PI / 2);
@@ -955,6 +1140,26 @@ window.PH = window.PH || {};
       for (let i = 0; i < 240; i++) this.drops.push({ x: (Math.random() - 0.5) * 30, y: Math.random() * 14, z: (Math.random() - 0.5) * 34, v: 18 + Math.random() * 8 });
     }
 
+    /** Spawn tumbling 3D low-poly shards (chitin, stone, ice, or ember chunks). */
+    shatter(x, y, z, count, color, speed = 4.5, size = 0.9, life = 0.65) {
+      if (this.qualityLevel > 0) count = Math.ceil(count * 0.4);
+      const r = ((color >> 16) & 255) / 255, g = ((color >> 8) & 255) / 255, b = (color & 255) / 255;
+      for (let i = 0; i < count; i++) {
+        if (this.shardList.length >= 260) this.shardList.shift();
+        const a = Math.random() * Math.PI * 2, sp = speed * (0.4 + Math.random() * 0.75);
+        const shade = 0.75 + Math.random() * 0.5;
+        this.shardList.push({
+          x, y: y + Math.random() * 0.25, z,
+          vx: Math.cos(a) * sp, vy: speed * (0.55 + Math.random() * 0.75), vz: Math.sin(a) * sp,
+          rx: Math.random() * 6, ry: Math.random() * 6, rz: Math.random() * 6,
+          vrx: (Math.random() - 0.5) * 16, vry: (Math.random() - 0.5) * 16, vrz: (Math.random() - 0.5) * 16,
+          s: size * (0.65 + Math.random() * 0.7),
+          r: r * shade, g: g * shade, b: b * shade,
+          t: 0, life: life * (0.7 + Math.random() * 0.5),
+        });
+      }
+    }
+
     glow(x, z, size, color, life, k = 2) {
       if (this.glows.length >= 120) this.glows.shift();
       this.glows.push({ x, z, size, life, t: 0,
@@ -992,6 +1197,7 @@ window.PH = window.PH || {};
       this.skyBolts.push({ x, z, t: 0, life: 0.28, seed: Math.random() * 100 });
       this.glow(x, z, 7, 0xbfd4ff, 0.4, 2.2);
       this.burst(x, 0.2, z, 18, 0xcfe0ff, 5, 0.25, 0.4, 6, 0.5, 2);
+      this.shatter(x, 0.15, z, 6, 0x7fa8d8, 4.5, 0.85, 0.55);
       this.ripple(x, z, 4, 0.6, 0.4);
       this.flash = 1;
       this.addShake(0.15);
@@ -1030,6 +1236,23 @@ window.PH = window.PH || {};
         G.add(g.x, 0.05, g.z, 0, s, 1, s, g.r * a, g.g * a, g.b * a);
       }
       G.end();
+      // Tumbling 3D shatter shards
+      const SH = this.shards;
+      SH.begin();
+      for (let i = this.shardList.length - 1; i >= 0; i--) {
+        const s = this.shardList[i];
+        s.t += dt;
+        if (s.t >= s.life) { this.shardList.splice(i, 1); continue; }
+        if (dt > 0) {
+          s.vy -= 13.5 * dt;
+          s.x += s.vx * dt; s.y += s.vy * dt; s.z += s.vz * dt;
+          if (s.y < 0.06) { s.y = 0.06; s.vy *= -0.42; s.vx *= 0.72; s.vz *= 0.72; }
+          s.rx += s.vrx * dt; s.ry += s.vry * dt; s.rz += s.vrz * dt;
+        }
+        const sc = s.s * Math.min(1, (1 - s.t / s.life) * 2.2);
+        SH.addRot(s.x, s.y, s.z, s.rx, s.ry, s.rz, sc, sc, sc, s.r, s.g, s.b);
+      }
+      SH.end();
       // Muzzle flashes ride the halo batch, drawn hot.
       for (let i = this.flashes.length - 1; i >= 0; i--) {
         const f = this.flashes[i];
@@ -1632,7 +1855,7 @@ window.PH = window.PH || {};
 
     /* ── Particles & one-off effects ────────────────────────── */
 
-    burst(x, y, z, count, color, speed = 4, size = 0.25, life = 0.5, grav = 6, up = 0.5, boost = 1) {
+    burst(x, y, z, count, color, speed = 4, size = 0.25, life = 0.5, grav = 6, up = 0.5, boost = 1, dx = 0, dz = 0) {
       const P = this.p;
       const cr = ((color >> 16) & 255) / 255 * boost, cg = ((color >> 8) & 255) / 255 * boost, cb = (color & 255) / 255 * boost;
       for (let i = 0; i < count; i++) {
@@ -1640,7 +1863,9 @@ window.PH = window.PH || {};
         const k = P.n++;
         const a = Math.random() * Math.PI * 2, s = speed * (0.35 + Math.random() * 0.65);
         P.x[k] = x; P.y[k] = y; P.z[k] = z;
-        P.vx[k] = Math.cos(a) * s; P.vz[k] = Math.sin(a) * s; P.vy[k] = up * speed * (0.4 + Math.random());
+        P.vx[k] = Math.cos(a) * s + dx * speed * 0.55;
+        P.vz[k] = Math.sin(a) * s + dz * speed * 0.55;
+        P.vy[k] = up * speed * (0.4 + Math.random());
         P.max[k] = P.life[k] = life * (0.6 + Math.random() * 0.6);
         P.size[k] = size * (0.6 + Math.random() * 0.8);
         P.r[k] = cr; P.g[k] = cg; P.b[k] = cb; P.grav[k] = grav;
@@ -1667,6 +1892,7 @@ window.PH = window.PH || {};
       this.burst(x, 0.4, z, Math.min(40, 14 + radius * 8), color, radius * 3.2, 0.42, 0.5, 4, 0.6);
       this.burst(x, 0.4, z, 10, 0xfff2b3, radius * 1.6, 0.6, 0.25, 0, 0.3);
       this.ring(x, z, radius, 22, color, 0.32, 0.35);
+      this.shatter(x, 0.35, z, Math.min(18, Math.round(5 + radius * 3)), color, radius * 2.6, 0.9 + radius * 0.15, 0.65);
     }
 
     shockwave(x, z, r, color = 0xffffff, dur = 0.45) {
@@ -1679,13 +1905,14 @@ window.PH = window.PH || {};
       w.mesh.material.color.setHex(color).convertSRGBToLinear();
     }
 
-    /** A creature's last frames: a white flash as it squashes into the ground. */
+    /** A creature's last frames: a white flash as it squashes into the ground, plus 3D chitin/bone shards. */
     enemyDeath(e) {
       const def = PH.ENEMIES[e.type], c = def.colors.primary;
       // A dark stain in the creature's own colour.
       const dark = (((c >> 16) & 255) * 0.35 << 16) | (((c >> 8) & 255) * 0.25 << 8) | ((c & 255) * 0.3);
       this.decal(e.x, e.z, def.radius * e.scale * 2.6, dark, e.elite ? 40 : 18);
       this.burst(e.x, 0.4, e.z, e.elite ? 22 : 7, 0xff8a3d, 1.2, 0.13, 0.9, -1.4, 0.6, 2.4);
+      this.shatter(e.x, 0.35, e.z, e.elite ? 14 : 5, c, e.elite ? 5.6 : 3.8, (e.elite ? 1.15 : 0.78) * e.scale, e.elite ? 0.75 : 0.52);
       if (e.elite) this.ripple(e.x, e.z, 2.5, 0.5, 0.4);
       if (this.pops.length >= 60) this.pops.shift();
       this.pops.push({ type: e.type, x: e.x, z: e.z, facing: e.facing, s: PH.ENEMIES[e.type].scale * e.scale, t: 0 });
@@ -1715,6 +1942,7 @@ window.PH = window.PH || {};
       this.ripple(x, z, r * 1.8, 1, 0.6);
       this.glow(x, z, r * 2.4, 0xffa060, 0.3, 1.8);
       this.burst(x, 0.3, z, 26, 0xc9a070, r * 2.2, 0.32, 0.6, 7, 0.7);   // dust and grit
+      this.shatter(x, 0.25, z, 16, 0x7a634b, r * 2.2, 1.15, 0.75);
     }
     bossDeath(x, z, r, color) {
       this.ripple(x, z, r * 4, 1.2, 0.9);
@@ -1722,6 +1950,7 @@ window.PH = window.PH || {};
       this.fx.createExplosion(a, b, { radius: r * 20, color });
       this.explosion(x, z, r * 1.5, color);
       this.burst(x, 1, z, 60, 0xffd700, 9, 0.5, 1.1, 5, 1);
+      this.shatter(x, 0.8, z, 28, color || 0xff9f43, 8.5, 1.4, 1.0);
     }
 
     emojiTexture(ch) {
@@ -1769,6 +1998,7 @@ window.PH = window.PH || {};
 
       this.shadows.begin();
       this.halos.begin();
+      this.segments.begin();
       const glowAll = this.qualityLevel === 0;    // weak devices skip the small halos
 
       // Player
@@ -1892,19 +2122,39 @@ window.PH = window.PH || {};
         }
       }
 
-      // Projectiles
+      // Projectiles + motion trails & harpoon tethers
       this.bolts.begin(); this.pellets.begin(); this.harpoons.begin(); this.orbs.begin(); this.nades.begin();
       for (const p of game.projectiles) {
         if (!p.alive) continue;
         const yaw = Math.atan2(p.vx, p.vz);
-        if (p.vis === 'bolt') { this.bolts.add(p.x, 0.75, p.z, yaw, 1, 1, 1, 1.6, 1.35, 0.5); this.halos.add(p.x, 0.75, p.z, 0, 0.9, 0.9, 0.9, 0.55, 0.4, 0.12); }
-        else if (p.vis === 'pellet') { this.pellets.add(p.x, 0.7, p.z, 0, 1, 1, 1, 1.6, 0.9, 0.35); if (glowAll) this.halos.add(p.x, 0.7, p.z, 0, 0.7, 0.7, 0.7, 0.55, 0.25, 0.06); }
-        else if (p.vis === 'harpoon') { this.harpoons.add(p.x, 0.8, p.z, yaw, 1, 1, 1, 0.9, 2.6, 2.4); this.halos.add(p.x, 0.8, p.z, 0, 1.3, 1.3, 1.3, 0.15, 0.5, 0.5); }
-        else if (p.vis === 'orb') { this.orbs.add(p.x, 0.7, p.z, 0, 1, 1, 1, p.r * 1.8, p.g * 1.8, p.b * 1.8); this.halos.add(p.x, 0.7, p.z, 0, 1.5, 1.5, 1.5, p.r * 0.6, p.g * 0.6, p.b * 0.6); }
+        const sp = Math.hypot(p.vx, p.vz) || 1, dx = p.vx / sp, dz = p.vz / sp;
+        if (p.vis === 'bolt') {
+          this.bolts.add(p.x, 0.75, p.z, yaw, 1, 1, 1, 1.6, 1.35, 0.5);
+          this.halos.add(p.x, 0.75, p.z, 0, 0.9, 0.9, 0.9, 0.55, 0.4, 0.12);
+          this.segments.addSegment(p.x - dx * 0.95, 0.75, p.z - dz * 0.95, p.x, 0.75, p.z, 0.045, 1.5, 1.15, 0.38);
+        } else if (p.vis === 'pellet') {
+          this.pellets.add(p.x, 0.7, p.z, 0, 1, 1, 1, 1.6, 0.9, 0.35);
+          if (glowAll) this.halos.add(p.x, 0.7, p.z, 0, 0.7, 0.7, 0.7, 0.55, 0.25, 0.06);
+          this.segments.addSegment(p.x - dx * 0.55, 0.7, p.z - dz * 0.55, p.x, 0.7, p.z, 0.032, 1.4, 0.7, 0.22);
+        } else if (p.vis === 'harpoon') {
+          this.harpoons.add(p.x, 0.8, p.z, yaw, 1, 1, 1, 0.9, 2.6, 2.4);
+          this.halos.add(p.x, 0.8, p.z, 0, 1.3, 1.3, 1.3, 0.15, 0.5, 0.5);
+          this.segments.addSegment(p.x - dx * 1.35, 0.8, p.z - dz * 1.35, p.x, 0.8, p.z, 0.06, 0.35, 1.9, 1.8);
+          if (!p.enemy && pl) this.segments.addSegment(pl.x, 0.85, pl.z, p.x, 0.8, p.z, 0.025, 0.2, 0.95, 0.9);
+        } else if (p.vis === 'orb') {
+          this.orbs.add(p.x, 0.7, p.z, 0, 1, 1, 1, p.r * 1.8, p.g * 1.8, p.b * 1.8);
+          this.halos.add(p.x, 0.7, p.z, 0, 1.5, 1.5, 1.5, p.r * 0.6, p.g * 0.6, p.b * 0.6);
+          this.segments.addSegment(p.x - dx * 0.7, 0.7, p.z - dz * 0.7, p.x, 0.7, p.z, 0.07, p.r * 1.2, p.g * 1.2, p.b * 1.2);
+        }
       }
       for (const n of game.lobs) {
-        const k2 = n.t / n.dur, y = 0.6 + Math.sin(k2 * Math.PI) * (2.2 + n.dist * 0.15);
-        this.nades.add(n.sx + (n.tx - n.sx) * k2, y, n.sz + (n.tz - n.sz) * k2, t * 8, 1, 1, 1);
+        const k2 = n.t / n.dur, arc = 2.2 + n.dist * 0.15;
+        const nx = n.sx + (n.tx - n.sx) * k2, nz = n.sz + (n.tz - n.sz) * k2, ny = 0.6 + Math.sin(k2 * Math.PI) * arc;
+        this.nades.add(nx, ny, nz, t * 8, 1, 1, 1);
+        const kPrev = Math.max(0, k2 - 0.1);
+        const px = n.sx + (n.tx - n.sx) * kPrev, pz = n.sz + (n.tz - n.sz) * kPrev, py = 0.6 + Math.sin(kPrev * Math.PI) * arc;
+        const isSlag = n.color && n.color !== 0xff6b35;
+        this.segments.addSegment(px, py, pz, nx, ny, nz, 0.055, isSlag ? 0.6 : 1.5, isSlag ? 1.4 : 0.65, isSlag ? 0.35 : 0.2);
       }
       this.bolts.end(); this.pellets.end(); this.harpoons.end(); this.orbs.end(); this.nades.end();
 
@@ -1981,7 +2231,6 @@ window.PH = window.PH || {};
       }
 
       // Lightning: jagged segments regenerated every frame so they flicker.
-      this.segments.begin();
       for (let i = this.lightning.length - 1; i >= 0; i--) {
         const L = this.lightning[i];
         L.life -= dt;
@@ -2011,21 +2260,30 @@ window.PH = window.PH || {};
       this.drawSkyBolts(dt);
       this.segments.end();
 
-      // Pickups as emoji sprites: few on screen, and they read instantly.
-      let si = 0;
+      // Stylized 3D pickups (supply chests, med-hearts, and magnets).
+      const usedPickups = { chest: 0, heart: 0, magnet: 0 };
       for (const pk of game.pickups) {
         if (!pk.alive) continue;
-        let spr = this.sprites[si];
-        if (!spr) { spr = new THREE.Sprite(new THREE.SpriteMaterial({ depthWrite: false })); this.scene.add(spr); this.sprites.push(spr); }
-        if (spr.material.map !== this.emojiTexture(pk.icon)) { spr.material.map = this.emojiTexture(pk.icon); spr.material.needsUpdate = true; }
-        spr.visible = true;
-        const s = pk.kind === 'chest' ? 1.3 : 0.9;
-        spr.scale.set(s, s, 1);
-        spr.position.set(pk.x, 0.7 + Math.sin(t * 3 + pk.x) * 0.12, pk.z);
-        this.shadows.add(pk.x, 0.02, pk.z, 0, 0.35, 1, 0.35);
-        si++;
+        const kind = this.pickupPool[pk.kind] ? pk.kind : 'chest';
+        const pool = this.pickupPool[kind];
+        const idx = usedPickups[kind]++;
+        if (idx >= pool.length) continue;
+        const m = pool[idx];
+        m.visible = true;
+        const bob = Math.sin(t * 3.2 + pk.x) * 0.1;
+        const py = kind === 'chest' ? 0.32 + bob * 0.5 : 0.68 + bob;
+        m.position.set(pk.x, py, pk.z);
+        m.rotation.y = t * (kind === 'chest' ? 1.1 : 2.2) + pk.z;
+        const sr = kind === 'chest' ? 0.52 : 0.38;
+        this.shadows.add(pk.x, 0.02, pk.z, 0, sr, 1, sr);
+        if (kind === 'chest') this.halos.add(pk.x, 0.45, pk.z, 0, 1.5, 1.5, 1.5, 0.55, 0.38, 0.08);
+        else if (kind === 'heart') this.halos.add(pk.x, py, pk.z, 0, 1.1, 1.1, 1.1, 0.55, 0.1, 0.18);
+        else this.halos.add(pk.x, py, pk.z, 0, 1.1, 1.1, 1.1, 0.12, 0.42, 0.65);
       }
-      for (; si < this.sprites.length; si++) this.sprites[si].visible = false;
+      for (const kind in this.pickupPool) {
+        const pool = this.pickupPool[kind];
+        for (let i = usedPickups[kind]; i < pool.length; i++) pool[i].visible = false;
+      }
 
       this.updateEffects(dt, t);
       if (this.monsterMode && game.hunters) this.drawMonsterMode(game, dt, t);
@@ -2042,13 +2300,55 @@ window.PH = window.PH || {};
       this.updateParticles(dt);
       this.fx.update(dt);
 
-      // Wind, and the grass parting around you and around the monster.
+      // Wind, multi-entity grass parting & lingering trail, and screen-space prop cutaway.
       const LU = PH.Look.uniforms;
       LU.time.value = this.time;
       LU.push.value.set(pl.x, pl.z, 1.5, pl.moving ? 1 : 0.6);
       const mon = game.mode === 'monster' ? game.player : game.mode === 'hunt' ? game.mon : game.bosses[0];
       if (mon) LU.push2.value.set(mon.x, mon.z, (mon.radius || 1) * 1.8, 1);
       else LU.push2.value.w = 0;
+
+      // Update lingering grass trail behind moving player & boss
+      this.trailTimer -= dt;
+      if (this.trailTimer <= 0 && dt > 0) {
+        this.trailTimer = 0.12;
+        if (pl.moving) this.grassTrail.unshift({ x: pl.x, z: pl.z, r: (pl.radius || 0.5) * 2.1, w: 0.85, t: 0 });
+        if (mon && mon !== pl && mon.moving) this.grassTrail.unshift({ x: mon.x, z: mon.z, r: (mon.radius || 1.2) * 1.65, w: 0.9, t: 0 });
+        if (this.grassTrail.length > 6) this.grassTrail.length = 6;
+      }
+      for (let i = this.grassTrail.length - 1; i >= 0; i--) {
+        this.grassTrail[i].t += dt;
+        if (this.grassTrail[i].t > 0.95) this.grassTrail.splice(i, 1);
+      }
+
+      const P8 = LU.pushers.value;
+      for (let i = 0; i < 8; i++) P8[i].set(0, 0, 1, 0);
+      let pi = 0;
+      P8[pi++].set(pl.x, pl.z, (pl.radius || 0.5) * 2.5, pl.moving ? 1.0 : 0.65);
+      if (mon && mon !== pl && !mon.hidden) P8[pi++].set(mon.x, mon.z, (mon.radius || 1.2) * 1.9, 1.0);
+      if (game.hunters) {
+        for (const h of game.hunters) {
+          if (pi < 5 && (h.state === 'up' || h.state === 'down')) P8[pi++].set(h.x, h.z, 1.35, h.moving ? 0.9 : 0.5);
+        }
+      } else if (game.bosses) {
+        for (let bi = 1; bi < game.bosses.length && pi < 4; bi++) {
+          const b = game.bosses[bi];
+          if (!b.hidden) P8[pi++].set(b.x, b.z, (b.radius || 1.2) * 1.8, 0.95);
+        }
+      }
+      for (let ti2 = 0; ti2 < this.grassTrail.length && pi < 8; ti2++) {
+        const gt = this.grassTrail[ti2];
+        P8[pi++].set(gt.x, gt.z, gt.r, gt.w * (1 - gt.t / 0.95));
+      }
+
+      // Update player screen UV and view-space depth for tall tree/ruin dither cutaway
+      const py = this.player && this.player.height ? this.player.height * 0.5 : 0.8;
+      _p.set(pl.x, py, pl.z).applyMatrix4(this.camera.matrixWorldInverse);
+      const pDepth = -_p.z;
+      _p.set(pl.x, py, pl.z).project(this.camera);
+      LU.playerScreen.value.set(_p.x * 0.5 + 0.5, _p.y * 0.5 + 0.5, pDepth, game.state === 'menu' ? 0 : 1);
+      LU.screenRes.value.set((this.w || 1) * this.dpr, (this.h || 1) * this.dpr);
+
       if (this.grade) { this.grade.setStage(this.biome); this.grade.render(this.scene, this.camera, this.time); }
       else this.renderer.render(this.scene, this.camera);
     }
@@ -2073,6 +2373,7 @@ window.PH = window.PH || {};
       const i = Math.min(1, Math.floor(this.biome)), k = this.biome - i;
       const ST = stages(), A = ST[i].sunDir, B = ST[i + 1].sunDir;
       this.sunDir.set(A[0] + (B[0] - A[0]) * k, A[1] + (B[1] - A[1]) * k, A[2] + (B[2] - A[2]) * k).normalize();
+      if (PH.Look && PH.Look.uniforms.sunDir) PH.Look.uniforms.sunDir.value.copy(this.sunDir);
       // Cover the visible ground, with margin for long dusk shadows.
       const v = this.view, span = Math.ceil(Math.max(v.maxX - v.minX, v.maxZ - v.minZ) * 0.62 + 4);
       const cam = this.sun.shadow.camera;
@@ -2100,6 +2401,11 @@ window.PH = window.PH || {};
       mixHex(this.hemi.color, A.sky, B.sky, k); mixHex(this.hemi.groundColor, A.gnd, B.gnd, k);
       this.hemi.intensity = A.hemiI + (B.hemiI - A.hemiI) * k;
       mixHex(this.sun.color, A.sun, B.sun, k); this.sun.intensity = A.sunI + (B.sunI - A.sunI) * k;
+      if (PH.Look && PH.Look.uniforms.rimColor) {
+        PH.Look.uniforms.rimColor.value.copy(this.sun.color).lerp(_ca.setHex(0xffffff), 0.35);
+        PH.Look.uniforms.backRimColor.value.copy(this.hemi.color).lerp(_ca.setHex(0x9ec5ff), 0.3);
+        PH.Look.uniforms.shadowTint.value.copy(this.ambient.color);
+      }
       this.ground.material.color.setRGB(
         A.tint[0] + (B.tint[0] - A.tint[0]) * k, A.tint[1] + (B.tint[1] - A.tint[1]) * k, A.tint[2] + (B.tint[2] - A.tint[2]) * k);
       mixHex(this.tuftMat.color, A.tuft, B.tuft, k);
@@ -2136,6 +2442,7 @@ window.PH = window.PH || {};
       this.wallMesh && this.wallMesh.material.color.setHex(B.rock);
       // Pools: dark water, green bog, pale ice, glowing lava.
       this.poolKind = kind;
+      if (this.pondUniforms) this.pondUniforms.uPoolKind.value = { water: 0, bog: 1, ice: 2, lava: 3 }[kind] || 0;
       const P = { water: [0x06161c, 0x000000, 0.2, 0.25, 0x1c150d], bog: [0x080c04, 0x020400, 0.16, 0.32, 0x1a140a],
         ice: [0x2c5a80, 0x08243c, 0.05, 0.4, 0xb4c0cc], lava: [0x1a0400, 0xe2300a, 0.6, 0.0, 0x0e0806] }[kind];
       this.pondMat.color.setHex(P[0]); this.pondMat.emissive.setHex(P[1]); this.pondMat.emissiveIntensity = kind === 'lava' ? 1.1 : 1;
@@ -2337,6 +2644,12 @@ window.PH = window.PH || {};
       this.lightning.length = 0;
       this.p.n = 0;
       this.pops.length = 0;
+      this.shardList.length = 0;
+      this.grassTrail.length = 0;
+      this.shards.begin(); this.shards.end();
+      for (const kind in this.pickupPool) {
+        for (const m of this.pickupPool[kind]) m.visible = false;
+      }
       for (const w of this.waves) { w.on = false; w.mesh.visible = false; }
       this.flocks.length = 0;
       this.decals.length = 0;
@@ -2351,7 +2664,7 @@ window.PH = window.PH || {};
   /** The same surface with no output - used for headless balance runs. */
   class NullRender {
     constructor() { this.view = { minX: -8, maxX: 8, minZ: -14, maxZ: 6 }; this.qualityLevel = 0; }
-    burst() {} ring() {} explosion() {} lightningChain() {} addShake() {} strike() {}
+    burst() {} ring() {} explosion() {} lightningChain() {} addShake() {} strike() {} shatter() {}
     shockwave() {} enemyDeath() {} zoomPunch() {} dashTrail() {} muzzle() {} impact() {}
     setMonsterMode() {} setHunters() {} setViewScale() {} flashPlayer() {} birds() {} setWorld() {} bossIntro() {} killCam() {}
     setPlayerMonster(type, stage) { return { radius: 1.1 + stage * 0.25, height: 3 }; }

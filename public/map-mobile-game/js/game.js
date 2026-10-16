@@ -1388,7 +1388,7 @@ window.PH = window.PH || {};
           if (p.hits.includes(e)) return;
           p.hits.push(e);
           this.hitEnemy(e, p.dmg, kx, kz, 3);
-          this.fx.burst(p.x, 0.7, p.z, 2, 0xfff1a8, 2.5, 0.16, 0.18, 0, 0.2);
+          this.fx.burst(p.x, 0.7, p.z, 3, 0xfff1a8, 3.2, 0.16, 0.19, 0, 0.25, 1.4, kx, kz);
           this.fx.impact(p.x, p.z, 0xffd27a);
           if (p.pierce-- <= 0) { p.alive = false; return false; }
         });
@@ -1398,6 +1398,8 @@ window.PH = window.PH || {};
           if (dist2(p.x, p.z, b.x, b.z) < (p.radius + b.radius) ** 2) {
             p.hits.push(b);
             this.hitEnemy(b, p.dmg);
+            this.fx.burst(p.x, 0.9, p.z, 4, 0xffd27a, 3.6, 0.18, 0.22, 2, 0.3, 1.5, -kx * 0.6, -kz * 0.6);
+            this.fx.impact(p.x, p.z, 0xffb347);
             if (p.pierce-- <= 0) { p.alive = false; break; }
           }
         }

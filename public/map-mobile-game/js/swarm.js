@@ -53,6 +53,7 @@ window.PH = window.PH || {};
         g.computeVertexNormals();
         const P = g.attributes.position, N = g.attributes.normal;
         const a = p.anim || [0, 0, 0, 0], pv = p.pivot || V(0, 0, 0);
+        const hasPivot = !p.glow && (pv.x !== 0 || pv.y !== 0 || pv.z !== 0);
         for (let i = 0; i < P.count; i++) {
           if (i % 3 === 0) {
             const j = p.jitter === undefined ? (p.glow ? 0 : 0.1) : p.jitter;
@@ -62,23 +63,39 @@ window.PH = window.PH || {};
             c.set(p.color === undefined ? 0xffffff : p.color);
             c.lerp(lin.copy(c).convertSRGBToLinear(), 0.5).multiplyScalar(1 + (this.rnd() - 0.5) * 2 * j);
           }
-          pos.push(P.getX(i), P.getY(i), P.getZ(i));
-          nor.push(N.getX(i), N.getY(i), N.getZ(i));
-          col.push(c.r, c.g, c.b);
+          const vx = P.getX(i), vy = P.getY(i), vz = P.getZ(i);
+          const ny = N.getY(i);
+          let ao = 1.0;
+          if (!p.glow) {
+            if (hasPivot) {
+              const dp = Math.hypot(vx - pv.x, vy - pv.y, vz - pv.z);
+              ao *= 0.8 + 0.2 * Math.min(1, dp / 0.25);
+            }
+            ao *= ny < 0 ? 1 + ny * 0.2 : 1 + ny * 0.12;
+          }
+          pos.push(vx, vy, vz);
+          nor.push(N.getX(i), ny, N.getZ(i));
+          col.push(c.r * ao, c.g * ao, c.b * ao);
           glow.push(p.glow ? 1 : 0);
           anim.push(a[0], a[1], a[2], a[3]);
           piv.push(pv.x, pv.y, pv.z);
         }
       }
-      // Size to the old model's footprint, feet on the ground.
-      let minY = Infinity, minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+      // Size to the old model's footprint, feet on the ground, and apply vertical AO.
+      let minY = Infinity, maxY = -Infinity, minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
       for (let i = 0; i < pos.length; i += 3) {
         minX = Math.min(minX, pos[i]); maxX = Math.max(maxX, pos[i]);
-        minY = Math.min(minY, pos[i + 1]);
+        minY = Math.min(minY, pos[i + 1]); maxY = Math.max(maxY, pos[i + 1]);
         minZ = Math.min(minZ, pos[i + 2]); maxZ = Math.max(maxZ, pos[i + 2]);
       }
+      const spanY = Math.max(0.01, maxY - minY);
       const k = len / (maxZ - minZ);
-      for (let i = 0; i < pos.length; i += 3) {
+      for (let i = 0, v = 0; i < pos.length; i += 3, v++) {
+        if (!glow[v]) {
+          const hNorm = Math.max(0, Math.min(1, (pos[i + 1] - minY) / spanY));
+          const vertAO = 0.72 + 0.36 * Math.pow(hNorm, 0.6);
+          col[i] *= vertAO; col[i + 1] *= vertAO; col[i + 2] *= vertAO;
+        }
         pos[i] *= k; pos[i + 1] = (pos[i + 1] - minY) * k; pos[i + 2] *= k;
         piv[i] *= k; piv[i + 1] = (piv[i + 1] - minY) * k; piv[i + 2] *= k;
       }

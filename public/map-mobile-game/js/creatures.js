@@ -55,9 +55,9 @@ window.PH = window.PH || {};
     build(mats, tint) {
       const root = this.bones[0];
       root.updateMatrixWorld(true);
-      const pos = [], nor = [], col = [], si = [], sw = [];
+      const pos = [], nor = [], col = [], si = [], sw = [], isBody = [];
       const groups = mats.map(() => []);
-      const m = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color();
+      const m = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color(), bPos = new THREE.Vector3();
       const lumOf = (x) => 0.2126 * x.r + 0.7152 * x.g + 0.0722 * x.b;
       const tc = tint ? new THREE.Color(tint.color).convertSRGBToLinear() : null, tl = tc ? Math.max(1e-4, lumOf(tc)) : 1;
       const recolour = (x) => {
@@ -68,7 +68,7 @@ window.PH = window.PH || {};
       };
       for (const p of this.parts) groups[p.mat !== undefined ? p.mat : p.glow ? 1 : 0].push(p);
       const ranges = [];
-      let vcount = 0;
+      let vcount = 0, minY = Infinity, maxY = -Infinity;
       groups.forEach((list, gi) => {
         const start = vcount;
         for (const p of list) {
@@ -76,10 +76,13 @@ window.PH = window.PH || {};
           q.setFromEuler(p.rot || new THREE.Euler());
           m.compose(p.at || V(0, 0, 0), q, p.scale || V(1, 1, 1));
           g.applyMatrix4(m);
-          g.applyMatrix4(this.byName[p.bone].matrixWorld);
+          const boneObj = this.byName[p.bone];
+          g.applyMatrix4(boneObj.matrixWorld);
           g.computeVertexNormals();
+          bPos.setFromMatrixPosition(boneObj.matrixWorld);
+          const hasJointAO = gi === 0 && boneObj.parent && boneObj.parent !== root;
           const P = g.attributes.position, N = g.attributes.normal;
-          const bi = this.bones.indexOf(this.byName[p.bone]);
+          const bi = this.bones.indexOf(boneObj);
           c.set(p.color || 0xffffff);
           for (let i = 0; i < P.count; i++) {
             // Faceted rock: each triangle a slightly different shade.
@@ -91,9 +94,23 @@ window.PH = window.PH || {};
               if (tc && gi === 0) recolour(c);
               c.multiplyScalar(k);
             }
-            pos.push(P.getX(i), P.getY(i), P.getZ(i));
-            nor.push(N.getX(i), N.getY(i), N.getZ(i));
-            col.push(c.r, c.g, c.b);
+            const vx = P.getX(i), vy = P.getY(i), vz = P.getZ(i);
+            const ny = N.getY(i);
+            if (vy < minY) minY = vy;
+            if (vy > maxY) maxY = vy;
+            // Joint crevice AO where child limbs/plates meet their parent bone
+            let jointAO = 1.0;
+            if (hasJointAO) {
+              const dj = Math.hypot(vx - bPos.x, vy - bPos.y, vz - bPos.z);
+              jointAO = 0.78 + 0.22 * Math.min(1, dj / 0.28);
+            }
+            // Normal-based cavity/crest shaping for non-glowing body parts
+            const normalAO = gi === 0 ? (ny < 0 ? 1 + ny * 0.22 : 1 + ny * 0.12) : 1.0;
+            const ao = jointAO * normalAO;
+            pos.push(vx, vy, vz);
+            nor.push(N.getX(i), ny, N.getZ(i));
+            col.push(c.r * ao, c.g * ao, c.b * ao);
+            isBody.push(gi === 0 ? 1 : 0);
             si.push(bi, 0, 0, 0);
             sw.push(1, 0, 0, 0);
           }
@@ -101,6 +118,16 @@ window.PH = window.PH || {};
         }
         ranges.push([start, vcount - start, gi]);
       });
+      // Vertical ground-bounce & underbelly ambient occlusion pass
+      const spanY = Math.max(0.01, maxY - minY);
+      for (let i = 0; i < vcount; i++) {
+        if (!isBody[i]) continue;
+        const hNorm = Math.max(0, Math.min(1, (pos[i * 3 + 1] - minY) / spanY));
+        const vertAO = 0.74 + 0.34 * Math.pow(hNorm, 0.65);
+        col[i * 3] *= vertAO;
+        col[i * 3 + 1] *= vertAO;
+        col[i * 3 + 2] *= vertAO;
+      }
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
       geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
