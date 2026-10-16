@@ -729,25 +729,24 @@
                     const t = this.r.time;
                     const ax = Math.sin(t * 0.85) * 3.8;
                     const ay = 0.6 + Math.cos(t * 1.15) * 1.1;
+                    const bank = -Math.cos(t * 0.85) * 0.44;
                     this.player.mesh.position.set(ax, ay, 0);
                     this.player.mesh.rotation.set(
                         -Math.sin(t * 1.15) * 0.14,
                         -Math.cos(t * 0.85) * 0.16,
-                        -Math.cos(t * 0.85) * 0.44
+                        bank
                     );
                     this.r.camera.position.set(Math.sin(t * 0.42) * 3.2, 2.3, 8.8);
                     this.r.camera.lookAt(ax * 0.45, ay * 0.5, -18);
 
-                    // Emit wingtip contrails during attract mode
-                    for (const s of [-1, 1]) {
-                        this.r.emitSpark(
-                            ax + s * 2.85, ay - 0.1, 1.0,
-                            0, 0, 36,
-                            0.28, 0.24, 0.04, 0xd8f4ff, 0
-                        );
-                    }
+                    const cosB = Math.cos(bank), sinB = Math.sin(bank);
+                    this.r.updateWingRibbons(
+                        ax - 3.25 * cosB, ay - 3.25 * sinB, 1.15,
+                        ax + 3.25 * cosB, ay + 3.25 * sinB, 1.15,
+                        true, true, false, dt
+                    );
                 }
-                this.r.updateVfx(dt, new THREE.Vector3(0, 0, -this.r.time * 42));
+                this.r.updateVfx(dt, new THREE.Vector3(0, 0, -this.r.time * 48));
                 this.r.renderFrame(dt);
                 return;
             }
@@ -850,31 +849,21 @@
             P.mesh.userData.barrelShield.visible = P.rollT > 0;
             if (P.rollT > 0) P.mesh.userData.barrelShield.rotation.z += dt * 18 * P.rollDir;
 
-            // Continuous 3D Wingtip Contrail Ribbons & G-Diffuser Plasma Exhaust
-            if (P.loopT <= 0) {
-                const cosB = Math.cos(P.bank), sinB = Math.sin(P.bank);
-                for (const s of [-1, 1]) {
-                    if ((s < 0 && P.wingL > 0) || (s > 0 && P.wingR > 0)) {
-                        const wx = P.x + s * 2.9 * cosB;
-                        const wy = P.y + s * 2.9 * sinB - 0.06;
-                        this.r.emitSpark(
-                            wx, wy, P.z + 1.0,
-                            P.vx * 0.1, P.vy * 0.1, 42 * speedMul,
-                            0.24, P.boosting ? 0.32 : 0.20, 0.03,
-                            P.boosting ? 0x52f6ff : 0xd8f2ff, 0
-                        );
-                    }
-                }
-                if (P.boosting || Math.random() < 0.65) {
-                    this.r.emitSpark(
-                        P.x + (Math.random() - 0.5) * 0.25,
-                        P.y + (Math.random() - 0.5) * 0.25,
-                        P.z + 1.8,
-                        (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, 46 * speedMul,
-                        0.18, P.boosting ? 0.42 : 0.25, 0.04,
-                        P.boosting ? 0x3ef2ff : 0xff8a28, 0
-                    );
-                }
+            // Continuous 3D Connected Wingtip Contrail Ribbons & G-Diffuser Exhaust
+            const cosB = Math.cos(P.bank), sinB = Math.sin(P.bank);
+            this.r.updateWingRibbons(
+                P.x - 3.25 * cosB, P.y + loopOffsetY - 3.25 * sinB - 0.04, P.z + loopOffsetZ + 1.15,
+                P.x + 3.25 * cosB, P.y + loopOffsetY + 3.25 * sinB - 0.04, P.z + loopOffsetZ + 1.15,
+                P.wingL > 0, P.wingR > 0, P.boosting, dt
+            );
+            if (P.boosting) {
+                this.r.emitSpark(
+                    P.x + (Math.random() - 0.5) * 0.25,
+                    P.y + loopOffsetY + (Math.random() - 0.5) * 0.25,
+                    P.z + loopOffsetZ + 1.9,
+                    (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, 48 * speedMul,
+                    0.18, 0.42, 0.04, 0x3ef2ff, 0
+                );
             }
 
             // Water wake spray on Corneria when skimming low over the ocean!
@@ -1316,7 +1305,7 @@
             if (idx > 0) sh.instanceMatrix.needsUpdate = true;
         }
 
-        // ------------------------------------------------------------------ 2D Canvas Overlay: Dual Reticles, Lock-On Box & Floating Hit Text
+        // ------------------------------------------------------------------ 2D Canvas Overlay: Modern Holographic Flight Deck HUD
         drawReticlesAndOverlays() {
             const g = this.r.hctx, pr = this.r.hudPr, w = this.r.width, h = this.r.height;
             g.setTransform(pr, 0, 0, pr, 0, 0);
@@ -1329,48 +1318,128 @@
                 return { x: (tmpV.x + 1) * 0.5 * w, y: (1 - tmpV.y) * 0.5 * h, behind: tmpV.z > 1 };
             };
 
-            // 1. Far Reticle (-32 Z) & Near Reticle (-14 Z)
-            const dirX = P.aimX * 0.42, dirY = P.aimY * 0.42;
+            // 0. Boost Radial Speed-Lines around screen perimeter
+            if (this.r.boostK > 0.08) {
+                const cx = w * 0.5, cy = h * 0.5;
+                const maxR = Math.hypot(cx, cy);
+                g.save();
+                g.strokeStyle = `rgba(110, 244, 255, ${0.28 * this.r.boostK})`;
+                g.lineWidth = 1.5;
+                g.beginPath();
+                for (let i = 0; i < 28; i++) {
+                    const a = (i / 28) * TAU + ((i % 2) * 0.08);
+                    const r0 = maxR * (0.52 + 0.16 * Math.sin(this.stageTime * 16 + i * 2.1));
+                    const r1 = maxR * 0.96;
+                    g.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+                    g.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+                }
+                g.stroke();
+                g.restore();
+            }
+
+            // 1. Far Vector Reticle (-32 Z) & Near Precision Gun-Sight (-14 Z)
+            const dirX = P.aimX * 0.36, dirY = P.aimY * 0.36;
             const nearP = project(P.x + dirX * 14, P.y + dirY * 14, P.z - 14);
             const farP = project(P.x + dirX * 32, P.y + dirY * 32, P.z - 32);
 
-            // Far reticle (cyan/yellow corner brackets)
-            if (!farP.behind) {
-                g.strokeStyle = 'rgba(94, 242, 255, 0.85)';
-                g.lineWidth = 2;
-                const s = 14;
-                g.strokeRect(farP.x - s, farP.y - s, s * 2, s * 2);
+            // Subtle Artificial Horizon / Pitch-Bank Ladder around center of screen
+            g.save();
+            g.translate(w * 0.5, h * 0.5 + P.pitch * 36);
+            g.rotate(-P.bank * 0.35);
+            g.strokeStyle = 'rgba(82, 232, 255, 0.22)';
+            g.lineWidth = 1.25;
+            g.beginPath();
+            for (const s of [-1, 1]) {
+                g.moveTo(s * 95, 0); g.lineTo(s * 145, 0);
+                g.moveTo(s * 95, 0); g.lineTo(s * 95, 7);
+                g.moveTo(s * 110, -28); g.lineTo(s * 132, -28);
+                g.moveTo(s * 110,  28); g.lineTo(s * 132,  28);
+            }
+            g.stroke();
+            g.restore();
+
+            // Holographic Velocity Vector Tether between Near & Far Reticles
+            if (!nearP.behind && !farP.behind) {
+                g.save();
+                g.strokeStyle = 'rgba(82, 242, 255, 0.32)';
+                g.lineWidth = 1.2;
+                g.setLineDash([4, 4]);
+                g.beginPath();
+                g.moveTo(nearP.x, nearP.y);
+                g.lineTo(farP.x, farP.y);
+                g.stroke();
+                g.setLineDash([]);
+                g.restore();
             }
 
-            // Near reticle (classic Star Fox green crosshair box)
-            if (!nearP.behind) {
-                const charging = P.chargeT > 0.25;
-                g.strokeStyle = charging ? '#ff4560' : '#4eff7a';
-                g.lineWidth = 2.4;
-                const s = charging ? 18 + Math.sin(this.stageTime * 22) * 3 : 20;
+            // Far Reticle (Rotating Holographic Diamond + Center Pip)
+            if (!farP.behind) {
+                g.save();
+                g.translate(farP.x, farP.y);
+                g.strokeStyle = 'rgba(94, 242, 255, 0.88)';
+                g.lineWidth = 1.8;
+                const s = 13;
                 g.beginPath();
-                // 4 corner brackets
+                g.moveTo(0, -s); g.lineTo(s, 0); g.lineTo(0, s); g.lineTo(-s, 0);
+                g.closePath();
+                g.stroke();
+                g.fillStyle = '#62f6ff';
+                g.fillRect(-1.5, -1.5, 3, 3);
+                g.restore();
+            }
+
+            // Near Reticle (Precision Circular Sight + Corner Chevrons + Charge Progress Arc)
+            if (!nearP.behind) {
+                const chargePct = clamp(P.chargeT / 0.55, 0, 1);
+                const charging = P.chargeT > 0.15;
+                const col = P.lockedTarget ? '#ff3858' : charging ? '#ffaa38' : '#4eff92';
+
+                g.save();
+                g.translate(nearP.x, nearP.y);
+
+                // Outer corner brackets
+                g.strokeStyle = col;
+                g.lineWidth = 2.2;
+                const s = 21 - chargePct * 4;
                 const L = 7;
+                g.beginPath();
                 for (const sx of [-1, 1]) {
                     for (const sy of [-1, 1]) {
-                        g.moveTo(nearP.x + sx * s, nearP.y + sy * (s - L));
-                        g.lineTo(nearP.x + sx * s, nearP.y + sy * s);
-                        g.lineTo(nearP.x + sx * (s - L), nearP.y + sy * s);
+                        g.moveTo(sx * s, sy * (s - L));
+                        g.lineTo(sx * s, sy * s);
+                        g.lineTo(sx * (s - L), sy * s);
                     }
                 }
                 g.stroke();
+
+                // Inner precision ring
+                g.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+                g.lineWidth = 1.2;
+                g.beginPath();
+                g.arc(0, 0, 10, 0, TAU);
+                g.stroke();
+
+                // Charge progress arc
+                if (chargePct > 0.05) {
+                    g.strokeStyle = P.lockedTarget ? '#ff2e4c' : '#3ef2ff';
+                    g.lineWidth = 3.0;
+                    g.beginPath();
+                    g.arc(0, 0, 14, -Math.PI * 0.5, -Math.PI * 0.5 + chargePct * TAU);
+                    g.stroke();
+                }
+                g.restore();
             }
 
-            // 2. Red Octagonal Lock-On Reticle over locked target
+            // 2. Holographic Target Lock-On Reticle + Distance Telemetry
             if (P.lockedTarget && !P.lockedTarget.dead) {
                 const lp = project(P.lockedTarget.x, P.lockedTarget.y, P.lockedTarget.z);
                 if (!lp.behind) {
                     g.save();
                     g.translate(lp.x, lp.y);
-                    g.rotate(this.stageTime * 5);
+                    g.rotate(this.stageTime * 4.5);
                     g.strokeStyle = '#ff2e4c';
-                    g.lineWidth = 3;
-                    const r = 26 + Math.sin(this.stageTime * 18) * 4;
+                    g.lineWidth = 2.6;
+                    const r = 26 + Math.sin(this.stageTime * 18) * 3;
                     g.beginPath();
                     for (let i = 0; i < 8; i++) {
                         const a = (i / 8) * TAU;
@@ -1381,21 +1450,22 @@
                     g.stroke();
                     g.restore();
 
+                    const distM = Math.max(10, Math.round(Math.abs(P.lockedTarget.z - P.z) * 12));
                     g.font = '800 11px "Orbitron", monospace';
                     g.fillStyle = '#ff4b66';
                     g.textAlign = 'center';
-                    g.fillText('LOCK ON', lp.x, lp.y - 32);
+                    g.fillText(`LOCK ON [${distM}m]`, lp.x, lp.y - 33);
                 }
             }
 
-            // 3. Wingman "HELP!" indicator when chased
+            // 3. Wingman "SOS / BOGEY ON TAIL" indicator when chased
             if (this.wingmanActor && this.wingmanActor.chaserCount > 0) {
-                const wp = project(this.wingmanActor.x, this.wingmanActor.y + 1.8, this.wingmanActor.z);
+                const wp = project(this.wingmanActor.x, this.wingmanActor.y + 1.9, this.wingmanActor.z);
                 if (!wp.behind) {
-                    g.font = '800 13px "Orbitron", sans-serif';
+                    g.font = '800 12px "Orbitron", sans-serif';
                     g.textAlign = 'center';
                     g.fillStyle = '#ffcf38';
-                    g.fillText('▼ ' + this.wingmen[this.wingmanActor.who].name + ' — HELP! ▼', wp.x, wp.y);
+                    g.fillText('▼ ' + this.wingmen[this.wingmanActor.who].name + ' — CLEAR MY SIX! ▼', wp.x, wp.y);
                 }
             }
 

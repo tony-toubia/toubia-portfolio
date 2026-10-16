@@ -1,6 +1,5 @@
-// Starwing 64: 3D WebGL Renderer, Custom Sky Dome & Ocean Water Shaders,
-// Scrolling 3D World Scenery (Mountains, City Skyline, Trench Walls, Nebula Planet),
-// Dual-Kawase Bloom & Shockwave Post-Processing, 3D Shock Rings & Shatter Debris.
+// Starwing: Next-Gen 3D WebGL Renderer with Procedural GLSL Displacement Canyon/Mountain Terrain,
+// Animated Ocean Water, True 3D Connected Wingtip Ribbon Contrails, Sky Dome & Dual-Kawase Bloom.
 (function () {
     'use strict';
     const SW = window.SW = window.SW || {};
@@ -42,8 +41,8 @@
                 '  c += texture2D(tScene, vUv + vec2(uTexel.x, -uTexel.y)).rgb * 0.1875;',
                 '  c += texture2D(tScene, vUv + vec2(-uTexel.x, -uTexel.y)).rgb * 0.1875;',
                 '  float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));',
-                '  float knee = smoothstep(0.58, 1.12, lum);',
-                '  gl_FragColor = vec4(c * knee * 1.25, 1.0);',
+                '  float knee = smoothstep(0.55, 1.10, lum);',
+                '  gl_FragColor = vec4(c * knee * 1.32, 1.0);',
                 '}',
             ].join('\n'),
             depthTest: false, depthWrite: false,
@@ -58,12 +57,12 @@
                 'uniform sampler2D tTex;',
                 'uniform vec2 uTexel;',
                 'void main(){',
-                '  vec2 d = uTexel * 1.55;',
-                '  vec3 s = texture2D(tTex, vUv).rgb * 0.28;',
-                '  s += texture2D(tTex, vUv + vec2(d.x, d.y)).rgb * 0.18;',
-                '  s += texture2D(tTex, vUv + vec2(-d.x, d.y)).rgb * 0.18;',
-                '  s += texture2D(tTex, vUv + vec2(d.x, -d.y)).rgb * 0.18;',
-                '  s += texture2D(tTex, vUv + vec2(-d.x, -d.y)).rgb * 0.18;',
+                '  vec2 d = uTexel * 1.65;',
+                '  vec3 s = texture2D(tTex, vUv).rgb * 0.26;',
+                '  s += texture2D(tTex, vUv + vec2(d.x, d.y)).rgb * 0.185;',
+                '  s += texture2D(tTex, vUv + vec2(-d.x, d.y)).rgb * 0.185;',
+                '  s += texture2D(tTex, vUv + vec2(d.x, -d.y)).rgb * 0.185;',
+                '  s += texture2D(tTex, vUv + vec2(-d.x, -d.y)).rgb * 0.185;',
                 '  gl_FragColor = vec4(s, 1.0);',
                 '}',
             ].join('\n'),
@@ -104,17 +103,20 @@
                 '  vec2 cUv = clamp(uv + warp, vec2(0.001), vec2(0.999));',
                 '  vec2 edge = uv - 0.5;',
                 '  float r2 = dot(edge, edge);',
-                '  float ca = length(warp) * 0.55 + r2 * (0.003 + uBoost * 0.012);',
+                '  float ca = length(warp) * 0.55 + r2 * (0.0025 + uBoost * 0.014);',
                 '  vec2 caDir = normalize(edge + vec2(1e-5)) * ca;',
                 '  vec3 col;',
                 '  col.r = texture2D(tScene, clamp(cUv + caDir, vec2(0.001), vec2(0.999))).r;',
                 '  col.g = texture2D(tScene, cUv).g;',
                 '  col.b = texture2D(tScene, clamp(cUv - caDir, vec2(0.001), vec2(0.999))).b;',
                 '  vec3 bloom = texture2D(tBloom, cUv).rgb;',
-                '  col += bloom * 0.78;',
-                '  col *= 1.05;',
-                '  float vig = smoothstep(0.95, 0.24, r2);',
-                '  col *= mix(0.76, 1.04, vig);',
+                '  // Anamorphic horizontal flare sampling from bloom',
+                '  vec3 anamorphic = (texture2D(tBloom, clamp(cUv + vec2(0.028, 0.0), vec2(0.001), vec2(0.999))).rgb +',
+                '                     texture2D(tBloom, clamp(cUv - vec2(0.028, 0.0), vec2(0.001), vec2(0.999))).rgb) * vec3(0.35, 0.68, 1.0) * 0.25;',
+                '  col += bloom * 0.82 + anamorphic;',
+                '  col *= 1.06;',
+                '  float vig = smoothstep(0.98, 0.22, r2);',
+                '  col *= mix(0.78, 1.04, vig);',
                 '  col = pow(max(col, vec3(0.0)), vec3(1.0 / 2.2));',
                 '  gl_FragColor = vec4(col, 1.0);',
                 '}',
@@ -192,6 +194,72 @@
         return new THREE.CanvasTexture(c);
     }
 
+    // Continuous 3D Triangle-Strip Wingtip Ribbon Mesh
+    class WingRibbon {
+        constructor(maxPts) {
+            this.maxPts = maxPts || 28;
+            this.pts = [];
+            const geo = new THREE.BufferGeometry();
+            this.posArr = new Float32Array(this.maxPts * 2 * 3);
+            this.colArr = new Float32Array(this.maxPts * 2 * 3);
+            const indices = [];
+            for (let i = 0; i < this.maxPts - 1; i++) {
+                const a = i * 2, b = a + 1, c = a + 2, d = a + 3;
+                indices.push(a, b, c, b, d, c);
+            }
+            geo.setAttribute('position', new THREE.BufferAttribute(this.posArr, 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(this.colArr, 3));
+            geo.setIndex(indices);
+            this.mat = new THREE.MeshBasicMaterial({
+                vertexColors: true,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.72,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                toneMapped: false,
+            });
+            this.mesh = new THREE.Mesh(geo, this.mat);
+            this.mesh.frustumCulled = false;
+        }
+
+        clear() {
+            this.pts.length = 0;
+            this.posArr.fill(0);
+            this.mesh.geometry.attributes.position.needsUpdate = true;
+        }
+
+        push(x, y, z, width, hex, scrollDz) {
+            for (let i = 0; i < this.pts.length; i++) {
+                this.pts[i].z += scrollDz;
+            }
+            this.pts.unshift({ x, y, z, w: width || 0.22, hex: hex || 0x88ebff });
+            if (this.pts.length > this.maxPts) this.pts.pop();
+
+            const n = this.pts.length;
+            if (n < 2) return;
+            const c = new THREE.Color();
+            for (let i = 0; i < this.maxPts; i++) {
+                const p = this.pts[Math.min(i, n - 1)];
+                const fade = Math.max(0, 1 - i / (this.maxPts - 1));
+                const hw = p.w * fade;
+                const o = i * 6;
+                this.posArr[o]     = p.x - hw;
+                this.posArr[o + 1] = p.y;
+                this.posArr[o + 2] = p.z;
+                this.posArr[o + 3] = p.x + hw;
+                this.posArr[o + 4] = p.y;
+                this.posArr[o + 5] = p.z;
+
+                c.setHex(p.hex).multiplyScalar(fade * fade);
+                this.colArr[o]     = c.r; this.colArr[o + 1] = c.g; this.colArr[o + 2] = c.b;
+                this.colArr[o + 3] = c.r; this.colArr[o + 4] = c.g; this.colArr[o + 5] = c.b;
+            }
+            this.mesh.geometry.attributes.position.needsUpdate = true;
+            this.mesh.geometry.attributes.color.needsUpdate = true;
+        }
+    }
+
     class Renderer {
         constructor(container, canvas, hud) {
             this.container = container;
@@ -203,19 +271,22 @@
             gl.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
             gl.outputEncoding = THREE.sRGBEncoding;
             gl.toneMapping = THREE.ACESFilmicToneMapping;
-            gl.toneMappingExposure = 1.12;
+            gl.toneMappingExposure = 1.14;
             gl.shadowMap.enabled = true;
             gl.shadowMap.type = THREE.PCFSoftShadowMap;
 
             this.scene = new THREE.Scene();
             this.scene.background = new THREE.Color(0x0b162c);
-            this.scene.fog = new THREE.FogExp2(0x4ea8de, 0.0028);
+            if (SW.Models && SW.Models.ENV_MAP) {
+                this.scene.environment = SW.Models.ENV_MAP;
+            }
+            this.scene.fog = new THREE.FogExp2(0x5ab2e6, 0.0026);
 
             this.camera = new THREE.PerspectiveCamera(58, 1.6, 0.3, 550);
-            this.hemi = new THREE.HemisphereLight(0xdff4ff, 0x243b4a, 0.92);
+            this.hemi = new THREE.HemisphereLight(0xe4f5ff, 0x263e4e, 0.95);
             this.scene.add(this.hemi);
 
-            const sun = this.sun = new THREE.DirectionalLight(0xfff5e0, 1.45);
+            const sun = this.sun = new THREE.DirectionalLight(0xfff6e5, 1.55);
             sun.position.set(45, 95, 55);
             sun.castShadow = true;
             sun.shadow.mapSize.set(1536, 1536);
@@ -230,22 +301,40 @@
             this.fxGroup = new THREE.Group();
             this.scene.add(this.worldGroup, this.fxGroup);
 
+            // True 3D Connected Wingtip Contrail Ribbons
+            this.ribbonL = new WingRibbon(28);
+            this.ribbonR = new WingRibbon(28);
+            this.fxGroup.add(this.ribbonL.mesh, this.ribbonR.mesh);
+
             this.glowTex = radialTex('rgba(255,255,255,1)', 'rgba(255,255,255,0)');
             this.shadowTex = radialTex('rgba(0,0,0,0.68)', 'rgba(0,0,0,0)');
 
             // Instanced 3D faceted shatter debris
             const dGeo = new THREE.OctahedronGeometry(0.32, 0);
             dGeo.scale(1.35, 0.52, 0.95);
-            this.debrisMesh = new THREE.InstancedMesh(dGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4, metalness: 0.45, flatShading: true }), 260);
+            this.debrisMesh = new THREE.InstancedMesh(dGeo, new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                roughness: 0.3,
+                metalness: 0.65,
+                envMap: SW.Models ? SW.Models.ENV_MAP : null,
+                flatShading: true,
+            }), 260);
             this.debrisMesh.count = 0;
             this.debrisMesh.frustumCulled = false;
             this.debrisMesh.setColorAt(0, new THREE.Color(1, 1, 1));
             this.fxGroup.add(this.debrisMesh);
             this.debrisList = [];
 
-            // Instanced Spark / Explosion / Wake / Wingtip Contrail Spheres
-            const pGeo = new THREE.SphereGeometry(0.34, 6, 5);
-            this.sparkMesh = new THREE.InstancedMesh(pGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.92, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), 420);
+            // Instanced Spark / Explosion / Wake Spheres
+            const pGeo = new THREE.SphereGeometry(0.34, 8, 6);
+            this.sparkMesh = new THREE.InstancedMesh(pGeo, new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.92,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                toneMapped: false,
+            }), 420);
             this.sparkMesh.count = 0;
             this.sparkMesh.frustumCulled = false;
             this.sparkMesh.setColorAt(0, new THREE.Color(1, 1, 1));
@@ -253,12 +342,12 @@
             this.sparks = [];
 
             // 3D Expanding Plasma Shockwave Rings on explosions
-            const ringGeo = new THREE.RingGeometry(0.65, 1.0, 24);
+            const ringGeo = new THREE.RingGeometry(0.68, 1.0, 28);
             this.shockRingMesh = new THREE.InstancedMesh(ringGeo, new THREE.MeshBasicMaterial({
                 color: 0xffffff,
                 side: THREE.DoubleSide,
                 transparent: true,
-                opacity: 0.85,
+                opacity: 0.88,
                 blending: THREE.AdditiveBlending,
                 depthWrite: false,
                 toneMapped: false,
@@ -284,6 +373,7 @@
             this.sector = 'corneria';
             this.groundPlane = null;
             this.waterMat = null;
+            this.valleyMat = null;
             this.skyDome = null;
             this.starPoints = null;
             this.sceneryItems = [];
@@ -307,72 +397,61 @@
             this.hud.style.height = h + 'px';
         }
 
-        // Build procedural 3D scenery prop for scrolling corridor
+        updateWingRibbons(lx, ly, lz, rx, ry, rz, showL, showR, boosting, dt) {
+            const dz = 54 * (1 + this.boostK * 0.65) * dt;
+            const col = boosting ? 0x48f6ff : 0xdcf4ff;
+            const w = boosting ? 0.28 : 0.18;
+            if (showL) this.ribbonL.push(lx, ly, lz, w, col, dz);
+            if (showR) this.ribbonR.push(rx, ry, rz, w, col, dz);
+        }
+
         buildSceneryProp(sector, index) {
             const B = SW.Models.bakePartGeo;
             const g = new THREE.Group();
             const side = (index % 2 === 0) ? -1 : 1;
 
             if (sector === 'corneria') {
-                const kind = index % 4;
+                const kind = index % 3;
                 if (kind === 0) {
-                    // Emerald Low-Poly Coastal Mountain Peak + Snow Cap
-                    const h = 18 + (index % 5) * 6;
-                    const r = 11 + (index % 4) * 3.5;
-                    const mtn = B(new THREE.ConeGeometry(r, h, 6), 0x2d7a58, false);
-                    mtn.position.y = h * 0.5 - 6.2;
-                    const cap = B(new THREE.ConeGeometry(r * 0.42, h * 0.36, 6), 0xebf5ff, false);
-                    cap.position.y = h * 0.82 - 6.2;
-                    const sub = B(new THREE.ConeGeometry(r * 0.7, h * 0.6, 5), 0x388e66, false);
-                    sub.position.set(-side * r * 0.45, h * 0.3 - 6.2, 4);
-                    g.add(mtn, cap, sub);
-                    g.userData = { baseX: side * (24 + (index % 3) * 10), baseY: 0 };
+                    // Sleek Futuristic Corneria Coastal Spire Tower with Illuminated Glass Bands
+                    const h = 16 + (index % 4) * 5.5;
+                    const r = 2.1 + (index % 3) * 0.55;
+                    const tower = B(new THREE.CylinderGeometry(r * 0.68, r, h, 16), 0xe2ecf8, false, false);
+                    tower.position.y = h * 0.5 - 5.5;
+                    const ring1 = B(new THREE.CylinderGeometry(r * 0.92, r * 0.92, 0.5, 16), 0x3ef2ff, true, false);
+                    ring1.position.y = h * 0.65 - 5.5;
+                    const ring2 = B(new THREE.CylinderGeometry(r * 0.82, r * 0.82, 0.45, 16), 0x3ef2ff, true, false);
+                    ring2.position.y = h * 0.82 - 5.5;
+                    const spire = B(new THREE.ConeGeometry(r * 0.68, 4.5, 16), 0x1e5ce6, false, false);
+                    spire.position.y = h + 2.2 - 5.5;
+                    g.add(tower, ring1, ring2, spire);
+                    g.userData = { baseX: side * (21 + (index % 3) * 6), baseY: 0 };
                 } else if (kind === 1) {
-                    // Corneria Futuristic Monolith City Skyscraper + Glowing Spire
-                    const h = 16 + (index % 4) * 5;
-                    const w = 4.2 + (index % 3) * 1.2;
-                    const tower = B(new THREE.BoxGeometry(w, h, w), 0xd8e4f2, false);
-                    tower.position.y = h * 0.5 - 6.0;
-                    const crown = B(new THREE.BoxGeometry(w * 0.72, 3.2, w * 0.72), 0x2668e8, false);
-                    crown.position.y = h - 4.5;
-                    const strip = B(new THREE.BoxGeometry(w * 1.04, 0.55, w * 1.04), 0x3ef2ff, true);
-                    strip.position.y = h - 5.8;
-                    const beacon = B(new THREE.OctahedronGeometry(0.55, 0), 0x3ef2ff, true);
-                    beacon.position.y = h - 2.2;
-                    g.add(tower, crown, strip, beacon);
-                    g.userData = { baseX: side * (18 + (index % 3) * 6), baseY: 0 };
-                } else if (kind === 2) {
-                    // Volumetric Low-Poly Cloud Cluster high in the sky
-                    for (let c = 0; c < 3; c++) {
-                        const puff = B(new THREE.IcosahedronGeometry(3.2 - c * 0.6, 1), 0xf4faff, false);
-                        puff.scale.set(1.7, 0.52, 1.1);
-                        puff.position.set((c - 1) * 3.4, c * 0.4, (c % 2) * 1.5);
+                    // Smooth Volumetric Cloud Bank high above the valley
+                    for (let c = 0; c < 4; c++) {
+                        const puff = B(new THREE.SphereGeometry(3.4 - c * 0.5, 16, 12), 0xf6fbff, false, false);
+                        puff.scale.set(1.85, 0.48, 1.15);
+                        puff.position.set((c - 1.5) * 3.1, (c % 2) * 0.45, (c % 2) * 1.4);
                         g.add(puff);
                     }
-                    g.userData = { baseX: side * (10 + (index % 4) * 8), baseY: 11 + (index % 3) * 3.5 };
+                    g.userData = { baseX: side * (12 + (index % 4) * 8), baseY: 12 + (index % 3) * 3.5 };
                 } else {
-                    // Coastal Island Mesa + Radar Dish
-                    const isle = B(new THREE.CylinderGeometry(6.5, 9.5, 2.6, 7), 0x3d9468, false);
-                    isle.position.y = -4.9;
-                    const sand = B(new THREE.CylinderGeometry(9.6, 11.2, 0.6, 7), 0xe6d296, false);
-                    sand.position.y = -5.8;
-                    const dish = B(new THREE.ConeGeometry(2.2, 1.5, 6), 0xe8f0fa, false);
-                    dish.rotation.x = -0.6;
-                    dish.position.y = -2.6;
-                    g.add(sand, isle, dish);
-                    g.userData = { baseX: side * (16 + (index % 3) * 7), baseY: 0 };
+                    // Coastal Defense Pylon / Wind Turbine Generator on the water's edge
+                    const mast = B(new THREE.CylinderGeometry(0.45, 0.85, 11, 14), 0xd8e4f2, false, false);
+                    mast.position.y = -0.5;
+                    const hub = B(new THREE.SphereGeometry(0.95, 14, 10), 0x3ef2ff, true, false);
+                    hub.position.y = 5.2;
+                    g.add(mast, hub);
+                    g.userData = { baseX: side * (16 + (index % 2) * 4), baseY: 0 };
                 }
             } else if (sector === 'meteo') {
-                // Deep Space Giant Asteroids, Crystal Clusters & Space Station Ribs
                 if (index % 5 === 0) {
                     const R = 24;
-                    const seg = B(new THREE.BoxGeometry(2.2, 14, 2.6), 0x4a566e, false);
-                    seg.position.set(side * R, 2, 0);
-                    seg.rotation.z = side * 0.35;
-                    const light = B(new THREE.BoxGeometry(0.6, 10, 0.8), 0x3ef2ff, true);
-                    light.position.set(side * (R - 1.1), 2, 0);
-                    light.rotation.z = side * 0.35;
-                    g.add(seg, light);
+                    const arc = B(new THREE.TorusGeometry(R, 1.1, 12, 32, Math.PI * 0.55), 0x4e5c78, false, false);
+                    arc.rotation.z = side > 0 ? -Math.PI * 0.28 : Math.PI * 0.72;
+                    const glowArc = B(new THREE.TorusGeometry(R - 1.3, 0.35, 8, 24, Math.PI * 0.5), 0x3ef2ff, true, false);
+                    glowArc.rotation.z = arc.rotation.z;
+                    g.add(arc, glowArc);
                     g.userData = { baseX: 0, baseY: 0, spin: 0 };
                 } else {
                     const r = 3.5 + (index % 4) * 2.2;
@@ -385,16 +464,14 @@
                     };
                 }
             } else {
-                // Venom: Armored Canyon Trench Buttresses, Plasma Conduits & Searchlight Towers
+                // Venom: Towering Cybernetic Reactor Towers & Searchlights
                 const h = 24 + (index % 3) * 6;
-                const wall = B(new THREE.BoxGeometry(8, h, 10), 0x2c1d3d, false);
-                wall.position.y = h * 0.5 - 6.2;
-                const rib = B(new THREE.BoxGeometry(9.2, h * 0.85, 2.4), 0x422b5c, false);
-                rib.position.y = h * 0.42 - 6.2;
-                const conduit = B(new THREE.BoxGeometry(0.45, h * 0.72, 1.2), (index % 3 === 0) ? 0x3ef2ff : 0xff2e6b, true);
-                conduit.position.set(-side * 4.15, h * 0.42 - 6.2, 0);
-                g.add(wall, rib, conduit);
-                g.userData = { baseX: side * (20 + (index % 2) * 3.5), baseY: 0 };
+                const col = B(new THREE.CylinderGeometry(2.8, 3.6, h, 16), 0x2c1d3d, false, false);
+                col.position.y = h * 0.5 - 6.2;
+                const coreRing = B(new THREE.CylinderGeometry(3.2, 3.2, 1.4, 16), (index % 2 === 0) ? 0xff2e6b : 0x3ef2ff, true, false);
+                coreRing.position.y = h * 0.55 - 6.2;
+                g.add(col, coreRing);
+                g.userData = { baseX: side * (22 + (index % 2) * 5), baseY: 0 };
             }
 
             return g;
@@ -402,6 +479,8 @@
 
         setupSectorEnv(sector) {
             this.sector = sector;
+            this.ribbonL.clear();
+            this.ribbonR.clear();
             if (this.envGroup) {
                 this.scene.remove(this.envGroup);
             }
@@ -409,19 +488,19 @@
             this.scene.add(this.envGroup);
             this.groundPlane = null;
             this.waterMat = null;
+            this.valleyMat = null;
             this.starPoints = null;
             this.sceneryItems = [];
 
-            // 1. Custom Procedural Atmospheric / Space Sky Dome Shader
-            const skyGeo = new THREE.SphereGeometry(420, 32, 20);
-            const isCorneria = sector === 'corneria' ? 1.0 : 0.0;
-            const isMeteo = sector === 'meteo' ? 1.0 : 0.0;
+            // 1. Custom Atmospheric / Cosmic Sky Dome Shader
+            const skyGeo = new THREE.SphereGeometry(440, 36, 24);
+            const modeVal = sector === 'corneria' ? 0.0 : sector === 'meteo' ? 1.0 : 2.0;
             this.skyMat = new THREE.ShaderMaterial({
                 side: THREE.BackSide,
                 depthWrite: false,
                 uniforms: {
                     uTime: { value: 0 },
-                    uMode: { value: isCorneria > 0.5 ? 0.0 : isMeteo > 0.5 ? 1.0 : 2.0 },
+                    uMode: { value: modeVal },
                 },
                 vertexShader: [
                     'varying vec3 vDir;',
@@ -440,27 +519,24 @@
                     '  float y = clamp(d.y, -1.0, 1.0);',
                     '  vec3 col;',
                     '  if (uMode < 0.5) {',
-                    '    // Corneria: Deep azure zenith -> cyan mid-sky -> warm golden-peach horizon + blazing sun disc',
-                    '    vec3 zenith = vec3(0.06, 0.24, 0.58);',
-                    '    vec3 mid = vec3(0.24, 0.62, 0.92);',
-                    '    vec3 horiz = vec3(0.78, 0.92, 1.0);',
-                    '    col = mix(horiz, mid, smoothstep(-0.05, 0.28, y));',
+                    '    vec3 zenith = vec3(0.04, 0.18, 0.48);',
+                    '    vec3 mid = vec3(0.18, 0.56, 0.88);',
+                    '    vec3 horiz = vec3(0.82, 0.94, 1.0);',
+                    '    col = mix(horiz, mid, smoothstep(-0.04, 0.26, y));',
                     '    col = mix(col, zenith, smoothstep(0.22, 0.85, y));',
-                    '    vec3 sunDir = normalize(vec3(0.32, 0.24, -0.92));',
+                    '    vec3 sunDir = normalize(vec3(0.28, 0.22, -0.93));',
                     '    float sunDot = max(0.0, dot(d, sunDir));',
-                    '    col += vec3(1.0, 0.82, 0.48) * pow(sunDot, 14.0) * 0.55;',
-                    '    col += vec3(1.0, 0.98, 0.9) * smoothstep(0.994, 0.9985, sunDot) * 2.2;',
+                    '    col += vec3(1.0, 0.84, 0.52) * pow(sunDot, 12.0) * 0.65;',
+                    '    col += vec3(1.0, 0.98, 0.92) * smoothstep(0.993, 0.9985, sunDot) * 2.5;',
                     '  } else if (uMode < 1.5) {',
-                    '    // Meteo: Deep cosmos with glowing cyan/magenta nebula bands',
-                    '    vec3 bg = vec3(0.015, 0.025, 0.07);',
+                    '    vec3 bg = vec3(0.012, 0.02, 0.06);',
                     '    float n1 = sin(d.x * 4.5 + d.y * 3.0 + uTime * 0.05) * cos(d.z * 3.5 - d.y * 4.0);',
                     '    float neb = smoothstep(0.0, 0.75, n1) * (1.0 - abs(y) * 0.65);',
-                    '    col = bg + vec3(0.08, 0.32, 0.58) * neb + vec3(0.42, 0.08, 0.45) * pow(neb, 2.0);',
+                    '    col = bg + vec3(0.08, 0.36, 0.65) * neb + vec3(0.48, 0.10, 0.52) * pow(neb, 2.0);',
                     '  } else {',
-                    '    // Venom: Stormy crimson-violet toxic atmosphere with horizon plasma glow',
-                    '    vec3 zenith = vec3(0.06, 0.02, 0.11);',
-                    '    vec3 mid = vec3(0.24, 0.05, 0.22);',
-                    '    vec3 horiz = vec3(0.85, 0.18, 0.35);',
+                    '    vec3 zenith = vec3(0.05, 0.015, 0.10);',
+                    '    vec3 mid = vec3(0.22, 0.04, 0.20);',
+                    '    vec3 horiz = vec3(0.88, 0.18, 0.38);',
                     '    col = mix(horiz, mid, smoothstep(-0.06, 0.32, y));',
                     '    col = mix(col, zenith, smoothstep(0.25, 0.85, y));',
                     '    float pulse = 0.5 + 0.5 * sin(uTime * 2.5 + d.x * 6.0);',
@@ -473,20 +549,110 @@
             this.skyDome = new THREE.Mesh(skyGeo, this.skyMat);
             this.envGroup.add(this.skyDome);
 
-            if (sector === 'corneria') {
-                this.scene.fog = new THREE.FogExp2(0x68b8eb, 0.0032);
-                this.hemi.color.setHex(0xe2f5ff);
-                this.hemi.groundColor.setHex(0x28624b);
-                this.sun.color.setHex(0xfff6e0);
+            if (sector === 'corneria' || sector === 'venom') {
+                const isVenom = sector === 'venom';
+                this.scene.fog = new THREE.FogExp2(isVenom ? 0x280b30 : 0x6cbce8, 0.0028);
+                this.hemi.color.setHex(isVenom ? 0xffa8cc : 0xe6f6ff);
+                this.hemi.groundColor.setHex(isVenom ? 0x260934 : 0x245c48);
+                this.sun.color.setHex(isVenom ? 0xffd6e6 : 0xfff6e0);
 
-                // Custom Animated GLSL Ocean Water Shader with Sun Specular Glint, Waves & Tactical Grid
+                // 2A. Continuous 3D Scrolling Displacement Valley / Canyon Terrain Mesh
+                const vGeo = new THREE.PlaneGeometry(340, 300, 110, 96);
+                vGeo.rotateX(-Math.PI / 2);
+                this.valleyMat = new THREE.ShaderMaterial({
+                    uniforms: {
+                        uTime: { value: 0 },
+                        uScrollZ: { value: 0 },
+                        uMode: { value: isVenom ? 1.0 : 0.0 },
+                    },
+                    vertexShader: [
+                        'varying vec3 vWorldPos;',
+                        'varying float vElev;',
+                        'varying vec3 vNorm;',
+                        'uniform float uScrollZ;',
+                        'uniform float uMode;',
+                        'float heightAt(vec2 xz) {',
+                        '  float ax = abs(xz.x);',
+                        '  // Carve flat river/ocean channel in center (|x| < 17), rise into mountains on banks',
+                        '  float bank = smoothstep(15.5, 44.0, ax);',
+                        '  float n1 = sin(xz.x * 0.075 + xz.y * 0.045) * cos(xz.y * 0.062 - xz.x * 0.05);',
+                        '  float n2 = sin(xz.x * 0.18 - xz.y * 0.14) * 0.45;',
+                        '  float n3 = cos(xz.x * 0.35 + xz.y * 0.28) * 0.22;',
+                        '  float ridge = abs(n1 + n2) * 26.0 + n3 * 6.0;',
+                        '  if (uMode > 0.5) {',
+                        '    // Terraced cyber-canyon steps on Venom',
+                        '    ridge = floor(ridge * 0.35) * 3.2;',
+                        '  }',
+                        '  return -7.2 + bank * (4.5 + ridge);',
+                        '}',
+                        'void main() {',
+                        '  vec3 p = position;',
+                        '  vec2 sampleXZ = vec2(p.x, p.z + uScrollZ);',
+                        '  float h = heightAt(sampleXZ);',
+                        '  float hx = heightAt(sampleXZ + vec2(1.2, 0.0));',
+                        '  float hz = heightAt(sampleXZ + vec2(0.0, 1.2));',
+                        '  vNorm = normalize(vec3(h - hx, 1.2, h - hz));',
+                        '  p.y = h;',
+                        '  vElev = h;',
+                        '  vec4 wp = modelMatrix * vec4(p, 1.0);',
+                        '  vWorldPos = wp.xyz;',
+                        '  gl_Position = projectionMatrix * viewMatrix * wp;',
+                        '}',
+                    ].join('\n'),
+                    fragmentShader: [
+                        'precision highp float;',
+                        'varying vec3 vWorldPos;',
+                        'varying float vElev;',
+                        'varying vec3 vNorm;',
+                        'uniform float uTime;',
+                        'uniform float uScrollZ;',
+                        'uniform float uMode;',
+                        'void main() {',
+                        '  if (vElev < -5.85) discard;',
+                        '  vec3 N = normalize(vNorm);',
+                        '  vec3 L = normalize(vec3(0.42, 0.82, 0.38));',
+                        '  float diff = clamp(dot(N, L), 0.0, 1.0);',
+                        '  float dist = length(vWorldPos.xz);',
+                        '  float fade = exp(-dist * 0.0048);',
+                        '  vec3 col;',
+                        '  if (uMode < 0.5) {',
+                        '    // Corneria Biomes: Sandy beach -> Emerald forest -> Alpine granite -> Snow peaks',
+                        '    vec3 sand = vec3(0.86, 0.78, 0.56);',
+                        '    vec3 forest = vec3(0.14, 0.48, 0.32);',
+                        '    vec3 rock = vec3(0.36, 0.42, 0.50);',
+                        '    vec3 snow = vec3(0.94, 0.97, 1.0);',
+                        '    col = mix(sand, forest, smoothstep(-5.8, -2.5, vElev));',
+                        '    col = mix(col, rock, smoothstep(1.5, 9.5, vElev) + (1.0 - N.y) * 0.45);',
+                        '    col = mix(col, snow, smoothstep(11.0, 18.0, vElev) * smoothstep(0.45, 0.85, N.y));',
+                        '    vec3 lightCol = vec3(0.35, 0.48, 0.62) + vec3(0.95, 0.90, 0.78) * diff;',
+                        '    col *= lightCol;',
+                        '    vec3 fogCol = vec3(0.62, 0.86, 0.98);',
+                        '    col = mix(fogCol, col, fade);',
+                        '  } else {',
+                        '    // Venom Armored Trench Walls + Glowing Energy Conduits',
+                        '    vec3 metal = vec3(0.16, 0.09, 0.24) * (0.4 + 0.75 * diff);',
+                        '    float stripe = smoothstep(0.92, 0.98, abs(sin((vWorldPos.z + uScrollZ) * 0.18)));',
+                        '    float tierGlow = smoothstep(0.88, 0.96, abs(sin(vElev * 1.4)));',
+                        '    col = metal + vec3(1.0, 0.18, 0.46) * tierGlow * 0.65 + vec3(0.25, 0.92, 1.0) * stripe * 0.45;',
+                        '    vec3 fogCol = vec3(0.22, 0.06, 0.25);',
+                        '    col = mix(fogCol, col, fade);',
+                        '  }',
+                        '  gl_FragColor = vec4(col, 1.0);',
+                        '}',
+                    ].join('\n'),
+                });
+                const valleyMesh = new THREE.Mesh(vGeo, this.valleyMat);
+                valleyMesh.position.set(0, 0, -95);
+                this.envGroup.add(valleyMesh);
+
+                // 2B. Photorealistic Animated Ocean Water / Plasma Trench Floor Shader
                 const gGeo = new THREE.PlaneGeometry(1200, 1200, 1, 1);
                 gGeo.rotateX(-Math.PI / 2);
                 this.waterMat = new THREE.ShaderMaterial({
                     uniforms: {
                         uTime: { value: 0 },
                         uScrollZ: { value: 0 },
-                        uMode: { value: 0.0 },
+                        uMode: { value: isVenom ? 1.0 : 0.0 },
                     },
                     vertexShader: [
                         'varying vec3 vWorldPos;',
@@ -503,39 +669,36 @@
                         'uniform float uScrollZ;',
                         'uniform float uMode;',
                         'void main() {',
-                        '  vec2 p = vec2(vWorldPos.x, vWorldPos.z - uScrollZ);',
+                        '  vec2 p = vec2(vWorldPos.x, vWorldPos.z + uScrollZ);',
                         '  float dist = length(vWorldPos.xz);',
                         '  float fade = exp(-dist * 0.0042);',
                         '  if (uMode < 0.5) {',
-                        '    // Corneria Ocean Waves + Sun Glint + Foam + Horizon Fog',
-                        '    float w1 = sin(p.x * 0.35 + p.y * 0.22 + uTime * 2.4);',
-                        '    float w2 = cos(p.x * 0.62 - p.y * 0.48 + uTime * 3.1);',
-                        '    float w3 = sin((p.x + p.y) * 1.15 - uTime * 4.2);',
-                        '    float wave = (w1 + w2 * 0.6 + w3 * 0.35) / 1.95;',
-                        '    vec3 deep = vec3(0.04, 0.25, 0.52);',
-                        '    vec3 shallow = vec3(0.10, 0.48, 0.78);',
+                        '    float w1 = sin(p.x * 0.42 + p.y * 0.26 + uTime * 2.6);',
+                        '    float w2 = cos(p.x * 0.75 - p.y * 0.52 + uTime * 3.4);',
+                        '    float w3 = sin((p.x - p.y) * 1.35 - uTime * 4.5);',
+                        '    float wave = (w1 + w2 * 0.65 + w3 * 0.35) / 2.0;',
+                        '    vec3 deep = vec3(0.03, 0.22, 0.48);',
+                        '    vec3 shallow = vec3(0.08, 0.52, 0.82);',
                         '    vec3 col = mix(deep, shallow, wave * 0.5 + 0.5);',
-                        '    float foam = smoothstep(0.58, 0.88, wave);',
-                        '    col = mix(col, vec3(0.78, 0.95, 1.0), foam * 0.42);',
-                        '    // Sun reflection path along the water',
-                        '    float sunPath = exp(-pow((vWorldPos.x - 18.0) * 0.045, 2.0));',
-                        '    float glint = smoothstep(0.35, 0.85, wave) * sunPath;',
-                        '    col += vec3(1.0, 0.92, 0.72) * glint * 0.68;',
-                        '    // Subtle holographic horizon grid lines',
-                        '    vec2 g = abs(fract(p * 0.08) - 0.5);',
-                        '    float line = 1.0 - smoothstep(0.0, 0.035, min(g.x, g.y));',
-                        '    col += vec3(0.25, 0.82, 1.0) * line * 0.14 * fade;',
-                        '    vec3 fogCol = vec3(0.58, 0.84, 0.98);',
+                        '    // Shoreline surf foam where water meets canyon banks (|x| ~ 15.5)',
+                        '    float bankDist = abs( abs(vWorldPos.x) - 15.8 + w1 * 0.8 );',
+                        '    float shoreFoam = exp(-bankDist * 1.15);',
+                        '    float crestFoam = smoothstep(0.56, 0.86, wave);',
+                        '    col = mix(col, vec3(0.86, 0.97, 1.0), clamp(crestFoam * 0.38 + shoreFoam * 0.75, 0.0, 1.0));',
+                        '    // Sparkling sun specular path',
+                        '    float sunPath = exp(-pow((vWorldPos.x - 6.0) * 0.08, 2.0));',
+                        '    float glint = smoothstep(0.28, 0.82, wave) * sunPath;',
+                        '    col += vec3(1.0, 0.94, 0.76) * glint * 0.85;',
+                        '    vec3 fogCol = vec3(0.62, 0.86, 0.98);',
                         '    col = mix(fogCol, col, fade);',
                         '    gl_FragColor = vec4(col, 1.0);',
                         '  } else {',
-                        '    // Venom Fortress Floor + Molten Plasma Channels',
                         '    vec2 g = abs(fract(p * 0.075) - 0.5);',
                         '    float line = 1.0 - smoothstep(0.0, 0.045, min(g.x, g.y));',
                         '    float pulse = 0.65 + 0.35 * sin(p.y * 0.12 + uTime * 4.0);',
-                        '    vec3 base = vec3(0.09, 0.04, 0.14);',
+                        '    vec3 base = vec3(0.08, 0.03, 0.13);',
                         '    vec3 neon = mix(vec3(1.0, 0.15, 0.42), vec3(0.25, 0.92, 1.0), smoothstep(-14.0, 14.0, vWorldPos.x));',
-                        '    vec3 col = base + neon * line * 0.55 * pulse * fade;',
+                        '    vec3 col = base + neon * line * 0.62 * pulse * fade;',
                         '    vec3 fogCol = vec3(0.22, 0.06, 0.25);',
                         '    col = mix(fogCol, col, fade);',
                         '    gl_FragColor = vec4(col, 1.0);',
@@ -546,31 +709,30 @@
                 this.groundPlane = new THREE.Mesh(gGeo, this.waterMat);
                 this.groundPlane.position.y = -6.0;
                 this.envGroup.add(this.groundPlane);
-            } else if (sector === 'meteo') {
-                this.scene.fog = new THREE.FogExp2(0x090e24, 0.0026);
+            } else {
+                // Meteo Deep Space
+                this.scene.fog = new THREE.FogExp2(0x090e24, 0.0024);
                 this.hemi.color.setHex(0xa8ccff);
                 this.hemi.groundColor.setHex(0x221638);
                 this.sun.color.setHex(0xe8f2ff);
 
-                // Giant Distant Ringed Planet in Meteo Sky
                 const planetGroup = new THREE.Group();
                 planetGroup.position.set(-65, 38, -260);
-                const planet = SW.Models.bakePartGeo(new THREE.IcosahedronGeometry(36, 2), 0x3b6ee8, false);
-                const ringGeo = new THREE.RingGeometry(48, 72, 32);
+                const planet = SW.Models.bakePartGeo(new THREE.SphereGeometry(36, 32, 24), 0x2d62e0, false, false);
+                const ringGeo = new THREE.RingGeometry(48, 74, 48);
                 ringGeo.rotateX(Math.PI * 0.38);
                 ringGeo.rotateY(0.25);
                 const pRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({
                     color: 0x62e8ff,
                     side: THREE.DoubleSide,
                     transparent: true,
-                    opacity: 0.38,
+                    opacity: 0.42,
                 }));
                 planetGroup.add(planet, pRing);
                 this.envGroup.add(planetGroup);
 
-                // Rich Multi-Color Starfield
                 const starGeo = new THREE.BufferGeometry();
-                const count = 1800;
+                const count = 2000;
                 const pos = new Float32Array(count * 3);
                 const col = new Float32Array(count * 3);
                 for (let i = 0; i < count; i++) {
@@ -584,58 +746,11 @@
                 starGeo.setAttribute('color', new THREE.BufferAttribute(col, 3));
                 this.starPoints = new THREE.Points(starGeo, new THREE.PointsMaterial({ size: 1.6, vertexColors: true, transparent: true, opacity: 0.95, toneMapped: false }));
                 this.envGroup.add(this.starPoints);
-            } else {
-                // Venom Trench / Core
-                this.scene.fog = new THREE.FogExp2(0x280b30, 0.0034);
-                this.hemi.color.setHex(0xffa8cc);
-                this.hemi.groundColor.setHex(0x260934);
-                this.sun.color.setHex(0xffd6e6);
-
-                const gGeo = new THREE.PlaneGeometry(1200, 1200, 1, 1);
-                gGeo.rotateX(-Math.PI / 2);
-                this.waterMat = new THREE.ShaderMaterial({
-                    uniforms: {
-                        uTime: { value: 0 },
-                        uScrollZ: { value: 0 },
-                        uMode: { value: 1.0 },
-                    },
-                    vertexShader: [
-                        'varying vec3 vWorldPos;',
-                        'void main() {',
-                        '  vec4 wp = modelMatrix * vec4(position, 1.0);',
-                        '  vWorldPos = wp.xyz;',
-                        '  gl_Position = projectionMatrix * viewMatrix * wp;',
-                        '}',
-                    ].join('\n'),
-                    fragmentShader: [
-                        'precision highp float;',
-                        'varying vec3 vWorldPos;',
-                        'uniform float uTime;',
-                        'uniform float uScrollZ;',
-                        'void main() {',
-                        '  vec2 p = vec2(vWorldPos.x, vWorldPos.z - uScrollZ);',
-                        '  float dist = length(vWorldPos.xz);',
-                        '  float fade = exp(-dist * 0.0042);',
-                        '  vec2 g = abs(fract(p * 0.075) - 0.5);',
-                        '  float line = 1.0 - smoothstep(0.0, 0.045, min(g.x, g.y));',
-                        '  float pulse = 0.65 + 0.35 * sin(p.y * 0.12 + uTime * 4.0);',
-                        '  vec3 base = vec3(0.09, 0.04, 0.14);',
-                        '  vec3 neon = mix(vec3(1.0, 0.15, 0.42), vec3(0.25, 0.92, 1.0), smoothstep(-14.0, 14.0, vWorldPos.x));',
-                        '  vec3 col = base + neon * line * 0.58 * pulse * fade;',
-                        '  vec3 fogCol = vec3(0.18, 0.05, 0.22);',
-                        '  col = mix(fogCol, col, fade);',
-                        '  gl_FragColor = vec4(col, 1.0);',
-                        '}',
-                    ].join('\n'),
-                });
-                this.groundPlane = new THREE.Mesh(gGeo, this.waterMat);
-                this.groundPlane.position.y = -6.0;
-                this.envGroup.add(this.groundPlane);
             }
 
-            // 3. Populate 36 Scrolling 3D Corridor Scenery Objects (Mountains, Towers, Clouds, Asteroids, Trench Walls)
-            const totalProps = 36;
-            const spanZ = 250;
+            // 3. Populate 30 Scrolling 3D Architectural / Cloud / Asteroid Props
+            const totalProps = 30;
+            const spanZ = 240;
             for (let i = 0; i < totalProps; i++) {
                 const prop = this.buildSceneryProp(sector, i);
                 const z = 15 - (i / totalProps) * spanZ;
@@ -668,7 +783,7 @@
                 if (this.debrisList.length >= 260) this.debrisList.shift();
                 const a = Math.random() * TAU, el = (Math.random() - 0.3) * Math.PI;
                 const sp = (0.4 + Math.random() * 0.85) * (speed || 13);
-                const col = (i % 3 === 0) ? (hex1 || 0x7a8ca6) : (i % 3 === 1) ? (hex2 || 0xff7a28) : 0x2b3442;
+                const col = (i % 3 === 0) ? (hex1 || 0x8ea0b8) : (i % 3 === 1) ? (hex2 || 0xff7a28) : 0x2b3442;
                 this.debrisList.push({
                     x, y, z,
                     vx: Math.cos(a) * Math.cos(el) * sp,
@@ -686,11 +801,10 @@
         explosion(x, y, z, scale, colorHex, ripple) {
             const s = scale || 1;
             const c1 = colorHex || 0xff9a38;
-            // Core white flash + radial plasma fireball particles
-            this.emitSpark(x, y, z, 0, 0, 0, 0.22, 2.4 * s, 0.2, 0xffffff, 0);
-            this.emitShockRing(x, y, z, 5.5 * s, c1, 0.45);
+            this.emitSpark(x, y, z, 0, 0, 0, 0.24, 2.6 * s, 0.2, 0xffffff, 0);
+            this.emitShockRing(x, y, z, 5.8 * s, c1, 0.46);
             if (s > 1.3) {
-                this.emitShockRing(x, y, z, 9.0 * s, 0x52f2ff, 0.62);
+                this.emitShockRing(x, y, z, 9.5 * s, 0x52f2ff, 0.64);
             }
             for (let i = 0; i < Math.round(22 * s); i++) {
                 const a = Math.random() * TAU, el = (Math.random() - 0.5) * Math.PI;
@@ -719,17 +833,21 @@
 
         updateVfx(dt, anchorPos) {
             this.time += dt;
-            const scrollSpeed = 52 * (1 + this.boostK * 0.65);
+            const scrollSpeed = 54 * (1 + this.boostK * 0.65);
+            const scrollZ = anchorPos ? -anchorPos.z : this.time * 48;
 
             if (this.skyMat) {
                 this.skyMat.uniforms.uTime.value = this.time;
             }
+            if (this.valleyMat) {
+                this.valleyMat.uniforms.uTime.value = this.time;
+                this.valleyMat.uniforms.uScrollZ.value = scrollZ;
+            }
             if (this.waterMat) {
                 this.waterMat.uniforms.uTime.value = this.time;
-                this.waterMat.uniforms.uScrollZ.value = anchorPos ? anchorPos.z : -this.time * 42;
+                this.waterMat.uniforms.uScrollZ.value = scrollZ;
             }
 
-            // Scroll 3D corridor scenery props past camera for high-speed depth perception
             for (let i = 0; i < this.sceneryItems.length; i++) {
                 const item = this.sceneryItems[i];
                 item.position.z += scrollSpeed * dt;
@@ -738,7 +856,7 @@
                     item.rotation.y += item.userData.spin * 0.7 * dt;
                 }
                 if (item.position.z > 22) {
-                    item.position.z -= 250;
+                    item.position.z -= 240;
                 }
             }
 
@@ -752,7 +870,7 @@
             const tmpS = new THREE.Vector3();
             const tmpC = new THREE.Color();
 
-            // Update sparks & contrails
+            // Update sparks
             for (let i = this.sparks.length - 1; i >= 0; i--) {
                 const p = this.sparks[i];
                 p.t += dt;

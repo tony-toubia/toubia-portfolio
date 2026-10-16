@@ -404,25 +404,35 @@
             position: absolute;
             inset: 0;
             z-index: 20;
-            background: radial-gradient(circle at center, rgba(6, 16, 36, 0.72) 0%, rgba(3, 8, 20, 0.94) 100%);
+            background: radial-gradient(circle at center, rgba(6, 16, 36, 0.45) 0%, rgba(3, 8, 20, 0.82) 100%);
             display: none;
             align-items: center;
             justify-content: center;
             padding: 16px;
             overflow-y: auto;
         }
+        #scr-title {
+            background: linear-gradient(180deg, rgba(4, 10, 24, 0.18) 0%, rgba(4, 10, 24, 0.0) 52%, rgba(3, 8, 22, 0.82) 100%);
+            align-items: flex-end;
+            padding-bottom: max(28px, env(safe-area-inset-bottom, 24px));
+        }
+        #scr-title .card {
+            background: rgba(6, 16, 34, 0.72);
+            padding: 18px 24px;
+            width: min(620px, 94vw);
+        }
         .screen.show { display: flex; }
         .card {
             background: var(--panel);
             border: 1.5px solid var(--border);
-            border-radius: 14px;
+            border-radius: 16px;
             padding: 24px;
             width: min(560px, 94vw);
             max-height: 90dvh;
             overflow-y: auto;
             text-align: center;
-            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.75), 0 0 30px rgba(69, 242, 255, 0.16);
-            backdrop-filter: blur(10px);
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.65), 0 0 32px rgba(69, 242, 255, 0.18);
+            backdrop-filter: blur(12px);
         }
         .card.wide { width: min(860px, 96vw); }
         .kicker {
@@ -643,10 +653,10 @@
         <!-- Title Screen -->
         <div class="screen show" id="scr-title">
             <div class="card">
-                <div class="kicker">LYLAT DEFENSE FORCE // N64 TRIBUTE</div>
-                <h1>STARWING 64</h1>
+                <div class="kicker">LYLAT DEFENSE FORCE // TACTICAL INTERCEPTOR</div>
+                <h1>STARWING</h1>
                 <p class="lead">
-                    Pilot the Arwing through Corneria, the Meteo Asteroid Belt, and Venom's Core. Deflect lasers with Barrel Rolls, charge homing lock-on shots, rescue your wingmen, and topple Emperor Andron!
+                    Pilot the next-gen Arwing through Corneria's coastal canyons, the Meteo Asteroid Belt, and Venom's Core. Deflect enemy fire with Barrel Rolls, lock on with homing plasma torpedoes, and rescue your squadron.
                 </p>
                 <div class="btn-row">
                     <button type="button" class="btn primary" id="btn-quick-launch">SCRAMBLE NOW (CORNERIA)</button>
@@ -707,13 +717,13 @@
         </div>
     </div>
 
-    <script src="vendor/three.min.js?v=2"></script>
-    <script src="js/audio.js?v=2"></script>
-    <script src="js/models.js?v=2"></script>
-    <script src="js/render.js?v=2"></script>
-    <script src="js/game.js?v=2"></script>
-    <script src="js/input.js?v=2"></script>
-    <script src="js/ui.js?v=2"></script>
-    <script src="js/main.js?v=2"></script>
+    <script src="vendor/three.min.js?v=3"></script>
+    <script src="js/audio.js?v=3"></script>
+    <script src="js/models.js?v=3"></script>
+    <script src="js/render.js?v=3"></script>
+    <script src="js/game.js?v=3"></script>
+    <script src="js/input.js?v=3"></script>
+    <script src="js/ui.js?v=3"></script>
+    <script src="js/main.js?v=3"></script>
 </body>
 </html>
