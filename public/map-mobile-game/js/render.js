@@ -981,7 +981,7 @@ window.PH = window.PH || {};
      * replacing the old flat 2D OS emoji sprites.
      */
     buildPickups() {
-      this.pickupPool = [];
+      this.pickupPool = { chest: [], heart: [], magnet: [] };
       const L = PH.Look;
       const makePickupModel = (kind) => {
         const g = new THREE.Group();
@@ -1036,10 +1036,12 @@ window.PH = window.PH || {};
         }
         g.visible = false;
         this.scene.add(g);
-        return { root: g, kind };
+        return g;
       };
       for (let i = 0; i < 12; i++) {
-        this.pickupPool.push({ chest: makePickupModel('chest'), heart: makePickupModel('heart'), magnet: makePickupModel('magnet') });
+        this.pickupPool.chest.push(makePickupModel('chest'));
+        this.pickupPool.heart.push(makePickupModel('heart'));
+        this.pickupPool.magnet.push(makePickupModel('magnet'));
       }
     }
 
