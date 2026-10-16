@@ -1,4 +1,6 @@
-// Starwing 64: 3D WebGL Renderer, Dual-Kawase Bloom & Shockwave Post-Processing, Sector Environments & VFX.
+// Starwing 64: 3D WebGL Renderer, Custom Sky Dome & Ocean Water Shaders,
+// Scrolling 3D World Scenery (Mountains, City Skyline, Trench Walls, Nebula Planet),
+// Dual-Kawase Bloom & Shockwave Post-Processing, 3D Shock Rings & Shatter Debris.
 (function () {
     'use strict';
     const SW = window.SW = window.SW || {};
@@ -40,8 +42,8 @@
                 '  c += texture2D(tScene, vUv + vec2(uTexel.x, -uTexel.y)).rgb * 0.1875;',
                 '  c += texture2D(tScene, vUv + vec2(-uTexel.x, -uTexel.y)).rgb * 0.1875;',
                 '  float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));',
-                '  float knee = smoothstep(0.62, 1.15, lum);',
-                '  gl_FragColor = vec4(c * knee * 1.15, 1.0);',
+                '  float knee = smoothstep(0.58, 1.12, lum);',
+                '  gl_FragColor = vec4(c * knee * 1.25, 1.0);',
                 '}',
             ].join('\n'),
             depthTest: false, depthWrite: false,
@@ -56,7 +58,7 @@
                 'uniform sampler2D tTex;',
                 'uniform vec2 uTexel;',
                 'void main(){',
-                '  vec2 d = uTexel * 1.45;',
+                '  vec2 d = uTexel * 1.55;',
                 '  vec3 s = texture2D(tTex, vUv).rgb * 0.28;',
                 '  s += texture2D(tTex, vUv + vec2(d.x, d.y)).rgb * 0.18;',
                 '  s += texture2D(tTex, vUv + vec2(-d.x, d.y)).rgb * 0.18;',
@@ -99,30 +101,28 @@
                 '      warp += dir * band * rp.w;',
                 '    }',
                 '  }',
-                '  uv = clamp(uv + warp, 0.001, 0.999);',
-                '  vec2 cDist = uv - 0.5;',
-                '  float ca = dot(cDist, cDist) * (0.0045 + uBoost * 0.012) + length(warp) * 0.35;',
-                '  vec3 c;',
-                '  c.r = texture2D(tScene, clamp(uv + cDist * ca, 0.001, 0.999)).r;',
-                '  c.g = texture2D(tScene, uv).g;',
-                '  c.b = texture2D(tScene, clamp(uv - cDist * ca, 0.001, 0.999)).b;',
-                '  vec3 bloom = texture2D(tBloom, uv).rgb;',
-                '  c += bloom * 0.42;',
-                '  c = clamp(c, 0.0, 1.0);',
-                '  vec3 sc = c * c * (3.0 - 2.0 * c);',
-                '  c = mix(c, sc, 0.22);',
-                '  float l = dot(c, vec3(0.299, 0.587, 0.114));',
-                '  c = clamp(mix(vec3(l), c, 1.15), 0.0, 1.0);',
-                '  float r2 = dot(cDist, cDist);',
-                '  c *= 1.0 - smoothstep(0.18, 0.72, r2) * (0.24 + uBoost * 0.12);',
-                '  gl_FragColor = vec4(c, 1.0);',
+                '  vec2 cUv = clamp(uv + warp, vec2(0.001), vec2(0.999));',
+                '  vec2 edge = uv - 0.5;',
+                '  float r2 = dot(edge, edge);',
+                '  float ca = length(warp) * 0.55 + r2 * (0.003 + uBoost * 0.012);',
+                '  vec2 caDir = normalize(edge + vec2(1e-5)) * ca;',
+                '  vec3 col;',
+                '  col.r = texture2D(tScene, clamp(cUv + caDir, vec2(0.001), vec2(0.999))).r;',
+                '  col.g = texture2D(tScene, cUv).g;',
+                '  col.b = texture2D(tScene, clamp(cUv - caDir, vec2(0.001), vec2(0.999))).b;',
+                '  vec3 bloom = texture2D(tBloom, cUv).rgb;',
+                '  col += bloom * 0.78;',
+                '  col *= 1.05;',
+                '  float vig = smoothstep(0.95, 0.24, r2);',
+                '  col *= mix(0.76, 1.04, vig);',
+                '  col = pow(max(col, vec3(0.0)), vec3(1.0 / 2.2));',
+                '  gl_FragColor = vec4(col, 1.0);',
                 '}',
             ].join('\n'),
             depthTest: false, depthWrite: false,
         });
 
         const quad = new THREE.Mesh(quadGeo, mat);
-        quad.frustumCulled = false;
         scene.add(quad);
 
         return {
@@ -138,25 +138,26 @@
                 rtDown.setSize(nb2w, nb2h);
                 rtBlur.setSize(nbw, nbh);
                 brightMat.uniforms.uTexel.value.set(1 / nw, 1 / nh);
+                blurMat.uniforms.uTexel.value.set(1 / nbw, 1 / nbh);
                 mat.uniforms.uAspect.value = nw / Math.max(1, nh);
             },
-            setRipples(list, boostK) {
+            setRipples(list, boost) {
                 const arr = mat.uniforms.uRipple.value;
                 for (let i = 0; i < 4; i++) {
-                    const r = list && list[i];
-                    if (r) arr[i].set(r[0], r[1], r[2], r[3]);
+                    const src = list && list[i];
+                    if (src) arr[i].set(src[0], src[1], src[2], src[3]);
                     else arr[i].set(0, 0, 0, 0);
                 }
-                mat.uniforms.uBoost.value = boostK || 0;
+                mat.uniforms.uBoost.value = boost || 0;
             },
             render(mainScene, mainCam) {
                 const prev = renderer.getRenderTarget();
                 const prevAuto = renderer.autoClear;
+                renderer.autoClear = true;
                 renderer.setRenderTarget(rt);
-                renderer.clear();
+                renderer.clear(true, true, false);
                 renderer.render(mainScene, mainCam);
 
-                renderer.autoClear = true;
                 quad.material = brightMat;
                 renderer.setRenderTarget(rtBright);
                 renderer.render(scene, cam);
@@ -188,8 +189,7 @@
         grd.addColorStop(1, outer);
         g.fillStyle = grd;
         g.fillRect(0, 0, 64, 64);
-        const t = new THREE.CanvasTexture(c);
-        return t;
+        return new THREE.CanvasTexture(c);
     }
 
     class Renderer {
@@ -203,26 +203,26 @@
             gl.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
             gl.outputEncoding = THREE.sRGBEncoding;
             gl.toneMapping = THREE.ACESFilmicToneMapping;
-            gl.toneMappingExposure = 1.08;
+            gl.toneMappingExposure = 1.12;
             gl.shadowMap.enabled = true;
             gl.shadowMap.type = THREE.PCFSoftShadowMap;
 
             this.scene = new THREE.Scene();
-            this.scene.background = new THREE.Color(0x070d1c);
-            this.scene.fog = new THREE.FogExp2(0x070d1c, 0.0048);
+            this.scene.background = new THREE.Color(0x0b162c);
+            this.scene.fog = new THREE.FogExp2(0x4ea8de, 0.0028);
 
-            this.camera = new THREE.PerspectiveCamera(56, 1.6, 0.3, 420);
-            this.hemi = new THREE.HemisphereLight(0xd6ebff, 0x263248, 0.85);
+            this.camera = new THREE.PerspectiveCamera(58, 1.6, 0.3, 550);
+            this.hemi = new THREE.HemisphereLight(0xdff4ff, 0x243b4a, 0.92);
             this.scene.add(this.hemi);
 
-            const sun = this.sun = new THREE.DirectionalLight(0xfff4df, 1.35);
-            sun.position.set(40, 85, 50);
+            const sun = this.sun = new THREE.DirectionalLight(0xfff5e0, 1.45);
+            sun.position.set(45, 95, 55);
             sun.castShadow = true;
             sun.shadow.mapSize.set(1536, 1536);
             sun.shadow.bias = -0.0005;
             const sc = sun.shadow.camera;
-            sc.near = 10; sc.far = 220;
-            sc.left = -45; sc.right = 45; sc.top = 45; sc.bottom = -45;
+            sc.near = 10; sc.far = 240;
+            sc.left = -50; sc.right = 50; sc.top = 50; sc.bottom = -50;
             this.scene.add(sun);
             this.scene.add(sun.target);
 
@@ -231,26 +231,43 @@
             this.scene.add(this.worldGroup, this.fxGroup);
 
             this.glowTex = radialTex('rgba(255,255,255,1)', 'rgba(255,255,255,0)');
-            this.shadowTex = radialTex('rgba(0,0,0,0.65)', 'rgba(0,0,0,0)');
+            this.shadowTex = radialTex('rgba(0,0,0,0.68)', 'rgba(0,0,0,0)');
 
             // Instanced 3D faceted shatter debris
-            const dGeo = new THREE.OctahedronGeometry(0.28, 0);
-            dGeo.scale(1.3, 0.55, 0.95);
-            this.debrisMesh = new THREE.InstancedMesh(dGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, metalness: 0.35, flatShading: true }), 240);
+            const dGeo = new THREE.OctahedronGeometry(0.32, 0);
+            dGeo.scale(1.35, 0.52, 0.95);
+            this.debrisMesh = new THREE.InstancedMesh(dGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4, metalness: 0.45, flatShading: true }), 260);
             this.debrisMesh.count = 0;
             this.debrisMesh.frustumCulled = false;
             this.debrisMesh.setColorAt(0, new THREE.Color(1, 1, 1));
             this.fxGroup.add(this.debrisMesh);
             this.debrisList = [];
 
-            // Instanced Spark / Explosion / Wake / Trail billboards
-            const pGeo = new THREE.SphereGeometry(0.32, 6, 5);
-            this.sparkMesh = new THREE.InstancedMesh(pGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), 320);
+            // Instanced Spark / Explosion / Wake / Wingtip Contrail Spheres
+            const pGeo = new THREE.SphereGeometry(0.34, 6, 5);
+            this.sparkMesh = new THREE.InstancedMesh(pGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.92, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), 420);
             this.sparkMesh.count = 0;
             this.sparkMesh.frustumCulled = false;
             this.sparkMesh.setColorAt(0, new THREE.Color(1, 1, 1));
             this.fxGroup.add(this.sparkMesh);
             this.sparks = [];
+
+            // 3D Expanding Plasma Shockwave Rings on explosions
+            const ringGeo = new THREE.RingGeometry(0.65, 1.0, 24);
+            this.shockRingMesh = new THREE.InstancedMesh(ringGeo, new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.85,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                toneMapped: false,
+            }), 32);
+            this.shockRingMesh.count = 0;
+            this.shockRingMesh.frustumCulled = false;
+            this.shockRingMesh.setColorAt(0, new THREE.Color(1, 1, 1));
+            this.fxGroup.add(this.shockRingMesh);
+            this.shockRings = [];
 
             // Contact shadows on Corneria / Venom floor
             const shGeo = new THREE.PlaneGeometry(1, 1); shGeo.rotateX(-Math.PI / 2);
@@ -266,7 +283,10 @@
             this.boostK = 0;
             this.sector = 'corneria';
             this.groundPlane = null;
-            this.starField = null;
+            this.waterMat = null;
+            this.skyDome = null;
+            this.starPoints = null;
+            this.sceneryItems = [];
             this.resize();
         }
 
@@ -287,6 +307,99 @@
             this.hud.style.height = h + 'px';
         }
 
+        // Build procedural 3D scenery prop for scrolling corridor
+        buildSceneryProp(sector, index) {
+            const B = SW.Models.bakePartGeo;
+            const g = new THREE.Group();
+            const side = (index % 2 === 0) ? -1 : 1;
+
+            if (sector === 'corneria') {
+                const kind = index % 4;
+                if (kind === 0) {
+                    // Emerald Low-Poly Coastal Mountain Peak + Snow Cap
+                    const h = 18 + (index % 5) * 6;
+                    const r = 11 + (index % 4) * 3.5;
+                    const mtn = B(new THREE.ConeGeometry(r, h, 6), 0x2d7a58, false);
+                    mtn.position.y = h * 0.5 - 6.2;
+                    const cap = B(new THREE.ConeGeometry(r * 0.42, h * 0.36, 6), 0xebf5ff, false);
+                    cap.position.y = h * 0.82 - 6.2;
+                    const sub = B(new THREE.ConeGeometry(r * 0.7, h * 0.6, 5), 0x388e66, false);
+                    sub.position.set(-side * r * 0.45, h * 0.3 - 6.2, 4);
+                    g.add(mtn, cap, sub);
+                    g.userData = { baseX: side * (24 + (index % 3) * 10), baseY: 0 };
+                } else if (kind === 1) {
+                    // Corneria Futuristic Monolith City Skyscraper + Glowing Spire
+                    const h = 16 + (index % 4) * 5;
+                    const w = 4.2 + (index % 3) * 1.2;
+                    const tower = B(new THREE.BoxGeometry(w, h, w), 0xd8e4f2, false);
+                    tower.position.y = h * 0.5 - 6.0;
+                    const crown = B(new THREE.BoxGeometry(w * 0.72, 3.2, w * 0.72), 0x2668e8, false);
+                    crown.position.y = h - 4.5;
+                    const strip = B(new THREE.BoxGeometry(w * 1.04, 0.55, w * 1.04), 0x3ef2ff, true);
+                    strip.position.y = h - 5.8;
+                    const beacon = B(new THREE.OctahedronGeometry(0.55, 0), 0x3ef2ff, true);
+                    beacon.position.y = h - 2.2;
+                    g.add(tower, crown, strip, beacon);
+                    g.userData = { baseX: side * (18 + (index % 3) * 6), baseY: 0 };
+                } else if (kind === 2) {
+                    // Volumetric Low-Poly Cloud Cluster high in the sky
+                    for (let c = 0; c < 3; c++) {
+                        const puff = B(new THREE.IcosahedronGeometry(3.2 - c * 0.6, 1), 0xf4faff, false);
+                        puff.scale.set(1.7, 0.52, 1.1);
+                        puff.position.set((c - 1) * 3.4, c * 0.4, (c % 2) * 1.5);
+                        g.add(puff);
+                    }
+                    g.userData = { baseX: side * (10 + (index % 4) * 8), baseY: 11 + (index % 3) * 3.5 };
+                } else {
+                    // Coastal Island Mesa + Radar Dish
+                    const isle = B(new THREE.CylinderGeometry(6.5, 9.5, 2.6, 7), 0x3d9468, false);
+                    isle.position.y = -4.9;
+                    const sand = B(new THREE.CylinderGeometry(9.6, 11.2, 0.6, 7), 0xe6d296, false);
+                    sand.position.y = -5.8;
+                    const dish = B(new THREE.ConeGeometry(2.2, 1.5, 6), 0xe8f0fa, false);
+                    dish.rotation.x = -0.6;
+                    dish.position.y = -2.6;
+                    g.add(sand, isle, dish);
+                    g.userData = { baseX: side * (16 + (index % 3) * 7), baseY: 0 };
+                }
+            } else if (sector === 'meteo') {
+                // Deep Space Giant Asteroids, Crystal Clusters & Space Station Ribs
+                if (index % 5 === 0) {
+                    const R = 24;
+                    const seg = B(new THREE.BoxGeometry(2.2, 14, 2.6), 0x4a566e, false);
+                    seg.position.set(side * R, 2, 0);
+                    seg.rotation.z = side * 0.35;
+                    const light = B(new THREE.BoxGeometry(0.6, 10, 0.8), 0x3ef2ff, true);
+                    light.position.set(side * (R - 1.1), 2, 0);
+                    light.rotation.z = side * 0.35;
+                    g.add(seg, light);
+                    g.userData = { baseX: 0, baseY: 0, spin: 0 };
+                } else {
+                    const r = 3.5 + (index % 4) * 2.2;
+                    const rock = SW.Models.asteroid(r, index * 37 + 11);
+                    g.add(rock);
+                    g.userData = {
+                        baseX: side * (15 + (index % 5) * 7),
+                        baseY: ((index % 7) - 3) * 4.2,
+                        spin: (index % 2 === 0 ? 1 : -1) * 0.45,
+                    };
+                }
+            } else {
+                // Venom: Armored Canyon Trench Buttresses, Plasma Conduits & Searchlight Towers
+                const h = 24 + (index % 3) * 6;
+                const wall = B(new THREE.BoxGeometry(8, h, 10), 0x2c1d3d, false);
+                wall.position.y = h * 0.5 - 6.2;
+                const rib = B(new THREE.BoxGeometry(9.2, h * 0.85, 2.4), 0x422b5c, false);
+                rib.position.y = h * 0.42 - 6.2;
+                const conduit = B(new THREE.BoxGeometry(0.45, h * 0.72, 1.2), (index % 3 === 0) ? 0x3ef2ff : 0xff2e6b, true);
+                conduit.position.set(-side * 4.15, h * 0.42 - 6.2, 0);
+                g.add(wall, rib, conduit);
+                g.userData = { baseX: side * (20 + (index % 2) * 3.5), baseY: 0 };
+            }
+
+            return g;
+        }
+
         setupSectorEnv(sector) {
             this.sector = sector;
             if (this.envGroup) {
@@ -295,117 +408,276 @@
             this.envGroup = new THREE.Group();
             this.scene.add(this.envGroup);
             this.groundPlane = null;
+            this.waterMat = null;
             this.starPoints = null;
+            this.sceneryItems = [];
+
+            // 1. Custom Procedural Atmospheric / Space Sky Dome Shader
+            const skyGeo = new THREE.SphereGeometry(420, 32, 20);
+            const isCorneria = sector === 'corneria' ? 1.0 : 0.0;
+            const isMeteo = sector === 'meteo' ? 1.0 : 0.0;
+            this.skyMat = new THREE.ShaderMaterial({
+                side: THREE.BackSide,
+                depthWrite: false,
+                uniforms: {
+                    uTime: { value: 0 },
+                    uMode: { value: isCorneria > 0.5 ? 0.0 : isMeteo > 0.5 ? 1.0 : 2.0 },
+                },
+                vertexShader: [
+                    'varying vec3 vDir;',
+                    'void main() {',
+                    '  vDir = normalize(position);',
+                    '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
+                    '}',
+                ].join('\n'),
+                fragmentShader: [
+                    'precision highp float;',
+                    'varying vec3 vDir;',
+                    'uniform float uTime;',
+                    'uniform float uMode;',
+                    'void main() {',
+                    '  vec3 d = normalize(vDir);',
+                    '  float y = clamp(d.y, -1.0, 1.0);',
+                    '  vec3 col;',
+                    '  if (uMode < 0.5) {',
+                    '    // Corneria: Deep azure zenith -> cyan mid-sky -> warm golden-peach horizon + blazing sun disc',
+                    '    vec3 zenith = vec3(0.06, 0.24, 0.58);',
+                    '    vec3 mid = vec3(0.24, 0.62, 0.92);',
+                    '    vec3 horiz = vec3(0.78, 0.92, 1.0);',
+                    '    col = mix(horiz, mid, smoothstep(-0.05, 0.28, y));',
+                    '    col = mix(col, zenith, smoothstep(0.22, 0.85, y));',
+                    '    vec3 sunDir = normalize(vec3(0.32, 0.24, -0.92));',
+                    '    float sunDot = max(0.0, dot(d, sunDir));',
+                    '    col += vec3(1.0, 0.82, 0.48) * pow(sunDot, 14.0) * 0.55;',
+                    '    col += vec3(1.0, 0.98, 0.9) * smoothstep(0.994, 0.9985, sunDot) * 2.2;',
+                    '  } else if (uMode < 1.5) {',
+                    '    // Meteo: Deep cosmos with glowing cyan/magenta nebula bands',
+                    '    vec3 bg = vec3(0.015, 0.025, 0.07);',
+                    '    float n1 = sin(d.x * 4.5 + d.y * 3.0 + uTime * 0.05) * cos(d.z * 3.5 - d.y * 4.0);',
+                    '    float neb = smoothstep(0.0, 0.75, n1) * (1.0 - abs(y) * 0.65);',
+                    '    col = bg + vec3(0.08, 0.32, 0.58) * neb + vec3(0.42, 0.08, 0.45) * pow(neb, 2.0);',
+                    '  } else {',
+                    '    // Venom: Stormy crimson-violet toxic atmosphere with horizon plasma glow',
+                    '    vec3 zenith = vec3(0.06, 0.02, 0.11);',
+                    '    vec3 mid = vec3(0.24, 0.05, 0.22);',
+                    '    vec3 horiz = vec3(0.85, 0.18, 0.35);',
+                    '    col = mix(horiz, mid, smoothstep(-0.06, 0.32, y));',
+                    '    col = mix(col, zenith, smoothstep(0.25, 0.85, y));',
+                    '    float pulse = 0.5 + 0.5 * sin(uTime * 2.5 + d.x * 6.0);',
+                    '    col += vec3(0.95, 0.25, 0.45) * exp(-abs(y) * 9.0) * (0.25 + 0.15 * pulse);',
+                    '  }',
+                    '  gl_FragColor = vec4(col, 1.0);',
+                    '}',
+                ].join('\n'),
+            });
+            this.skyDome = new THREE.Mesh(skyGeo, this.skyMat);
+            this.envGroup.add(this.skyDome);
 
             if (sector === 'corneria') {
-                this.scene.background.setHex(0x4ea6e8);
-                this.scene.fog = new THREE.FogExp2(0x7ac5f5, 0.0042);
-                this.hemi.color.setHex(0xdff4ff);
-                this.hemi.groundColor.setHex(0x285a48);
+                this.scene.fog = new THREE.FogExp2(0x68b8eb, 0.0032);
+                this.hemi.color.setHex(0xe2f5ff);
+                this.hemi.groundColor.setHex(0x28624b);
                 this.sun.color.setHex(0xfff6e0);
 
-                // Procedural Ocean + Island Grid Texture & Normal Map
-                const tc = document.createElement('canvas'); tc.width = tc.height = 256;
-                const tg = tc.getContext('2d');
-                tg.fillStyle = '#1b6ca8';
-                tg.fillRect(0, 0, 256, 256);
-                tg.strokeStyle = 'rgba(130, 225, 255, 0.25)';
-                tg.lineWidth = 2;
-                for (let i = 0; i < 256; i += 32) {
-                    tg.beginPath(); tg.moveTo(0, i); tg.lineTo(256, i); tg.stroke();
-                    tg.beginPath(); tg.moveTo(i, 0); tg.lineTo(i, 256); tg.stroke();
-                }
-                for (let i = 0; i < 90; i++) {
-                    tg.fillStyle = i % 2 ? 'rgba(255,255,255,0.14)' : 'rgba(12,48,84,0.22)';
-                    tg.fillRect(Math.random() * 256, Math.random() * 256, 18, 4);
-                }
-                const tex = new THREE.CanvasTexture(tc);
-                tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-                tex.repeat.set(90, 90);
-
-                const gGeo = new THREE.PlaneGeometry(2400, 2400);
+                // Custom Animated GLSL Ocean Water Shader with Sun Specular Glint, Waves & Tactical Grid
+                const gGeo = new THREE.PlaneGeometry(1200, 1200, 1, 1);
                 gGeo.rotateX(-Math.PI / 2);
-                const gMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.32, metalness: 0.18 });
-                this.groundPlane = new THREE.Mesh(gGeo, gMat);
+                this.waterMat = new THREE.ShaderMaterial({
+                    uniforms: {
+                        uTime: { value: 0 },
+                        uScrollZ: { value: 0 },
+                        uMode: { value: 0.0 },
+                    },
+                    vertexShader: [
+                        'varying vec3 vWorldPos;',
+                        'void main() {',
+                        '  vec4 wp = modelMatrix * vec4(position, 1.0);',
+                        '  vWorldPos = wp.xyz;',
+                        '  gl_Position = projectionMatrix * viewMatrix * wp;',
+                        '}',
+                    ].join('\n'),
+                    fragmentShader: [
+                        'precision highp float;',
+                        'varying vec3 vWorldPos;',
+                        'uniform float uTime;',
+                        'uniform float uScrollZ;',
+                        'uniform float uMode;',
+                        'void main() {',
+                        '  vec2 p = vec2(vWorldPos.x, vWorldPos.z - uScrollZ);',
+                        '  float dist = length(vWorldPos.xz);',
+                        '  float fade = exp(-dist * 0.0042);',
+                        '  if (uMode < 0.5) {',
+                        '    // Corneria Ocean Waves + Sun Glint + Foam + Horizon Fog',
+                        '    float w1 = sin(p.x * 0.35 + p.y * 0.22 + uTime * 2.4);',
+                        '    float w2 = cos(p.x * 0.62 - p.y * 0.48 + uTime * 3.1);',
+                        '    float w3 = sin((p.x + p.y) * 1.15 - uTime * 4.2);',
+                        '    float wave = (w1 + w2 * 0.6 + w3 * 0.35) / 1.95;',
+                        '    vec3 deep = vec3(0.04, 0.25, 0.52);',
+                        '    vec3 shallow = vec3(0.10, 0.48, 0.78);',
+                        '    vec3 col = mix(deep, shallow, wave * 0.5 + 0.5);',
+                        '    float foam = smoothstep(0.58, 0.88, wave);',
+                        '    col = mix(col, vec3(0.78, 0.95, 1.0), foam * 0.42);',
+                        '    // Sun reflection path along the water',
+                        '    float sunPath = exp(-pow((vWorldPos.x - 18.0) * 0.045, 2.0));',
+                        '    float glint = smoothstep(0.35, 0.85, wave) * sunPath;',
+                        '    col += vec3(1.0, 0.92, 0.72) * glint * 0.68;',
+                        '    // Subtle holographic horizon grid lines',
+                        '    vec2 g = abs(fract(p * 0.08) - 0.5);',
+                        '    float line = 1.0 - smoothstep(0.0, 0.035, min(g.x, g.y));',
+                        '    col += vec3(0.25, 0.82, 1.0) * line * 0.14 * fade;',
+                        '    vec3 fogCol = vec3(0.58, 0.84, 0.98);',
+                        '    col = mix(fogCol, col, fade);',
+                        '    gl_FragColor = vec4(col, 1.0);',
+                        '  } else {',
+                        '    // Venom Fortress Floor + Molten Plasma Channels',
+                        '    vec2 g = abs(fract(p * 0.075) - 0.5);',
+                        '    float line = 1.0 - smoothstep(0.0, 0.045, min(g.x, g.y));',
+                        '    float pulse = 0.65 + 0.35 * sin(p.y * 0.12 + uTime * 4.0);',
+                        '    vec3 base = vec3(0.09, 0.04, 0.14);',
+                        '    vec3 neon = mix(vec3(1.0, 0.15, 0.42), vec3(0.25, 0.92, 1.0), smoothstep(-14.0, 14.0, vWorldPos.x));',
+                        '    vec3 col = base + neon * line * 0.55 * pulse * fade;',
+                        '    vec3 fogCol = vec3(0.22, 0.06, 0.25);',
+                        '    col = mix(fogCol, col, fade);',
+                        '    gl_FragColor = vec4(col, 1.0);',
+                        '  }',
+                        '}',
+                    ].join('\n'),
+                });
+                this.groundPlane = new THREE.Mesh(gGeo, this.waterMat);
                 this.groundPlane.position.y = -6.0;
-                this.groundPlane.receiveShadow = true;
                 this.envGroup.add(this.groundPlane);
-                this.groundTex = tex;
             } else if (sector === 'meteo') {
-                this.scene.background.setHex(0x050814);
-                this.scene.fog = new THREE.FogExp2(0x080d22, 0.0036);
-                this.hemi.color.setHex(0x9ec4ff);
-                this.hemi.groundColor.setHex(0x1c142e);
-                this.sun.color.setHex(0xe0ecff);
+                this.scene.fog = new THREE.FogExp2(0x090e24, 0.0026);
+                this.hemi.color.setHex(0xa8ccff);
+                this.hemi.groundColor.setHex(0x221638);
+                this.sun.color.setHex(0xe8f2ff);
 
+                // Giant Distant Ringed Planet in Meteo Sky
+                const planetGroup = new THREE.Group();
+                planetGroup.position.set(-65, 38, -260);
+                const planet = SW.Models.bakePartGeo(new THREE.IcosahedronGeometry(36, 2), 0x3b6ee8, false);
+                const ringGeo = new THREE.RingGeometry(48, 72, 32);
+                ringGeo.rotateX(Math.PI * 0.38);
+                ringGeo.rotateY(0.25);
+                const pRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({
+                    color: 0x62e8ff,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: 0.38,
+                }));
+                planetGroup.add(planet, pRing);
+                this.envGroup.add(planetGroup);
+
+                // Rich Multi-Color Starfield
                 const starGeo = new THREE.BufferGeometry();
-                const count = 1400;
+                const count = 1800;
                 const pos = new Float32Array(count * 3);
                 const col = new Float32Array(count * 3);
                 for (let i = 0; i < count; i++) {
-                    pos[i * 3]     = (Math.random() - 0.5) * 600;
-                    pos[i * 3 + 1] = (Math.random() - 0.5) * 360;
-                    pos[i * 3 + 2] = (Math.random() - 0.5) * 600;
-                    const c = Math.random() < 0.3 ? [0.6, 0.85, 1.0] : Math.random() < 0.5 ? [1.0, 0.85, 0.65] : [1, 1, 1];
+                    pos[i * 3]     = (Math.random() - 0.5) * 520;
+                    pos[i * 3 + 1] = (Math.random() - 0.5) * 320;
+                    pos[i * 3 + 2] = (Math.random() - 0.5) * 520;
+                    const c = Math.random() < 0.35 ? [0.55, 0.88, 1.0] : Math.random() < 0.6 ? [1.0, 0.82, 0.62] : [1, 1, 1];
                     col[i * 3] = c[0]; col[i * 3 + 1] = c[1]; col[i * 3 + 2] = c[2];
                 }
                 starGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
                 starGeo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-                this.starPoints = new THREE.Points(starGeo, new THREE.PointsMaterial({ size: 1.4, vertexColors: true, transparent: true, opacity: 0.9, toneMapped: false }));
+                this.starPoints = new THREE.Points(starGeo, new THREE.PointsMaterial({ size: 1.6, vertexColors: true, transparent: true, opacity: 0.95, toneMapped: false }));
                 this.envGroup.add(this.starPoints);
             } else {
                 // Venom Trench / Core
-                this.scene.background.setHex(0x16071c);
-                this.scene.fog = new THREE.FogExp2(0x220a29, 0.0046);
-                this.hemi.color.setHex(0xff9ec4);
-                this.hemi.groundColor.setHex(0x22092e);
-                this.sun.color.setHex(0xffd0e0);
+                this.scene.fog = new THREE.FogExp2(0x280b30, 0.0034);
+                this.hemi.color.setHex(0xffa8cc);
+                this.hemi.groundColor.setHex(0x260934);
+                this.sun.color.setHex(0xffd6e6);
 
-                const tc = document.createElement('canvas'); tc.width = tc.height = 256;
-                const tg = tc.getContext('2d');
-                tg.fillStyle = '#1b0d26';
-                tg.fillRect(0, 0, 256, 256);
-                tg.strokeStyle = 'rgba(255, 58, 120, 0.42)';
-                tg.lineWidth = 3;
-                for (let i = 0; i < 256; i += 32) {
-                    tg.beginPath(); tg.moveTo(0, i); tg.lineTo(256, i); tg.stroke();
-                    tg.beginPath(); tg.moveTo(i, 0); tg.lineTo(i, 256); tg.stroke();
-                }
-                const tex = new THREE.CanvasTexture(tc);
-                tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-                tex.repeat.set(90, 90);
-
-                const gGeo = new THREE.PlaneGeometry(2400, 2400);
+                const gGeo = new THREE.PlaneGeometry(1200, 1200, 1, 1);
                 gGeo.rotateX(-Math.PI / 2);
-                const gMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.45, metalness: 0.35 });
-                this.groundPlane = new THREE.Mesh(gGeo, gMat);
+                this.waterMat = new THREE.ShaderMaterial({
+                    uniforms: {
+                        uTime: { value: 0 },
+                        uScrollZ: { value: 0 },
+                        uMode: { value: 1.0 },
+                    },
+                    vertexShader: [
+                        'varying vec3 vWorldPos;',
+                        'void main() {',
+                        '  vec4 wp = modelMatrix * vec4(position, 1.0);',
+                        '  vWorldPos = wp.xyz;',
+                        '  gl_Position = projectionMatrix * viewMatrix * wp;',
+                        '}',
+                    ].join('\n'),
+                    fragmentShader: [
+                        'precision highp float;',
+                        'varying vec3 vWorldPos;',
+                        'uniform float uTime;',
+                        'uniform float uScrollZ;',
+                        'void main() {',
+                        '  vec2 p = vec2(vWorldPos.x, vWorldPos.z - uScrollZ);',
+                        '  float dist = length(vWorldPos.xz);',
+                        '  float fade = exp(-dist * 0.0042);',
+                        '  vec2 g = abs(fract(p * 0.075) - 0.5);',
+                        '  float line = 1.0 - smoothstep(0.0, 0.045, min(g.x, g.y));',
+                        '  float pulse = 0.65 + 0.35 * sin(p.y * 0.12 + uTime * 4.0);',
+                        '  vec3 base = vec3(0.09, 0.04, 0.14);',
+                        '  vec3 neon = mix(vec3(1.0, 0.15, 0.42), vec3(0.25, 0.92, 1.0), smoothstep(-14.0, 14.0, vWorldPos.x));',
+                        '  vec3 col = base + neon * line * 0.58 * pulse * fade;',
+                        '  vec3 fogCol = vec3(0.18, 0.05, 0.22);',
+                        '  col = mix(fogCol, col, fade);',
+                        '  gl_FragColor = vec4(col, 1.0);',
+                        '}',
+                    ].join('\n'),
+                });
+                this.groundPlane = new THREE.Mesh(gGeo, this.waterMat);
                 this.groundPlane.position.y = -6.0;
-                this.groundPlane.receiveShadow = true;
                 this.envGroup.add(this.groundPlane);
-                this.groundTex = tex;
+            }
+
+            // 3. Populate 36 Scrolling 3D Corridor Scenery Objects (Mountains, Towers, Clouds, Asteroids, Trench Walls)
+            const totalProps = 36;
+            const spanZ = 250;
+            for (let i = 0; i < totalProps; i++) {
+                const prop = this.buildSceneryProp(sector, i);
+                const z = 15 - (i / totalProps) * spanZ;
+                prop.position.set(prop.userData.baseX || 0, prop.userData.baseY || 0, z);
+                this.envGroup.add(prop);
+                this.sceneryItems.push(prop);
             }
         }
 
         emitSpark(x, y, z, vx, vy, vz, life, s0, s1, hex, gravity) {
-            if (this.sparks.length >= 320) this.sparks.shift();
+            if (this.sparks.length >= 420) this.sparks.shift();
             this.sparks.push({ x, y, z, vx, vy, vz, t: 0, life: life || 0.45, s0: s0 || 0.45, s1: s1 || 0.05, hex: hex || 0xffb84d, g: gravity || 0 });
+        }
+
+        emitShockRing(x, y, z, maxScale, hex, dur) {
+            if (this.shockRings.length >= 32) this.shockRings.shift();
+            this.shockRings.push({
+                x, y, z,
+                maxScale: maxScale || 6.5,
+                hex: hex || 0x52f2ff,
+                dur: dur || 0.48,
+                t: 0,
+                rx: (Math.random() - 0.5) * 0.6,
+                ry: (Math.random() - 0.5) * 0.6,
+            });
         }
 
         debrisBurst(x, y, z, count, speed, hex1, hex2) {
             for (let i = 0; i < count; i++) {
-                if (this.debrisList.length >= 240) this.debrisList.shift();
+                if (this.debrisList.length >= 260) this.debrisList.shift();
                 const a = Math.random() * TAU, el = (Math.random() - 0.3) * Math.PI;
-                const sp = (0.4 + Math.random() * 0.8) * (speed || 12);
-                const col = (i % 3 === 0) ? (hex1 || 0x708096) : (i % 3 === 1) ? (hex2 || 0xff7a28) : 0x2b323d;
+                const sp = (0.4 + Math.random() * 0.85) * (speed || 13);
+                const col = (i % 3 === 0) ? (hex1 || 0x7a8ca6) : (i % 3 === 1) ? (hex2 || 0xff7a28) : 0x2b3442;
                 this.debrisList.push({
                     x, y, z,
                     vx: Math.cos(a) * Math.cos(el) * sp,
-                    vy: Math.sin(el) * sp + 3,
+                    vy: Math.sin(el) * sp + 3.5,
                     vz: Math.sin(a) * Math.cos(el) * sp,
                     rx: Math.random() * 6, ry: Math.random() * 6, rz: Math.random() * 6,
-                    spin: (Math.random() - 0.5) * 16,
-                    t: 0, life: 0.9 + Math.random() * 0.8,
-                    s: 0.65 + Math.random() * 1.35,
+                    spin: (Math.random() - 0.5) * 18,
+                    t: 0, life: 0.95 + Math.random() * 0.85,
+                    s: 0.7 + Math.random() * 1.4,
                     col,
                 });
             }
@@ -414,23 +686,29 @@
         explosion(x, y, z, scale, colorHex, ripple) {
             const s = scale || 1;
             const c1 = colorHex || 0xff9a38;
-            for (let i = 0; i < Math.round(18 * s); i++) {
+            // Core white flash + radial plasma fireball particles
+            this.emitSpark(x, y, z, 0, 0, 0, 0.22, 2.4 * s, 0.2, 0xffffff, 0);
+            this.emitShockRing(x, y, z, 5.5 * s, c1, 0.45);
+            if (s > 1.3) {
+                this.emitShockRing(x, y, z, 9.0 * s, 0x52f2ff, 0.62);
+            }
+            for (let i = 0; i < Math.round(22 * s); i++) {
                 const a = Math.random() * TAU, el = (Math.random() - 0.5) * Math.PI;
-                const sp = (4 + Math.random() * 14) * s;
+                const sp = (4 + Math.random() * 16) * s;
                 this.emitSpark(
                     x, y, z,
                     Math.cos(a) * Math.cos(el) * sp,
                     Math.sin(el) * sp,
                     Math.sin(a) * Math.cos(el) * sp,
-                    0.32 + Math.random() * 0.35,
-                    0.75 * s, 0.08,
-                    i % 3 === 0 ? 0xffffff : c1,
+                    0.34 + Math.random() * 0.38,
+                    0.85 * s, 0.08,
+                    i % 3 === 0 ? 0xffffff : i % 2 === 0 ? c1 : 0xff4518,
                     2.0
                 );
             }
-            this.debrisBurst(x, y, z, Math.round(10 * s), 11 * s, 0x8a99ad, c1);
+            this.debrisBurst(x, y, z, Math.round(12 * s), 12 * s, 0x94a6bd, c1);
             if (ripple) {
-                this.addRipple(x, y, z, 8 * s, 0.022 * Math.min(2, s), 0.52);
+                this.addRipple(x, y, z, 8 * s, 0.024 * Math.min(2, s), 0.55);
             }
         }
 
@@ -441,16 +719,31 @@
 
         updateVfx(dt, anchorPos) {
             this.time += dt;
-            if (this.groundPlane && anchorPos) {
-                this.groundPlane.position.x = anchorPos.x;
-                this.groundPlane.position.z = anchorPos.z;
-                if (this.groundTex) {
-                    this.groundTex.offset.x = anchorPos.x / (2400 / 90);
-                    this.groundTex.offset.y = -anchorPos.z / (2400 / 90);
+            const scrollSpeed = 52 * (1 + this.boostK * 0.65);
+
+            if (this.skyMat) {
+                this.skyMat.uniforms.uTime.value = this.time;
+            }
+            if (this.waterMat) {
+                this.waterMat.uniforms.uTime.value = this.time;
+                this.waterMat.uniforms.uScrollZ.value = anchorPos ? anchorPos.z : -this.time * 42;
+            }
+
+            // Scroll 3D corridor scenery props past camera for high-speed depth perception
+            for (let i = 0; i < this.sceneryItems.length; i++) {
+                const item = this.sceneryItems[i];
+                item.position.z += scrollSpeed * dt;
+                if (item.userData && item.userData.spin) {
+                    item.rotation.x += item.userData.spin * dt;
+                    item.rotation.y += item.userData.spin * 0.7 * dt;
+                }
+                if (item.position.z > 22) {
+                    item.position.z -= 250;
                 }
             }
-            if (this.starPoints && anchorPos) {
-                this.starPoints.position.copy(anchorPos);
+
+            if (this.starPoints) {
+                this.starPoints.rotation.z += dt * 0.02;
             }
 
             const tmpM = new THREE.Matrix4();
@@ -459,7 +752,7 @@
             const tmpS = new THREE.Vector3();
             const tmpC = new THREE.Color();
 
-            // Update sparks
+            // Update sparks & contrails
             for (let i = this.sparks.length - 1; i >= 0; i--) {
                 const p = this.sparks[i];
                 p.t += dt;
@@ -481,6 +774,28 @@
             this.sparkMesh.instanceMatrix.needsUpdate = true;
             if (this.sparkMesh.instanceColor && this.sparks.length > 0) this.sparkMesh.instanceColor.needsUpdate = true;
 
+            // Update 3D Expanding Shockwave Rings
+            for (let i = this.shockRings.length - 1; i >= 0; i--) {
+                const r = this.shockRings[i];
+                r.t += dt;
+                if (r.t >= r.dur) { this.shockRings.splice(i, 1); continue; }
+            }
+            this.shockRingMesh.count = this.shockRings.length;
+            for (let i = 0; i < this.shockRings.length; i++) {
+                const r = this.shockRings[i];
+                const k = r.t / r.dur;
+                const sc = 0.4 + r.maxScale * (1 - Math.pow(1 - k, 2.2));
+                tmpV.set(r.x, r.y, r.z);
+                tmpQ.setFromEuler(new THREE.Euler(r.rx, r.ry, r.t * 4));
+                tmpS.setScalar(sc);
+                tmpM.compose(tmpV, tmpQ, tmpS);
+                this.shockRingMesh.setMatrixAt(i, tmpM);
+                tmpC.setHex(r.hex).multiplyScalar(1 - k);
+                this.shockRingMesh.setColorAt(i, tmpC);
+            }
+            this.shockRingMesh.instanceMatrix.needsUpdate = true;
+            if (this.shockRingMesh.instanceColor && this.shockRings.length > 0) this.shockRingMesh.instanceColor.needsUpdate = true;
+
             // Update 3D debris
             for (let i = this.debrisList.length - 1; i >= 0; i--) {
                 const d = this.debrisList[i];
@@ -488,7 +803,7 @@
                 if (d.t >= d.life) { this.debrisList.splice(i, 1); continue; }
                 d.vy -= 14 * dt;
                 d.x += d.vx * dt; d.y += d.vy * dt; d.z += d.vz * dt;
-                if (this.groundPlane && d.y < -5.8) { d.y = -5.8; d.vy *= -0.45; }
+                if (this.groundPlane && d.y < -5.8) { d.y = -5.8; d.vy *= -0.48; }
                 d.rx += d.spin * dt; d.ry += d.spin * 0.7 * dt; d.rz += d.spin * 0.45 * dt;
             }
             this.debrisMesh.count = this.debrisList.length;

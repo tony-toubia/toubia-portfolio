@@ -142,6 +142,9 @@
             const sec = SECTORS[this.sectorIndex];
             this.clearEntities();
             this.r.setupSectorEnv(sec.id);
+            if (SW.instance && SW.instance.input && SW.instance.input.reset) {
+                SW.instance.input.reset();
+            }
 
             const P = this.player;
             P.x = 0; P.y = 0; P.z = 0;
@@ -158,7 +161,7 @@
             if (P.bombs < 3) P.bombs = 3;
 
             if (!P.mesh) {
-                P.mesh = SW.Models.arwing(0x2668e8);
+                P.mesh = SW.Models.arwing(0x1e5ce6);
                 this.r.worldGroup.add(P.mesh);
             }
             P.mesh.visible = true;
@@ -225,19 +228,24 @@
             const intactWings = (P.wingL > 0 ? 1 : 0) + (P.wingR > 0 ? 1 : 0);
             const effLevel = intactWings === 0 ? 1 : Math.min(P.laserLevel, intactWings === 1 ? 2 : 3);
 
-            const dir = new THREE.Vector3(P.aimX * 0.42, P.aimY * 0.42, -1).normalize();
-            const speed = 135;
+            const dir = new THREE.Vector3(P.aimX * 0.36, P.aimY * 0.36, -1).normalize();
+            const speed = 142;
             const col = effLevel === 3 ? 0x3ef2ff : 0x48ff7a;
             const dmg = effLevel === 3 ? 16 : effLevel === 2 ? 11 : 10;
 
             const spawnBolt = (ox, oy) => {
-                const geo = new THREE.CylinderGeometry(0.11, 0.11, 2.8, 5);
-                geo.rotateX(Math.PI / 2);
-                const mat = new THREE.MeshBasicMaterial({ color: col, toneMapped: false });
-                const m = new THREE.Mesh(geo, mat);
-                m.position.set(P.x + ox, P.y + oy, P.z - 1.4);
+                const m = new THREE.Group();
+                const sheathGeo = new THREE.CylinderGeometry(0.14, 0.14, 3.2, 6);
+                sheathGeo.rotateX(Math.PI / 2);
+                const sheathMat = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.72, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+                const coreGeo = new THREE.CylinderGeometry(0.06, 0.06, 3.4, 5);
+                coreGeo.rotateX(Math.PI / 2);
+                const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
+                m.add(new THREE.Mesh(sheathGeo, sheathMat), new THREE.Mesh(coreGeo, coreMat));
+                m.position.set(P.x + ox, P.y + oy, P.z - 1.5);
                 m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), dir);
                 this.r.fxGroup.add(m);
+                this.r.emitSpark(P.x + ox, P.y + oy, P.z - 1.5, 0, 0, -12, 0.12, 0.45, 0.05, col, 0);
                 this.projectiles.push({
                     team: 0,
                     kind: 'laser',
@@ -245,7 +253,7 @@
                     x: m.position.x, y: m.position.y, z: m.position.z,
                     vx: dir.x * speed, vy: dir.y * speed, vz: dir.z * speed,
                     dmg,
-                    radius: 0.9,
+                    radius: 0.95,
                     life: 1.35,
                     t: 0,
                     color: col,
@@ -716,15 +724,30 @@
         // ------------------------------------------------------------------ Per-Frame Update
         update(dt, input) {
             if (this.state === 'title' || this.state === 'map') {
-                // Attract animation on title screen
+                // Heroic high-speed flyby animation on title screen
                 if (this.player.mesh) {
                     const t = this.r.time;
-                    this.player.mesh.position.set(Math.sin(t * 0.9) * 2.2, Math.cos(t * 1.3) * 0.9, 0);
-                    this.player.mesh.rotation.set(Math.sin(t * 1.3) * 0.12, Math.PI, -Math.cos(t * 0.9) * 0.32);
-                    this.r.camera.position.set(Math.sin(t * 0.35) * 4.5, 2.2, 8.5);
-                    this.r.camera.lookAt(0, 0.2, -4);
+                    const ax = Math.sin(t * 0.85) * 3.8;
+                    const ay = 0.6 + Math.cos(t * 1.15) * 1.1;
+                    this.player.mesh.position.set(ax, ay, 0);
+                    this.player.mesh.rotation.set(
+                        -Math.sin(t * 1.15) * 0.14,
+                        -Math.cos(t * 0.85) * 0.16,
+                        -Math.cos(t * 0.85) * 0.44
+                    );
+                    this.r.camera.position.set(Math.sin(t * 0.42) * 3.2, 2.3, 8.8);
+                    this.r.camera.lookAt(ax * 0.45, ay * 0.5, -18);
+
+                    // Emit wingtip contrails during attract mode
+                    for (const s of [-1, 1]) {
+                        this.r.emitSpark(
+                            ax + s * 2.85, ay - 0.1, 1.0,
+                            0, 0, 36,
+                            0.28, 0.24, 0.04, 0xd8f4ff, 0
+                        );
+                    }
                 }
-                this.r.updateVfx(dt, new THREE.Vector3(0, 0, -this.r.time * 24));
+                this.r.updateVfx(dt, new THREE.Vector3(0, 0, -this.r.time * 42));
                 this.r.renderFrame(dt);
                 return;
             }
@@ -753,20 +776,46 @@
             this.r.boostK = lerp(this.r.boostK, P.boosting ? 1 : 0, dt * 8);
             this.scrollZ += dt * 34 * speedMul;
 
-            // 2. Steer Arwing within corridor bounds
-            const brokenTilt = (P.wingL === 0 ? -0.22 : 0) + (P.wingR === 0 ? 0.22 : 0);
-            const steerX = clamp(input.moveX + brokenTilt * Math.sin(this.stageTime * 5), -1, 1);
-            const steerY = clamp(input.moveY, -1, 1);
-
+            // 2. Steer Arwing within corridor bounds — flies straight & level by default!
             const maxX = 11.5, minY = -4.3, maxY = 6.2;
-            const moveSpd = 18.5;
-            P.vx = lerp(P.vx, steerX * moveSpd, dt * 10);
-            P.vy = lerp(P.vy, steerY * moveSpd, dt * 10);
+            const moveSpd = 19.5;
+            const brokenTilt = (P.wingL === 0 ? -0.18 : 0) + (P.wingR === 0 ? 0.18 : 0);
+
+            let steerX = 0, steerY = 0;
+            let aimTargetX = 0, aimTargetY = 0;
+
+            if (input.mode === 'mouse') {
+                // Cursor position tracking: ship flies smoothly TO the mouse position,
+                // then levels out straight once it reaches the cursor!
+                const targetX = clamp(input.moveX * maxX, -maxX, maxX);
+                const targetY = clamp(lerp(minY, maxY, (input.moveY + 1) * 0.5), minY, maxY);
+                const dx = targetX - P.x;
+                const dy = targetY - P.y;
+                steerX = clamp(dx / 2.8 + brokenTilt * Math.sin(this.stageTime * 5), -1, 1);
+                steerY = clamp(dy / 2.2, -1, 1);
+                if (Math.abs(dx) < 0.08 && brokenTilt === 0) steerX = 0;
+                if (Math.abs(dy) < 0.08) steerY = 0;
+                aimTargetX = clamp(input.moveX * 0.65 + steerX * 0.35, -1, 1);
+                aimTargetY = clamp(input.moveY * 0.65 + steerY * 0.35, -1, 1);
+            } else {
+                // Keyboard (WASD/Arrows), Touch Stick, or Idle:
+                // Flies straight ahead whenever no directional input is held!
+                steerX = clamp(input.moveX + brokenTilt * Math.sin(this.stageTime * 5), -1, 1);
+                steerY = clamp(input.moveY, -1, 1);
+                aimTargetX = clamp(P.x / maxX * 0.45 + steerX * 0.65, -1, 1);
+                aimTargetY = clamp((P.y / maxY) * 0.45 + steerY * 0.65, -1, 1);
+            }
+
+            P.vx = lerp(P.vx, steerX * moveSpd, dt * 12);
+            P.vy = lerp(P.vy, steerY * moveSpd, dt * 12);
+            if (Math.abs(steerX) < 0.01 && Math.abs(P.vx) < 0.15) P.vx = 0;
+            if (Math.abs(steerY) < 0.01 && Math.abs(P.vy) < 0.15) P.vy = 0;
+
             P.x = clamp(P.x + P.vx * dt, -maxX, maxX);
             P.y = clamp(P.y + P.vy * dt, minY, maxY);
 
-            P.aimX = lerp(P.aimX, steerX, dt * 12);
-            P.aimY = lerp(P.aimY, steerY, dt * 12);
+            P.aimX = lerp(P.aimX, aimTargetX, dt * 14);
+            P.aimY = lerp(P.aimY, aimTargetY, dt * 14);
 
             // Somersault loop animation
             let loopOffsetY = 0, loopOffsetZ = 0, loopPitch = 0;
@@ -786,38 +835,67 @@
             if (P.invulnT > 0) P.invulnT = Math.max(0, P.invulnT - dt);
             if (P.fireCooldown > 0) P.fireCooldown = Math.max(0, P.fireCooldown - dt);
 
-            const targetBank = -steerX * 0.68 + (P.rollT > 0 ? (P.rollT / 0.52) * TAU * P.rollDir : 0);
-            P.bank = lerp(P.bank, targetBank, P.rollT > 0 ? 0.45 : dt * 11);
-            P.pitch = lerp(P.pitch, steerY * 0.38, dt * 10);
+            const bankFactor = clamp(P.vx / moveSpd, -1, 1);
+            const pitchFactor = clamp(P.vy / moveSpd, -1, 1);
+            const targetBank = -bankFactor * 0.72 + (P.rollT > 0 ? (P.rollT / 0.52) * TAU * P.rollDir : 0);
+            P.bank = lerp(P.bank, targetBank, P.rollT > 0 ? 0.45 : dt * 12);
+            P.pitch = lerp(P.pitch, pitchFactor * 0.36, dt * 11);
 
             P.mesh.position.set(P.x, P.y + loopOffsetY, P.z + loopOffsetZ);
-            P.mesh.rotation.set(P.pitch + loopPitch, -steerX * 0.22, P.bank);
+            P.mesh.rotation.set(P.pitch + loopPitch, -bankFactor * 0.20, P.bank);
 
             // Thruster scale & barrel shield visibility
-            const thrScale = P.boosting ? 1.85 : P.braking ? 0.45 : 1.0 + Math.sin(this.stageTime * 28) * 0.12;
-            P.mesh.userData.thruster.scale.set(thrScale * 0.85, thrScale * 0.85, thrScale * 1.25);
+            const thrScale = P.boosting ? 1.95 : P.braking ? 0.45 : 1.0 + Math.sin(this.stageTime * 28) * 0.12;
+            P.mesh.userData.thruster.scale.set(thrScale * 0.9, thrScale * 0.9, thrScale * 1.3);
             P.mesh.userData.barrelShield.visible = P.rollT > 0;
             if (P.rollT > 0) P.mesh.userData.barrelShield.rotation.z += dt * 18 * P.rollDir;
 
+            // Continuous 3D Wingtip Contrail Ribbons & G-Diffuser Plasma Exhaust
+            if (P.loopT <= 0) {
+                const cosB = Math.cos(P.bank), sinB = Math.sin(P.bank);
+                for (const s of [-1, 1]) {
+                    if ((s < 0 && P.wingL > 0) || (s > 0 && P.wingR > 0)) {
+                        const wx = P.x + s * 2.9 * cosB;
+                        const wy = P.y + s * 2.9 * sinB - 0.06;
+                        this.r.emitSpark(
+                            wx, wy, P.z + 1.0,
+                            P.vx * 0.1, P.vy * 0.1, 42 * speedMul,
+                            0.24, P.boosting ? 0.32 : 0.20, 0.03,
+                            P.boosting ? 0x52f6ff : 0xd8f2ff, 0
+                        );
+                    }
+                }
+                if (P.boosting || Math.random() < 0.65) {
+                    this.r.emitSpark(
+                        P.x + (Math.random() - 0.5) * 0.25,
+                        P.y + (Math.random() - 0.5) * 0.25,
+                        P.z + 1.8,
+                        (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, 46 * speedMul,
+                        0.18, P.boosting ? 0.42 : 0.25, 0.04,
+                        P.boosting ? 0x3ef2ff : 0xff8a28, 0
+                    );
+                }
+            }
+
             // Water wake spray on Corneria when skimming low over the ocean!
-            if (sec.id === 'corneria' && P.y < -3.1 && P.loopT <= 0) {
+            if (sec.id === 'corneria' && P.y < -3.0 && P.loopT <= 0) {
                 for (const s of [-1, 1]) {
                     this.r.emitSpark(
-                        P.x + s * 1.2, -5.75, P.z + 0.5,
-                        s * (3 + Math.random() * 4), 2.5 + Math.random() * 3, 14,
-                        0.32, 0.52, 0.1, 0xd8f6ff, 8
+                        P.x + s * 1.3, -5.75, P.z + 0.5,
+                        s * (4 + Math.random() * 5), 3.0 + Math.random() * 3.5, 18,
+                        0.34, 0.58, 0.1, 0xd8f6ff, 8
                     );
                 }
             }
 
             // 3. Camera follow + FOV kick on Boost / Brake
-            const targetFov = P.boosting ? 66 : P.braking ? 50 : 56;
+            const targetFov = P.boosting ? 68 : P.braking ? 50 : 58;
             this.r.camera.fov = lerp(this.r.camera.fov, targetFov, dt * 7);
             this.r.camera.updateProjectionMatrix();
             this.r.camera.position.x = lerp(this.r.camera.position.x, P.x * 0.52, dt * 6);
-            this.r.camera.position.y = lerp(this.r.camera.position.y, P.y * 0.44 + 2.4, dt * 6);
-            this.r.camera.position.z = lerp(this.r.camera.position.z, P.boosting ? 11.2 : P.braking ? 8.2 : 9.6, dt * 6);
-            this.r.camera.lookAt(P.x * 0.68, P.y * 0.58 + 0.4, -22);
+            this.r.camera.position.y = lerp(this.r.camera.position.y, P.y * 0.44 + 2.35, dt * 6);
+            this.r.camera.position.z = lerp(this.r.camera.position.z, P.boosting ? 11.0 : P.braking ? 8.2 : 9.4, dt * 6);
+            this.r.camera.lookAt(P.x * 0.68, P.y * 0.58 + 0.35, -24);
 
             // 4. Weapons: Fire + Automatic Homing Charge Lock-On
             if (input.fire) {

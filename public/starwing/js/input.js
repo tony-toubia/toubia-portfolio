@@ -1,4 +1,4 @@
-// Starwing 64: Unified Desktop (Keyboard + Mouse) and Mobile (Virtual Flight Stick + Action Cluster) Input.
+// Starwing 64: Unified Desktop (Keyboard + Mouse Target/Stick) and Mobile (Virtual Flight Stick + Action Cluster) Input.
 (function () {
     'use strict';
     const SW = window.SW = window.SW || {};
@@ -12,6 +12,7 @@
             this.mouseX = 0;
             this.mouseY = 0;
             this.mouseDown = false;
+            this.lastMouseMoveTime = 0;
 
             // Touch virtual joystick state
             this.stickTouchId = null;
@@ -29,6 +30,16 @@
 
             this.bindDesktop();
             this.bindTouch();
+        }
+
+        reset() {
+            this.mouseActive = false;
+            this.mouseX = 0;
+            this.mouseY = 0;
+            this.mouseDown = false;
+            this.stickTouchId = null;
+            this.stickVec.x = 0;
+            this.stickVec.y = 0;
         }
 
         bindDesktop() {
@@ -76,12 +87,24 @@
 
             stage.addEventListener('mousemove', (e) => {
                 if (this.stickTouchId !== null) return;
+                // Only engage mouse flight when actively in 'playing' state and not hovering a UI button
+                if (this.game.state !== 'playing') return;
+                if (e.target && e.target.closest && e.target.closest('button, .modal-overlay')) return;
+
                 const r = stage.getBoundingClientRect();
                 const nx = ((e.clientX - r.left) / Math.max(1, r.width)) * 2 - 1;
                 const ny = -(((e.clientY - r.top) / Math.max(1, r.height)) * 2 - 1);
-                this.mouseX = clamp(nx * 1.25, -1, 1);
-                this.mouseY = clamp(ny * 1.25, -1, 1);
+                // Small center deadzone so near-center cursor flies perfectly straight
+                const dz = 0.04;
+                const applyDz = (v) => Math.abs(v) < dz ? 0 : (v - Math.sign(v) * dz) / (1 - dz);
+                this.mouseX = clamp(applyDz(nx) * 1.08, -1, 1);
+                this.mouseY = clamp(applyDz(ny) * 1.08, -1, 1);
                 this.mouseActive = true;
+                this.lastMouseMoveTime = performance.now();
+            });
+
+            stage.addEventListener('mouseleave', () => {
+                this.mouseActive = false;
             });
 
             stage.addEventListener('mousedown', (e) => {
@@ -91,7 +114,7 @@
                 if (e.button === 0) {
                     this.mouseDown = true;
                 } else if (e.button === 2) {
-                    this.game.triggerBomb();
+                    this.game.triggerBarrelRoll(this.mouseX < -0.05 ? -1 : 1);
                 }
             });
 
@@ -137,8 +160,8 @@
                             const dist = Math.hypot(dx, dy);
                             const clamped = Math.min(maxR, dist);
                             const ang = Math.atan2(dy, dx);
-                            const nx = dist > 2 ? (Math.cos(ang) * clamped) / maxR : 0;
-                            const ny = dist > 2 ? -(Math.sin(ang) * clamped) / maxR : 0;
+                            const nx = dist > 4 ? (Math.cos(ang) * clamped) / maxR : 0;
+                            const ny = dist > 4 ? -(Math.sin(ang) * clamped) / maxR : 0;
                             this.stickVec.x = clamp(nx * 1.15, -1, 1);
                             this.stickVec.y = clamp(ny * 1.15, -1, 1);
                             if (stickNub) {
@@ -198,25 +221,31 @@
             if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) ky += 1;
             if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) ky -= 1;
 
-            if (kx !== 0 || ky !== 0) this.mouseActive = false;
+            if (kx !== 0 || ky !== 0) {
+                this.mouseActive = false;
+            }
 
             let moveX = 0, moveY = 0;
+            let mode = 'idle';
             if (this.stickTouchId !== null) {
                 moveX = this.stickVec.x;
                 moveY = this.stickVec.y;
+                mode = 'stick';
             } else if (kx !== 0 || ky !== 0) {
                 moveX = kx;
                 moveY = ky;
+                mode = 'keys';
             } else if (this.mouseActive) {
                 moveX = this.mouseX;
                 moveY = this.mouseY;
+                mode = 'mouse';
             }
 
-            const fire = this.mouseDown || this.touchFire || this.keys.has('Space');
+            const fire = this.mouseDown || this.touchFire || this.keys.has('Space') || this.keys.has('KeyJ');
             const boost = this.touchBoost || this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
             const brake = this.touchBrake || this.keys.has('ControlLeft') || this.keys.has('KeyF');
 
-            return { moveX, moveY, fire, boost, brake };
+            return { moveX, moveY, mode, fire, boost, brake };
         }
     }
 
