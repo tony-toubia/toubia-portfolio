@@ -139,18 +139,38 @@ window.SF_MODELS = (() => {
     }
     const isGlow = (key) => colorOf(key, 0)[1] > 0;
     const MATERIALS = {
-        body: new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0.22, flatShading: true }),
-        glow: new T.MeshStandardMaterial({ vertexColors: true, color: 0x3a3a3a, roughness: 0.4, metalness: 0.0, flatShading: true,
+        body: new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.56, metalness: 0.28, flatShading: true }),
+        glow: new T.MeshStandardMaterial({ vertexColors: true, color: 0x3a3a3a, roughness: 0.32, metalness: 0.0, flatShading: true,
             emissive: 0xffffff, emissiveIntensity: 1 }),
     };
     MATERIALS.body.name = 'sf-body';
     MATERIALS.glow.name = 'sf-glow';
-    // emission = vertex colour (r128 chunk names)
+    // Sun-aware directional Fresnel rim + stepped sci-fi armor specular on body meshes
+    MATERIALS.body.onBeforeCompile = (sh) => {
+        sh.fragmentShader = sh.fragmentShader.replace('#include <dithering_fragment>', `
+            vec3 sfV = normalize(vViewPosition);
+            float sfFres = pow(1.0 - abs(dot(normal, sfV)), 2.5);
+            float sfKey = clamp(normal.y * 0.55 + 0.45, 0.0, 1.0);
+            vec3 sfRim = mix(vec3(0.36, 0.76, 0.98) * 0.48, vec3(1.0, 0.93, 0.82), sfKey) * sfFres * 0.25;
+            vec3 sfHalf = normalize(sfV + normalize(vec3(-0.35, 0.85, 0.4)));
+            float sfSpec = smoothstep(0.24, 0.46, pow(max(0.0, dot(normal, sfHalf)), 24.0)) * 0.11;
+            gl_FragColor.rgb += sfRim + vec3(1.0, 0.96, 0.9) * sfSpec;
+            #include <dithering_fragment>
+        `);
+    };
+    MATERIALS.body.customProgramCacheKey = () => 'sf-body-rim-spec-v2';
+    // Emission = vertex colour + hot white-shifted Fresnel core for crystals, visors & plasma cores
     MATERIALS.glow.onBeforeCompile = (sh) => {
         sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>',
             '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= vColor;');
+        sh.fragmentShader = sh.fragmentShader.replace('#include <dithering_fragment>', `
+            vec3 sfGV = normalize(vViewPosition);
+            float sfCore = pow(abs(dot(normal, sfGV)), 1.8);
+            gl_FragColor.rgb += min(vColor, vec3(1.6)) * sfCore * 0.28;
+            #include <dithering_fragment>
+        `);
     };
-    MATERIALS.glow.customProgramCacheKey = () => 'sf-glow-vcolor-emissive';
+    MATERIALS.glow.customProgramCacheKey = () => 'sf-glow-vcolor-emissive-v2';
 
     // ---------------------------------------------------------------- geometry primitives (cached)
     // Vertical primitives sit on y = 0 (base) so parts stack by their base height.
@@ -342,8 +362,9 @@ window.SF_MODELS = (() => {
                 }
                 for (const [list, mat] of [[body, MATERIALS.body], [glow, MATERIALS.glow]]) {
                     if (!list.length) continue;
-                    const mesh = new T.Mesh(mergeParts(list), mat);
-                    if (mat === MATERIALS.glow) mesh.userData.glow = true;
+                    const isGlowMat = mat === MATERIALS.glow;
+                    const mesh = new T.Mesh(mergeParts(list, isGlowMat), mat);
+                    if (isGlowMat) mesh.userData.glow = true;
                     mesh.castShadow = true;
                     mesh.receiveShadow = true;
                     node.add(mesh);
@@ -356,34 +377,79 @@ window.SF_MODELS = (() => {
     Builder.team = 0x888888;
     Builder.faction = 'vanguard';
     Builder.trim = null;     // optional extra parts (faction trim) added just before a template is built
-    function mergeParts(list) {
+    function mergeParts(list, isGlowMat) {
         const geos = list.map(([g, m]) => {
             const c = g.index ? g.toNonIndexed() : g.clone();
+            const rawPos = c.attributes.position.array;
+            const localY = new Float32Array(c.attributes.position.count);
+            let pMinY = Infinity, pMaxY = -Infinity;
+            for (let i = 0; i < rawPos.length; i += 3) {
+                const y = rawPos[i + 1];
+                if (y < pMinY) pMinY = y;
+                if (y > pMaxY) pMaxY = y;
+            }
+            const pSpan = Math.max(0.02, pMaxY - pMinY);
+            for (let i = 0, vi = 0; i < rawPos.length; i += 3, vi++) {
+                localY[vi] = (rawPos[i + 1] - pMinY) / pSpan;
+            }
             c.applyMatrix4(m);
             // a mirrored (negative-determinant) transform flips the winding: flip it back
             if (m.determinant() < 0) {
                 const p = c.attributes.position.array;
-                for (let i = 0; i < p.length; i += 9) for (let k = 0; k < 3; k++) {
-                    const t = p[i + 3 + k]; p[i + 3 + k] = p[i + 6 + k]; p[i + 6 + k] = t;
+                for (let i = 0; i < p.length; i += 9) {
+                    for (let k = 0; k < 3; k++) {
+                        const t = p[i + 3 + k]; p[i + 3 + k] = p[i + 6 + k]; p[i + 6 + k] = t;
+                    }
+                    const vi = i / 3;
+                    const tl = localY[vi + 1]; localY[vi + 1] = localY[vi + 2]; localY[vi + 2] = tl;
                 }
             }
+            c.userData.localY = localY;
             return c;
         });
         let n = 0;
         for (const g of geos) n += g.attributes.position.count;
-        const pos = new Float32Array(n * 3), col = new Float32Array(n * 3);
-        let o = 0;
+        const pos = new Float32Array(n * 3), col = new Float32Array(n * 3), partRelY = new Float32Array(n);
+        let o = 0, vo = 0, minY = Infinity, maxY = -Infinity;
         geos.forEach((g, i) => {
-            const a = g.attributes.position.array, c = list[i][2];
+            const a = g.attributes.position.array, c = list[i][2], ly = g.userData.localY;
             pos.set(a, o);
-            for (let j = o; j < o + a.length; j += 3) { col[j] = c.r; col[j + 1] = c.g; col[j + 2] = c.b; }
+            partRelY.set(ly, vo);
+            for (let j = o; j < o + a.length; j += 3) {
+                const y = a[j + 1];
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+                col[j] = c.r; col[j + 1] = c.g; col[j + 2] = c.b;
+            }
             o += a.length;
+            vo += ly.length;
             g.dispose();
         });
         const out = new T.BufferGeometry();
         out.setAttribute('position', new T.BufferAttribute(pos, 3));
-        out.setAttribute('color', new T.BufferAttribute(col, 3));
         out.computeVertexNormals();
+        const norm = out.attributes.normal.array;
+        const spanY = Math.max(0.1, maxY - minY);
+        const grounded = minY < 0.08;
+        for (let vi = 0, j = 0; vi < n; vi++, j += 3) {
+            const y = pos[j + 1], ny = norm[j + 1];
+            const relY = Math.max(0, Math.min(1, (y - minY) / spanY));
+            if (isGlowMat) {
+                // Crystals, visors & energy conduits gleam hotter at tips and upward facets
+                const boost = 0.88 + 0.24 * partRelY[vi] + 0.14 * Math.max(0, ny);
+                col[j] *= boost; col[j + 1] *= boost; col[j + 2] *= boost;
+            } else {
+                // 1. Sub-part attachment seam AO (crevices where turrets, limbs & armor plates meet)
+                const seamAo = partRelY[vi] < 0.18 ? 0.82 + 0.18 * (partRelY[vi] / 0.18) : 1.0;
+                // 2. Normal cavity & dorsal armor plate accent
+                const normAo = ny < 0 ? 1.0 + ny * 0.24 : 1.0 + Math.max(0, ny - 0.35) * 0.14;
+                // 3. Vertical ground-bounce occlusion on lower hull/treads/foundations
+                const vertAo = grounded && relY < 0.32 ? 0.72 + 0.28 * (relY / 0.32) : 1.0 + Math.max(0, relY - 0.65) * 0.08;
+                const ao = Math.max(0.46, Math.min(1.16, seamAo * normAo * vertAo));
+                col[j] *= ao; col[j + 1] *= ao; col[j + 2] *= ao;
+            }
+        }
+        out.setAttribute('color', new T.BufferAttribute(col, 3));
         out.computeBoundingSphere();
         return out;
     }
