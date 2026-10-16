@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Starwing 64 — Lylat Vector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet" />
+    <style>
+        :root {
+            --bg: #050a16;
+            --panel: rgba(8, 18, 38, 0.86);
+            --border: rgba(82, 224, 255, 0.42);
+            --cyan: #45f2ff;
+            --green: #48ff8a;
+            --gold: #ffd83b;
+            --red: #ff3b56;
+        }
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+        html, body {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            height: 100dvh; max-height: 100dvh;
+            overflow: hidden;
+            background: var(--bg);
+            color: #e8f4ff;
+            font-family: 'Rajdhani', system-ui, sans-serif;
+            touch-action: none;
+        }
+        #stage {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        #gl-canvas, #hud-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        #hud-canvas { pointer-events: none; z-index: 2; }
+
+        /* Top HUD Bar */
+        .hud-top {
+            position: absolute;
+            top: env(safe-area-inset-top, 8px);
+            left: 10px;
+            right: 10px;
+            z-index: 5;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 8px;
+            pointer-events: none;
+        }
+        .hud-cluster {
+            background: rgba(6, 14, 30, 0.78);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 6px 10px;
+            backdrop-filter: blur(6px);
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+        }
+        .gauge-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+        .gauge-row:last-child { margin-bottom: 0; }
+        .gauge-label {
+            font-family: 'Orbitron', monospace;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            width: 52px;
+            color: #9ec8eb;
+        }
+        .gauge-track {
+            width: 120px;
+            height: 10px;
+            background: rgba(2, 8, 18, 0.9);
+            border: 1px solid rgba(120, 200, 255, 0.35);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .gauge-fill {
+            height: 100%;
+            width: 100%;
+            transition: width 0.12s ease-out;
+        }
+        #bar-shield { background: linear-gradient(90deg, #1ec96b, #5eff9e); }
+        #bar-boost { background: linear-gradient(90deg, #1e88e5, #45f2ff); }
+        .gauge-val {
+            font-family: 'Orbitron', monospace;
+            font-size: 11px;
+            font-weight: 800;
+            min-width: 34px;
+            text-align: right;
+        }
+
+        /* Hit Counter & Inventory */
+        .hud-center {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .hit-box {
+            text-align: center;
+        }
+        .hit-label {
+            font-family: 'Orbitron', monospace;
+            font-size: 9px;
+            color: var(--gold);
+            letter-spacing: 0.14em;
+        }
+        .hit-num {
+            font-family: 'Orbitron', monospace;
+            font-size: 22px;
+            font-weight: 900;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(255, 216, 59, 0.65);
+            line-height: 1.05;
+        }
+        .inv-pills {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            font-family: 'Orbitron', monospace;
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .hud-actions {
+            display: flex;
+            gap: 6px;
+            pointer-events: auto;
+        }
+        .icon-btn {
+            background: rgba(8, 20, 42, 0.85);
+            color: #d8eeff;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 11px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .icon-btn:hover { background: rgba(25, 58, 108, 0.9); }
+
+        /* Wingmen Status Strip */
+        .wingmen-strip {
+            position: absolute;
+            top: 72px;
+            right: 10px;
+            z-index: 5;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            pointer-events: none;
+        }
+        .wm-card {
+            background: rgba(6, 14, 30, 0.72);
+            border: 1px solid rgba(90, 180, 255, 0.3);
+            border-radius: 6px;
+            padding: 3px 8px;
+            width: 118px;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .wm-card.danger {
+            border-color: #ff3b56;
+            background: rgba(70, 10, 24, 0.82);
+            animation: pulseDanger 0.55s infinite alternate;
+        }
+        .wm-card.retreat { opacity: 0.45; }
+        @keyframes pulseDanger {
+            from { transform: scale(1); }
+            to { transform: scale(1.04); }
+        }
+        .wm-head {
+            display: flex;
+            justify-content: space-between;
+            font-family: 'Orbitron', monospace;
+            font-size: 9px;
+            font-weight: 800;
+            margin-bottom: 2px;
+        }
+        .wm-track {
+            height: 5px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .wm-fill {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #28d97a, #7affb2);
+        }
+
+        /* Boss Shield Gauge */
+        #boss-bar-wrap {
+            position: absolute;
+            top: 68px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 6;
+            width: min(380px, 78vw);
+            background: rgba(28, 6, 18, 0.88);
+            border: 1px solid #ff3b6b;
+            border-radius: 8px;
+            padding: 6px 12px;
+            display: none;
+            pointer-events: none;
+            box-shadow: 0 0 22px rgba(255, 59, 107, 0.45);
+        }
+        #boss-bar-wrap.show { display: block; }
+        #boss-bar-name {
+            font-family: 'Orbitron', monospace;
+            font-size: 11px;
+            font-weight: 900;
+            color: #ff9eb5;
+            letter-spacing: 0.1em;
+            text-align: center;
+            margin-bottom: 4px;
+        }
+        .boss-track {
+            height: 10px;
+            background: rgba(10, 2, 8, 0.9);
+            border: 1px solid rgba(255, 90, 130, 0.5);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        #boss-bar-fill {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #ff284e, #ffb838);
+            transition: width 0.1s linear;
+        }
+
+        /* Animated Radio Comms Box */
+        #comms-box {
+            position: absolute;
+            bottom: 18px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            z-index: 8;
+            width: min(460px, 90vw);
+            background: rgba(5, 16, 32, 0.92);
+            border: 2px solid var(--cyan);
+            border-radius: 10px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.7), 0 0 16px rgba(69, 242, 255, 0.25);
+        }
+        #comms-box.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        #comms-portrait {
+            width: 56px;
+            height: 56px;
+            border: 1px solid var(--cyan);
+            border-radius: 6px;
+            background: #08182c;
+            flex-shrink: 0;
+            image-rendering: pixelated;
+        }
+        .comms-body { flex: 1; min-width: 0; }
+        #comms-name {
+            font-family: 'Orbitron', monospace;
+            font-size: 11px;
+            font-weight: 900;
+            color: var(--gold);
+            letter-spacing: 0.08em;
+            margin-bottom: 2px;
+        }
+        #comms-text {
+            font-size: 14px;
+            font-weight: 700;
+            color: #eef8ff;
+            line-height: 1.25;
+        }
+
+        /* Touch Controls: Left Flight Stick + Right Combat Cluster */
+        #touch-stick-zone {
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            width: 48%;
+            height: 62%;
+            z-index: 6;
+        }
+        #stick-base {
+            position: absolute;
+            left: 88px;
+            bottom: 84px;
+            width: 108px;
+            height: 108px;
+            margin-left: -54px;
+            margin-top: -54px;
+            border-radius: 50%;
+            border: 2px solid rgba(69, 242, 255, 0.38);
+            background: rgba(8, 24, 48, 0.35);
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+        #stick-nub {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 46px;
+            height: 46px;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            background: radial-gradient(circle, #7cf5ff 0%, #1e88e5 100%);
+            box-shadow: 0 0 14px rgba(69, 242, 255, 0.7);
+        }
+
+        .touch-Cluster {
+            position: absolute;
+            right: 14px;
+            bottom: 18px;
+            z-index: 7;
+            display: grid;
+            grid-template-columns: repeat(2, 68px);
+            grid-template-rows: repeat(2, 58px);
+            gap: 8px;
+            align-items: center;
+        }
+        .t-btn {
+            width: 100%;
+            height: 100%;
+            border-radius: 14px;
+            border: 1.5px solid rgba(94, 232, 255, 0.55);
+            background: rgba(8, 24, 52, 0.72);
+            color: #eef8ff;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 11px;
+            font-weight: 800;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+        }
+        .t-btn.fire {
+            grid-column: 2;
+            grid-row: 1 / span 2;
+            height: 124px;
+            border-color: #4eff8a;
+            background: rgba(12, 58, 36, 0.78);
+            font-size: 13px;
+        }
+        .t-btn.pressed, .t-btn:active {
+            transform: scale(0.94);
+            background: rgba(45, 130, 220, 0.88);
+        }
+        .t-sub {
+            font-size: 8px;
+            opacity: 0.75;
+            margin-top: 2px;
+        }
+
+        .sub-actions {
+            position: absolute;
+            right: 162px;
+            bottom: 20px;
+            z-index: 7;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .t-btn.small {
+            width: 64px;
+            height: 46px;
+            font-size: 10px;
+        }
+
+        /* Desktop Controls Hint Footer */
+        .desktop-hint {
+            position: absolute;
+            bottom: 6px;
+            left: 14px;
+            z-index: 5;
+            font-size: 11px;
+            color: rgba(180, 215, 245, 0.72);
+            pointer-events: none;
+        }
+
+        /* Modal Screens */
+        .screen {
+            position: absolute;
+            inset: 0;
+            z-index: 20;
+            background: radial-gradient(circle at center, rgba(6, 16, 36, 0.72) 0%, rgba(3, 8, 20, 0.94) 100%);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            overflow-y: auto;
+        }
+        .screen.show { display: flex; }
+        .card {
+            background: var(--panel);
+            border: 1.5px solid var(--border);
+            border-radius: 14px;
+            padding: 24px;
+            width: min(560px, 94vw);
+            max-height: 90dvh;
+            overflow-y: auto;
+            text-align: center;
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.75), 0 0 30px rgba(69, 242, 255, 0.16);
+            backdrop-filter: blur(10px);
+        }
+        .card.wide { width: min(860px, 96vw); }
+        .kicker {
+            font-family: 'Orbitron', monospace;
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--cyan);
+            letter-spacing: 0.2em;
+            margin-bottom: 6px;
+        }
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(28px, 5vw, 44px);
+            font-weight: 900;
+            margin: 0 0 8px;
+            letter-spacing: 0.06em;
+            background: linear-gradient(180deg, #ffffff 0%, #68e8ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 24px;
+            margin: 0 0 12px;
+        }
+        .lead {
+            font-size: 15px;
+            color: #b8d8f2;
+            margin: 0 auto 18px;
+            max-width: 440px;
+            line-height: 1.4;
+        }
+        .btn-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 16px;
+        }
+        .btn {
+            background: rgba(16, 38, 74, 0.9);
+            color: #e8f6ff;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            padding: 11px 20px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            cursor: pointer;
+            transition: transform 0.12s, background 0.15s;
+        }
+        .btn:hover { background: rgba(30, 74, 138, 0.95); transform: translateY(-1px); }
+        .btn.primary {
+            background: linear-gradient(135deg, #0ea5e9, #2563eb);
+            border-color: #7dd3fc;
+            color: #fff;
+            box-shadow: 0 0 18px rgba(14, 165, 233, 0.45);
+        }
+        .btn.full { width: 100%; margin-top: 10px; }
+
+        /* Sector Cards Grid */
+        #sector-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 14px;
+            text-align: left;
+            margin: 14px 0;
+        }
+        .sector-card {
+            background: rgba(10, 24, 48, 0.88);
+            border: 1px solid rgba(82, 224, 255, 0.35);
+            border-radius: 10px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+        }
+        .sector-card.done { border-color: var(--gold); }
+        .sec-badge {
+            font-family: 'Orbitron', monospace;
+            font-size: 10px;
+            font-weight: 800;
+            color: var(--gold);
+            margin-bottom: 4px;
+        }
+        .sector-card h3 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 18px;
+            margin: 0 0 2px;
+            color: #fff;
+        }
+        .sec-sub {
+            font-size: 12px;
+            color: var(--cyan);
+            margin-bottom: 8px;
+        }
+        .sec-desc {
+            font-size: 13px;
+            color: #c2dcf2;
+            line-height: 1.35;
+            flex: 1;
+            margin: 0 0 10px;
+        }
+        .sec-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            font-size: 11px;
+            color: #94b8d8;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 8px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 7px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+        }
+
+        @media (max-width: 680px) {
+            .desktop-hint { display: none; }
+            .wingmen-strip { top: 64px; transform: scale(0.88); transform-origin: top right; }
+            .gauge-track { width: 78px; }
+            #comms-box { bottom: 152px; width: 92vw; padding: 6px 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="stage">
+        <canvas id="gl-canvas"></canvas>
+        <canvas id="hud-canvas"></canvas>
+
+        <!-- Top HUD -->
+        <div class="hud-top">
+            <div class="hud-cluster">
+                <div class="gauge-row">
+                    <span class="gauge-label">SHIELD</span>
+                    <div class="gauge-track"><div class="gauge-fill" id="bar-shield"></div></div>
+                    <span class="gauge-val" id="val-shield">100</span>
+                </div>
+                <div class="gauge-row">
+                    <span class="gauge-label">BOOST</span>
+                    <div class="gauge-track"><div class="gauge-fill" id="bar-boost"></div></div>
+                    <span class="gauge-val" id="val-laser" style="color:#d8e6f5">SINGLE</span>
+                </div>
+            </div>
+
+            <div class="hud-cluster hud-center">
+                <div class="hit-box">
+                    <div class="hit-label">HITS</div>
+                    <div class="hit-num" id="val-hits">000</div>
+                </div>
+                <div class="inv-pills">
+                    <span id="val-bombs">💣💣💣</span>
+                    <span id="val-rings">🪙 0/3</span>
+                </div>
+            </div>
+
+            <div class="hud-actions">
+                <button type="button" class="icon-btn" id="btn-sound">🔊 Audio</button>
+                <button type="button" class="icon-btn" id="btn-pause">⏸ Pause</button>
+            </div>
+        </div>
+
+        <!-- Wingmen Live Status -->
+        <div class="wingmen-strip">
+            <div class="wm-card" id="wm-card-falco">
+                <div class="wm-head"><span style="color:#68b5ff">FALCO</span><span>ARWING</span></div>
+                <div class="wm-track"><div class="wm-fill" id="wm-bar-falco"></div></div>
+            </div>
+            <div class="wm-card" id="wm-card-peppy">
+                <div class="wm-head"><span style="color:#ff8a75">PEPPY</span><span>ARWING</span></div>
+                <div class="wm-track"><div class="wm-fill" id="wm-bar-peppy"></div></div>
+            </div>
+            <div class="wm-card" id="wm-card-slippy">
+                <div class="wm-head"><span style="color:#65ff9a">SLIPPY</span><span>ARWING</span></div>
+                <div class="wm-track"><div class="wm-fill" id="wm-bar-slippy"></div></div>
+            </div>
+        </div>
+
+        <!-- Boss Shield Bar -->
+        <div id="boss-bar-wrap">
+            <div id="boss-bar-name">ATTACK CARRIER GORGON</div>
+            <div class="boss-track"><div id="boss-bar-fill"></div></div>
+        </div>
+
+        <!-- Animated N64 Radio Comms Box -->
+        <div id="comms-box">
+            <canvas id="comms-portrait" width="64" height="64"></canvas>
+            <div class="comms-body">
+                <div id="comms-name">FOX McCLOUD</div>
+                <div id="comms-text">All aircraft report! Engage G-Diffuser system!</div>
+            </div>
+        </div>
+
+        <!-- Touch Flight Stick Zone -->
+        <div id="touch-stick-zone">
+            <div id="stick-base"><div id="stick-nub"></div></div>
+        </div>
+
+        <!-- Touch Action Cluster -->
+        <div class="sub-actions">
+            <button type="button" class="t-btn small" id="btn-boost">BOOST<span class="t-sub">SPD</span></button>
+            <button type="button" class="t-btn small" id="btn-loop">LOOP<span class="t-sub">EVADE</span></button>
+        </div>
+        <div class="touch-Cluster">
+            <button type="button" class="t-btn" id="btn-roll">ROLL<span class="t-sub">DEFLECT</span></button>
+            <button type="button" class="t-btn" id="btn-bomb">BOMB<span class="t-sub">NOVA</span></button>
+            <button type="button" class="t-btn fire" id="btn-fire">FIRE<span class="t-sub">HOLD = LOCK</span></button>
+        </div>
+
+        <div class="desktop-hint">
+            <strong>DESKTOP:</strong> Mouse or WASD/Arrows to Steer · Left-Click/Space = Fire (Hold for Lock-On) · Q/E or Double-Tap A/D = Barrel Roll · Right-Click/B = Smart Bomb · Shift = Boost · C = Loop
+        </div>
+
+        <!-- Title Screen -->
+        <div class="screen show" id="scr-title">
+            <div class="card">
+                <div class="kicker">LYLAT DEFENSE FORCE // N64 TRIBUTE</div>
+                <h1>STARWING 64</h1>
+                <p class="lead">
+                    Pilot the Arwing through Corneria, the Meteo Asteroid Belt, and Venom's Core. Deflect lasers with Barrel Rolls, charge homing lock-on shots, rescue your wingmen, and topple Emperor Andron!
+                </p>
+                <div class="btn-row">
+                    <button type="button" class="btn primary" id="btn-quick-launch">SCRAMBLE NOW (CORNERIA)</button>
+                    <button type="button" class="btn" id="btn-start-campaign">LYLAT SECTOR MAP</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lylat Sector Map Screen -->
+        <div class="screen" id="scr-map">
+            <div class="card wide">
+                <div class="kicker">STRATEGIC COMMAND // GREAT FOX</div>
+                <h2>SELECT LYLAT SECTOR</h2>
+                <div id="sector-cards"></div>
+                <div class="btn-row">
+                    <button type="button" class="btn" id="btn-map-back">← TITLE SCREEN</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pause Screen -->
+        <div class="screen" id="scr-pause">
+            <div class="card">
+                <div class="kicker">TRANSMISSION PAUSED</div>
+                <h2>SYSTEM STANDBY</h2>
+                <div class="btn-row">
+                    <button type="button" class="btn primary" id="btn-resume">RESUME FLIGHT</button>
+                    <button type="button" class="btn" id="btn-restart">RESTART SECTOR</button>
+                    <button type="button" class="btn" id="btn-to-map">SECTOR MAP</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Victory / Sector Complete Screen -->
+        <div class="screen" id="scr-victory">
+            <div class="card">
+                <div class="kicker">GREAT FOX DEBRIEFING</div>
+                <h2 id="vic-title">MISSION ACCOMPLISHED!</h2>
+                <div id="vic-stats" style="margin: 14px 0; text-align: left;"></div>
+                <div class="btn-row">
+                    <button type="button" class="btn primary" id="btn-next-sector">NEXT SECTOR →</button>
+                    <button type="button" class="btn" id="btn-victory-map">LYLAT MAP</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div class="screen" id="scr-gameover">
+            <div class="card">
+                <div class="kicker" style="color:#ff4560">ARWING DOWN</div>
+                <h2 style="color:#ff5c72">MISSION FAILED</h2>
+                <div id="go-stats" style="margin: 14px 0; text-align: left;"></div>
+                <div class="btn-row">
+                    <button type="button" class="btn primary" id="btn-retry">RETRY SECTOR</button>
+                    <button type="button" class="btn" id="btn-gameover-map">LYLAT MAP</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="vendor/three.min.js?v=1"></script>
+    <script src="js/audio.js?v=1"></script>
+    <script src="js/models.js?v=1"></script>
+    <script src="js/render.js?v=1"></script>
+    <script src="js/game.js?v=1"></script>
+    <script src="js/input.js?v=1"></script>
+    <script src="js/ui.js?v=1"></script>
+    <script src="js/main.js?v=1"></script>
+</body>
+</html>

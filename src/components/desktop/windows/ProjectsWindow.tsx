@@ -8,6 +8,7 @@ import PrimalHuntWindow from './PrimalHuntWindow';
 import StudForgeWindow from './StudForgeWindow';
 import HoleHaulWindow from './HoleHaulWindow';
 import ShardfallWindow from './ShardfallWindow';
+import StarwingWindow from './StarwingWindow';
 
 interface Project {
   id: string;
@@ -110,6 +111,21 @@ const projects: Project[] = [
     windowContent: <ShardfallWindow />,
     windowSize: { width: 960, height: 640 },
   },
+  {
+    id: 'starwing',
+    name: 'Starwing 64',
+    icon: (
+      <svg viewBox="0 0 48 48" className="w-10 h-10">
+        <rect x="4" y="4" width="40" height="40" rx="6" fill="#050814" stroke="#00ffcc" strokeWidth="2" />
+        <polygon points="24,8 29,34 24,30 19,34" fill="#eef4ff" />
+        <polygon points="19,22 7,35 19,31" fill="#1b4fd8" />
+        <polygon points="29,22 41,35 29,31" fill="#1b4fd8" />
+        <polygon points="24,14 26.5,24 21.5,24" fill="#00ffcc" />
+      </svg>
+    ),
+    windowContent: <StarwingWindow />,
+    windowSize: { width: 960, height: 640 },
+  },
 ];
 
 export default function ProjectsWindow() {
@@ -136,7 +152,7 @@ export default function ProjectsWindow() {
       title: project.name,
       isMinimized: false,
       // The games and StudForge need the whole screen on a phone.
-      isMaximized: isMobile && ['studforge', 'primal-hunt'].includes(project.id),
+      isMaximized: isMobile && ['studforge', 'primal-hunt', 'shardfall', 'starwing'].includes(project.id),
       position: { x: centerX, y: centerY },
       size: windowSize,
       content: project.windowContent,
@@ -189,6 +205,17 @@ export default function ProjectsWindow() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   /shardfall ↗
+                </a>
+              )}
+              {project.id === 'starwing' && (
+                <a
+                  href="/starwing"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[9px] text-emerald-400 hover:underline mt-0.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  /starwing ↗
                 </a>
               )}
               {project.id === 'hole-haul' && (
