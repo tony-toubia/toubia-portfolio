@@ -284,8 +284,8 @@ function drawMap(){
 function loop(){
   const dt=Math.min(.05,clock.getDelta());frameCount++;
   if(race.mode==='home'){
-    const portrait=innerWidth<700&&innerHeight>innerWidth;
-    const target=portrait?new THREE.Vector3(-7,-3,2):new THREE.Vector3(-22,5,8);
+    const portrait=innerWidth<1000&&innerHeight>innerWidth;
+    const target=portrait?(innerWidth<700?new THREE.Vector3(-7,-3,2):new THREE.Vector3(-13,-13,2)):new THREE.Vector3(-22,5,8);
     const cam=portrait?new THREE.Vector3(39,34,55):new THREE.Vector3(56,44,70);
     camera.position.lerp(cam,.04);camera.lookAt(target);
     if(!reducedMotion){hero.rotation.y+=dt*.15;hero.position.y=6.53+Math.sin(performance.now()*.001)*.035;}
