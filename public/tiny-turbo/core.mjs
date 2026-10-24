@@ -3,6 +3,20 @@ export const CARS = [
   { id: 'clementine', name: 'Clementine', nickname: 'Big wheels. Bigger smiles.', color: '#ff9f66', accent: '#fff4be', shape: 'buggy', badge: '02' },
   { id: 'mint-chip', name: 'Mint Chip', nickname: 'A very speedy little van', color: '#69d9b2', accent: '#fff5dc', shape: 'van', badge: '03' },
 ];
+export const TRACKS = [
+  { id:'cloudtop',name:'Cloudtop Circuit',number:'01',icon:'☁',theme:'clouds',tag:'FLOAT ON AIR',description:'Fluffy clouds & happy little hills',character:'Easy-going curves',sky:'#c7e1f5',ground:'#e3ebce',base:'#c9d9c6',road:'#f1af7a',edge:'#9879c8',rails:['#aa8cdc','#e7d8fc'],accent:'#9b83ff',ink:'#282344',points:[[-65,0,0],[-47,2,-52],[14,4,-69],[65,1,-43],[73,0,8],[44,4,50],[-20,1,60],[-67,0,36]] },
+  { id:'peachy-palms',name:'Peachy Palms',number:'02',icon:'☀',theme:'beach',tag:'SUNSHINE, ON REPEAT',description:'Salty air & the scenic route',character:'Breezy beach bends',sky:'#bce6ed',ground:'#fff0cf',base:'#e4bc8d',road:'#f5b199',edge:'#e98872',rails:['#ffb69a','#fff4d9'],accent:'#ff996e',ink:'#553b40',points:[[-78,0,6],[-66,.5,-46],[-18,1,-63],[38,.7,-57],[75,0,-18],[70,1,37],[25,1.5,57],[-8,.5,20],[-54,0,54]] },
+  { id:'twilight-trail',name:'Twilight Trail',number:'03',icon:'☾',theme:'forest',tag:'CHASE A LITTLE MAGIC',description:'Glow mushrooms & moonlit woods',character:'Sweeping woodland turns',sky:'#222b4b',ground:'#48596b',base:'#303d58',road:'#8585ad',edge:'#b7a0e5',rails:['#d3b5f4','#686b99'],accent:'#b8a2ef',ink:'#f7edff',points:[[-64,0,0],[-72,2,-44],[-28,4,-66],[9,1,-35],[51,3,-64],[78,5,-16],[52,3,25],[63,1,58],[4,2,70],[-42,4,43]] },
+];
+export function sampleJoystick(dx,dy,radius=44) {
+  const length=Math.hypot(dx,dy),limit=Math.min(1,radius/Math.max(length,.001));
+  const strength=Math.max(0,Math.min(1,(length/radius-.1)/.5));
+  return {x:dx*limit,y:dy*limit,steer:length?dx/length*strength:0};
+}
+export function formatTime(seconds) {
+  if(!Number.isFinite(seconds)||seconds<=0)return '—';
+  return `${Math.floor(seconds/60)}:${String(Math.floor(seconds%60)).padStart(2,'0')}`;
+}
 export const GRADES = ['Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5'];
 export const UPGRADE_COST = 12;
 export const MAX_UPGRADES = 3;
@@ -18,6 +32,8 @@ export function normalizeProfile(value = {}) {
     stars: integer(value.stars, 0, 999999),
     wins: integer(value.wins, 0, 999999),
     car: CARS.some(c => c.id === value.car) ? value.car : 'comet',
+    track: TRACKS.some(t => t.id === value.track) ? value.track : 'cloudtop',
+    records: Object.fromEntries(TRACKS.map(t=>[t.id,{races:integer(value.records?.[t.id]?.races,0,99999),best:Number.isFinite(value.records?.[t.id]?.best)&&value.records[t.id].best>0?value.records[t.id].best:null}])),
     upgrades: Object.fromEntries(CARS.map(c => [c.id, integer(value.upgrades?.[c.id], 0, MAX_UPGRADES)])),
   };
 }
@@ -92,5 +108,6 @@ export function settleRace(profile, race, place) {
   if (race.settled) return 0;
   const finishBonus = place===1?8:5;
   race.earned+=finishBonus;profile.stars+=race.earned;if(place===1)profile.wins++;
+  if(profile.records?.[profile.track]&&race.elapsed>0){const record=profile.records[profile.track];record.races++;record.best=record.best===null?race.elapsed:Math.min(record.best,race.elapsed);}
   race.settled=true;race.mode='finished';return finishBonus;
 }

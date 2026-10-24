@@ -1,0 +1,141 @@
+/* World Tour: a play-first lobby and a floating, two-thumb racing HUD. */
+:root { --tour-paper:#fffdf7; --tour-shadow:0 12px 40px #49397516; }
+.screen-vignette { background:linear-gradient(90deg,#f0effbdd 0%,#eeedfb99 29%,transparent 61%),linear-gradient(0deg,#d8e2f4aa,transparent 48%); }
+.app-header { top:max(22px,env(safe-area-inset-top)); left:4%; right:4%; }
+.wordmark { font-size:20px; }
+.logo-icon { box-shadow:0 4px 0 #201a3833; }
+.header-right .icon-button { width:44px; height:44px; border:1px solid #fff; background:#fffdf7c9; backdrop-filter:blur(12px); }
+.home-screen { padding:102px 4% 18px; justify-content:space-between; gap:16px; }
+.intro { position:relative; inset:auto; max-width:555px; margin:auto 0; flex-shrink:0; }
+.intro h1 { font-size:clamp(43px,4.3vw,64px); line-height:.98; letter-spacing:-3.5px; margin:13px 0 10px; }
+.intro h1 span { color:#7952c8; }
+.intro p { font-size:12px; margin:0 0 20px; color:#6c617d; }
+.intro>.eyebrow { font-size:8px; letter-spacing:1.5px; }
+.course-picker { margin-bottom:17px; pointer-events:auto; }
+.picker-heading { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:9px; font-size:8px; font-weight:900; letter-spacing:1px; }
+.picker-heading small { font-size:7px; color:#776d88; letter-spacing:.6px; }
+.track-list { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; }
+.track-card { position:relative; overflow:hidden; padding:5px 7px 11px; min-width:0; color:#342743; background:#ece6fa; border:2px solid #ffffffa3; border-radius:18px; text-align:left; box-shadow:0 4px 0 #5c447010; transition:transform .15s,border-color .15s,box-shadow .15s; }
+.track-card.beach { background:#ffdfc8; }
+.track-card.forest { background:#3f4668; color:#fff2e5; }
+.track-card[aria-pressed=true] { border-color:#302743; box-shadow:0 4px 0 #302743; }
+.track-card.forest[aria-pressed=true] { border-color:#ebdefc; box-shadow:0 4px 0 #302743; }
+.track-card:hover { transform:translateY(-3px); }
+.track-number { position:absolute; top:9px; left:10px; opacity:.45; font-size:9px; letter-spacing:1px; font-weight:900; }
+.track-check { position:absolute; top:8px; right:8px; width:17px; height:17px; display:grid; place-items:center; background:#302743; color:#ecff9c; border-radius:50%; font-size:10px; }
+.track-card[aria-pressed=false] .track-check { display:none; }
+.track-drawing { width:100%; display:block; height:81px; filter:drop-shadow(0 5px 2px #3d2e4f1c); }
+.track-card strong { display:block; font-size:12px; letter-spacing:-.3px; padding:0 4px; white-space:nowrap; }
+.track-card>small { display:block; font-size:8px; margin-top:5px; opacity:.65; padding:0 4px; white-space:nowrap; }
+.start-row { gap:13px; }
+.intro .primary-button { min-height:61px; min-width:235px; padding:10px 19px; border-radius:18px; background:#e5ff89; }
+.primary-button .start-copy { font-size:16px; text-align:left; line-height:1.1; }
+.start-copy small { display:block; font-size:9px; font-weight:500; letter-spacing:0; margin-top:6px; }
+.start-note { font-size:8px; line-height:1.6; color:#766c82; }
+.round-help { background:#fffdf7b0; height:38px; width:38px; font-size:17px; flex-shrink:0; }
+.course-stamp { top:53%; right:7%; min-width:290px; transform:rotate(-3deg); padding:13px 17px; border-radius:21px; }
+.course-stamp .course-mini { background:#efe8fa; }
+.course-stamp strong { font-size:17px; }
+.garage-panel { padding:14px 20px 11px; border-radius:24px; flex-shrink:0; background:#fffdf6ed; backdrop-filter:blur(18px); box-shadow:var(--tour-shadow); }
+.section-heading { margin-bottom:10px; }
+.section-heading .eyebrow { font-size:7px; letter-spacing:1.1px; }
+.section-heading h2 { font-size:20px; margin:4px 0 0; letter-spacing:-.8px; }
+.car-card { min-height:73px; padding:7px 15px; border-radius:15px; }
+.car-card[aria-pressed=true] { box-shadow:inset 0 0 0 1px #282344; }
+.car-card strong { font-size:16px; }
+.car-card p { font-size:9px; }
+.car-drawing { width:102px; height:55px; }
+.wallet { font-size:21px; }
+.garage-footer { font-size:8px; margin-top:9px; }
+.garage-footer .text-button { min-height:34px; padding:7px 11px; border-radius:11px; background:#eee8f6; }
+.home-footer { margin-top:0; flex-shrink:0; }
+.home-footer>span { font-size:7px; }
+.home-footer button { font-size:8px; border:1px solid #ffffff6b; border-radius:20px; background:#ffffff40; padding:8px 13px; }
+
+/* Race information stays at the edges; the road gets the center of the screen. */
+.race-top { gap:10px; top:max(22px,env(safe-area-inset-top)); left:26px; right:26px; }
+.race-top>.icon-button { width:44px; height:44px; }
+.position-box { background:#fffdf4f2; min-width:84px; border:1px solid #fff; border-radius:23px; padding:10px 16px; box-shadow:0 5px 0 #34274b24; }
+.position-box>strong { font-size:39px; letter-spacing:-2px; }
+.position-box>span { font-size:6px; letter-spacing:1.1px; color:#82748b; }
+.lap-box { min-width:213px; background:#fffdf4e6; padding:12px 17px; border:1px solid #fff; border-radius:20px; box-shadow:0 5px 0 #34274b10; }
+.lap-box>small { font-size:8px; letter-spacing:1px; }
+.lap-line { display:flex; gap:20px; align-items:baseline; justify-content:space-between; }
+.lap-line>strong { font-size:19px; }
+.lap-line>strong span { color:#a093ac; font-size:13px; }
+#race-time { color:#8d7d99; font-size:12px; font-variant-numeric:tabular-nums; }
+.progress-track { height:5px; background:#e7ddef; margin-top:8px; }
+.progress-track>i { background:linear-gradient(90deg,#a18ade,#d5a6dd); border-radius:4px; }
+.race-side { top:123px; left:28px; flex-direction:row; align-items:center; gap:8px; }
+.race-stars { padding:8px 12px; font-size:21px; background:#fffdf5df; border-radius:15px; }
+.race-stars small { display:none; }
+.learning-next { background:#fffdf5cb; border-radius:15px; padding:12px; gap:10px; }
+.learning-next span { font-size:7px; }
+.learning-next strong { font-size:12px; font-variant-numeric:tabular-nums; }
+#minimap { right:25px; top:94px; width:143px; height:104px; border:2px solid #ffffff70; box-shadow:var(--tour-shadow); backdrop-filter:blur(12px); }
+.touch-controls { left:0; right:29px; bottom:max(45px,calc(env(safe-area-inset-bottom) + 27px)); justify-content:flex-end; pointer-events:none; }
+.drive-note { position:absolute; left:50%; bottom:10px; transform:translateX(-50%); width:240px; text-align:center; }
+.drive-note strong { font-size:8px; letter-spacing:1.6px; }
+.drive-note i { display:inline-block; height:5px; width:5px; background:#dfff88; border-radius:50%; margin-right:5px; }
+.drive-note span { font-size:9px; }
+.boost-button { --charge:.333turn; position:relative; isolation:isolate; width:116px; height:116px; min-width:0; min-height:0; padding:18px 8px; border-radius:50%; background:#e8ff9a; border:5px solid #fff8d9; box-shadow:0 5px 0 #30264566,0 0 0 1px #3d334333; pointer-events:auto; }
+.boost-button::before { content:''; position:absolute; inset:-8px; z-index:-1; border-radius:50%; padding:4px; background:conic-gradient(#d9ff8c var(--charge),#ffffff3b 0); mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); mask-composite:exclude; -webkit-mask-composite:xor; }
+.boost-button>span { font-size:32px; margin-top:-2px; }
+.boost-button strong { font-size:10px; letter-spacing:1.4px; margin:5px 0 3px; }
+.boost-button small { font-size:9px; }
+.boost-button:disabled { border-color:#ffffff8a; background:#e4e1e7c9; box-shadow:0 4px 0 #30264533; }
+.race-bottom { left:29px; right:29px; bottom:max(8px,env(safe-area-inset-bottom)); }
+.race-bottom>span:last-child { opacity:.65; font-size:7px; letter-spacing:1px; }
+.power-status { top:25%; background:#fffaf0f0; color:#534266; box-shadow:0 4px 18px #3026451f; font-size:11px; }
+.steer-zone { position:absolute; top:26%; left:0; bottom:32px; width:52%; z-index:1; touch-action:none; pointer-events:auto; user-select:none; -webkit-user-select:none; outline-offset:-5px; border-radius:20px; }
+.joystick { position:absolute; left:30px; bottom:22px; width:132px; height:132px; border-radius:50%; border:2px solid #ffffffa6; box-shadow:inset 0 0 0 13px #ffffff10,0 5px 20px #30264515; background:#fffcf51c; backdrop-filter:blur(4px); pointer-events:none; }
+.joystick.active { bottom:auto; transform:translate(-50%,-50%); background:#fffcf52b; border-color:#fff8df; }
+.joystick-cross { position:absolute; inset:15px; opacity:.35; border:1px dashed #fff9de; border-radius:50%; }
+.joystick-knob { position:absolute; left:50%; top:50%; margin:-29px 0 0 -29px; width:58px; height:58px; display:grid; place-items:center; border-radius:50%; border:3px solid #fff8e3; background:linear-gradient(140deg,#fffdf4,#e7ddf2); color:#796184; box-shadow:0 5px 0 #51405d4a,0 8px 18px #30264520; transition:background .12s; }
+.joystick-knob>span { font-size:26px; }
+.joystick.active .joystick-knob { background:#efffbc; color:#51405d; }
+.joystick-label { position:absolute; top:100%; left:0; right:0; text-align:center; font-size:8px; letter-spacing:2px; font-weight:bold; color:#fffbe8; text-shadow:0 2px 5px #30264555; margin-top:8px; }
+.joystick.active .joystick-label { display:none; }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+.modal-backdrop { background:#3027496b; -webkit-backdrop-filter:blur(9px); }
+.modal-card { box-shadow:0 12px 0 #2823441c,0 30px 100px #28234433; }
+.question-display { color:#7049ac; }
+.answers .answer { background:#f1e9fd; border-color:#dfd0f1; box-shadow:0 4px 0 #d7c3ed; }
+.answer.wrong { background:#fff0d6; border-color:#d79761; box-shadow:0 4px 0 #d79761; }
+.settings-card select { min-height:49px; }
+
+/* The moonlit world gets its own lobby palette, without recoloring the dialogs. */
+body[data-course=twilight-trail] .screen-vignette { background:linear-gradient(90deg,#24263edd,#24263e99 29%,transparent 68%),linear-gradient(0deg,#222b4baa,transparent 48%); }
+body[data-course=twilight-trail] .intro,body[data-course=twilight-trail] .wordmark,body[data-course=twilight-trail] .home-footer,body[data-course=twilight-trail] .ad-free { color:#fff2e5; }
+body[data-course=twilight-trail] .intro h1 span { color:#d5bcf4; }
+body[data-course=twilight-trail] .intro p,body[data-course=twilight-trail] .picker-heading small,body[data-course=twilight-trail] .start-note,body[data-course=twilight-trail] .home-footer>span { color:#c4b7d5; }
+body[data-course=twilight-trail] .round-help { color:#fff2e5; background:#ffffff18; border-color:#ffffff44; }
+body[data-course=twilight-trail] .intro .primary-button { color:#282344; }
+body.racing .screen-vignette { background:linear-gradient(0deg,#20244540,transparent 35%); }
+
+@media(min-width:1500px) { .home-screen { padding-top:120px; padding-bottom:24px; gap:22px; }.intro { max-width:610px; }.intro h1 { font-size:72px; }.track-drawing { height:98px; }.track-card strong { font-size:14px; }.course-stamp { top:51%; right:10%; }.garage-panel { padding:20px 26px 14px; }.car-card { min-height:91px; }.car-drawing { width:129px; height:69px; } }
+@media(max-width:1050px) and (min-width:701px) { .intro { max-width:490px; }.intro h1 { font-size:51px; }.intro p { font-size:11px; }.track-card strong { font-size:11px; }.track-card>small { font-size:7px; }.course-stamp { right:5%; top:57%; min-width:250px; }.course-stamp strong { font-size:15px; }.car-drawing { width:85px; }.car-card { padding:8px 10px; }.car-card strong { font-size:14px; }.car-card p { font-size:8px; } }
+@media(min-width:701px) and (min-height:541px) and (max-height:820px) {
+  .home-screen { padding-top:92px; padding-bottom:14px; gap:12px; }.intro h1 { font-size:48px; margin:10px 0 8px; }.intro p { margin-bottom:12px; }.course-picker { margin-bottom:14px; }.track-drawing { height:66px; }.intro .primary-button { min-height:55px; }.garage-panel { padding:10px 18px 9px; }.section-heading { margin-bottom:8px; }.section-heading h2 { font-size:18px; }.car-card { min-height:66px; }.car-drawing { height:49px; }.garage-footer { margin-top:8px; }.course-stamp { top:49%; }
+}
+@media(max-width:700px) {
+  .app-header { top:max(17px,env(safe-area-inset-top)); left:21px; right:21px; }.wordmark { font-size:15px; }
+  .home-screen { padding:87px 17px max(12px,env(safe-area-inset-bottom)); gap:15px; overflow:auto; justify-content:space-between; }
+  .intro { position:relative; inset:auto; margin:0; max-width:none; width:100%; }.intro>.eyebrow { font-size:7px; letter-spacing:.9px; padding-left:3px; }
+  .intro h1 { font-size:39px; line-height:.97; margin:13px 0 9px; letter-spacing:-2.3px; padding-left:3px; }.intro p { display:none; }
+  .course-picker { margin-top:118px; margin-bottom:15px; }.picker-heading { font-size:7px; letter-spacing:.6px; }.picker-heading small { font-size:6px; }
+  .track-list { gap:7px; }.track-card { padding:4px 3px 9px; border-radius:14px; }.track-drawing { height:65px; }.track-number { top:7px; left:7px; font-size:7px; }.track-check { top:6px; right:6px; height:14px; width:14px; font-size:8px; }.track-card strong { font-size:10px; letter-spacing:-.25px; }.track-card>small { font-size:6px; margin-top:5px; }.track-card.forest strong { font-size:10px; }
+  .start-row { gap:11px; }.intro .primary-button { min-width:0; flex:1; min-height:55px; padding:9px 17px; border-radius:16px; }.primary-button .start-copy { font-size:15px; }.start-copy small { font-size:8px; }.start-note { display:none; }.round-help { height:44px; width:44px; }.course-stamp { display:none; }
+  .garage-panel { padding:12px 11px 9px; border-radius:21px; }.section-heading { margin-bottom:10px; }.section-heading h2 { font-size:17px; }.section-heading .eyebrow { font-size:6px; }.wallet { font-size:19px; }.wallet small { font-size:6px; }.car-card { min-height:102px; padding:7px 3px; flex-direction:column; gap:0; }.car-drawing { width:80px; height:45px; }.car-card strong { font-size:12px; margin-top:3px; }.car-card small { font-size:6px; }.garage-footer { font-size:6px; margin-top:9px; }.garage-footer .text-button { font-size:6px; }.home-footer { margin-top:0; }.home-footer button { font-size:7px; padding:7px 11px; }
+  .race-top { top:max(16px,env(safe-area-inset-top)); left:15px; right:15px; gap:8px; }.position-box { min-width:67px; padding:9px 10px; border-radius:18px; }.position-box>strong { font-size:31px; }.position-box>span { font-size:5px; }.lap-box { min-width:0; padding:11px 13px; border-radius:17px; }.lap-box>small { font-size:7px; }.lap-line { gap:15px; }.lap-line>strong { font-size:16px; }.lap-line>strong span { font-size:12px; }#race-time { font-size:10px; }.race-side { top:108px; left:16px; gap:6px; }.race-stars { font-size:18px; padding:9px 10px; border-radius:13px; }.learning-next { padding:11px 9px; border-radius:13px; gap:7px; }.learning-next span { font-size:5px; }.learning-next strong { font-size:10px; }
+  #minimap { top:109px; right:15px; width:88px; height:66px; border-radius:17px; }.touch-controls { right:23px; bottom:max(47px,calc(env(safe-area-inset-bottom) + 28px)); }.boost-button { height:98px; width:98px; padding:15px 7px; border-width:4px; }.boost-button>span { font-size:28px; }.boost-button strong { font-size:9px; }.boost-button small { font-size:8px; }.drive-note { display:none; }
+  .steer-zone { bottom:33px; width:55%; }.joystick { width:119px; height:119px; left:23px; bottom:20px; }.joystick-knob { height:54px; width:54px; margin:-27px 0 0 -27px; }.joystick-knob>span { font-size:23px; }.race-bottom { left:23px; right:23px; }.race-bottom>span:last-child { display:none; }.power-status { top:26%; font-size:10px; }
+}
+@media(max-width:700px) and (max-height:760px) {
+  .home-screen { padding-top:78px; gap:12px; }.intro h1 { font-size:34px; margin-top:10px; }.course-picker { margin-top:60px; margin-bottom:13px; }.track-drawing { height:54px; }.track-card { padding-bottom:8px; }.track-card>small { font-size:5.5px; }.intro .primary-button { min-height:51px; }.garage-panel { padding:10px 10px 8px; }.section-heading h2 { font-size:15px; }.car-card { min-height:91px; }.car-drawing { height:38px; width:72px; }.garage-footer { margin-top:6px; }.home-footer button { padding:5px 9px; }.section-heading { margin-bottom:8px; }
+}
+@media(max-height:540px) and (min-width:500px) {
+  .app-header { top:13px; left:25px; right:25px; }.home-screen { padding:70px 25px 10px; gap:7px; }.intro { margin:0; max-width:470px; }.intro>.eyebrow { display:none; }.intro h1 { font-size:27px; margin:0 0 10px; letter-spacing:-1.3px; }.intro h1 br { display:none; }.intro h1 span { margin-left:5px; }.intro p { display:none; }.course-picker { margin-top:0; margin-bottom:9px; }.picker-heading { font-size:6px; margin-bottom:5px; }.picker-heading small { font-size:5px; }.track-drawing { height:42px; }.track-card { border-radius:12px; padding:2px 5px 7px; }.track-card strong { font-size:10px; }.track-card>small { display:none; }.track-number { font-size:6px; }.track-check { width:13px; height:13px; font-size:7px; }.intro .primary-button { min-height:43px; min-width:218px; flex:none; padding:7px 15px; }.primary-button .start-copy { font-size:12px; }.start-copy small { font-size:7px; margin-top:4px; }.round-help { width:33px; height:33px; }.start-note { display:none; }.course-stamp { display:none; }
+  .garage-panel { padding:8px 13px; }.section-heading { display:none; }.car-card { flex-direction:row; min-height:52px; padding:4px 8px; text-align:left; }.car-drawing { width:72px; height:40px; }.car-card strong { font-size:11px; }.car-card p { display:none; }.car-card small { font-size:6px; margin-top:3px; }.garage-footer { margin-top:6px; font-size:6px; }.garage-footer .text-button { font-size:6px; }.home-footer { display:none; }
+  .race-top { top:12px; left:18px; right:18px; }.position-box { min-width:65px; padding:7px 12px; border-radius:16px; }.position-box>strong { font-size:28px; }.lap-box { padding:9px 14px; min-width:205px; }.lap-box>small { font-size:7px; }.lap-line>strong { font-size:15px; }.race-side { top:97px; left:19px; }.learning-next { padding:9px; }.race-stars { font-size:17px; padding:7px 10px; }#minimap { top:77px; right:19px; width:103px; height:76px; }.touch-controls { right:25px; bottom:31px; }.boost-button { height:86px; width:86px; min-height:0; padding:12px 6px; }.boost-button>span { font-size:23px; }.boost-button strong { font-size:8px; margin-top:4px; }.boost-button small { font-size:7px; }.drive-note { display:none; }.joystick { width:101px; height:101px; left:26px; bottom:3px; }.joystick-knob { height:48px; width:48px; margin:-24px 0 0 -24px; }.joystick-label { font-size:6px; margin-top:5px; }.race-bottom { bottom:4px; }.steer-zone { top:28%; bottom:28px; }.power-status { top:23%; }
+}
