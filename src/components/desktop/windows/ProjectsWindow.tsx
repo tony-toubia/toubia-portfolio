@@ -9,6 +9,7 @@ import StudForgeWindow from './StudForgeWindow';
 import HoleHaulWindow from './HoleHaulWindow';
 import ShardfallWindow from './ShardfallWindow';
 import StarwingWindow from './StarwingWindow';
+import TinyTurboWindow from './TinyTurboWindow';
 
 interface Project {
   id: string;
@@ -19,6 +20,13 @@ interface Project {
 }
 
 const projects: Project[] = [
+  {
+    id: 'tiny-turbo',
+    name: 'Tiny Turbo Club',
+    icon: <img src="/tiny-turbo/icon.svg" alt="" className="w-10 h-10" />,
+    windowContent: <TinyTurboWindow />,
+    windowSize: { width: 1100, height: 740 },
+  },
   {
     id: 'aura',
     name: 'Aura Platform',
@@ -152,7 +160,7 @@ export default function ProjectsWindow() {
       title: project.name,
       isMinimized: false,
       // The games and StudForge need the whole screen on a phone.
-      isMaximized: isMobile && ['studforge', 'primal-hunt', 'shardfall', 'starwing'].includes(project.id),
+      isMaximized: isMobile && ['studforge', 'primal-hunt', 'shardfall', 'starwing', 'tiny-turbo'].includes(project.id),
       position: { x: centerX, y: centerY },
       size: windowSize,
       content: project.windowContent,
@@ -185,6 +193,11 @@ export default function ProjectsWindow() {
               <span className="text-xs text-center text-[var(--window-text)] group-hover:text-[var(--selection-bg)] break-words w-full font-medium">
                 {project.name}
               </span>
+              {project.id === 'tiny-turbo' && (
+                <a href="/tiny-turbo" target="_blank" rel="noopener noreferrer" className="text-[9px] text-violet-500 hover:underline mt-0.5" onClick={(e) => e.stopPropagation()}>
+                  /tiny-turbo ↗
+                </a>
+              )}
               {project.id === 'studforge' && (
                 <a
                   href="/studforge"
