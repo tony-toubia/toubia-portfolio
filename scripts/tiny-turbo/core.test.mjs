@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CARS, normalizeProfile, makeQuestion, createRace, advanceClock, rewardQuestion, buyUpgrade, settleRace } from '../../public/tiny-turbo/core.mjs';
+import * as THREE from '../../public/studforge/vendor/three.module.js';
+import { CARS, TRACKS, sampleJoystick, formatTime, normalizeProfile, makeQuestion, createRace, advanceClock, rewardQuestion, buyUpgrade, settleRace } from '../../public/tiny-turbo/core.mjs';
 
 const rng=seed=>()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
 test('every grade generates varied, uniquely answerable math and spelling with safe kindergarten ranges',()=>{
@@ -33,4 +34,28 @@ test('finish rewards bank once; car upgrades only spend earned stars and respect
 test('invalid or old saved preferences recover without locking out the garage',()=>{
   const profile=normalizeProfile({grade:99,car:'gone',stars:-500,cadence:0,subject:'ads',upgrades:{comet:100}});
   assert.equal(profile.grade,5);assert.equal(profile.car,'comet');assert.equal(profile.stars,0);assert.equal(profile.cadence,18);assert.equal(profile.subject,'mixed');assert.equal(profile.upgrades.comet,3);
+});
+
+test('joystick has a dead zone, analog strength and a bounded knob; old saves retain stars while gaining course records',()=>{
+  assert.equal(sampleJoystick(1,1).steer,0);assert.equal(sampleJoystick(0,40).steer,0);
+  const small=sampleJoystick(10,0),large=sampleJoystick(25,0);assert.ok(small.steer>0&&small.steer<large.steer);assert.ok(sampleJoystick(-25,0).steer<0);
+  const extreme=sampleJoystick(1000,1000);assert.ok(Math.hypot(extreme.x,extreme.y)<=44.0001);assert.ok(extreme.steer<=1);
+  const profile=normalizeProfile({stars:48,car:'mint-chip',upgrades:{'mint-chip':2},track:'gone'});assert.equal(profile.stars,48);assert.equal(profile.track,'cloudtop');assert.equal(profile.upgrades['mint-chip'],2);assert.equal(Object.keys(profile.records).length,TRACKS.length);
+  assert.equal(formatTime(74.2),'1:14');assert.equal(formatTime(null),'—');
+});
+
+test('course splines are closed, fit their islands, and leave clearance between separate sections of road',()=>{
+  const outlines=new Set();
+  for(const track of TRACKS){
+    const curve=new THREE.CatmullRomCurve3(track.points.map(p=>new THREE.Vector3(...p)),true,'catmullrom',.4),length=curve.getLength(),points=Array.from({length:300},(_,i)=>curve.getPointAt(i/300));
+    assert.ok(curve.getPointAt(0).distanceTo(curve.getPointAt(1))<.001);assert.ok(length>350&&length<600);outlines.add(JSON.stringify(track.points));
+    for(let i=0;i<points.length;i++){
+      const a=points[i];assert.ok([a.x,a.y,a.z].every(Number.isFinite));assert.ok(Math.hypot(a.x,a.z)+8<112,'road stays on its island');
+      for(let j=i+1;j<points.length;j++){
+        const arcGap=Math.min(j-i,300-j+i)*length/300;if(arcGap<32)continue;
+        assert.ok(Math.hypot(a.x-points[j].x,a.z-points[j].z)>16,'separate sections must not overlap the full road width');
+      }
+    }
+  }
+  assert.equal(outlines.size,3);
 });
