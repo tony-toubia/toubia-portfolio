@@ -1,13 +1,40 @@
 export const CARS = [
-  { id: 'comet', name: 'Comet', nickname: 'The little speedster', color: '#9b83ff', accent: '#e8ff7d', shape: 'racer', badge: '01' },
-  { id: 'clementine', name: 'Clementine', nickname: 'Big wheels. Bigger smiles.', color: '#ff9f66', accent: '#fff4be', shape: 'buggy', badge: '02' },
-  { id: 'mint-chip', name: 'Mint Chip', nickname: 'A very speedy little van', color: '#69d9b2', accent: '#fff5dc', shape: 'van', badge: '03' },
+  { id: 'comet', name: 'Comet', nickname: 'The little speedster', driver: 'Pip', color: '#9b83ff', accent: '#e8ff7d', helmet: '#fff5dc', shape: 'racer', badge: '01', speed: 5, accel: 4, drift: 4, stats: { speed: 92, accel: 86, drift: 90 } },
+  { id: 'clementine', name: 'Clementine', nickname: 'Big wheels. Bigger smiles.', driver: 'Sunny', color: '#ff9f66', accent: '#fff4be', helmet: '#ffe4ef', shape: 'buggy', badge: '02', speed: 4, accel: 5, drift: 4, stats: { speed: 86, accel: 94, drift: 88 } },
+  { id: 'mint-chip', name: 'Mint Chip', nickname: 'A very speedy little van', driver: 'Mochi', color: '#69d9b2', accent: '#fff5dc', helmet: '#e8ddff', shape: 'van', badge: '03', speed: 4, accel: 4, drift: 5, stats: { speed: 88, accel: 90, drift: 95 } },
 ];
 export const TRACKS = [
   { id:'cloudtop',name:'Cloudtop Circuit',number:'01',icon:'☁',theme:'clouds',tag:'FLOAT ON AIR',description:'Fluffy clouds & happy little hills',character:'Easy-going curves',sky:'#c7e1f5',ground:'#e3ebce',base:'#c9d9c6',road:'#f1af7a',edge:'#9879c8',rails:['#aa8cdc','#e7d8fc'],accent:'#9b83ff',ink:'#282344',points:[[-65,0,0],[-47,2,-52],[14,4,-69],[65,1,-43],[73,0,8],[44,4,50],[-20,1,60],[-67,0,36]] },
   { id:'peachy-palms',name:'Peachy Palms',number:'02',icon:'☀',theme:'beach',tag:'SUNSHINE, ON REPEAT',description:'Salty air & the scenic route',character:'Breezy beach bends',sky:'#bce6ed',ground:'#fff0cf',base:'#e4bc8d',road:'#f5b199',edge:'#e98872',rails:['#ffb69a','#fff4d9'],accent:'#ff996e',ink:'#553b40',points:[[-78,0,6],[-66,.5,-46],[-18,1,-63],[38,.7,-57],[75,0,-18],[70,1,37],[25,1.5,57],[-8,.5,20],[-54,0,54]] },
   { id:'twilight-trail',name:'Twilight Trail',number:'03',icon:'☾',theme:'forest',tag:'CHASE A LITTLE MAGIC',description:'Glow mushrooms & moonlit woods',character:'Sweeping woodland turns',sky:'#222b4b',ground:'#48596b',base:'#303d58',road:'#8585ad',edge:'#b7a0e5',rails:['#d3b5f4','#686b99'],accent:'#b8a2ef',ink:'#f7edff',points:[[-64,0,0],[-72,2,-44],[-28,4,-66],[9,1,-35],[51,3,-64],[78,5,-16],[52,3,25],[63,1,58],[4,2,70],[-42,4,43]] },
 ];
+
+export const ITEMS = [
+  { id: 'mushroom', name: 'Turbo Shroom', icon: '🍄', color: '#ff6b6b', desc: 'Instant speed burst!' },
+  { id: 'triple-shroom', name: 'Triple Shrooms', icon: '🍄×3', color: '#ff8e53', desc: 'Three rapid turbo bursts!' },
+  { id: 'shell', name: 'Homing Shell', icon: '🐢', color: '#51cf66', desc: 'Chases the rival ahead!' },
+  { id: 'star-power', name: 'Super Star', icon: '🌟', color: '#ffd43b', desc: 'Rainbow invincibility & top speed!' },
+  { id: 'lightning', name: 'Mini Zap', icon: '⚡', color: '#4dabf7', desc: 'Shrinks & slows all rivals!' },
+  { id: 'banana', name: 'Giggle Peel', icon: '🍌', color: '#fcc419', desc: 'Drops a slip hazard behind you!' },
+];
+
+export function rollItem(place = 2, rng = Math.random) {
+  // Position-based Mario Kart rubber-banding: trailing racers get stronger comeback items!
+  const pool = place >= 3
+    ? ['mushroom', 'triple-shroom', 'shell', 'star-power', 'lightning']
+    : place === 2
+      ? ['mushroom', 'triple-shroom', 'shell', 'star-power', 'banana']
+      : ['banana', 'mushroom', 'shell', 'mushroom'];
+  return pool[Math.min(pool.length - 1, Math.floor(rng() * pool.length))];
+}
+
+export function computeDriftTier(charge = 0) {
+  if (charge >= 2.2) return 3; // Ultra Mini-Turbo (Purple/Pink sparks)
+  if (charge >= 1.25) return 2; // Super Mini-Turbo (Orange sparks)
+  if (charge >= 0.5) return 1;  // Standard Mini-Turbo (Blue sparks)
+  return 0;
+}
+
 export function sampleJoystick(dx,dy,radius=44) {
   const length=Math.hypot(dx,dy),limit=Math.min(1,radius/Math.max(length,.001));
   const strength=Math.max(0,Math.min(1,(length/radius-.1)/.5));
@@ -86,7 +113,40 @@ export function makeQuestion(grade = 0, subject = 'mixed', rng = Math.random) {
 
 // Learning overlays and pauses never advance race time, pickups, or opponents.
 export function createRace() {
-  return { mode:'countdown', elapsed:0, challengeAt:0, answered:0, skipped:0, earned:0, settled:false, distance:0, boost:0, shield:0, magnet:0, energy:1, collected:new Set() };
+  return {
+    mode: 'countdown',
+    elapsed: 0,
+    challengeAt: 0,
+    answered: 0,
+    skipped: 0,
+    earned: 0,
+    settled: false,
+    distance: 0,
+    boost: 0,
+    shield: 0,
+    magnet: 0,
+    energy: 1,
+    collected: new Set(),
+    // Mario Kart Gameplay State
+    drifting: false,
+    driftDir: 0,
+    driftCharge: 0,
+    driftTier: 0,
+    hopTimer: 0,
+    airY: 0,
+    airVy: 0,
+    trickTimer: 0,
+    draftTimer: 0,
+    starPower: 0,
+    lightningTimer: 0,
+    item: null,
+    itemCharges: 0,
+    rouletteTimer: 0,
+    rocketCharge: 0,
+    rocketTriggered: false,
+    miniTurbos: 0,
+    tricks: 0,
+  };
 }
 export function advanceClock(race, delta, cadence) {
   if (race.mode !== 'racing') return false;

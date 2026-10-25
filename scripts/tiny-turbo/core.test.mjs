@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from '../../public/studforge/vendor/three.module.js';
-import { CARS, TRACKS, sampleJoystick, formatTime, normalizeProfile, makeQuestion, createRace, advanceClock, rewardQuestion, buyUpgrade, settleRace } from '../../public/tiny-turbo/core.mjs';
+import { CARS, TRACKS, ITEMS, sampleJoystick, formatTime, normalizeProfile, makeQuestion, createRace, advanceClock, rewardQuestion, buyUpgrade, settleRace, rollItem, computeDriftTier } from '../../public/tiny-turbo/core.mjs';
 
 const rng=seed=>()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
 test('every grade generates varied, uniquely answerable math and spelling with safe kindergarten ranges',()=>{
@@ -58,4 +58,20 @@ test('course splines are closed, fit their islands, and leave clearance between 
     }
   }
   assert.equal(outlines.size,3);
+});
+
+
+test('Mario Kart item roulette weights items by race position and drift tiers progress through blue, orange, and pink sparks',()=>{
+  assert.equal(computeDriftTier(0),0);
+  assert.equal(computeDriftTier(.55),1);
+  assert.equal(computeDriftTier(1.3),2);
+  assert.equal(computeDriftTier(2.3),3);
+  const validIds=new Set(ITEMS.map(i=>i.id));
+  for(let place=1;place<=4;place++){
+    const random=rng(100+place);
+    for(let n=0;n<40;n++)assert.ok(validIds.has(rollItem(place,random)));
+  }
+  assert.equal(rollItem(1,()=>.05),'banana');
+  assert.equal(rollItem(4,()=>.75),'star-power');
+  assert.equal(rollItem(4,()=>.95),'lightning');
 });

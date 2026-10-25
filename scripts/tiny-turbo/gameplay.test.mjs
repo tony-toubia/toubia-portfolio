@@ -113,3 +113,24 @@ test('garage selection and learning preferences save and feed the next race',asy
   nodes.get('settings-form').events.submit[0]({preventDefault(){}});assert.equal(nodes.get('settings').hidden,true);assert.equal(game.readSaved().grade,3);assert.equal(game.readSaved().steerAssist,false);
   nodes.get('start').click();game.tick(16);assert.equal(app.state.race.mode,'challenge');assert.equal(app.state.question.kind,'spelling');assert.ok(app.state.question.display.length>=7);
 });
+
+
+test('Mario Kart mechanics: rocket start, drift mini-turbo sparks, item boxes, and trick ramps',async()=>{
+  const game=await makeGame({sound:false,cadence:26});const {app,nodes}=game;
+  nodes.get('start').click();
+  game.tick(2.1);nodes.get('drift').events.pointerdown[0]({preventDefault(){}});game.tick(2.0);
+  assert.equal(app.state.race.mode,'racing');
+  assert.equal(app.state.race.rocketTriggered,true,'rocket start triggers when timed in countdown');
+  const zone=nodes.get('steer-zone');
+  zone.events.pointerdown[0]({preventDefault(){},pointerId:1,clientX:100,clientY:400});
+  zone.events.pointermove[0]({pointerId:1,clientX:145,clientY:400});
+  nodes.get('drift').events.pointerdown[0]({preventDefault(){}});
+  game.tick(1.5);
+  assert.ok(app.state.race.drifting,'kart enters drift state');
+  assert.ok(app.state.race.driftTier>=2,'charges at least orange super mini-turbo sparks');
+  nodes.get('drift').events.pointerup[0]({});
+  zone.events.pointerup[0]({pointerId:1});
+  game.tick(.1);
+  assert.equal(app.state.race.miniTurbos,1,'releasing drift awards a mini-turbo burst');
+  assert.ok(app.state.race.boost>1.5,'mini-turbo sets active boost');
+});

@@ -1,4 +1,4 @@
-/* World Tour: a play-first lobby and a floating, two-thumb racing HUD. */
+/* World Tour: a play-first lobby and a floating, two-thumb Mario Kart racing HUD. */
 :root { --tour-paper:#fffdf7; --tour-shadow:0 12px 40px #49397516; }
 .screen-vignette { background:linear-gradient(90deg,#f0effbdd 0%,#eeedfb99 29%,transparent 61%),linear-gradient(0deg,#d8e2f4aa,transparent 48%); }
 .app-header { top:max(22px,env(safe-area-inset-top)); left:4%; right:4%; }
@@ -45,6 +45,8 @@
 .car-card strong { font-size:16px; }
 .car-card p { font-size:9px; }
 .car-drawing { width:102px; height:55px; }
+.car-stats { display:flex; gap:5px; margin-top:4px; align-items:center; flex-wrap:wrap; }
+.car-stat { font-size:7px; font-weight:800; letter-spacing:.5px; background:#28234414; color:#31264b; padding:2px 5px; border-radius:6px; }
 .wallet { font-size:21px; }
 .garage-footer { font-size:8px; margin-top:9px; }
 .garage-footer .text-button { min-height:34px; padding:7px 11px; border-radius:11px; background:#eee8f6; }
@@ -53,11 +55,41 @@
 .home-footer button { font-size:8px; border:1px solid #ffffff6b; border-radius:20px; background:#ffffff40; padding:8px 13px; }
 
 /* Race information stays at the edges; the road gets the center of the screen. */
-.race-top { gap:10px; top:max(22px,env(safe-area-inset-top)); left:26px; right:26px; }
+.race-top { gap:10px; top:max(22px,env(safe-area-inset-top)); left:26px; right:26px; align-items:center; }
 .race-top>.icon-button { width:44px; height:44px; }
-.position-box { background:#fffdf4f2; min-width:84px; border:1px solid #fff; border-radius:23px; padding:10px 16px; box-shadow:0 5px 0 #34274b24; }
+.position-box { background:#fffdf4f2; min-width:84px; border:1px solid #fff; border-radius:23px; padding:10px 16px; box-shadow:0 5px 0 #34274b24; transition:transform .2s; }
 .position-box>strong { font-size:39px; letter-spacing:-2px; }
 .position-box>span { font-size:6px; letter-spacing:1.1px; color:#82748b; }
+
+/* Mario Kart Item Roulette Box */
+.item-slot {
+  display:flex; align-items:center; gap:10px; min-width:158px; height:64px; padding:8px 14px;
+  border-radius:22px; border:3px solid #fff; background:linear-gradient(135deg,#fffdf8f2,#f3ebffeb);
+  box-shadow:0 6px 0 #34274b26,0 10px 24px #3026451f; color:#2f2447; cursor:pointer;
+  pointer-events:auto; transition:transform .14s,box-shadow .14s,border-color .14s; text-align:left;
+}
+.item-slot:not(:disabled) {
+  border-color:#ff72c6;
+  background:linear-gradient(135deg,#fffbe8,#ffe6fa);
+  box-shadow:0 6px 0 #5b316f44,0 0 22px #ff72c655;
+  animation:item-pulse 1.1s infinite alternate ease-in-out;
+}
+.item-slot.spinning {
+  border-color:#5ce1e6;
+  background:linear-gradient(135deg,#e6fbff,#f9e8ff);
+}
+.item-slot:disabled { cursor:default; opacity:.9; }
+.item-icon {
+  width:42px; height:42px; border-radius:14px; display:grid; place-items:center;
+  font-size:24px; font-weight:900; background:linear-gradient(145deg,#33294d,#53417d);
+  color:#fff8d6; box-shadow:inset 0 2px 4px #ffffff40; flex-shrink:0;
+}
+.item-slot.spinning .item-icon { animation:roulette-bounce .14s infinite alternate; }
+.item-slot strong { display:block; font-size:11px; letter-spacing:.5px; line-height:1.15; }
+.item-slot small { display:block; font-size:7px; letter-spacing:.9px; color:#7a6a8e; margin-top:2px; font-weight:800; }
+@keyframes item-pulse { from { transform:translateY(0) scale(1); } to { transform:translateY(-2px) scale(1.03); } }
+@keyframes roulette-bounce { from { transform:scale(.92) rotate(-6deg); } to { transform:scale(1.08) rotate(6deg); } }
+
 .lap-box { min-width:213px; background:#fffdf4e6; padding:12px 17px; border:1px solid #fff; border-radius:20px; box-shadow:0 5px 0 #34274b10; }
 .lap-box>small { font-size:8px; letter-spacing:1px; }
 .lap-line { display:flex; gap:20px; align-items:baseline; justify-content:space-between; }
@@ -73,11 +105,29 @@
 .learning-next span { font-size:7px; }
 .learning-next strong { font-size:12px; font-variant-numeric:tabular-nums; }
 #minimap { right:25px; top:94px; width:143px; height:104px; border:2px solid #ffffff70; box-shadow:var(--tour-shadow); backdrop-filter:blur(12px); }
-.touch-controls { left:0; right:29px; bottom:max(45px,calc(env(safe-area-inset-bottom) + 27px)); justify-content:flex-end; pointer-events:none; }
-.drive-note { position:absolute; left:50%; bottom:10px; transform:translateX(-50%); width:240px; text-align:center; }
+.touch-controls { left:0; right:29px; bottom:max(45px,calc(env(safe-area-inset-bottom) + 27px)); justify-content:flex-end; align-items:flex-end; gap:14px; pointer-events:none; }
+.drive-note { position:absolute; left:50%; bottom:10px; transform:translateX(-50%); width:275px; text-align:center; }
 .drive-note strong { font-size:8px; letter-spacing:1.6px; }
 .drive-note i { display:inline-block; height:5px; width:5px; background:#dfff88; border-radius:50%; margin-right:5px; }
 .drive-note span { font-size:9px; }
+
+/* Hop & Drift Button */
+.drift-button {
+  position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  width:94px; height:94px; padding:12px 6px; border-radius:50%;
+  background:linear-gradient(145deg,#fff9ec,#e9dff8); border:4px solid #fff;
+  color:#34274b; box-shadow:0 5px 0 #30264555,0 6px 18px #30264522;
+  pointer-events:auto; cursor:pointer; user-select:none; -webkit-user-select:none; touch-action:none;
+  transition:transform .1s,background .15s,border-color .15s,box-shadow .15s;
+}
+.drift-button>span { font-size:25px; line-height:1; }
+.drift-button strong { font-size:9px; letter-spacing:1.3px; margin:4px 0 2px; }
+.drift-button small { font-size:7px; opacity:.78; font-weight:800; }
+.drift-button.active { transform:translateY(2px) scale(.97); border-color:#57d7ff; background:#dff7ff; }
+.drift-button[data-tier="1"] { border-color:#3ec6ff; background:linear-gradient(145deg,#d8f5ff,#b5e8ff); box-shadow:0 0 20px #3ec6ff88,0 4px 0 #1e6c93; }
+.drift-button[data-tier="2"] { border-color:#ff9233; background:linear-gradient(145deg,#fff0d6,#ffd1a3); box-shadow:0 0 24px #ff923399,0 4px 0 #9c4a00; }
+.drift-button[data-tier="3"] { border-color:#ff49b8; background:linear-gradient(145deg,#ffe0f7,#ffb8ec); box-shadow:0 0 28px #ff49b8aa,0 4px 0 #8a1660; }
+
 .boost-button { --charge:.333turn; position:relative; isolation:isolate; width:116px; height:116px; min-width:0; min-height:0; padding:18px 8px; border-radius:50%; background:#e8ff9a; border:5px solid #fff8d9; box-shadow:0 5px 0 #30264566,0 0 0 1px #3d334333; pointer-events:auto; }
 .boost-button::before { content:''; position:absolute; inset:-8px; z-index:-1; border-radius:50%; padding:4px; background:conic-gradient(#d9ff8c var(--charge),#ffffff3b 0); mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); mask-composite:exclude; -webkit-mask-composite:xor; }
 .boost-button>span { font-size:32px; margin-top:-2px; }
@@ -87,6 +137,19 @@
 .race-bottom { left:29px; right:29px; bottom:max(8px,env(safe-area-inset-bottom)); }
 .race-bottom>span:last-child { opacity:.65; font-size:7px; letter-spacing:1px; }
 .power-status { top:25%; background:#fffaf0f0; color:#534266; box-shadow:0 4px 18px #3026451f; font-size:11px; }
+.drift-badge {
+  position:absolute; left:50%; top:31%; transform:translateX(-50%);
+  padding:6px 14px; border-radius:999px; font-size:10px; font-weight:900; letter-spacing:1.2px;
+  color:#fff; background:#2b2342e6; border:2px solid #fff; box-shadow:0 6px 18px #28234433;
+  pointer-events:none; z-index:3;
+}
+.drift-badge[data-tier="1"] { background:linear-gradient(90deg,#1a8fe3,#43d0ff); }
+.drift-badge[data-tier="2"] { background:linear-gradient(90deg,#f26419,#ffb627); }
+.drift-badge[data-tier="3"] { background:linear-gradient(90deg,#d81159,#ff66d8,#7209b7); }
+.fx-flash {
+  position:fixed; inset:0; pointer-events:none; z-index:4;
+  background:radial-gradient(circle,rgba(255,255,210,.75) 0%,rgba(255,230,100,.35) 60%,transparent 100%);
+}
 .steer-zone { position:absolute; top:26%; left:0; bottom:32px; width:52%; z-index:1; touch-action:none; pointer-events:auto; user-select:none; -webkit-user-select:none; outline-offset:-5px; border-radius:20px; }
 .joystick { position:absolute; left:30px; bottom:22px; width:132px; height:132px; border-radius:50%; border:2px solid #ffffffa6; box-shadow:inset 0 0 0 13px #ffffff10,0 5px 20px #30264515; background:#fffcf51c; backdrop-filter:blur(4px); pointer-events:none; }
 .joystick.active { bottom:auto; transform:translate(-50%,-50%); background:#fffcf52b; border-color:#fff8df; }
@@ -126,16 +189,20 @@ body.racing .screen-vignette { background:linear-gradient(0deg,#20244540,transpa
   .course-picker { margin-top:118px; margin-bottom:15px; }.picker-heading { font-size:7px; letter-spacing:.6px; }.picker-heading small { font-size:6px; }
   .track-list { gap:7px; }.track-card { padding:4px 3px 9px; border-radius:14px; }.track-drawing { height:65px; }.track-number { top:7px; left:7px; font-size:7px; }.track-check { top:6px; right:6px; height:14px; width:14px; font-size:8px; }.track-card strong { font-size:10px; letter-spacing:-.25px; }.track-card>small { font-size:6px; margin-top:5px; }.track-card.forest strong { font-size:10px; }
   .start-row { gap:11px; }.intro .primary-button { min-width:0; flex:1; min-height:55px; padding:9px 17px; border-radius:16px; }.primary-button .start-copy { font-size:15px; }.start-copy small { font-size:8px; }.start-note { display:none; }.round-help { height:44px; width:44px; }.course-stamp { display:none; }
-  .garage-panel { padding:12px 11px 9px; border-radius:21px; }.section-heading { margin-bottom:10px; }.section-heading h2 { font-size:17px; }.section-heading .eyebrow { font-size:6px; }.wallet { font-size:19px; }.wallet small { font-size:6px; }.car-card { min-height:102px; padding:7px 3px; flex-direction:column; gap:0; }.car-drawing { width:80px; height:45px; }.car-card strong { font-size:12px; margin-top:3px; }.car-card small { font-size:6px; }.garage-footer { font-size:6px; margin-top:9px; }.garage-footer .text-button { font-size:6px; }.home-footer { margin-top:0; }.home-footer button { font-size:7px; padding:7px 11px; }
-  .race-top { top:max(16px,env(safe-area-inset-top)); left:15px; right:15px; gap:8px; }.position-box { min-width:67px; padding:9px 10px; border-radius:18px; }.position-box>strong { font-size:31px; }.position-box>span { font-size:5px; }.lap-box { min-width:0; padding:11px 13px; border-radius:17px; }.lap-box>small { font-size:7px; }.lap-line { gap:15px; }.lap-line>strong { font-size:16px; }.lap-line>strong span { font-size:12px; }#race-time { font-size:10px; }.race-side { top:108px; left:16px; gap:6px; }.race-stars { font-size:18px; padding:9px 10px; border-radius:13px; }.learning-next { padding:11px 9px; border-radius:13px; gap:7px; }.learning-next span { font-size:5px; }.learning-next strong { font-size:10px; }
-  #minimap { top:109px; right:15px; width:88px; height:66px; border-radius:17px; }.touch-controls { right:23px; bottom:max(47px,calc(env(safe-area-inset-bottom) + 28px)); }.boost-button { height:98px; width:98px; padding:15px 7px; border-width:4px; }.boost-button>span { font-size:28px; }.boost-button strong { font-size:9px; }.boost-button small { font-size:8px; }.drive-note { display:none; }
-  .steer-zone { bottom:33px; width:55%; }.joystick { width:119px; height:119px; left:23px; bottom:20px; }.joystick-knob { height:54px; width:54px; margin:-27px 0 0 -27px; }.joystick-knob>span { font-size:23px; }.race-bottom { left:23px; right:23px; }.race-bottom>span:last-child { display:none; }.power-status { top:26%; font-size:10px; }
+  .garage-panel { padding:12px 11px 9px; border-radius:21px; }.section-heading { margin-bottom:10px; }.section-heading h2 { font-size:17px; }.section-heading .eyebrow { font-size:6px; }.wallet { font-size:19px; }.wallet small { font-size:6px; }.car-card { min-height:102px; padding:7px 3px; flex-direction:column; gap:0; }.car-drawing { width:80px; height:45px; }.car-card strong { font-size:12px; margin-top:3px; }.car-card small { font-size:6px; }.car-stats { display:none; }.garage-footer { font-size:6px; margin-top:9px; }.garage-footer .text-button { font-size:6px; }.home-footer { margin-top:0; }.home-footer button { font-size:7px; padding:7px 11px; }
+  .race-top { top:max(16px,env(safe-area-inset-top)); left:15px; right:15px; gap:6px; }.position-box { min-width:62px; padding:8px 9px; border-radius:18px; }.position-box>strong { font-size:28px; }.position-box>span { font-size:5px; }
+  .item-slot { min-width:112px; height:52px; padding:6px 9px; border-radius:17px; gap:7px; }.item-icon { width:34px; height:34px; font-size:19px; border-radius:11px; }.item-slot strong { font-size:9px; }.item-slot small { font-size:6px; }
+  .lap-box { min-width:0; padding:10px 11px; border-radius:17px; }.lap-box>small { font-size:7px; }.lap-line { gap:10px; }.lap-line>strong { font-size:14px; }.lap-line>strong span { font-size:11px; }#race-time { font-size:10px; }.race-side { top:108px; left:16px; gap:6px; }.race-stars { font-size:18px; padding:9px 10px; border-radius:13px; }.learning-next { padding:11px 9px; border-radius:13px; gap:7px; }.learning-next span { font-size:5px; }.learning-next strong { font-size:10px; }
+  #minimap { top:109px; right:15px; width:88px; height:66px; border-radius:17px; }.touch-controls { right:18px; bottom:max(47px,calc(env(safe-area-inset-bottom) + 28px)); gap:10px; }
+  .drift-button { width:78px; height:78px; padding:9px 5px; border-width:3px; }.drift-button>span { font-size:21px; }.drift-button strong { font-size:8px; }.drift-button small { font-size:6px; }
+  .boost-button { height:96px; width:96px; padding:14px 7px; border-width:4px; }.boost-button>span { font-size:26px; }.boost-button strong { font-size:9px; }.boost-button small { font-size:8px; }.drive-note { display:none; }
+  .steer-zone { bottom:33px; width:52%; }.joystick { width:119px; height:119px; left:23px; bottom:20px; }.joystick-knob { height:54px; width:54px; margin:-27px 0 0 -27px; }.joystick-knob>span { font-size:23px; }.race-bottom { left:23px; right:23px; }.race-bottom>span:last-child { display:none; }.power-status { top:26%; font-size:10px; }
 }
 @media(max-width:700px) and (max-height:760px) {
   .home-screen { padding-top:78px; gap:12px; }.intro h1 { font-size:34px; margin-top:10px; }.course-picker { margin-top:60px; margin-bottom:13px; }.track-drawing { height:54px; }.track-card { padding-bottom:8px; }.track-card>small { font-size:5.5px; }.intro .primary-button { min-height:51px; }.garage-panel { padding:10px 10px 8px; }.section-heading h2 { font-size:15px; }.car-card { min-height:91px; }.car-drawing { height:38px; width:72px; }.garage-footer { margin-top:6px; }.home-footer button { padding:5px 9px; }.section-heading { margin-bottom:8px; }
 }
 @media(max-height:540px) and (min-width:500px) {
   .app-header { top:13px; left:25px; right:25px; }.home-screen { padding:70px 25px 10px; gap:7px; }.intro { margin:0; max-width:470px; }.intro>.eyebrow { display:none; }.intro h1 { font-size:27px; margin:0 0 10px; letter-spacing:-1.3px; }.intro h1 br { display:none; }.intro h1 span { margin-left:5px; }.intro p { display:none; }.course-picker { margin-top:0; margin-bottom:9px; }.picker-heading { font-size:6px; margin-bottom:5px; }.picker-heading small { font-size:5px; }.track-drawing { height:42px; }.track-card { border-radius:12px; padding:2px 5px 7px; }.track-card strong { font-size:10px; }.track-card>small { display:none; }.track-number { font-size:6px; }.track-check { width:13px; height:13px; font-size:7px; }.intro .primary-button { min-height:43px; min-width:218px; flex:none; padding:7px 15px; }.primary-button .start-copy { font-size:12px; }.start-copy small { font-size:7px; margin-top:4px; }.round-help { width:33px; height:33px; }.start-note { display:none; }.course-stamp { display:none; }
-  .garage-panel { padding:8px 13px; }.section-heading { display:none; }.car-card { flex-direction:row; min-height:52px; padding:4px 8px; text-align:left; }.car-drawing { width:72px; height:40px; }.car-card strong { font-size:11px; }.car-card p { display:none; }.car-card small { font-size:6px; margin-top:3px; }.garage-footer { margin-top:6px; font-size:6px; }.garage-footer .text-button { font-size:6px; }.home-footer { display:none; }
-  .race-top { top:12px; left:18px; right:18px; }.position-box { min-width:65px; padding:7px 12px; border-radius:16px; }.position-box>strong { font-size:28px; }.lap-box { padding:9px 14px; min-width:205px; }.lap-box>small { font-size:7px; }.lap-line>strong { font-size:15px; }.race-side { top:97px; left:19px; }.learning-next { padding:9px; }.race-stars { font-size:17px; padding:7px 10px; }#minimap { top:77px; right:19px; width:103px; height:76px; }.touch-controls { right:25px; bottom:31px; }.boost-button { height:86px; width:86px; min-height:0; padding:12px 6px; }.boost-button>span { font-size:23px; }.boost-button strong { font-size:8px; margin-top:4px; }.boost-button small { font-size:7px; }.drive-note { display:none; }.joystick { width:101px; height:101px; left:26px; bottom:3px; }.joystick-knob { height:48px; width:48px; margin:-24px 0 0 -24px; }.joystick-label { font-size:6px; margin-top:5px; }.race-bottom { bottom:4px; }.steer-zone { top:28%; bottom:28px; }.power-status { top:23%; }
+  .garage-panel { padding:8px 13px; }.section-heading { display:none; }.car-card { flex-direction:row; min-height:52px; padding:4px 8px; text-align:left; }.car-drawing { width:72px; height:40px; }.car-card strong { font-size:11px; }.car-card p { display:none; }.car-card small { font-size:6px; margin-top:3px; }.car-stats { display:none; }.garage-footer { margin-top:6px; font-size:6px; }.garage-footer .text-button { font-size:6px; }.home-footer { display:none; }
+  .race-top { top:12px; left:18px; right:18px; }.position-box { min-width:65px; padding:7px 12px; border-radius:16px; }.position-box>strong { font-size:28px; }.item-slot { height:48px; min-width:128px; padding:6px 10px; }.item-icon { width:32px; height:32px; font-size:18px; }.lap-box { padding:9px 14px; min-width:185px; }.lap-box>small { font-size:7px; }.lap-line>strong { font-size:15px; }.race-side { top:97px; left:19px; }.learning-next { padding:9px; }.race-stars { font-size:17px; padding:7px 10px; }#minimap { top:77px; right:19px; width:103px; height:76px; }.touch-controls { right:25px; bottom:31px; }.drift-button { width:74px; height:74px; }.boost-button { height:86px; width:86px; min-height:0; padding:12px 6px; }.boost-button>span { font-size:23px; }.boost-button strong { font-size:8px; margin-top:4px; }.boost-button small { font-size:7px; }.drive-note { display:none; }.joystick { width:101px; height:101px; left:26px; bottom:3px; }.joystick-knob { height:48px; width:48px; margin:-24px 0 0 -24px; }.joystick-label { font-size:6px; margin-top:5px; }.race-bottom { bottom:4px; }.steer-zone { top:28%; bottom:28px; }.power-status { top:23%; }
 }
