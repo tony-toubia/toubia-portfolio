@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from '../../public/studforge/vendor/three.module.js';
-import { CARS, TRACKS, ITEMS, sampleJoystick, formatTime, normalizeProfile, makeQuestion, createRace, advanceClock, rewardQuestion, buyUpgrade, settleRace, rollItem, computeDriftTier } from '../../public/tiny-turbo/core.mjs';
+import { CARS, TRACKS, ITEMS, sampleJoystick, formatTime, normalizeProfile, makeQuestion, createRace, advanceClock, rewardQuestion, buyUpgrade, settleRace, rollItem, computeDriftTier, computeDriftCarve } from '../../public/tiny-turbo/core.mjs';
 
 const rng=seed=>()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
 test('every grade generates varied, uniquely answerable math and spelling with safe kindergarten ranges',()=>{
@@ -74,4 +74,14 @@ test('Mario Kart item roulette weights items by race position and drift tiers pr
   assert.equal(rollItem(1,()=>.05),'banana');
   assert.equal(rollItem(4,()=>.75),'star-power');
   assert.equal(rollItem(4,()=>.95),'lightning');
+});
+
+
+test('Mario Kart carving drift physics tightens arc when steering into turn and widens arc on counter-steer without breaking drift',()=>{
+  const inside=computeDriftCarve(1,1);
+  const neutral=computeDriftCarve(1,0);
+  const counter=computeDriftCarve(1,-1);
+  assert.ok(inside.carve>neutral.carve,'steering into right drift tightens carve');
+  assert.ok(counter.carve>0&&counter.carve<neutral.carve,'counter-steering widens right drift arc while staying positive');
+  assert.ok(inside.chargeRate>counter.chargeRate,'tight inside carving charges sparks faster');
 });

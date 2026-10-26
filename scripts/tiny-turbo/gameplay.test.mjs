@@ -134,3 +134,26 @@ test('Mario Kart mechanics: rocket start, drift mini-turbo sparks, item boxes, a
   assert.equal(app.state.race.miniTurbos,1,'releasing drift awards a mini-turbo burst');
   assert.ok(app.state.race.boost>1.5,'mini-turbo sets active boost');
 });
+
+
+test('counter-steering while holding drift maintains drift charge, and glider ramps deploy the hang-glider',async()=>{
+  const game=await makeGame({sound:false,cadence:26});const {app,nodes}=game;
+  nodes.get('start').click();game.tick(4);
+  const zone=nodes.get('steer-zone');
+  // Initiate right drift
+  zone.events.pointerdown[0]({preventDefault(){},pointerId:1,clientX:100,clientY:400});
+  zone.events.pointermove[0]({pointerId:1,clientX:145,clientY:400});
+  nodes.get('drift').events.pointerdown[0]({preventDefault(){}});
+  game.tick(.6);
+  assert.equal(app.state.race.drifting,true);
+  assert.equal(app.state.race.driftDir,1);
+  const chargeBefore=app.state.race.driftCharge;
+  // Counter-steer left while still holding drift button
+  zone.events.pointermove[0]({pointerId:1,clientX:60,clientY:400});
+  game.tick(.5);
+  assert.equal(app.state.race.drifting,true,'counter-steering while holding drift keeps drift active');
+  assert.equal(app.state.race.driftDir,1,'drift direction stays locked');
+  assert.ok(app.state.race.driftCharge>chargeBefore,'sparks continue charging during counter-steer');
+  nodes.get('drift').events.pointerup[0]({});
+  zone.events.pointerup[0]({pointerId:1});
+});

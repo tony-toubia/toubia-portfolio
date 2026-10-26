@@ -1,7 +1,7 @@
 export const CARS = [
-  { id: 'comet', name: 'Comet', nickname: 'The little speedster', driver: 'Pip', color: '#9b83ff', accent: '#e8ff7d', helmet: '#fff5dc', shape: 'racer', badge: '01', speed: 5, accel: 4, drift: 4, stats: { speed: 92, accel: 86, drift: 90 } },
-  { id: 'clementine', name: 'Clementine', nickname: 'Big wheels. Bigger smiles.', driver: 'Sunny', color: '#ff9f66', accent: '#fff4be', helmet: '#ffe4ef', shape: 'buggy', badge: '02', speed: 4, accel: 5, drift: 4, stats: { speed: 86, accel: 94, drift: 88 } },
-  { id: 'mint-chip', name: 'Mint Chip', nickname: 'A very speedy little van', driver: 'Mochi', color: '#69d9b2', accent: '#fff5dc', helmet: '#e8ddff', shape: 'van', badge: '03', speed: 4, accel: 4, drift: 5, stats: { speed: 88, accel: 90, drift: 95 } },
+  { id: 'comet', name: 'Comet', nickname: 'The little speedster', driver: 'Pip', color: '#9b83ff', accent: '#e8ff7d', helmet: '#fff5dc', shape: 'racer', badge: '01', speed: 5, accel: 4, drift: 4, weight: 1.0, stats: { speed: 92, accel: 86, drift: 90 } },
+  { id: 'clementine', name: 'Clementine', nickname: 'Big wheels. Bigger smiles.', driver: 'Sunny', color: '#ff9f66', accent: '#fff4be', helmet: '#ffe4ef', shape: 'buggy', badge: '02', speed: 4, accel: 5, drift: 4, weight: 1.25, stats: { speed: 86, accel: 94, drift: 88 } },
+  { id: 'mint-chip', name: 'Mint Chip', nickname: 'A very speedy little van', driver: 'Mochi', color: '#69d9b2', accent: '#fff5dc', helmet: '#e8ddff', shape: 'van', badge: '03', speed: 4, accel: 4, drift: 5, weight: 1.35, stats: { speed: 88, accel: 90, drift: 95 } },
 ];
 export const TRACKS = [
   { id:'cloudtop',name:'Cloudtop Circuit',number:'01',icon:'☁',theme:'clouds',tag:'FLOAT ON AIR',description:'Fluffy clouds & happy little hills',character:'Easy-going curves',sky:'#c7e1f5',ground:'#e3ebce',base:'#c9d9c6',road:'#f1af7a',edge:'#9879c8',rails:['#aa8cdc','#e7d8fc'],accent:'#9b83ff',ink:'#282344',points:[[-65,0,0],[-47,2,-52],[14,4,-69],[65,1,-43],[73,0,8],[44,4,50],[-20,1,60],[-67,0,36]] },
@@ -10,12 +10,12 @@ export const TRACKS = [
 ];
 
 export const ITEMS = [
-  { id: 'mushroom', name: 'Turbo Shroom', icon: '🍄', color: '#ff6b6b', desc: 'Instant speed burst!' },
+  { id: 'mushroom', name: 'Turbo Shroom', icon: '🍄', color: '#ff6b6b', desc: 'Instant speed burst & off-road shortcut pass!' },
   { id: 'triple-shroom', name: 'Triple Shrooms', icon: '🍄×3', color: '#ff8e53', desc: 'Three rapid turbo bursts!' },
-  { id: 'shell', name: 'Homing Shell', icon: '🐢', color: '#51cf66', desc: 'Chases the rival ahead!' },
-  { id: 'star-power', name: 'Super Star', icon: '🌟', color: '#ffd43b', desc: 'Rainbow invincibility & top speed!' },
+  { id: 'shell', name: 'Homing Shell', icon: '🐢', color: '#51cf66', desc: 'Trails behind you for defense or launches ahead!' },
+  { id: 'star-power', name: 'Super Star', icon: '🌟', color: '#ffd43b', desc: 'Rainbow invincibility, shortcut speed & bump power!' },
   { id: 'lightning', name: 'Mini Zap', icon: '⚡', color: '#4dabf7', desc: 'Shrinks & slows all rivals!' },
-  { id: 'banana', name: 'Giggle Peel', icon: '🍌', color: '#fcc419', desc: 'Drops a slip hazard behind you!' },
+  { id: 'banana', name: 'Giggle Peel', icon: '🍌', color: '#fcc419', desc: 'Blocks incoming shells or drops a slip hazard!' },
 ];
 
 export function rollItem(place = 2, rng = Math.random) {
@@ -33,6 +33,20 @@ export function computeDriftTier(charge = 0) {
   if (charge >= 1.25) return 2; // Super Mini-Turbo (Orange sparks)
   if (charge >= 0.5) return 1;  // Standard Mini-Turbo (Blue sparks)
   return 0;
+}
+
+/**
+ * Mario Kart carving drift physics:
+ * Once locked into `driftDir` (-1 left, +1 right), steering into the turn tightens
+ * the inside apex line and charges sparks faster; counter-steering widens the arc
+ * toward the outside without breaking the drift!
+ */
+export function computeDriftCarve(driftDir = 1, steer = 0) {
+  const dir = driftDir >= 0 ? 1 : -1;
+  const alignment = steer * dir; // +1 when steering deeper into turn, -1 when counter-steering
+  const carve = dir * (0.62 + alignment * 0.58);
+  const chargeRate = 1.0 + Math.max(-0.25, alignment * 0.45);
+  return { carve, chargeRate };
 }
 
 export function sampleJoystick(dx,dy,radius=44) {
@@ -135,10 +149,14 @@ export function createRace() {
     hopTimer: 0,
     airY: 0,
     airVy: 0,
+    gliding: false,
     trickTimer: 0,
     draftTimer: 0,
     starPower: 0,
     lightningTimer: 0,
+    spinTimer: 0,
+    lateralVel: 0,
+    bumpVel: 0,
     item: null,
     itemCharges: 0,
     rouletteTimer: 0,
@@ -146,6 +164,7 @@ export function createRace() {
     rocketTriggered: false,
     miniTurbos: 0,
     tricks: 0,
+    shortcutsUsed: 0,
   };
 }
 export function advanceClock(race, delta, cadence) {

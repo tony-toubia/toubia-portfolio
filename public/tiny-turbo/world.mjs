@@ -1,14 +1,25 @@
 // Course construction is separate from gameplay. New worlds use the same racing rules.
 export function createWorld({THREE,track,box,addMesh,roundedBox,material,textTexture,makeStar}) {
   const group=new THREE.Group();group.name='course:'+track.id;
-  const curve=new THREE.CatmullRomCurve3(track.points.map(p=>new THREE.Vector3(...p)),true,'catmullrom',.4),pickups=[],boostPads=[],itemBoxes=[],ramps=[],night=track.theme==='forest';
+  const curve=new THREE.CatmullRomCurve3(track.points.map(p=>new THREE.Vector3(...p)),true,'catmullrom',.4),pickups=[],boostPads=[],itemBoxes=[],ramps=[],shortcuts=[],courseHazards=[],skyRings=[],night=track.theme==='forest';
   const frame=u=>{const t=((u%1)+1)%1,point=curve.getPointAt(t),tangent=curve.getTangentAt(t).normalize(),right=new THREE.Vector3(-tangent.z,0,tangent.x).normalize();return {point,tangent,right};};
+  const curveSideAt=u=>{const f1=frame(u-.015),f2=frame(u+.015),cross=f1.tangent.x*f2.tangent.z-f1.tangent.z*f2.tangent.x;return cross>=0?1:-1;};
   function place(object,u,offset=0,height=0){const f=frame(u);object.position.copy(f.point).addScaledVector(f.right,offset);object.position.y+=height;object.rotation.y=Math.atan2(f.tangent.x,f.tangent.z);return f;}
   function strip(offset,width,color,height=.03,matOpts={}){
     const positions=[],indices=[],segments=420;
     for(let i=0;i<=segments;i++){const {point,right}=frame(i/segments);for(const edge of [-.5,.5]){const p=point.clone().addScaledVector(right,offset+width*edge);positions.push(p.x,p.y+height,p.z);}}
     for(let i=0;i<segments;i++){const a=i*2;indices.push(a,a+1,a+2,a+1,a+3,a+2);}
     const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geometry.setIndex(indices);geometry.computeVertexNormals();const mesh=new THREE.Mesh(geometry,material(color,{side:THREE.DoubleSide,...matOpts}));mesh.receiveShadow=true;group.add(mesh);
+  }
+  function segmentStrip(uStart,uEnd,offset,width,color,height=.04,matOpts={}){
+    const positions=[],indices=[],segments=36;
+    for(let i=0;i<=segments;i++){
+      const u=uStart+(uEnd-uStart)*(i/segments),{point,right}=frame(u);
+      for(const edge of [-.5,.5]){const p=point.clone().addScaledVector(right,offset+width*edge);positions.push(p.x,p.y+height,p.z);}
+    }
+    for(let i=0;i<segments;i++){const a=i*2;indices.push(a,a+1,a+2,a+1,a+3,a+2);}
+    const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geometry.setIndex(indices);geometry.computeVertexNormals();
+    const mesh=new THREE.Mesh(geometry,material(color,{side:THREE.DoubleSide,...matOpts}));mesh.receiveShadow=true;group.add(mesh);
   }
   function instances(geometry,mat,placements){
     const batch=new THREE.InstancedMesh(geometry,mat,placements.length),object=new THREE.Object3D();
@@ -25,7 +36,6 @@ export function createWorld({THREE,track,box,addMesh,roundedBox,material,textTex
     box(root,16.6,1.05,1.25,start?'#2d2546':'#e9f4a2',0,7.3,0);
     const sign=addMesh(root,new THREE.PlaneGeometry(12.2,1.95),new THREE.MeshBasicMaterial({map:textTexture(start?`🏁 ${track.name.toUpperCase()} 🏁`:'✦ TURBO SECTOR ✦',start?'#fff8e6':'#2d2546',start?'#2d2546':'#f5ff9e'),side:THREE.DoubleSide}),0,7.3,.66);sign.castShadow=false;
     if(start){
-      // Lakitu-style overhead starting light rig
       for(let i=-1;i<=1;i++){
         box(root,.95,.95,.65,'#2a243d',i*1.5,6.15,.4);
         const bulb=addMesh(root,new THREE.SphereGeometry(.3,12,10),material('#ff6b6b',{emissive:'#ff5252',emissiveIntensity:.75}),i*1.5,6.15,.72);
@@ -50,6 +60,20 @@ export function createWorld({THREE,track,box,addMesh,roundedBox,material,textTex
   strip(-6.45,.46,'#fff4d4',.055,{roughness:.3});
   strip(6.45,.46,'#fff4d4',.055,{roughness:.3});
 
+  // Mario Kart Off-Road Mushroom Shortcuts on Inside Hairpins!
+  for(const uCenter of [.23,.72]){
+    const side=curveSideAt(uCenter),uStart=uCenter-.036,uEnd=uCenter+.036;
+    segmentStrip(uStart,uEnd,side*7.8,3.6,'#ffe194',.038,{roughness:.5});
+    // Shortcut entry gate & neon chevron sign
+    const gate=new THREE.Group();
+    box(gate,.35,2.4,.35,'#ff6b6b',-1.4,1.2,0);
+    box(gate,.35,2.4,.35,'#ff6b6b',1.4,1.2,0);
+    const banner=addMesh(gate,new THREE.PlaneGeometry(3.2,.95),new THREE.MeshBasicMaterial({map:textTexture('🍄 SHORTCUT »»','#ffe66d','#2d2546',256,64),side:THREE.DoubleSide}),0,2.2,0);
+    banner.castShadow=false;
+    place(gate,uStart,side*7.6,0);group.add(gate);
+    shortcuts.push({uStart,uEnd,side});
+  }
+
   // Alternating Mario Kart red/white/theme apex rumble curbs
   const placement=new THREE.Object3D();
   for(const parity of [0,1]){
@@ -66,7 +90,11 @@ export function createWorld({THREE,track,box,addMesh,roundedBox,material,textTex
   for(let i=0;i<115;i++){place(placement,i/115,0,.062);placement.updateMatrix();dashes.setMatrixAt(i,placement.matrix);}dashes.receiveShadow=true;group.add(dashes);
   for(const parity of [0,1]){
     const rails=new THREE.InstancedMesh(roundedBox(.44,.82,3.5),material(track.rails[parity],{roughness:.35}),parity?94:96);let index=0;
-    for(const side of [-1,1])for(let i=parity;i<95;i+=2){place(placement,i/95,side*7.45,.41);placement.updateMatrix();rails.setMatrixAt(index++,placement.matrix);}rails.castShadow=true;rails.receiveShadow=true;group.add(rails);
+    for(const side of [-1,1])for(let i=parity;i<95;i+=2){
+      const u=i/95,inShortcut=shortcuts.some(s=>s.side===side&&u>=s.uStart-.01&&u<=s.uEnd+.01);
+      place(placement,u,inShortcut?side*9.9:side*7.45,.41);placement.updateMatrix();rails.setMatrixAt(index++,placement.matrix);
+    }
+    rails.castShadow=true;rails.receiveShadow=true;group.add(rails);
   }
   arch(0,true);arch(.51);
 
@@ -81,19 +109,58 @@ export function createWorld({THREE,track,box,addMesh,roundedBox,material,textTex
     place(pad,u);group.add(pad);boostPads.push({u});
   }
 
-  // Mario Kart Trick Jump Ramps! (Hit to launch Airborne + 360° Trick Flip Boost)
+  // Mario Kart Trick Jump Ramps + Blue Hang-Glider Cannon Ramp!
   for(const [idx,u] of [.28,.64,.89].entries()){
-    const lateral=[0,-2.1,2.1][idx%3];
+    const isGlider=idx===1;
+    const lateral=isGlider?0:[0,-2.1,2.1][idx%3];
     const ramp=new THREE.Group();
-    const wedge=addMesh(ramp,roundedBox(4.8,.42,4.4),material('#ff9f43',{roughness:.28,metalness:.12}),0,.36,0);
-    wedge.rotation.x=-.19;
-    const stripMat=material('#00f5d4',{emissive:'#00f5d4',emissiveIntensity:.75,roughness:.15});
+    const wedgeColor=isGlider?'#00b4d8':'#ff9f43';
+    const stripColor=isGlider?'#90e0ef':'#00f5d4';
+    const wedge=addMesh(ramp,roundedBox(isGlider?6.2:4.8,.48,isGlider?5.2:4.4),material(wedgeColor,{roughness:.24,metalness:.16,emissive:isGlider?'#0077b6':'#000000',emissiveIntensity:.35}),0,.38,0);
+    wedge.rotation.x=isGlider?-.23:-.19;
+    const stripMat=material(stripColor,{emissive:stripColor,emissiveIntensity:.85,roughness:.15});
     for(let i=-1;i<=1;i++){
-      const chevron=addMesh(ramp,new THREE.BoxGeometry(3.8,.06,.32),stripMat,0,.44+i*.14,i*1.05);
-      chevron.rotation.x=-.19;
+      const chevron=addMesh(ramp,new THREE.BoxGeometry(isGlider?5.0:3.8,.06,.34),stripMat,0,.46+i*.15,i*1.05);
+      chevron.rotation.x=isGlider?-.23:-.19;
+    }
+    if(isGlider){
+      for(const s of [-1,1])box(ramp,.45,3.2,.45,'#00f5d4',s*3.3,1.6,1.2);
     }
     place(ramp,u,lateral,0);group.add(ramp);
-    ramps.push({u,lane:lateral,width:2.9});
+    ramps.push({u,lane:lateral,width:isGlider?3.5:2.9,glider:isGlider});
+  }
+
+  // Floating Golden Sky Rings after the Blue Glider Ramp!
+  for(const [idx,u] of [.665,.692].entries()){
+    const ringGroup=new THREE.Group();
+    const torus=addMesh(ringGroup,new THREE.TorusGeometry(2.35,.22,12,28),material('#ffd43b',{emissive:'#ffa800',emissiveIntensity:.75,roughness:.18,metalness:.3}),0,0,0);
+    torus.castShadow=false;
+    const h=idx===0?4.2:3.6;
+    place(ringGroup,u,0,h);group.add(ringGroup);
+    skyRings.push({mesh:ringGroup,u,lane:0,height:h});
+  }
+
+  // Dynamic Moving Course Hazards (Crabs / Storm Puffs / Glow-Shrooms)
+  for(const [idx,u] of [.33,.53,.85].entries()){
+    const hazard=new THREE.Group();
+    if(track.theme==='beach'){
+      // Sidestepping Coral Beach Crab
+      addMesh(hazard,new THREE.SphereGeometry(.85,14,10),material('#ff5e57',{roughness:.3}),0,.65,0).scale.set(1.2,.75,1);
+      for(const s of [-1,1]){
+        addMesh(hazard,new THREE.SphereGeometry(.32,10,8),material('#ff793f'),s*1.05,.75,.45);
+        addMesh(hazard,new THREE.SphereGeometry(.18,8,8),material('#fff'),s*.38,1.15,.55);
+      }
+    }else if(night){
+      // Bouncing Bouncy Glow-Shroom
+      addMesh(hazard,new THREE.CylinderGeometry(.35,.45,1.1,10),material('#f3e5f5'),0,.55,0);
+      addMesh(hazard,new THREE.SphereGeometry(1.15,14,10,0,Math.PI*2,0,Math.PI/2),material('#ff6ec7',{emissive:'#d81159',emissiveIntensity:.7}),0,1.05,0);
+    }else{
+      // Cloudtop Grumpy Storm Puff
+      for(const [x,y,r] of [[-.55,.85,.65],[.55,.85,.65],[0,1.05,.82]])addMesh(hazard,new THREE.SphereGeometry(r,12,10),material('#7c83bc',{roughness:.4}),x,y,0);
+      addMesh(hazard,new THREE.ConeGeometry(.24,.7,6),material('#ffe600',{emissive:'#ffe600',emissiveIntensity:.8}),0,.35,.6);
+    }
+    place(hazard,u,0,0);group.add(hazard);
+    courseHazards.push({mesh:hazard,u,lane:0,phase:idx*2.1,hitTimer:0});
   }
 
   // Mario Kart Iridescent `?` Item Box Rows!
@@ -158,7 +225,7 @@ export function createWorld({THREE,track,box,addMesh,roundedBox,material,textTex
     const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(stars,3));group.add(new THREE.Points(geometry,new THREE.PointsMaterial({color:'#fff1c3',size:.7,transparent:true,opacity:.8})));
     const moon=addMesh(group,new THREE.SphereGeometry(7,24,16),new THREE.MeshBasicMaterial({color:'#fff1cf'}),-95,59,-100);moon.castShadow=false;
   }
-  return {group,curve,pickups,boostPads,itemBoxes,ramps,length:curve.getLength()};
+  return {group,curve,pickups,boostPads,itemBoxes,ramps,shortcuts,courseHazards,skyRings,length:curve.getLength()};
 }
 
 export function disposeWorld(group){
