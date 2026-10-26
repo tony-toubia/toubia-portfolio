@@ -136,24 +136,31 @@ test('Mario Kart mechanics: rocket start, drift mini-turbo sparks, item boxes, a
 });
 
 
-test('counter-steering while holding drift maintains drift charge, and glider ramps deploy the hang-glider',async()=>{
-  const game=await makeGame({sound:false,cadence:26});const {app,nodes}=game;
+test('steering right and left always moves the kart in the matching screen direction without opposite-direction lock',async()=>{
+  const game=await makeGame({sound:false,cadence:26});const {app,nodes,listeners}=game;
   nodes.get('start').click();game.tick(4);
-  const zone=nodes.get('steer-zone');
-  // Initiate right drift
-  zone.events.pointerdown[0]({preventDefault(){},pointerId:1,clientX:100,clientY:400});
-  zone.events.pointermove[0]({pointerId:1,clientX:145,clientY:400});
-  nodes.get('drift').events.pointerdown[0]({preventDefault(){}});
-  game.tick(.6);
-  assert.equal(app.state.race.drifting,true);
-  assert.equal(app.state.race.driftDir,1);
-  const chargeBefore=app.state.race.driftCharge;
-  // Counter-steer left while still holding drift button
-  zone.events.pointermove[0]({pointerId:1,clientX:60,clientY:400});
-  game.tick(.5);
-  assert.equal(app.state.race.drifting,true,'counter-steering while holding drift keeps drift active');
-  assert.equal(app.state.race.driftDir,1,'drift direction stays locked');
-  assert.ok(app.state.race.driftCharge>chargeBefore,'sparks continue charging during counter-steer');
-  nodes.get('drift').events.pointerup[0]({});
-  zone.events.pointerup[0]({pointerId:1});
+  const keydown=listeners.get('window:keydown'),keyup=listeners.get('window:keyup');
+  // Hold Right arrow: lane must increase and screen projection must be right of track center
+  keydown({key:'ArrowRight',target:{tagName:'BODY'},preventDefault(){}});
+  game.tick(.45);
+  const laneRight=app.state.lane;
+  assert.ok(laneRight>2.5,'holding Right moves kart to the right lane');
+  app.state.camera.updateMatrixWorld(true);
+  const uNow=(app.state.race.distance/app.state.trackLength)%1;
+  const centerScreen=app.frameAt(uNow).point.clone().project(app.state.camera);
+  const playerScreen=app.state.player.position.clone().project(app.state.camera);
+  assert.ok(playerScreen.x>centerScreen.x,'kart appears to the right of center on screen when steering right');
+  // Immediately switch from Right to Left arrow: lane must immediately decrease on the very next frame!
+  keyup({key:'ArrowRight'});
+  keydown({key:'ArrowLeft',target:{tagName:'BODY'},preventDefault(){}});
+  game.tick(.1);
+  assert.ok(app.state.lane<laneRight,'switching to Left immediately moves kart left on the very next frame');
+  game.tick(.8);
+  assert.ok(app.state.lane<-2.0,'holding Left moves kart into the left lane');
+  app.state.camera.updateMatrixWorld(true);
+  const uNow2=(app.state.race.distance/app.state.trackLength)%1;
+  const centerScreen2=app.frameAt(uNow2).point.clone().project(app.state.camera);
+  const playerScreen2=app.state.player.position.clone().project(app.state.camera);
+  assert.ok(playerScreen2.x<centerScreen2.x,'kart appears to the left of center on screen when steering left');
+  keyup({key:'ArrowLeft'});
 });

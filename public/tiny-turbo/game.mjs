@@ -1,6 +1,6 @@
 import * as THREE from '/studforge/vendor/three.module.js';
-import { createWorld, disposeWorld } from './world.mjs?v=5';
-import { CARS, TRACKS, GRADES, ITEMS, UPGRADE_COST, MAX_UPGRADES, normalizeProfile, makeQuestion, createRace, advanceClock, rewardQuestion, buyUpgrade, settleRace, sampleJoystick, formatTime, rollItem, computeDriftTier, computeDriftCarve } from './core.mjs?v=5';
+import { createWorld, disposeWorld } from './world.mjs?v=6';
+import { CARS, TRACKS, GRADES, ITEMS, UPGRADE_COST, MAX_UPGRADES, normalizeProfile, makeQuestion, createRace, advanceClock, rewardQuestion, buyUpgrade, settleRace, sampleJoystick, formatTime, rollItem, computeDriftTier, computeDriftCarve } from './core.mjs?v=6';
 
 const $ = id => document.getElementById(id), STORAGE = 'tiny-turbo.club.v1';
 let profile;
@@ -617,19 +617,21 @@ function updateRace(dt){
   const uNow=((race.distance/trackLength)%1+1)%1;
   const steer=leftHeld||rightHeld?(rightHeld?1:0)-(leftHeld?1:0):stick.steer;
 
-  // 1. Mario Kart "Carving" Drift Physics (Tighten vs. Widen the Arc!)
-  const wantsStartDrift=(driftHeld&&Math.abs(steer)>.15)||Math.abs(steer)>.68;
-  const keepDrifting=race.drifting&&(driftHeld||Math.abs(steer)>.52);
-  let effectiveSteer=steer;
-  if((wantsStartDrift||keepDrifting)&&speed>9&&race.spinTimer<=0){
+  // 1. Direct, responsive Mario Kart Drift & Mini-Turbo charging (never fights or reverses steering!)
+  const wantsDrift=(driftHeld&&Math.abs(steer)>.12)||Math.abs(steer)>.65;
+  if(wantsDrift&&speed>9&&race.spinTimer<=0){
+    const dir=Math.sign(steer)||race.driftDir||1;
+    // If player switches steering direction without holding the drift button, release the old drift first
+    if(race.drifting&&!driftHeld&&steer!==0&&Math.sign(steer)!==race.driftDir){
+      releaseDrift();
+    }
     if(!race.drifting){
       race.drifting=true;
-      race.driftDir=Math.sign(steer)||(curvatureAt(uNow)>=0?1:-1);
+      race.driftDir=dir;
       if(race.hopTimer<=0)race.hopTimer=.18;
     }
-    const {carve,chargeRate}=computeDriftCarve(race.driftDir,steer);
-    effectiveSteer=carve;
-    race.driftCharge+=dt*chargeRate*(driftHeld?1.32:1.05);
+    const {chargeRate}=computeDriftCarve(race.driftDir,steer);
+    race.driftCharge+=dt*chargeRate*(driftHeld?1.35:1.05);
     const nextTier=computeDriftTier(race.driftCharge);
     if(nextTier>race.driftTier){
       race.driftTier=nextTier;
@@ -642,26 +644,16 @@ function updateRace(dt){
     skidTimer+=dt;
     if(skidTimer>=.055&&race.airY<=.05){
       skidTimer=0;
-      spawnSkidmark(uNow,lane,-race.driftDir*.28,race.driftTier);
+      spawnSkidmark(uNow,lane,- (Math.sign(steer)||race.driftDir)*.24,race.driftTier);
     }
   }else if(race.drifting){
     releaseDrift();
   }
 
-  // 2. Real Corner Curvature & Centrifugal Force + Bump Impulse
-  const kappa=curvatureAt(uNow);
-  // Centrifugal force pushes toward the outside of the curve; Smart Steering softens it when hands-off
-  const handsOffAssist=profile.steerAssist&&Math.abs(steer)<.05&&!race.drifting;
-  const centrifugalPush=-kappa*speed*(handsOffAssist?4.5:12.5);
-  race.bumpVel*=Math.exp(-dt*7.5);
-  const steerSpeed=race.drifting?7.2:6.8;
-  lane+=effectiveSteer*dt*steerSpeed+(centrifugalPush+race.bumpVel)*dt;
-  if(handsOffAssist){
-    lane=THREE.MathUtils.clamp(lane,-4.8,4.8);
-    lane*=Math.exp(-dt*.42);
-  }else{
-    lane=THREE.MathUtils.clamp(lane,-8.6,8.6);
-  }
+  // 2. Crisp, 100% predictable steering in screen direction (Left = -lane, Right = +lane)
+  const steerSpeed=race.drifting?7.8:7.0;
+  lane=THREE.MathUtils.clamp(lane+steer*dt*steerSpeed,-8.1,8.1);
+  if(!steer&&profile.steerAssist&&!race.drifting)lane*=Math.exp(-dt*.3);
 
   // 3. Off-Road Mushroom Shortcuts Check!
   shortcutToastCooldown=Math.max(0,shortcutToastCooldown-dt);
@@ -706,8 +698,8 @@ function updateRace(dt){
   const hopOffset=race.hopTimer>0?Math.sin((race.hopTimer/.22)*Math.PI)*.42:0;
   const frame=placeOnTrack(player,race.distance/trackLength,lane,.15+race.airY+hopOffset);
   const spinYaw=race.spinTimer>0?race.spinTimer*Math.PI*4:0;
-  player.rotation.y+=(race.drifting?-race.driftDir*.28:-steer*.06)+spinYaw;
-  player.rotation.z=-effectiveSteer*(race.drifting?.18:race.gliding?.24:.09);
+  player.rotation.y+=(-steer*(race.drifting?.22:.1))+spinYaw;
+  player.rotation.z=-steer*(race.drifting?.16:race.gliding?.22:.09);
   player.rotation.x=race.trickTimer>0?(1-race.trickTimer/.68)*Math.PI*2:race.gliding?-.08:0;
   player.userData.bubble.visible=race.shield>0||race.starPower>0;
 
@@ -724,7 +716,7 @@ function updateRace(dt){
     if(race.starPower>0)player.userData.bodyMesh.material.color.setHSL((performance.now()*.0015)%1,.9,.62);
     else player.userData.bodyMesh.material.color.set(player.userData.baseColor);
   }
-  if(player.userData.driver)player.userData.driver.rotation.z=-effectiveSteer*.32;
+  if(player.userData.driver)player.userData.driver.rotation.z=-steer*.32;
   player.userData.frontWheels?.forEach(fw=>{fw.rotation.y=-steer*.38;});
   player.userData.wheels.forEach(w=>w.rotation.x+=speed*dt*1.8);
 
@@ -810,18 +802,16 @@ function updateRace(dt){
       }
     }
 
-    // Physical Kart-to-Kart Bump Collision!
-    if(race.airY<.6&&Math.abs(gap)<2.2&&Math.abs(rLane-lane)<1.62){
+    // Physical Kart-to-Kart Bump Collision (nudges rival out of the way without fighting player steering!)
+    if(race.airY<.6&&Math.abs(gap)<2.2&&Math.abs(rLane-lane)<1.55){
       if(race.starPower>0&&r.spinTimer<=0){
         r.spinTimer=1.5;spawnBurst(r.mesh.position,'#ffe66d',10);sound(760,.14,'triangle');notify('Star bump! Rival spun out! 🌟');
-      }else{
-        const pushDir=lane>=rLane?1:-1;
-        const weightRatio=(r.weight||1.1)/playerWeight;
-        race.bumpVel=pushDir*7.5*weightRatio;
-        r.bumpVel=-pushDir*7.5/weightRatio;
-        camShake=.22;
-        spawnBurst(player.position,'#ff9f1c',6);
-        sound(240,.09,'triangle');
+      }else if(Math.abs(r.bumpVel||0)<2){
+        const pushDir=rLane>=lane?1:-1;
+        r.bumpVel=pushDir*8.5*(playerWeight/(r.weight||1.1));
+        camShake=.14;
+        spawnBurst(player.position,'#ff9f1c',5);
+        sound(240,.08,'triangle');
       }
     }
     if(gap>1.8&&gap<9.5&&Math.abs(rLane-lane)<1.65)draftingNow=true;
@@ -896,23 +886,22 @@ function updateRace(dt){
   }
   $('incoming-alert').hidden=!shellIncoming;
 
-  // 7. Spring-Damper Chase Camera, Speed Lines & FOV Kick
+  // 7. Chase Camera, Speed Lines & FOV Kick (never swivels past the car, so Left/Right is 100% true on screen!)
   $('speed-lines').hidden=!(race.boost>0||race.starPower>0||race.gliding)||reducedMotion;
-  camSwivel=THREE.MathUtils.lerp(camSwivel,race.drifting?race.driftDir*1.35:steer*.35,1-Math.exp(-dt*5));
   camDip=THREE.MathUtils.lerp(camDip,0,1-Math.exp(-dt*8));
   camShake=Math.max(0,camShake-dt*1.2);
-  const shakeX=camShake>0&&!reducedMotion?(Math.random()-.5)*camShake*1.4:0;
-  const shakeY=camShake>0&&!reducedMotion?(Math.random()-.5)*camShake*1.1:0;
+  const shakeX=camShake>0&&!reducedMotion?(Math.random()-.5)*camShake*1.1:0;
+  const shakeY=camShake>0&&!reducedMotion?(Math.random()-.5)*camShake*.9:0;
 
   const targetFov=(race.boost>0||race.starPower>0||race.gliding)&&!reducedMotion?57:49;
   if(Math.abs(camera.fov-targetFov)>.05){camera.fov=THREE.MathUtils.lerp(camera.fov,targetFov,1-Math.exp(-dt*6));camera.updateProjectionMatrix();}
   const distance=innerWidth<700?14.5:12.5,height=innerWidth<700?8.5:6.5;
   const goal=frame.point.clone()
-    .addScaledVector(frame.right,lane*.6+camSwivel+shakeX)
+    .addScaledVector(frame.right,lane*.6+shakeX)
     .addScaledVector(frame.tangent,-distance)
     .add(new THREE.Vector3(0,height+race.airY*.55-camDip+shakeY+(race.boost>0&&!reducedMotion?.3:0),0));
-  camera.position.lerp(goal,1-Math.exp(-dt*5.5));
-  const look=frameAt(race.distance/trackLength+.022).point.addScaledVector(frame.right,lane*.35);
+  camera.position.lerp(goal,1-Math.exp(-dt*5));
+  const look=frameAt(race.distance/trackLength+.022).point.addScaledVector(frame.right,lane*.3);
   look.y+=1.3+race.airY*.45;camera.lookAt(look);
   if(race.distance>=trackLength*2)finishRace();
 }
