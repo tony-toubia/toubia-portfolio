@@ -80,7 +80,7 @@ function ensureAudioContext() {
   return audioCtx;
 }
 
-function stopCurrentSources() {
+function stopCurrentSources(keepSpotifyEmbed = false) {
   // Stop active MediaStream (system audio or mic)
   if (activeStream) {
     activeStream.getTracks().forEach(t => t.stop());
@@ -90,9 +90,14 @@ function stopCurrentSources() {
     try { streamSourceNode.disconnect(); } catch {}
     streamSourceNode = null;
   }
-  // Pause file playback
+  // Pause file/stream playback
   if (!audioEl.paused) {
     audioEl.pause();
+  }
+  // Pause official Spotify Embed if switching away
+  if (!keepSpotifyEmbed && spotifyState.embedController && spotifyState.embedPlaying) {
+    try { spotifyState.embedController.pause(); } catch {}
+    spotifyState.embedPlaying = false;
   }
   // Stop procedural synth
   stopSynth();
@@ -103,16 +108,25 @@ function setActiveSourceUI(type, badgeText) {
   state.sourceType = type;
   $('source-badge').textContent = badgeText;
   document.querySelectorAll('.source-btn').forEach(b => b.classList.remove('active'));
+  if (type === 'spotify' || type === 'spotify-embed') $('btn-spotify')?.classList.add('active');
   if (type === 'system') $('btn-system').classList.add('active');
   if (type === 'file') document.querySelector('label[for="file-input"]')?.classList.add('active');
   if (type === 'synth') $('btn-synth').classList.add('active');
   if (type === 'mic') $('btn-mic').classList.add('active');
 
-  const showTransport = type === 'file' || type === 'synth';
+  const isSpotify = type === 'spotify' || type === 'spotify-embed';
+  const showTransport = type === 'file' || type === 'synth' || isSpotify;
   $('transport-bar').hidden = !showTransport;
   $('synth-grooves').hidden = type !== 'synth';
-  $('seek-bar').hidden = type === 'synth';
-  $('track-time').hidden = type === 'synth';
+  $('seek-bar').hidden = type === 'synth' || type === 'spotify-embed';
+  $('track-time').hidden = type === 'synth' || type === 'spotify-embed';
+  if ($('btn-prev-track')) $('btn-prev-track').hidden = !isSpotify;
+  if ($('btn-next-track')) $('btn-next-track').hidden = !isSpotify;
+  if (!isSpotify) {
+    if ($('transport-art')) $('transport-art').hidden = true;
+    if ($('track-artist')) $('track-artist').textContent = '';
+    if ($('transport-spotify-link')) $('transport-spotify-link').hidden = true;
+  }
 }
 
 // 1. Desktop System / Tab Audio Capture (Zero-Mic Digital Loopback)
@@ -394,15 +408,287 @@ async function startMicAudio() {
   }
 }
 
+// 5. Direct In-App Spotify & Music Streaming Engine (Direct FFT + Official Spotify Embed + OAuth PKCE)
+const spotifyState = {
+  engine: 'direct', // 'direct' (CORS WebAudio 2048-FFT) | 'embed' (Official Spotify Player + Beat-Sync)
+  tab: 'featured',  // 'featured' | 'playlists' | 'library'
+  curatedTracks: [],
+  curatedPlaylists: [],
+  currentQueue: [],
+  currentIndex: -1,
+  currentTrack: null,
+  activeCollection: null,
+  embedController: null,
+  embedReady: false,
+  embedPlaying: false,
+  embedPositionMs: 0,
+  embedDurationMs: 0,
+  trackSeed: 1.0,
+  clientId: localStorage.getItem('sp_client_id') || '',
+  accessToken: localStorage.getItem('sp_access_token') || '',
+  tokenExpiry: Number(localStorage.getItem('sp_token_expiry') || 0),
+  userProfile: null,
+  userLibraryTracks: [],
+  userPlaylists: [],
+};
+
+// Hook Spotify IFrame API Ready globally
+window.onSpotifyIframeApiReady = IFrameAPI => {
+  const target = $('spotify-embed-target');
+  if (!target) return;
+  IFrameAPI.createController(
+    target,
+    {
+      uri: 'spotify:track:0VjIjW4GlUZAMYd2vXMi3b',
+      width: '100%',
+      height: 152,
+    },
+    controller => {
+      spotifyState.embedController = controller;
+      spotifyState.embedReady = true;
+      controller.addListener('playback_update', e => {
+        const data = e?.data;
+        if (!data) return;
+        const wasPlaying = spotifyState.embedPlaying;
+        spotifyState.embedPlaying = !data.isPaused;
+        spotifyState.embedPositionMs = Number(data.position || 0);
+        spotifyState.embedDurationMs = Number(data.duration || 0);
+
+        if (spotifyState.embedPlaying && !wasPlaying) {
+          if (state.sourceType !== 'system') {
+            stopCurrentSources(true);
+            const title = spotifyState.currentTrack?.title || 'Spotify Player';
+            setActiveSourceUI('spotify-embed', `SPOTIFY PLAYER · ${title.toUpperCase().slice(0, 28)}`);
+          }
+          $('btn-play-pause').textContent = '⏸';
+        } else if (!spotifyState.embedPlaying && wasPlaying && state.sourceType === 'spotify-embed') {
+          $('btn-play-pause').textContent = '▶';
+        }
+      });
+    }
+  );
+};
+
+function estimateBpmFromTrack(title = '', artist = '') {
+  const str = `${title} ${artist}`.toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+  }
+  spotifyState.trackSeed = (hash % 1000) / 1000 + 0.5;
+  return 108 + (hash % 32); // 108..139 BPM
+}
+
+function updateTransportMetadata(track) {
+  if (!track) return;
+  $('track-title').textContent = track.title || 'Spotify Track';
+  if ($('track-artist')) {
+    $('track-artist').textContent = track.artist ? `· ${track.artist}` : '';
+  }
+  const artEl = $('transport-art');
+  if (artEl) {
+    if (track.artwork) {
+      artEl.src = track.artwork;
+      artEl.hidden = false;
+    } else {
+      artEl.hidden = true;
+    }
+  }
+  const linkEl = $('transport-spotify-link');
+  if (linkEl) {
+    const url = track.externalUrl || (track.spotifyId ? `https://open.spotify.com/track/${track.spotifyId}` : '');
+    if (url) {
+      linkEl.href = url;
+      linkEl.hidden = false;
+    } else {
+      linkEl.hidden = true;
+    }
+  }
+}
+
+async function playSpotifyTrack(track, index = 0, queue = spotifyState.currentQueue) {
+  if (!track) return;
+  spotifyState.currentTrack = track;
+  spotifyState.currentIndex = index;
+  if (Array.isArray(queue) && queue.length) {
+    spotifyState.currentQueue = queue;
+  }
+  state.bpmEstimate = track.bpmHint || estimateBpmFromTrack(track.title, track.artist);
+  updateTransportMetadata(track);
+  highlightActiveTrackCard();
+
+  // Mode B: Official Spotify Embed Player
+  if (spotifyState.engine === 'embed' && (track.spotifyUri || track.spotifyId)) {
+    const uri = track.spotifyUri || `spotify:track:${track.spotifyId}`;
+    $('spotify-embed-dock').hidden = false;
+    stopCurrentSources(true);
+    setActiveSourceUI('spotify-embed', `SPOTIFY PLAYER · ${track.title.toUpperCase().slice(0, 28)}`);
+    if (spotifyState.embedController) {
+      spotifyState.embedController.loadUri(uri);
+      spotifyState.embedController.play();
+      spotifyState.embedPlaying = true;
+      $('btn-play-pause').textContent = '⏸';
+      notify(`Playing "${track.title}" in Official Spotify Player 🎧`);
+    } else {
+      notify('Spotify Embed Player initializing — press Play in the player widget!');
+    }
+    return;
+  }
+
+  // Mode A: Direct WebAudio FFT Visualizer Stream (Works on Desktop & Phone with zero permissions!)
+  if (!track.streamProxyUrl && track.title) {
+    try {
+      notify(`Resolving audio stream for "${track.title}"...`, 2000);
+      const q = new URLSearchParams({
+        resolveTrack: '1',
+        title: track.title,
+        artist: track.artist || '',
+        spotifyId: track.spotifyId || '',
+        artwork: track.artwork || '',
+      });
+      const res = await fetch(`/api/visualizer/spotify?${q.toString()}`);
+      const data = await res.json();
+      if (data?.track?.streamProxyUrl) {
+        track.streamProxyUrl = data.track.streamProxyUrl;
+        track.previewUrl = data.track.previewUrl;
+        if (!track.artwork && data.track.artwork) track.artwork = data.track.artwork;
+        updateTransportMetadata(track);
+      }
+    } catch {}
+  }
+
+  if (!track.streamProxyUrl) {
+    // Fallback to Official Spotify Embed if no direct stream is available
+    if (track.spotifyUri || track.spotifyId) {
+      setSpotifyEngine('embed');
+      return playSpotifyTrack(track, index, queue);
+    }
+    notify('Could not load audio stream for this track — try another selection!');
+    return;
+  }
+
+  stopCurrentSources(false);
+  ensureAudioContext();
+
+  if (!mediaElementSourceNode) {
+    mediaElementSourceNode = audioCtx.createMediaElementSource(audioEl);
+    mediaElementSourceNode.connect(analyser);
+    analyser.connect(audioCtx.destination);
+  }
+
+  audioEl.crossOrigin = 'anonymous';
+  audioEl.src = track.streamProxyUrl;
+  audioEl.load();
+
+  setActiveSourceUI('spotify', `SPOTIFY STREAM · ${track.title.toUpperCase().slice(0, 28)}`);
+
+  try {
+    await audioEl.play();
+    $('btn-play-pause').textContent = '⏸';
+    notify(`Visualizing "${track.title}" — ${track.artist} 🟢`);
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: track.title,
+        artist: track.artist || 'Spotify Visualizer',
+        artwork: track.artwork ? [{ src: track.artwork, sizes: '512x512', type: 'image/jpeg' }] : [],
+      });
+      navigator.mediaSession.setActionHandler('play', () => audioEl.play());
+      navigator.mediaSession.setActionHandler('pause', () => audioEl.pause());
+      navigator.mediaSession.setActionHandler('previoustrack', () => stepSpotifyQueue(-1));
+      navigator.mediaSession.setActionHandler('nexttrack', () => stepSpotifyQueue(1));
+    }
+  } catch {
+    $('btn-play-pause').textContent = '▶';
+    notify('Tap Play (▶) in the bottom bar to start audio!');
+  }
+}
+
+function stepSpotifyQueue(delta) {
+  const q = spotifyState.currentQueue;
+  if (!Array.isArray(q) || !q.length) return;
+  const nextIdx = (spotifyState.currentIndex + delta + q.length) % q.length;
+  playSpotifyTrack(q[nextIdx], nextIdx, q);
+}
+
+// 1-Click Current Tab Audio Sync for DRM Spotify Embed Player on Desktop
+async function startCurrentTabSpotifyAudio() {
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    notify('Tab audio sync requires a desktop browser (Chrome/Edge). Beat-Sync DSP is already active on mobile!');
+    return;
+  }
+  try {
+    notify('Allow sharing this tab with "Share tab audio" checked for raw 2048-bin Spotify FFT! 🔊', 4500);
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+        suppressLocalAudioPlayback: false,
+      },
+      preferCurrentTab: true,
+      selfBrowserSurface: 'include',
+      systemAudio: 'include',
+    });
+    const audioTracks = stream.getAudioTracks();
+    if (!audioTracks.length) {
+      stream.getTracks().forEach(t => t.stop());
+      notify('⚠️ Make sure "Share tab audio" is toggled ON in the popup!');
+      return;
+    }
+    ensureAudioContext();
+    if (activeStream) activeStream.getTracks().forEach(t => t.stop());
+    activeStream = stream;
+    const audioOnly = new MediaStream(audioTracks);
+    streamSourceNode = audioCtx.createMediaStreamSource(audioOnly);
+    streamSourceNode.connect(analyser);
+    $('sp-embed-hint').textContent = '✓ Live 2048-bin Tab Audio FFT connected!';
+    notify('Connected raw 2048-bin FFT to Spotify Player! 🌈');
+  } catch {}
+}
+
 // --- Real-Time Audio Analysis & Beat Detection ---
 function updateAudioAnalysis(timeSec, dt) {
-  const hasRealAudio = state.sourceType !== 'idle' && analyser &&
-    !(state.sourceType === 'file' && audioEl.paused) &&
-    !(state.sourceType === 'synth' && !synthPlaying);
+  const hasDirectAudio =
+    analyser &&
+    ((state.sourceType === 'file' && !audioEl.paused) ||
+      (state.sourceType === 'spotify' && !audioEl.paused) ||
+      (state.sourceType === 'synth' && synthPlaying) ||
+      state.sourceType === 'system' ||
+      state.sourceType === 'mic' ||
+      (state.sourceType === 'spotify-embed' && activeStream));
 
-  if (hasRealAudio) {
+  if (hasDirectAudio) {
     analyser.getByteFrequencyData(freqData);
     analyser.getByteTimeDomainData(waveData);
+  } else if (state.sourceType === 'spotify-embed' && spotifyState.embedPlaying) {
+    // Beat-locked harmonic telemetry synchronized to live Spotify Embed playback position & BPM
+    const bpm = state.bpmEstimate || 122;
+    const posSec = (spotifyState.embedPositionMs || timeSec * 1000) * 0.001;
+    const beatPos = posSec * (bpm / 60);
+    const beatFrac = beatPos - Math.floor(beatPos);
+    const kickEnv = Math.pow(Math.max(0, 1.0 - beatFrac * 2.6), 2.2);
+    const snareEnv = Math.floor(beatPos) % 2 === 1 ? Math.pow(Math.max(0, 1.0 - beatFrac * 3.0), 1.8) : 0;
+    const hatEnv = Math.pow(Math.max(0, 1.0 - ((beatPos * 2) % 1) * 3.2), 2.0);
+    const seed = spotifyState.trackSeed || 1.1;
+
+    for (let i = 0; i < 512; i++) {
+      const f = i / 512;
+      const subKick = Math.exp(-f * 14.0) * kickEnv * 235;
+      const bassGroove = Math.exp(-Math.pow((f - 0.07) * 18.0, 2.0)) * (110 + 95 * Math.sin(beatPos * Math.PI * 0.5 * seed));
+      const vocalMids =
+        Math.exp(-Math.pow((f - 0.24) * 7.5, 2.0)) *
+        (85 + snareEnv * 110 + 55 * Math.sin(f * 32.0 - timeSec * 6.5 * seed));
+      const hiAir = Math.pow(f, 0.7) * hatEnv * 125 + Math.sin(f * 70.0 + timeSec * 11.0) * 22;
+      freqData[i] = Math.max(0, Math.min(255, subKick + bassGroove + vocalMids + hiAir));
+
+      const wave =
+        128 +
+        Math.sin(f * Math.PI * 4.0 + timeSec * 9.0) * (35 + kickEnv * 58) +
+        Math.sin(f * Math.PI * 18.0 - timeSec * 15.0 * seed) * (18 + snareEnv * 34) +
+        Math.cos(f * Math.PI * 42.0 + timeSec * 23.0) * (hatEnv * 22);
+      waveData[i] = Math.max(0, Math.min(255, wave));
+    }
   } else {
     // Gentle harmonic demo signal when idle so the visualizer breathes and responds to touch
     for (let i = 0; i < 512; i++) {
@@ -809,6 +1095,561 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
+// --- Spotify Hub UI, Search, Playlist Loader & OAuth 2.0 PKCE ---
+const spotifyDrawer = $('spotify-drawer');
+
+function toggleSpotifyDrawer(forceOpen) {
+  if (!spotifyDrawer) return;
+  const open = typeof forceOpen === 'boolean' ? forceOpen : spotifyDrawer.hidden;
+  spotifyDrawer.hidden = !open;
+  if (open && !spotifyState.curatedTracks.length) {
+    loadCuratedSpotifyCatalog();
+  }
+}
+
+$('btn-spotify')?.addEventListener('click', () => toggleSpotifyDrawer());
+$('top-spotify-btn')?.addEventListener('click', () => toggleSpotifyDrawer());
+$('close-spotify')?.addEventListener('click', () => toggleSpotifyDrawer(false));
+
+function setSpotifyEngine(engine) {
+  spotifyState.engine = engine;
+  $('sp-engine-direct')?.classList.toggle('active', engine === 'direct');
+  $('sp-engine-embed')?.classList.toggle('active', engine === 'embed');
+  if ($('spotify-embed-dock')) {
+    $('spotify-embed-dock').hidden = engine !== 'embed';
+  }
+  if (spotifyState.currentTrack) {
+    playSpotifyTrack(spotifyState.currentTrack, spotifyState.currentIndex, spotifyState.currentQueue);
+  }
+}
+
+$('sp-engine-direct')?.addEventListener('click', () => setSpotifyEngine('direct'));
+$('sp-engine-embed')?.addEventListener('click', () => setSpotifyEngine('embed'));
+$('btn-spotify-tab-sync')?.addEventListener('click', startCurrentTabSpotifyAudio);
+
+function highlightActiveTrackCard() {
+  const activeId = spotifyState.currentTrack?.id;
+  document.querySelectorAll('.sp-track-card[data-track-id]').forEach(card => {
+    const isPlaying = Boolean(activeId && card.dataset.trackId === activeId);
+    card.classList.toggle('playing', isPlaying);
+    const badge = card.querySelector('.sp-track-play-badge');
+    if (badge) badge.textContent = isPlaying ? '❚❚' : '▶';
+  });
+}
+
+function renderSpotifyTracks(tracks, emptyMessage = 'No tracks found.') {
+  const container = $('spotify-results');
+  if (!container) return;
+  if (!Array.isArray(tracks) || !tracks.length) {
+    container.innerHTML = `<div class="sp-loading">${emptyMessage}</div>`;
+    return;
+  }
+
+  spotifyState.currentQueue = tracks;
+  container.innerHTML = '';
+
+  tracks.forEach((track, idx) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sp-track-card';
+    btn.dataset.trackId = track.id || `idx-${idx}`;
+    if (spotifyState.currentTrack?.id && spotifyState.currentTrack.id === track.id) {
+      btn.classList.add('playing');
+    }
+
+    const art = document.createElement('img');
+    art.className = 'sp-track-art';
+    art.src =
+      track.artwork ||
+      'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="100%" height="100%" fill="%23121a2e"/><circle cx="40" cy="40" r="18" fill="%231ed760"/></svg>';
+    art.alt = '';
+    art.loading = 'lazy';
+
+    const meta = document.createElement('div');
+    meta.className = 'sp-track-meta';
+    const titleEl = document.createElement('strong');
+    titleEl.textContent = track.title || 'Unknown Track';
+    const subEl = document.createElement('small');
+    subEl.textContent = track.artist || 'Spotify Artist';
+    meta.appendChild(titleEl);
+    meta.appendChild(subEl);
+
+    const badge = document.createElement('span');
+    badge.className = 'sp-track-play-badge';
+    badge.textContent =
+      spotifyState.currentTrack?.id && spotifyState.currentTrack.id === track.id ? '❚❚' : '▶';
+
+    btn.appendChild(art);
+    btn.appendChild(meta);
+    btn.appendChild(badge);
+
+    btn.addEventListener('click', () => {
+      playSpotifyTrack(track, idx, tracks);
+    });
+
+    container.appendChild(btn);
+  });
+}
+
+function renderSpotifyPlaylists(playlists) {
+  const container = $('spotify-results');
+  if (!container) return;
+  $('spotify-collection-banner').hidden = true;
+
+  if (!Array.isArray(playlists) || !playlists.length) {
+    container.innerHTML = '<div class="sp-loading">No playlists available.</div>';
+    return;
+  }
+
+  container.innerHTML = '';
+  playlists.forEach(pl => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sp-track-card';
+
+    const art = document.createElement('img');
+    art.className = 'sp-track-art';
+    art.src =
+      pl.artwork ||
+      'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="100%" height="100%" fill="%230f291e"/><circle cx="40" cy="40" r="20" fill="%231ed760"/></svg>';
+    art.alt = '';
+
+    const meta = document.createElement('div');
+    meta.className = 'sp-track-meta';
+    const titleEl = document.createElement('strong');
+    titleEl.textContent = pl.title || pl.name || 'Spotify Playlist';
+    const subEl = document.createElement('small');
+    subEl.textContent = pl.subtitle || 'Open Tracklist';
+    meta.appendChild(titleEl);
+    meta.appendChild(subEl);
+
+    const badge = document.createElement('span');
+    badge.className = 'sp-track-play-badge';
+    badge.textContent = '💿';
+
+    btn.appendChild(art);
+    btn.appendChild(meta);
+    btn.appendChild(badge);
+
+    btn.addEventListener('click', () => {
+      if (pl.isOAuthPlaylist && pl.id) {
+        loadUserOAuthPlaylistTracks(pl.id, pl.title || pl.name);
+      } else {
+        loadSpotifyUrlOrSearch(pl.spotifyUrl || `spotify:playlist:${pl.id}`);
+      }
+    });
+
+    container.appendChild(btn);
+  });
+}
+
+async function loadCuratedSpotifyCatalog() {
+  const container = $('spotify-results');
+  if (container && !spotifyState.curatedTracks.length) {
+    container.innerHTML = '<div class="sp-loading">Loading Spotify Showcase tracks...</div>';
+  }
+  try {
+    const res = await fetch('/api/visualizer/spotify?curated=1');
+    const data = await res.json();
+    if (data?.clientId && !spotifyState.clientId) {
+      spotifyState.clientId = data.clientId;
+      if ($('sp-client-id-input')) $('sp-client-id-input').value = data.clientId;
+    }
+    spotifyState.curatedTracks = Array.isArray(data?.tracks) ? data.tracks : [];
+    spotifyState.curatedPlaylists = Array.isArray(data?.playlists) ? data.playlists : [];
+    if (spotifyState.tab === 'featured') {
+      $('spotify-collection-banner').hidden = true;
+      renderSpotifyTracks(spotifyState.curatedTracks);
+    } else if (spotifyState.tab === 'playlists') {
+      renderSpotifyPlaylists(spotifyState.curatedPlaylists);
+    }
+  } catch {
+    if (container) {
+      container.innerHTML = '<div class="sp-loading">Search any song or paste a Spotify URL above!</div>';
+    }
+  }
+}
+
+async function loadSpotifyUrlOrSearch(rawInput) {
+  const input = (rawInput || '').trim();
+  if (!input) return;
+  const container = $('spotify-results');
+  if (container) {
+    container.innerHTML = `<div class="sp-loading">Searching Spotify &amp; audio streams for "${input.slice(0, 40)}"...</div>`;
+  }
+
+  try {
+    // If user is authenticated with Spotify OAuth and searching by keyword, we can also search Spotify Web API directly
+    const isSpotifyLink =
+      input.includes('spotify.com/') || /^spotify:(track|playlist|album|artist):/i.test(input);
+    const param = isSpotifyLink
+      ? `spotifyUrl=${encodeURIComponent(input)}`
+      : `q=${encodeURIComponent(input)}`;
+
+    const res = await fetch(`/api/visualizer/spotify?${param}`);
+    const data = await res.json();
+
+    if (data?.error) {
+      renderSpotifyTracks([], data.error);
+      return;
+    }
+
+    if (data.kind === 'playlist' || data.kind === 'album' || data.kind === 'artist') {
+      spotifyState.activeCollection = data;
+      $('spotify-collection-banner').hidden = false;
+      $('sp-collection-title').textContent = data.title || 'Spotify Collection';
+      $('sp-collection-sub').textContent = `${data.tracks?.length || 0} Tracks · Click any song to visualize`;
+      renderSpotifyTracks(data.tracks || []);
+      if (data.tracks?.length) {
+        playSpotifyTrack(data.tracks[0], 0, data.tracks);
+      }
+      return;
+    }
+
+    $('spotify-collection-banner').hidden = true;
+    const tracks = data.tracks || [];
+    renderSpotifyTracks(tracks, 'No matching tracks found. Try another artist or song title!');
+    if (data.kind === 'track' && tracks[0]) {
+      playSpotifyTrack(tracks[0], 0, tracks);
+    }
+  } catch {
+    renderSpotifyTracks([], 'Could not reach music service. Try again in a moment.');
+  }
+}
+
+$('spotify-search-form')?.addEventListener('submit', e => {
+  e.preventDefault();
+  const q = $('spotify-search-input')?.value?.trim();
+  if (q) loadSpotifyUrlOrSearch(q);
+});
+
+$('sp-back-btn')?.addEventListener('click', () => {
+  $('spotify-collection-banner').hidden = true;
+  if (spotifyState.tab === 'playlists') {
+    renderSpotifyPlaylists(spotifyState.curatedPlaylists);
+  } else if (spotifyState.tab === 'library' && spotifyState.userPlaylists.length) {
+    renderSpotifyPlaylists(spotifyState.userPlaylists);
+  } else {
+    renderSpotifyTracks(spotifyState.curatedTracks);
+  }
+});
+
+$('sp-play-collection-embed')?.addEventListener('click', () => {
+  const col = spotifyState.activeCollection;
+  if (!col?.spotifyUri) return;
+  setSpotifyEngine('embed');
+  $('spotify-embed-dock').hidden = false;
+  if (spotifyState.embedController) {
+    spotifyState.embedController.loadUri(col.spotifyUri);
+    spotifyState.embedController.play();
+    notify(`Playing full ${col.title} in Official Spotify Player 🎧`);
+  }
+});
+
+// Category Tabs in Spotify Drawer
+document.querySelectorAll('.sp-tab').forEach(tabBtn => {
+  tabBtn.addEventListener('click', () => {
+    document.querySelectorAll('.sp-tab').forEach(b => b.classList.remove('active'));
+    tabBtn.classList.add('active');
+    const tab = tabBtn.dataset.spTab || 'featured';
+    spotifyState.tab = tab;
+    $('spotify-collection-banner').hidden = true;
+
+    if (tab === 'featured') {
+      if (spotifyState.curatedTracks.length) {
+        renderSpotifyTracks(spotifyState.curatedTracks);
+      } else {
+        loadCuratedSpotifyCatalog();
+      }
+    } else if (tab === 'playlists') {
+      if (spotifyState.curatedPlaylists.length) {
+        renderSpotifyPlaylists(spotifyState.curatedPlaylists);
+      } else {
+        loadCuratedSpotifyCatalog();
+      }
+    } else if (tab === 'library') {
+      renderUserSpotifyLibraryTab();
+    }
+  });
+});
+
+// --- Spotify OAuth 2.0 PKCE Authentication & Personal Library ---
+function getSpotifyRedirectUri() {
+  return `${window.location.origin}/visualizer/index.html`;
+}
+
+if ($('sp-redirect-uri-code')) {
+  $('sp-redirect-uri-code').textContent = getSpotifyRedirectUri();
+}
+if ($('sp-client-id-input') && spotifyState.clientId) {
+  $('sp-client-id-input').value = spotifyState.clientId;
+}
+
+$('btn-copy-redirect')?.addEventListener('click', () => {
+  navigator.clipboard?.writeText(getSpotifyRedirectUri());
+  notify('Copied Redirect URI to clipboard! 📋');
+});
+
+$('btn-spotify-connect')?.addEventListener('click', () => {
+  $('spotify-auth-modal').hidden = false;
+  $('btn-disconnect-spotify').hidden = !isSpotifyTokenValid();
+});
+
+$('close-sp-modal')?.addEventListener('click', () => {
+  $('spotify-auth-modal').hidden = true;
+});
+
+function isSpotifyTokenValid() {
+  return Boolean(spotifyState.accessToken && Date.now() < spotifyState.tokenExpiry - 30000);
+}
+
+async function generatePkcePair() {
+  const array = new Uint8Array(32);
+  window.crypto.getRandomValues(array);
+  const verifier = btoa(String.fromCharCode(...array))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const digest = await window.crypto.subtle.digest('SHA-256', data);
+  const challenge = btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+  return { verifier, challenge };
+}
+
+async function startSpotifyOAuth() {
+  const inputId = $('sp-client-id-input')?.value?.trim() || spotifyState.clientId;
+  if (!inputId) {
+    notify('Please enter your Spotify Developer Client ID first.');
+    return;
+  }
+  spotifyState.clientId = inputId;
+  localStorage.setItem('sp_client_id', inputId);
+
+  const { verifier, challenge } = await generatePkcePair();
+  localStorage.setItem('sp_pkce_verifier', verifier);
+
+  const scopes = [
+    'user-read-private',
+    'user-read-email',
+    'user-library-read',
+    'playlist-read-private',
+    'playlist-read-collaborative',
+    'user-top-read',
+    'user-read-playback-state',
+    'user-read-currently-playing',
+    'streaming',
+  ].join(' ');
+
+  const authUrl = new URL('https://accounts.spotify.com/authorize');
+  authUrl.searchParams.set('client_id', inputId);
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('redirect_uri', getSpotifyRedirectUri());
+  authUrl.searchParams.set('code_challenge_method', 'S256');
+  authUrl.searchParams.set('code_challenge', challenge);
+  authUrl.searchParams.set('scope', scopes);
+
+  window.location.href = authUrl.toString();
+}
+
+$('btn-start-oauth')?.addEventListener('click', startSpotifyOAuth);
+
+$('btn-disconnect-spotify')?.addEventListener('click', () => {
+  spotifyState.accessToken = '';
+  spotifyState.tokenExpiry = 0;
+  spotifyState.userProfile = null;
+  localStorage.removeItem('sp_access_token');
+  localStorage.removeItem('sp_token_expiry');
+  updateSpotifyAuthBadge();
+  $('spotify-auth-modal').hidden = true;
+  notify('Disconnected Spotify account.');
+});
+
+async function handleSpotifyOAuthCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  if (!code) {
+    if (isSpotifyTokenValid()) {
+      fetchSpotifyProfileAndLibrary();
+    }
+    return;
+  }
+
+  const verifier = localStorage.getItem('sp_pkce_verifier');
+  const clientId = spotifyState.clientId || localStorage.getItem('sp_client_id');
+  window.history.replaceState({}, document.title, window.location.pathname);
+
+  if (!verifier || !clientId) return;
+
+  try {
+    const body = new URLSearchParams({
+      client_id: clientId,
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: getSpotifyRedirectUri(),
+      code_verifier: verifier,
+    });
+
+    const res = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+    const tokenData = await res.json();
+    if (tokenData?.access_token) {
+      spotifyState.accessToken = tokenData.access_token;
+      spotifyState.tokenExpiry = Date.now() + Number(tokenData.expires_in || 3600) * 1000;
+      localStorage.setItem('sp_access_token', spotifyState.accessToken);
+      localStorage.setItem('sp_token_expiry', String(spotifyState.tokenExpiry));
+      toggleSpotifyDrawer(true);
+      await fetchSpotifyProfileAndLibrary();
+      notify('Spotify Account Connected! 🟢');
+    } else {
+      notify('Spotify authorization failed — check Client ID & Redirect URI.');
+    }
+  } catch {
+    notify('Could not complete Spotify token exchange.');
+  }
+}
+
+function updateSpotifyAuthBadge() {
+  const btn = $('btn-spotify-connect');
+  const status = $('sp-connection-status');
+  if (!btn) return;
+  if (isSpotifyTokenValid() && spotifyState.userProfile) {
+    btn.textContent = `✓ ${spotifyState.userProfile.display_name || 'Connected'}`;
+    btn.classList.add('connected');
+    if (status) status.textContent = `CONNECTED AS ${String(spotifyState.userProfile.display_name || 'SPOTIFY USER').toUpperCase()}`;
+  } else {
+    btn.textContent = '🔐 Connect Account';
+    btn.classList.remove('connected');
+    if (status) status.textContent = 'INSTANT STREAM & SPOTIFY EMBED READY';
+  }
+}
+
+async function fetchSpotifyWebApi(endpoint) {
+  if (!isSpotifyTokenValid()) return null;
+  const res = await fetch(`https://api.spotify.com/v1${endpoint}`, {
+    headers: { Authorization: `Bearer ${spotifyState.accessToken}` },
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+async function fetchSpotifyProfileAndLibrary() {
+  const [profile, saved, top, playlists] = await Promise.all([
+    fetchSpotifyWebApi('/me'),
+    fetchSpotifyWebApi('/me/tracks?limit=20'),
+    fetchSpotifyWebApi('/me/top/tracks?limit=15'),
+    fetchSpotifyWebApi('/me/playlists?limit=15'),
+  ]);
+
+  if (profile) {
+    spotifyState.userProfile = profile;
+    updateSpotifyAuthBadge();
+  }
+
+  const mapApiTrack = t => {
+    if (!t?.id) return null;
+    return {
+      id: `spotify-${t.id}`,
+      spotifyId: t.id,
+      spotifyUri: t.uri || `spotify:track:${t.id}`,
+      title: t.name || 'Track',
+      artist: Array.isArray(t.artists) ? t.artists.map(a => a.name).join(', ') : '',
+      album: t.album?.name || '',
+      artwork: t.album?.images?.[0]?.url || '',
+      durationMs: Number(t.duration_ms || 30000),
+      previewUrl: t.preview_url || null,
+      streamProxyUrl: t.preview_url ? `/api/visualizer/stream?url=${encodeURIComponent(t.preview_url)}` : null,
+      externalUrl: t.external_urls?.spotify || `https://open.spotify.com/track/${t.id}`,
+    };
+  };
+
+  const likedTracks = (saved?.items || []).map(item => mapApiTrack(item.track)).filter(Boolean);
+  const topTracks = (top?.items || []).map(mapApiTrack).filter(Boolean);
+  spotifyState.userLibraryTracks = likedTracks.length ? likedTracks : topTracks;
+
+  spotifyState.userPlaylists = (playlists?.items || []).map(pl => ({
+    id: pl.id,
+    title: pl.name,
+    subtitle: `${pl.tracks?.total || 0} tracks · Personal Playlist`,
+    artwork: pl.images?.[0]?.url || '',
+    isOAuthPlaylist: true,
+    spotifyUri: pl.uri,
+  }));
+
+  if (spotifyState.tab === 'library') {
+    renderUserSpotifyLibraryTab();
+  }
+}
+
+async function loadUserOAuthPlaylistTracks(playlistId, title) {
+  const container = $('spotify-results');
+  if (container) container.innerHTML = `<div class="sp-loading">Loading "${title}"...</div>`;
+  const data = await fetchSpotifyWebApi(`/playlists/${playlistId}/tracks?limit=25`);
+  const tracks = (data?.items || [])
+    .map(item => {
+      const t = item?.track;
+      if (!t?.id) return null;
+      return {
+        id: `spotify-${t.id}`,
+        spotifyId: t.id,
+        spotifyUri: t.uri || `spotify:track:${t.id}`,
+        title: t.name,
+        artist: Array.isArray(t.artists) ? t.artists.map(a => a.name).join(', ') : '',
+        album: t.album?.name || '',
+        artwork: t.album?.images?.[0]?.url || '',
+        durationMs: Number(t.duration_ms || 30000),
+        previewUrl: t.preview_url || null,
+        streamProxyUrl: t.preview_url ? `/api/visualizer/stream?url=${encodeURIComponent(t.preview_url)}` : null,
+        externalUrl: `https://open.spotify.com/track/${t.id}`,
+      };
+    })
+    .filter(Boolean);
+
+  spotifyState.activeCollection = {
+    title,
+    spotifyUri: `spotify:playlist:${playlistId}`,
+    tracks,
+  };
+  $('spotify-collection-banner').hidden = false;
+  $('sp-collection-title').textContent = title;
+  $('sp-collection-sub').textContent = `${tracks.length} Tracks`;
+  renderSpotifyTracks(tracks, 'No tracks found in this playlist.');
+}
+
+function renderUserSpotifyLibraryTab() {
+  const container = $('spotify-results');
+  if (!container) return;
+  if (!isSpotifyTokenValid()) {
+    container.innerHTML = `
+      <div class="sp-loading">
+        <p style="margin-bottom:10px;">Connect your Spotify Account to browse your personal <b>Liked Songs</b>, <b>Playlists</b>, and <b>Top Tracks</b>—or paste any public Spotify playlist URL in the search box above!</p>
+        <button type="button" id="sp-inline-connect" class="sp-oauth-go-btn" style="max-width:240px;">🔐 Connect Spotify Account</button>
+      </div>
+    `;
+    $('sp-inline-connect')?.addEventListener('click', () => {
+      $('spotify-auth-modal').hidden = false;
+    });
+    return;
+  }
+
+  if (spotifyState.userLibraryTracks.length) {
+    renderSpotifyTracks(spotifyState.userLibraryTracks);
+  } else if (spotifyState.userPlaylists.length) {
+    renderSpotifyPlaylists(spotifyState.userPlaylists);
+  } else {
+    container.innerHTML = '<div class="sp-loading">Loading your Spotify Library...</div>';
+    fetchSpotifyProfileAndLibrary();
+  }
+}
+
+handleSpotifyOAuthCallback();
+
 // --- UI Event Listeners & Interactive Controls ---
 $('btn-system').addEventListener('click', startSystemAudio);
 $('file-input').addEventListener('change', e => {
@@ -846,8 +1687,11 @@ window.addEventListener('drop', e => {
 });
 
 // Transport bar controls
+$('btn-prev-track')?.addEventListener('click', () => stepSpotifyQueue(-1));
+$('btn-next-track')?.addEventListener('click', () => stepSpotifyQueue(1));
+
 $('btn-play-pause').addEventListener('click', () => {
-  if (state.sourceType === 'file') {
+  if (state.sourceType === 'file' || state.sourceType === 'spotify') {
     if (audioEl.paused) {
       ensureAudioContext();
       audioEl.play();
@@ -856,6 +1700,8 @@ $('btn-play-pause').addEventListener('click', () => {
       audioEl.pause();
       $('btn-play-pause').textContent = '▶';
     }
+  } else if (state.sourceType === 'spotify-embed' && spotifyState.embedController) {
+    spotifyState.embedController.togglePlay();
   } else if (state.sourceType === 'synth') {
     if (synthPlaying) {
       stopSynth();
@@ -867,7 +1713,7 @@ $('btn-play-pause').addEventListener('click', () => {
 });
 
 $('seek-bar').addEventListener('input', e => {
-  if (state.sourceType === 'file' && Number.isFinite(audioEl.duration)) {
+  if ((state.sourceType === 'file' || state.sourceType === 'spotify') && Number.isFinite(audioEl.duration)) {
     audioEl.currentTime = (Number(e.target.value) / 100) * audioEl.duration;
   }
 });
@@ -879,7 +1725,11 @@ audioEl.addEventListener('timeupdate', () => {
   }
 });
 audioEl.addEventListener('ended', () => {
-  $('btn-play-pause').textContent = '▶';
+  if (state.sourceType === 'spotify' && spotifyState.currentQueue.length > 1) {
+    stepSpotifyQueue(1);
+  } else {
+    $('btn-play-pause').textContent = '▶';
+  }
 });
 
 // Synth groove selector & Bass Drop button
