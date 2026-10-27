@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#06070d">
+  <title>SONIC PRISM — System Audio &amp; Music Visualizer</title>
+  <meta name="description" content="A modern WebGL music visualizer inspired by Windows Media Player Alchemy &amp; MilkDrop. Capture live system/tab audio without a microphone, drop audio files, or jam with the built-in synth.">
+  <link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+  <canvas id="gl-canvas" aria-label="Interactive audio-reactive music visualizer"></canvas>
+
+  <!-- Subtle top bar -->
+  <header id="top-bar" class="top-bar">
+    <div class="brand">
+      <span class="brand-orb" id="beat-indicator"></span>
+      <div>
+        <strong>SONIC PRISM</strong>
+        <small id="source-badge">READY · SELECT AUDIO SOURCE</small>
+      </div>
+    </div>
+
+    <div class="mode-pills" role="tablist" aria-label="Visual modes">
+      <button class="mode-pill active" data-mode="0" role="tab" aria-selected="true">01 · ALCHEMY PLASMA</button>
+      <button class="mode-pill" data-mode="1" role="tab" aria-selected="false">02 · FIRESTORM WAVES</button>
+      <button class="mode-pill" data-mode="2" role="tab" aria-selected="false">03 · FERRO-ORB 3D</button>
+      <button class="mode-pill" data-mode="3" role="tab" aria-selected="false">04 · HYPER-TUNNEL</button>
+    </div>
+
+    <div class="top-actions">
+      <button id="toggle-drawer" class="icon-btn" title="Customize visual parameters" aria-expanded="false">⚙ CUSTOMIZE</button>
+      <button id="zen-btn" class="icon-btn" title="Hide UI (Zen Mode — press Esc or tap corner to restore)">👁 ZEN</button>
+      <button id="fullscreen-btn" class="icon-btn" title="Toggle Fullscreen">⛶</button>
+    </div>
+  </header>
+
+  <!-- Live Telemetry & Mini Oscilloscope Readout -->
+  <aside id="telemetry" class="telemetry" aria-hidden="true">
+    <div class="meter-row">
+      <span>SUB / BASS</span>
+      <div class="meter"><i id="meter-bass"></i></div>
+    </div>
+    <div class="meter-row">
+      <span>MIDS / VOCAL</span>
+      <div class="meter"><i id="meter-mid"></i></div>
+    </div>
+    <div class="meter-row">
+      <span>HIGHS / AIR</span>
+      <div class="meter"><i id="meter-high"></i></div>
+    </div>
+    <div class="telemetry-meta">
+      <span id="bpm-readout">BEAT PULSE · IDLE</span>
+      <span id="fps-readout">60 FPS</span>
+    </div>
+  </aside>
+
+  <!-- Customization Drawer -->
+  <section id="custom-drawer" class="custom-drawer" hidden aria-label="Visualizer customization">
+    <div class="drawer-header">
+      <strong>VISUAL ENGINE LAB</strong>
+      <button id="close-drawer" class="text-close" aria-label="Close customization">×</button>
+    </div>
+    <label class="control-row">
+      <span>Audio Reactivity / Gain <b id="val-gain">1.3×</b></span>
+      <input type="range" id="ctrl-gain" min="0.4" max="3.0" step="0.05" value="1.3">
+    </label>
+    <label class="control-row">
+      <span>Fluid Trail Persistence <b id="val-decay">94%</b></span>
+      <input type="range" id="ctrl-decay" min="0.75" max="0.985" step="0.005" value="0.94">
+    </label>
+    <label class="control-row">
+      <span>Warp &amp; Swirl Velocity <b id="val-warp">1.2×</b></span>
+      <input type="range" id="ctrl-warp" min="0.1" max="3.0" step="0.05" value="1.2">
+    </label>
+    <label class="control-row">
+      <span>Kaleidoscope Symmetry <b id="val-sym">OFF (1×)</b></span>
+      <input type="range" id="ctrl-sym" min="1" max="8" step="1" value="1">
+    </label>
+    <div class="control-row">
+      <span>Color Palette</span>
+      <div class="palette-grid" id="palette-list">
+        <button class="palette-btn active" data-palette="0">WMP Alchemy</button>
+        <button class="palette-btn" data-palette="1">Cyber Neon</button>
+        <button class="palette-btn" data-palette="2">Solar Flare</button>
+        <button class="palette-btn" data-palette="3">Ultraviolet</button>
+        <button class="palette-btn" data-palette="4">Liquid Chrome</button>
+      </div>
+    </div>
+    <p class="drawer-tip">💡 <b>Tip:</b> Drag or swirl your mouse or finger anywhere on the canvas to bend the sound waves around your touch.</p>
+  </section>
+
+  <!-- Bottom Control Deck: System Audio Capture, File Drop, Built-in Synth -->
+  <footer id="control-deck" class="control-deck">
+    <div class="source-buttons">
+      <button id="btn-system" class="source-btn primary-source">
+        <span class="src-icon">🖥️</span>
+        <div>
+          <strong>CAPTURE SYSTEM / TAB AUDIO</strong>
+          <small>Spotify, YouTube, Apple Music (Zero Mic)</small>
+        </div>
+      </button>
+
+      <label for="file-input" class="source-btn" tabindex="0" role="button">
+        <span class="src-icon">📂</span>
+        <div>
+          <strong>PLAY AUDIO FILE</strong>
+          <small>MP3, WAV, FLAC, M4A (Desktop &amp; Phone)</small>
+        </div>
+        <input id="file-input" type="file" accept="audio/*" hidden>
+      </label>
+
+      <button id="btn-synth" class="source-btn">
+        <span class="src-icon">🎹</span>
+        <div>
+          <strong id="synth-label">LIVE SYNTH DECK</strong>
+          <small id="synth-sub">Instant procedural bass &amp; arps</small>
+        </div>
+      </button>
+
+      <button id="btn-mic" class="source-btn compact-source" title="Optional: Listen via Microphone or Line-In">
+        <span class="src-icon">🎙️</span>
+        <div>
+          <strong>LINE-IN / MIC</strong>
+          <small>External speakers</small>
+        </div>
+      </button>
+    </div>
+
+    <!-- Active Player / Synth Bar (shown when file or synth is active) -->
+    <div id="transport-bar" class="transport-bar" hidden>
+      <button id="btn-play-pause" class="transport-play" aria-label="Play or Pause">⏸</button>
+      <div class="track-info">
+        <strong id="track-title">No track loaded</strong>
+        <input type="range" id="seek-bar" min="0" max="100" step="0.1" value="0" aria-label="Seek timeline">
+      </div>
+      <span id="track-time" class="track-time">0:00 / 0:00</span>
+      <div id="synth-grooves" class="synth-grooves" hidden>
+        <button class="groove-btn active" data-groove="0">Cyberpunk 124</button>
+        <button class="groove-btn" data-groove="1">Liquid DnB 170</button>
+        <button class="groove-btn" data-groove="2">Synthwave 102</button>
+        <button id="btn-drop" class="drop-btn">⚡ TRIGGER BASS DROP</button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Helper Modal for System Audio Capture Instructions -->
+  <div id="toast" class="toast" hidden role="status"></div>
+  <button id="exit-zen" class="exit-zen" hidden>SHOW CONTROLS</button>
+  <audio id="audio-el" crossorigin="anonymous" preload="auto" hidden></audio>
+
+  <script type="module" src="visualizer.mjs?v=1"></script>
+</body>
+</html>
