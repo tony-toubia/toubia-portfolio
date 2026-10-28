@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#06070d">
   <title>SONIC PRISM — Spotify &amp; Music Visualizer</title>
   <meta name="description" content="A modern WebGL music visualizer with 7 distinct shader worlds, direct Spotify account integration, local music playback, and live tab/window audio capture.">
-  <link rel="stylesheet" href="style.css?v=4">
+  <link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
   <canvas id="gl-canvas" aria-label="Interactive audio-reactive music visualizer"></canvas>
@@ -76,6 +76,9 @@
       <div class="sp-header-actions">
         <button type="button" id="btn-spotify-connect" class="sp-connect-btn" title="Log in to your Spotify account">
           🟢 Log in with Spotify
+        </button>
+        <button type="button" id="btn-spotify-settings" class="sp-settings-btn" title="Spotify Client ID &amp; Redirect URI Settings" aria-label="Spotify OAuth Settings">
+          ⚙️
         </button>
         <button type="button" id="close-spotify" class="text-close" aria-label="Close Spotify Hub">×</button>
       </div>
@@ -155,16 +158,27 @@
       </p>
       <ol class="sp-setup-steps">
         <li>Open <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a> (log in with your regular Spotify account) and click <b>Create App</b>.</li>
-        <li>Paste this Redirect URI into the app settings:
+        <li>Make sure this exact <b>Redirect URI</b> is added to your Spotify App's Redirect URIs (and click <b>Save</b> in Spotify Dashboard):
           <div class="sp-redirect-row">
-            <code id="sp-redirect-uri-code">https://www.tonytoubia.com/visualizer/index.html</code>
+            <code id="sp-redirect-uri-code">https://www.toubia.co/visualizer</code>
             <button type="button" id="btn-copy-redirect" class="sp-copy-btn">Copy URI</button>
           </div>
+          <div class="sp-redirect-presets" id="sp-redirect-presets" aria-label="Quick Redirect URI Presets"></div>
         </li>
-        <li>Copy your <b>Client ID</b> and paste it below (saved automatically so future logins are 1-click):</li>
+        <li>Paste your <b>Spotify App Client ID</b> below (or set <code>NEXT_PUBLIC_SPOTIFY_CLIENT_ID</code> in Vercel / <code>.env.local</code>):</li>
       </ol>
       <label class="control-row">
-        <span>Spotify App Client ID</span>
+        <span>Active Redirect URI (must match Spotify Dashboard exactly)</span>
+        <input
+          id="sp-redirect-uri-input"
+          type="url"
+          class="sp-text-input"
+          placeholder="https://www.toubia.co/visualizer"
+          autocomplete="off"
+        >
+      </label>
+      <label class="control-row">
+        <span>Spotify App Client ID <small id="sp-env-badge" class="sp-env-badge" hidden>ENV VAR CONFIGURED</small></span>
         <input
           id="sp-client-id-input"
           type="text"
@@ -298,6 +312,6 @@
 
   <script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
   <script src="https://sdk.scdn.co/spotify-player.js" async></script>
-  <script type="module" src="visualizer.mjs?v=4"></script>
+  <script type="module" src="visualizer.mjs?v=5"></script>
 </body>
 </html>

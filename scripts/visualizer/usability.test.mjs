@@ -65,3 +65,11 @@ test('Every close button (x) has an explicit click listener in visualizer.mjs', 
     assert.ok(js.includes(`$('${closeBtnId}')`), `JS binds listener to #${closeBtnId}`);
   }
 });
+
+test('Spotify OAuth Redirect URI defaults to canonical /visualizer and supports presets + env vars', () => {
+  assert.ok(js.includes('return `${window.location.origin}/visualizer`;'), 'Default redirect URI is <origin>/visualizer');
+  assert.ok(html.includes('id="sp-redirect-uri-input"'), 'HTML includes editable Redirect URI input');
+  assert.ok(html.includes('id="btn-spotify-settings"'), 'HTML includes Spotify settings gear button');
+  assert.ok(js.includes('sp_oauth_pending_redirect_uri'), 'Token exchange uses exact redirect_uri from authorize step');
+});
+

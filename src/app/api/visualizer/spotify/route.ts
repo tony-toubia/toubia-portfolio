@@ -183,13 +183,22 @@ export async function GET(req: NextRequest) {
     process.env.SPOTIFY_CLIENT_ID ||
     '';
 
+  const configuredRedirectUri =
+    process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI ||
+    process.env.SPOTIFY_REDIRECT_URI ||
+    '';
+
   if (resolveTrack) {
     const title = sp.get('title') || '';
     const artist = sp.get('artist') || '';
     const spotifyId = sp.get('spotifyId') || undefined;
     const artwork = sp.get('artwork') || '';
     const track = await resolveSingleTrackStream(title, artist, spotifyId, null, artwork);
-    return NextResponse.json({ track, clientId: configuredClientId });
+    return NextResponse.json({
+      track,
+      clientId: configuredClientId,
+      redirectUri: configuredRedirectUri,
+    });
   }
 
   if (spotifyUrl) {
@@ -233,6 +242,7 @@ export async function GET(req: NextRequest) {
         artwork: track.artwork,
         tracks: [track],
         clientId: configuredClientId,
+        redirectUri: configuredRedirectUri,
       });
     }
 
@@ -306,6 +316,7 @@ export async function GET(req: NextRequest) {
         artwork: collectionArtwork,
         tracks,
         clientId: configuredClientId,
+        redirectUri: configuredRedirectUri,
       });
     }
 
@@ -330,6 +341,7 @@ export async function GET(req: NextRequest) {
       query,
       tracks,
       clientId: configuredClientId,
+      redirectUri: configuredRedirectUri,
     });
   }
 
@@ -337,5 +349,6 @@ export async function GET(req: NextRequest) {
     kind: 'playlists',
     playlists: OFFICIAL_SPOTIFY_PLAYLISTS,
     clientId: configuredClientId,
+    redirectUri: configuredRedirectUri,
   });
 }

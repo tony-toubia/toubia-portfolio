@@ -237,6 +237,10 @@ function playLocalFileAt(index) {
 }
 
 // 3. Direct In-App Spotify Player & Search Engine
+const bootQueryParams = new URLSearchParams(window.location.search);
+const bootEnvClientId = (bootQueryParams.get('envClientId') || '').trim();
+const bootEnvRedirectUri = (bootQueryParams.get('envRedirectUri') || '').trim();
+
 const spotifyState = {
   engine: 'direct', // 'direct' (CORS WebAudio 2048-FFT) | 'embed' (Official Spotify Player)
   tab: 'playlists', // 'playlists' | 'search' | 'library'
@@ -252,7 +256,10 @@ const spotifyState = {
   embedPositionMs: 0,
   embedDurationMs: 0,
   trackSeed: 1.0,
-  clientId: localStorage.getItem('sp_client_id') || '',
+  envClientId: bootEnvClientId,
+  envRedirectUri: bootEnvRedirectUri,
+  clientId: bootEnvClientId || localStorage.getItem('sp_client_id') || '',
+  redirectUri: bootEnvRedirectUri || localStorage.getItem('sp_redirect_uri') || '',
   accessToken: localStorage.getItem('sp_access_token') || '',
   tokenExpiry: Number(localStorage.getItem('sp_token_expiry') || 0),
   userProfile: null,
@@ -1341,9 +1348,21 @@ async function loadOfficialSpotifyPlaylists() {
   try {
     const res = await fetch('/api/visualizer/spotify');
     const data = await res.json();
-    if (data?.clientId && !spotifyState.clientId) {
-      spotifyState.clientId = data.clientId;
-      if ($('sp-client-id-input')) $('sp-client-id-input').value = data.clientId;
+    if (data?.clientId) {
+      spotifyState.envClientId = data.clientId;
+      if (!spotifyState.clientId) {
+        spotifyState.clientId = data.clientId;
+      }
+      if ($('sp-client-id-input') && !$('sp-client-id-input').value) {
+        $('sp-client-id-input').value = spotifyState.clientId;
+      }
+      if ($('sp-env-badge')) $('sp-env-badge').hidden = false;
+    }
+    if (data?.redirectUri) {
+      spotifyState.envRedirectUri = data.redirectUri;
+      if (!localStorage.getItem('sp_redirect_uri')) {
+        setSpotifyRedirectUri(data.redirectUri, false);
+      }
     }
     spotifyState.officialPlaylists = Array.isArray(data?.playlists) ? data.playlists : [];
     if (spotifyState.tab === 'playlists') {
@@ -1464,20 +1483,126 @@ spotifyState.refreshToken = localStorage.getItem('sp_refresh_token') || '';
 spotifyState.sdkPlayer = null;
 spotifyState.sdkDeviceId = null;
 
-function getSpotifyRedirectUri() {
-  return `${window.location.origin}/visualizer/index.html`;
+const spBroadcast =
+  typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('sonic_prism_spotify_auth') : null;
+
+function getDefaultSpotifyRedirectUri() {
+  if (spotifyState.envRedirectUri) return spotifyState.envRedirectUri;
+  return `${window.location.origin}/visualizer`;
 }
 
-if ($('sp-redirect-uri-code')) {
-  $('sp-redirect-uri-code').textContent = getSpotifyRedirectUri();
+function getSpotifyRedirectUri() {
+  const inputVal = $('sp-redirect-uri-input')?.value?.trim();
+  if (inputVal) return inputVal;
+  const saved = spotifyState.redirectUri || localStorage.getItem('sp_redirect_uri') || '';
+  if (saved) return saved;
+  return getDefaultSpotifyRedirectUri();
 }
+
+function getRedirectUriPresets() {
+  const origin = window.location.origin;
+  const candidates = [
+    { uri: `${origin}/visualizer`, label: `${origin}/visualizer (Recommended)` },
+    { uri: `${origin}/visualizer/index.html`, label: `${origin}/visualizer/index.html` },
+    { uri: 'https://www.toubia.co/visualizer', label: 'https://www.toubia.co/visualizer' },
+    { uri: 'https://www.tonytoubia.com/visualizer', label: 'https://www.tonytoubia.com/visualizer' },
+    { uri: 'https://bottoyou.com/visualizer', label: 'https://bottoyou.com/visualizer' },
+  ];
+  const seen = new Set();
+  return candidates.filter(item => {
+    if (seen.has(item.uri)) return false;
+    seen.add(item.uri);
+    return true;
+  });
+}
+
+function setSpotifyRedirectUri(uri, persist = true) {
+  const clean = (uri || '').trim() || getDefaultSpotifyRedirectUri();
+  spotifyState.redirectUri = clean;
+  if (persist) {
+    localStorage.setItem('sp_redirect_uri', clean);
+  }
+  if ($('sp-redirect-uri-code')) {
+    $('sp-redirect-uri-code').textContent = clean;
+  }
+  if ($('sp-redirect-uri-input') && $('sp-redirect-uri-input').value !== clean) {
+    $('sp-redirect-uri-input').value = clean;
+  }
+  document.querySelectorAll('.sp-preset-chip').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.uri === clean);
+  });
+}
+
+function renderRedirectUriPresets() {
+  const container = $('sp-redirect-presets');
+  if (!container) return;
+  container.innerHTML = '';
+  const current = getSpotifyRedirectUri();
+  getRedirectUriPresets().forEach(preset => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = `sp-preset-chip${preset.uri === current ? ' active' : ''}`;
+    chip.dataset.uri = preset.uri;
+    chip.textContent = preset.label;
+    chip.addEventListener('click', () => {
+      setSpotifyRedirectUri(preset.uri, true);
+      notify(`Active Redirect URI set to ${preset.uri}`);
+    });
+    container.appendChild(chip);
+  });
+}
+
+// Migrate any stale default '/visualizer/index.html' if user never completed OAuth with it
+if (
+  !localStorage.getItem('sp_oauth_verified') &&
+  spotifyState.redirectUri.endsWith('/visualizer/index.html')
+) {
+  spotifyState.redirectUri = getDefaultSpotifyRedirectUri();
+  localStorage.removeItem('sp_redirect_uri');
+}
+
+setSpotifyRedirectUri(spotifyState.redirectUri || getDefaultSpotifyRedirectUri(), false);
+renderRedirectUriPresets();
+
+$('sp-redirect-uri-input')?.addEventListener('input', e => {
+  const val = e.target.value.trim();
+  if (val) {
+    setSpotifyRedirectUri(val, true);
+  }
+});
+
 if ($('sp-client-id-input') && spotifyState.clientId) {
   $('sp-client-id-input').value = spotifyState.clientId;
 }
+if ($('sp-env-badge') && spotifyState.envClientId) {
+  $('sp-env-badge').hidden = false;
+}
+
+function openSpotifyAuthModal() {
+  if (!authModal) return;
+  setSpotifyRedirectUri(getSpotifyRedirectUri(), false);
+  renderRedirectUriPresets();
+  if ($('sp-client-id-input') && spotifyState.clientId && !$('sp-client-id-input').value) {
+    $('sp-client-id-input').value = spotifyState.clientId;
+  }
+  if ($('sp-env-badge')) {
+    $('sp-env-badge').hidden = !spotifyState.envClientId;
+  }
+  if ($('btn-disconnect-spotify')) {
+    $('btn-disconnect-spotify').hidden = !isSpotifyTokenValid();
+  }
+  authModal.hidden = false;
+}
 
 $('btn-copy-redirect')?.addEventListener('click', () => {
-  navigator.clipboard?.writeText(getSpotifyRedirectUri());
-  notify('Copied Redirect URI to clipboard! 📋');
+  const uri = getSpotifyRedirectUri();
+  navigator.clipboard?.writeText(uri);
+  notify(`Copied "${uri}" to clipboard! Paste in Spotify Dashboard → Redirect URIs 📋`, 4500);
+});
+
+$('btn-spotify-settings')?.addEventListener('click', e => {
+  e.stopPropagation();
+  openSpotifyAuthModal();
 });
 
 $('btn-spotify-connect')?.addEventListener('click', e => {
@@ -1488,11 +1613,12 @@ $('btn-spotify-connect')?.addEventListener('click', e => {
     renderUserSpotifyLibraryTab();
     return;
   }
-  if (spotifyState.clientId) {
+  const hasVerifiedSetup =
+    Boolean(spotifyState.envClientId) || localStorage.getItem('sp_oauth_verified') === '1';
+  if (spotifyState.clientId && hasVerifiedSetup) {
     startSpotifyOAuth(true);
   } else {
-    if (authModal) authModal.hidden = false;
-    if ($('btn-disconnect-spotify')) $('btn-disconnect-spotify').hidden = true;
+    openSpotifyAuthModal();
   }
 });
 
@@ -1531,12 +1657,15 @@ async function generatePkcePair() {
 async function startSpotifyOAuth(usePopup = true) {
   const inputId = $('sp-client-id-input')?.value?.trim() || spotifyState.clientId;
   if (!inputId) {
-    if (authModal) authModal.hidden = false;
+    openSpotifyAuthModal();
     notify('Please enter your Spotify App Client ID first.');
     return;
   }
+  const redirectUri = getSpotifyRedirectUri();
   spotifyState.clientId = inputId;
   localStorage.setItem('sp_client_id', inputId);
+  setSpotifyRedirectUri(redirectUri, true);
+  localStorage.setItem('sp_oauth_pending_redirect_uri', redirectUri);
   if (authModal) authModal.hidden = true;
 
   const { verifier, challenge } = await generatePkcePair();
@@ -1559,7 +1688,7 @@ async function startSpotifyOAuth(usePopup = true) {
   const authUrl = new URL('https://accounts.spotify.com/authorize');
   authUrl.searchParams.set('client_id', inputId);
   authUrl.searchParams.set('response_type', 'code');
-  authUrl.searchParams.set('redirect_uri', getSpotifyRedirectUri());
+  authUrl.searchParams.set('redirect_uri', redirectUri);
   authUrl.searchParams.set('code_challenge_method', 'S256');
   authUrl.searchParams.set('code_challenge', challenge);
   authUrl.searchParams.set('scope', scopes);
@@ -1607,19 +1736,37 @@ function disconnectSpotifyAccount() {
 $('btn-disconnect-spotify')?.addEventListener('click', disconnectSpotifyAccount);
 $('btn-sp-logout')?.addEventListener('click', disconnectSpotifyAccount);
 
-// Listen for popup completion via postMessage or storage event
-window.addEventListener('message', async e => {
+async function onSpotifyAuthCompleted(accessTokenFromEvent) {
+  spotifyState.accessToken =
+    localStorage.getItem('sp_access_token') || accessTokenFromEvent || spotifyState.accessToken || '';
+  spotifyState.refreshToken = localStorage.getItem('sp_refresh_token') || spotifyState.refreshToken || '';
+  spotifyState.tokenExpiry = Number(localStorage.getItem('sp_token_expiry') || spotifyState.tokenExpiry || 0);
+  if (!spotifyState.accessToken) return;
+  if (authModal) authModal.hidden = true;
+  toggleSpotifyDrawer(true);
+  selectSpotifyTab('library');
+  await fetchSpotifyProfileAndLibrary();
+  initSpotifyWebPlaybackSDK();
+  notify('Logged in to Spotify! Your playlists & liked songs are ready 🟢');
+}
+
+// Listen for popup completion via BroadcastChannel, postMessage, or localStorage event
+spBroadcast?.addEventListener('message', e => {
+  if (e.data?.type === 'SPOTIFY_AUTH_SUCCESS') {
+    onSpotifyAuthCompleted(e.data.accessToken);
+  }
+});
+
+window.addEventListener('message', e => {
   if (e.origin !== window.location.origin) return;
   if (e.data?.type === 'SPOTIFY_AUTH_SUCCESS') {
-    spotifyState.accessToken = localStorage.getItem('sp_access_token') || e.data.accessToken || '';
-    spotifyState.refreshToken = localStorage.getItem('sp_refresh_token') || '';
-    spotifyState.tokenExpiry = Number(localStorage.getItem('sp_token_expiry') || 0);
-    if (authModal) authModal.hidden = true;
-    toggleSpotifyDrawer(true);
-    selectSpotifyTab('library');
-    await fetchSpotifyProfileAndLibrary();
-    initSpotifyWebPlaybackSDK();
-    notify('Logged in to Spotify! Your playlists & liked songs are ready 🟢');
+    onSpotifyAuthCompleted(e.data.accessToken);
+  }
+});
+
+window.addEventListener('storage', e => {
+  if (e.key === 'sp_access_token' && e.newValue) {
+    onSpotifyAuthCompleted(e.newValue);
   }
 });
 
@@ -1657,7 +1804,39 @@ async function refreshSpotifyAccessToken() {
 async function handleSpotifyOAuthCallback() {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
+  const oauthError = params.get('error');
+
+  if (oauthError) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+    openSpotifyAuthModal();
+    notify(`Spotify login error: ${oauthError}. Verify Redirect URI in settings.`, 5000);
+    return;
+  }
+
   if (!code) {
+    // Also fetch server config in background if clientId is not set yet
+    if (!spotifyState.clientId) {
+      fetch('/api/visualizer/spotify')
+        .then(r => r.json())
+        .then(data => {
+          if (data?.clientId) {
+            spotifyState.envClientId = data.clientId;
+            if (!spotifyState.clientId) spotifyState.clientId = data.clientId;
+            if ($('sp-client-id-input') && !$('sp-client-id-input').value) {
+              $('sp-client-id-input').value = spotifyState.clientId;
+            }
+            if ($('sp-env-badge')) $('sp-env-badge').hidden = false;
+          }
+          if (data?.redirectUri) {
+            spotifyState.envRedirectUri = data.redirectUri;
+            if (!localStorage.getItem('sp_redirect_uri')) {
+              setSpotifyRedirectUri(data.redirectUri, false);
+            }
+          }
+        })
+        .catch(() => {});
+    }
+
     if (isSpotifyTokenValid()) {
       await fetchSpotifyProfileAndLibrary();
       initSpotifyWebPlaybackSDK();
@@ -1673,6 +1852,8 @@ async function handleSpotifyOAuthCallback() {
 
   const verifier = localStorage.getItem('sp_pkce_verifier');
   const clientId = spotifyState.clientId || localStorage.getItem('sp_client_id');
+  const usedRedirectUri =
+    localStorage.getItem('sp_oauth_pending_redirect_uri') || getSpotifyRedirectUri();
   window.history.replaceState({}, document.title, window.location.pathname);
 
   if (!verifier || !clientId) return;
@@ -1682,7 +1863,7 @@ async function handleSpotifyOAuthCallback() {
       client_id: clientId,
       grant_type: 'authorization_code',
       code,
-      redirect_uri: getSpotifyRedirectUri(),
+      redirect_uri: usedRedirectUri,
       code_verifier: verifier,
     });
 
@@ -1695,6 +1876,7 @@ async function handleSpotifyOAuthCallback() {
     if (tokenData?.access_token) {
       spotifyState.accessToken = tokenData.access_token;
       spotifyState.tokenExpiry = Date.now() + Number(tokenData.expires_in || 3600) * 1000;
+      localStorage.setItem('sp_oauth_verified', '1');
       localStorage.setItem('sp_access_token', spotifyState.accessToken);
       localStorage.setItem('sp_token_expiry', String(spotifyState.tokenExpiry));
       if (tokenData.refresh_token) {
@@ -1702,27 +1884,44 @@ async function handleSpotifyOAuthCallback() {
         localStorage.setItem('sp_refresh_token', tokenData.refresh_token);
       }
 
-      // If running inside the OAuth popup window, notify main window and close popup!
-      if (window.opener && window.opener !== window) {
+      // Broadcast success to main visualizer window across BroadcastChannel, postMessage, and localStorage
+      try {
+        spBroadcast?.postMessage({
+          type: 'SPOTIFY_AUTH_SUCCESS',
+          accessToken: spotifyState.accessToken,
+        });
+      } catch {}
+
+      const isPopup =
+        window.name === 'SpotifyAuthPopup' ||
+        (window.top && window.top.name === 'SpotifyAuthPopup') ||
+        Boolean(window.opener && window.opener !== window) ||
+        Boolean(window.top && window.top.opener && window.top.opener !== window.top);
+
+      if (isPopup) {
         try {
-          window.opener.postMessage(
+          const openerWin = (window.top && window.top.opener) || window.opener;
+          openerWin?.postMessage(
             { type: 'SPOTIFY_AUTH_SUCCESS', accessToken: spotifyState.accessToken },
             window.location.origin
           );
-          window.close();
-          return;
         } catch {}
+        try {
+          window.top?.close();
+        } catch {}
+        try {
+          window.close();
+        } catch {}
+        return;
       }
 
-      toggleSpotifyDrawer(true);
-      selectSpotifyTab('library');
-      await fetchSpotifyProfileAndLibrary();
-      initSpotifyWebPlaybackSDK();
-      notify('Logged in to Spotify! 🟢');
+      await onSpotifyAuthCompleted(spotifyState.accessToken);
     } else {
-      notify('Spotify authorization failed — verify Client ID & Redirect URI.');
+      openSpotifyAuthModal();
+      notify('Spotify authorization failed — verify Client ID & Redirect URI in settings.');
     }
   } catch {
+    openSpotifyAuthModal();
     notify('Could not complete Spotify token exchange.');
   }
 }
@@ -1896,19 +2095,21 @@ function renderUserSpotifyLibraryTab() {
         <p style="margin-bottom:12px;">Log in with your Spotify account to view your personal <b>Profile</b>, <b>Playlists</b>, <b>Liked Songs</b>, <b>Top Tracks</b>, and <b>Recently Played</b> right inside the visualizer:</p>
         <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
           <button type="button" id="sp-inline-connect" class="sp-oauth-go-btn" style="max-width:250px;">🟢 Log in with Spotify</button>
-          <button type="button" id="sp-inline-config" class="sp-back-btn">⚙ App Client ID Setup</button>
+          <button type="button" id="sp-inline-config" class="sp-back-btn">⚙ Client ID &amp; Redirect URI</button>
         </div>
       </div>
     `;
     $('sp-inline-connect')?.addEventListener('click', () => {
-      if (spotifyState.clientId) {
+      const hasVerifiedSetup =
+        Boolean(spotifyState.envClientId) || localStorage.getItem('sp_oauth_verified') === '1';
+      if (spotifyState.clientId && hasVerifiedSetup) {
         startSpotifyOAuth(true);
-      } else if (authModal) {
-        authModal.hidden = false;
+      } else {
+        openSpotifyAuthModal();
       }
     });
     $('sp-inline-config')?.addEventListener('click', () => {
-      if (authModal) authModal.hidden = false;
+      openSpotifyAuthModal();
     });
     return;
   }
