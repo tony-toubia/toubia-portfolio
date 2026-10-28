@@ -41,12 +41,22 @@ test('All modals and drawers start with the hidden attribute in index.html', () 
     'spotify-embed-dock',
     'transport-bar',
     'spotify-collection-banner',
+    'sp-account-bar',
   ]) {
     const tagRegex = new RegExp(`<[^>]+id="${modalId}"[^>]*>`, 'i');
     const match = html.match(tagRegex);
     assert.ok(match, `Should find element #${modalId}`);
     assert.match(match[0], /\bhidden\b/, `#${modalId} must start hidden`);
   }
+});
+
+test('All 7 distinct visual modes (0..6) are wired in HTML and WebGL shader', () => {
+  for (let m = 0; m <= 6; m++) {
+    assert.ok(html.includes(`data-mode="${m}"`), `HTML should have mode pill ${m}`);
+  }
+  assert.ok(js.includes('uMode == 4'), 'Shader should implement Mode 4 (Synthwave Sun & 3D Grid)');
+  assert.ok(js.includes('uMode == 5'), 'Shader should implement Mode 5 (Cyber Matrix & 3D City)');
+  assert.ok(js.includes('MODE 6: VORONOI'), 'Shader should implement Mode 6 (Voronoi Bio-Cells)');
 });
 
 test('Every close button (x) has an explicit click listener in visualizer.mjs', () => {

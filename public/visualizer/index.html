@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#06070d">
   <title>SONIC PRISM — Spotify &amp; Music Visualizer</title>
-  <meta name="description" content="A modern WebGL music visualizer inspired by Windows Media Player Alchemy &amp; MilkDrop. Stream Spotify selections, play local music files, or share any audio tab/window.">
-  <link rel="stylesheet" href="style.css?v=3">
+  <meta name="description" content="A modern WebGL music visualizer with 7 distinct shader worlds, direct Spotify account integration, local music playback, and live tab/window audio capture.">
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
   <canvas id="gl-canvas" aria-label="Interactive audio-reactive music visualizer"></canvas>
 
-  <!-- Top Navigation & Mode Bar -->
+  <!-- Top Navigation & 7 Visual Modes Bar -->
   <header id="top-bar" class="top-bar">
     <div class="brand">
       <span class="brand-orb" id="beat-indicator"></span>
@@ -23,13 +23,16 @@
 
     <div class="mode-pills" role="tablist" aria-label="Visual modes">
       <button type="button" class="mode-pill active" data-mode="0" role="tab" aria-selected="true">01 · ALCHEMY PLASMA</button>
-      <button type="button" class="mode-pill" data-mode="1" role="tab" aria-selected="false">02 · FIRESTORM WAVES</button>
+      <button type="button" class="mode-pill" data-mode="1" role="tab" aria-selected="false">02 · FIRESTORM BARS</button>
       <button type="button" class="mode-pill" data-mode="2" role="tab" aria-selected="false">03 · FERRO-ORB 3D</button>
-      <button type="button" class="mode-pill" data-mode="3" role="tab" aria-selected="false">04 · HYPER-TUNNEL</button>
+      <button type="button" class="mode-pill" data-mode="3" role="tab" aria-selected="false">04 · STARFIELD TUNNEL</button>
+      <button type="button" class="mode-pill" data-mode="4" role="tab" aria-selected="false">05 · SYNTHWAVE SUN</button>
+      <button type="button" class="mode-pill" data-mode="5" role="tab" aria-selected="false">06 · MATRIX CITY</button>
+      <button type="button" class="mode-pill" data-mode="6" role="tab" aria-selected="false">07 · VORONOI CELLS</button>
     </div>
 
     <div class="top-actions">
-      <button type="button" id="top-spotify-btn" class="icon-btn spotify-pill-btn" title="Open Spotify Player &amp; Search">
+      <button type="button" id="top-spotify-btn" class="icon-btn spotify-pill-btn" title="Open Spotify Player &amp; Account">
         <span class="sp-dot"></span> SPOTIFY
       </button>
       <button type="button" id="toggle-drawer" class="icon-btn" title="Customize visual parameters" aria-expanded="false">⚙ CUSTOMIZE</button>
@@ -58,24 +61,42 @@
     </div>
   </aside>
 
-  <!-- In-App Spotify Player & Search Drawer -->
-  <section id="spotify-drawer" class="spotify-drawer" hidden aria-label="Spotify Music Player and Search">
+  <!-- In-App Spotify Player, Account & Search Drawer -->
+  <section id="spotify-drawer" class="spotify-drawer" hidden aria-label="Spotify Music Player and Account">
     <div class="sp-drawer-header">
       <div class="sp-brand">
-        <svg class="sp-logo" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+        <svg class="sp-logo" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
           <path fill="#1ed760" d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
         </svg>
         <div>
           <strong>SPOTIFY MUSIC HUB</strong>
-          <small id="sp-connection-status">SEARCH SONGS, PLAYLISTS, OR PASTE SPOTIFY LINK</small>
+          <small id="sp-connection-status">SEARCH SONGS, PLAYLISTS, OR LOG IN TO YOUR ACCOUNT</small>
         </div>
       </div>
       <div class="sp-header-actions">
-        <button type="button" id="btn-spotify-connect" class="sp-connect-btn" title="Connect your personal Spotify account">
-          🔐 Connect Account
+        <button type="button" id="btn-spotify-connect" class="sp-connect-btn" title="Log in to your Spotify account">
+          🟢 Log in with Spotify
         </button>
         <button type="button" id="close-spotify" class="text-close" aria-label="Close Spotify Hub">×</button>
       </div>
+    </div>
+
+    <!-- Connected Spotify Account Profile Bar (Visible when logged in) -->
+    <div id="sp-account-bar" class="sp-account-bar" hidden>
+      <div class="sp-user-info">
+        <img id="sp-user-avatar" class="sp-user-avatar" src="" alt="" hidden>
+        <div>
+          <strong id="sp-user-name">Spotify User</strong>
+          <small id="sp-user-tier">CONNECTED ACCOUNT</small>
+        </div>
+      </div>
+      <div class="sp-account-subtabs" role="tablist" aria-label="Your Spotify Account Sections">
+        <button type="button" class="sp-subtab active" data-lib-view="playlists">📂 My Playlists</button>
+        <button type="button" class="sp-subtab" data-lib-view="liked">💚 Liked Songs</button>
+        <button type="button" class="sp-subtab" data-lib-view="top">🔥 Top Tracks</button>
+        <button type="button" class="sp-subtab" data-lib-view="recent">🕒 Recent</button>
+      </div>
+      <button type="button" id="btn-sp-logout" class="sp-logout-pill" title="Disconnect or switch Spotify account">Log Out</button>
     </div>
 
     <!-- Playback Mode Switcher -->
@@ -84,7 +105,7 @@
         ⚡ Direct Visualizer Stream (Instant FFT)
       </button>
       <button type="button" id="sp-engine-embed" class="sp-engine-btn" data-engine="embed">
-        🎧 Official Spotify Embed Player
+        🎧 Official Spotify Player (Full Tracks)
       </button>
     </div>
 
@@ -103,12 +124,12 @@
     <div class="sp-tabs" role="tablist">
       <button type="button" class="sp-tab active" data-sp-tab="playlists" role="tab">💿 Spotify Playlists</button>
       <button type="button" class="sp-tab" data-sp-tab="search" role="tab">🔍 Search Results</button>
-      <button type="button" class="sp-tab" data-sp-tab="library" role="tab">💚 My Spotify Library</button>
+      <button type="button" class="sp-tab" data-sp-tab="library" role="tab">💚 My Spotify Account</button>
     </div>
 
     <!-- Collection Header Banner (when viewing a playlist/album) -->
     <div id="spotify-collection-banner" class="sp-collection-banner" hidden>
-      <button type="button" id="sp-back-btn" class="sp-back-btn">← Playlists</button>
+      <button type="button" id="sp-back-btn" class="sp-back-btn">← Back</button>
       <div class="sp-collection-meta">
         <strong id="sp-collection-title">Playlist</strong>
         <small id="sp-collection-sub">Tracks</small>
@@ -126,33 +147,35 @@
   <div id="spotify-auth-modal" class="sp-modal-backdrop" hidden>
     <div class="sp-modal" role="dialog" aria-modal="true" aria-labelledby="sp-modal-title">
       <div class="drawer-header">
-        <strong id="sp-modal-title">CONNECT YOUR SPOTIFY ACCOUNT</strong>
+        <strong id="sp-modal-title">LOG IN TO YOUR SPOTIFY ACCOUNT</strong>
         <button type="button" id="close-sp-modal" class="text-close" aria-label="Close modal">×</button>
       </div>
       <p class="sp-modal-desc">
-        You can already search any song, browse Spotify playlists, or paste any public Spotify link without logging in.
-        To load your personal <b>Liked Songs</b> and <b>Private Playlists</b>, enter your Spotify Developer Client ID below:
+        To sign in with Spotify OAuth and load your personal <b>Profile</b>, <b>Liked Songs</b>, <b>Playlists</b>, <b>Top Tracks</b>, and <b>Web Playback SDK</b>, Spotify requires a 1-time App Client ID linked to this domain:
       </p>
+      <ol class="sp-setup-steps">
+        <li>Open <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a> (log in with your regular Spotify account) and click <b>Create App</b>.</li>
+        <li>Paste this Redirect URI into the app settings:
+          <div class="sp-redirect-row">
+            <code id="sp-redirect-uri-code">https://www.tonytoubia.com/visualizer/index.html</code>
+            <button type="button" id="btn-copy-redirect" class="sp-copy-btn">Copy URI</button>
+          </div>
+        </li>
+        <li>Copy your <b>Client ID</b> and paste it below (saved automatically so future logins are 1-click):</li>
+      </ol>
       <label class="control-row">
-        <span>Spotify Developer Client ID</span>
+        <span>Spotify App Client ID</span>
         <input
           id="sp-client-id-input"
           type="text"
           class="sp-text-input"
-          placeholder="e.g. 4b9f8c12a3e44d5f8a9b0c1d2e3f4a5b"
+          placeholder="Paste 32-character Spotify Client ID..."
           autocomplete="off"
         >
       </label>
-      <div class="sp-redirect-box">
-        <small>Add this Redirect URI in your <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">Spotify Developer Dashboard</a>:</small>
-        <div class="sp-redirect-row">
-          <code id="sp-redirect-uri-code">https://www.tonytoubia.com/visualizer/index.html</code>
-          <button type="button" id="btn-copy-redirect" class="sp-copy-btn">Copy</button>
-        </div>
-      </div>
       <div class="sp-modal-footer">
         <button type="button" id="btn-start-oauth" class="sp-oauth-go-btn">
-          🟢 Authorize with Spotify
+          🟢 Continue to Spotify Login Popup
         </button>
         <button type="button" id="btn-disconnect-spotify" class="sp-disconnect-btn" hidden>
           Disconnect
@@ -193,7 +216,7 @@
         <button type="button" class="palette-btn" data-palette="4">Liquid Chrome</button>
       </div>
     </div>
-    <p class="drawer-tip">💡 <b>Tip:</b> Drag your mouse or finger across the visualizer to bend the waves in real time.</p>
+    <p class="drawer-tip">💡 <b>Tip:</b> Drag your mouse or finger across the visualizer to interact with the waves and cells in real time.</p>
   </section>
 
   <!-- Bottom Control Deck: 3 Clean Sources (Spotify, Local Music, Share Tab/Window Audio) -->
@@ -245,7 +268,7 @@
         </span>
         <div>
           <strong>SPOTIFY PLAYER</strong>
-          <small>Search Songs, Playlists &amp; Links</small>
+          <small>Account, Playlists &amp; Song Search</small>
         </div>
       </button>
 
@@ -274,6 +297,7 @@
   <audio id="audio-el" crossorigin="anonymous" preload="auto" hidden></audio>
 
   <script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
-  <script type="module" src="visualizer.mjs?v=3"></script>
+  <script src="https://sdk.scdn.co/spotify-player.js" async></script>
+  <script type="module" src="visualizer.mjs?v=4"></script>
 </body>
 </html>

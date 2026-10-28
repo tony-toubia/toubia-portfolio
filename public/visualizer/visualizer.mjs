@@ -690,7 +690,6 @@ void main() {
     float glow1 = 0.0045 / (d1 + 0.0035);
     float glow2 = 0.004 / (d2 + 0.0035);
 
-    // Radial harmonic ring
     float ringR = 0.24 + uBass * 0.14 + fftVal * 0.16 + (waveSample * 0.06);
     float dRing = abs(rad - ringR);
     float ringGlow = (0.0035 + uBeat * 0.004) / (dRing + 0.004);
@@ -701,37 +700,41 @@ void main() {
     seed += c2 * glow2 * (0.55 + uMid * 0.6);
     seed += palette(fftU + uTime * 0.2, uPalette) * ringGlow * (0.5 + fftVal);
   } else if (uMode == 1) {
-    // MODE 1: FIRESTORM WAVES — WMP Bars & Waves horizon injection
+    // MODE 1: FIRESTORM BARS — Subtle upward ember smoke from equalizer skyline
+    prev = texture2D(uPrevTex, clamp(vUv - vec2(0.0, 0.0045 * uWarp), 0.002, 0.998)).rgb * 0.78;
     float barFft = texture2D(uAudioTex, vec2(clamp(vUv.x * 0.75, 0.01, 0.99), 0.25)).r;
-    float waveLine = -0.12 + barFft * 0.48 + waveSample * 0.08;
+    float waveLine = -0.18 + barFft * 0.56;
     float dWave = abs(p.y - waveLine);
-    float crest = 0.005 / (dWave + 0.004);
-    vec3 col = palette(vUv.x * 0.6 + barFft * 0.5 + uTime * 0.08, uPalette);
-    seed += col * crest * (0.6 + barFft * 0.9);
+    seed += palette(vUv.x * 0.6 + barFft * 0.5, uPalette) * (0.003 / (dWave + 0.005)) * barFft;
   } else if (uMode == 2) {
-    // MODE 2: FERRO-ORB 3D — Energy corona around central ferrofluid sphere
-    float coronaR = 0.28 + fftVal * 0.18 + uBass * 0.1;
+    // MODE 2: FERRO-ORB 3D — Solar flare corona around liquid metal sphere
+    float coronaR = 0.27 + fftVal * 0.16 + uBass * 0.09;
     float dCorona = abs(rad - coronaR);
     seed += palette(ang * 0.159 + uTime * 0.15, uPalette) * (0.004 / (dCorona + 0.005)) * (0.6 + uBass);
+  } else if (uMode == 3) {
+    // MODE 3: STARFIELD TUNNEL — Radial warp streaks
+    vec2 dir = normalize(p + 1e-5);
+    prev = texture2D(uPrevTex, clamp(vUv - dir * (0.012 + uBass * 0.025) * uWarp, 0.002, 0.998)).rgb * 0.88;
+    vec2 boxP = abs(p * rot(uTime * 0.35 + rad * 2.5));
+    float polyR = max(boxP.x, boxP.y);
+    float ringPattern = abs(fract(polyR * 5.0 - uTime * (1.4 + uBass * 1.8)) - 0.5);
+    float gateGlow = 0.009 / (ringPattern + 0.012) * smoothstep(0.03, 0.22, rad);
+    seed += palette(polyR + uTime * 0.15 + uBeat * 0.2, uPalette) * gateGlow * (0.4 + fftVal * 0.8);
   } else {
-    // MODE 3: HYPER-TUNNEL — Concentric geometric stargate rings
-    vec2 boxP = abs(p * rot(uTime * 0.3 + rad * 2.0));
-    float polyR = max(boxP.x, boxP.y) + length(p) * 0.35;
-    float ringPattern = abs(fract(polyR * 4.5 - uTime * (1.2 + uBass * 1.5)) - 0.5);
-    float gateGlow = 0.012 / (ringPattern + 0.012) * smoothstep(0.04, 0.25, rad);
-    seed += palette(polyR + uTime * 0.15 + uBeat * 0.2, uPalette) * gateGlow * (0.45 + fftVal * 0.9);
+    // Modes 4, 5, 6 use crisp procedural geometry in Pass 2 with minimal background trail
+    prev *= 0.65;
   }
 
   // Interactive pointer spark injection
-  float ptrGlow = (0.003 + 0.006 * uPointerDown) / (ptrDist + 0.008);
-  seed += palette(uTime * 0.3, uPalette) * ptrGlow * 0.45;
+  float ptrGlow = (0.0025 + 0.006 * uPointerDown) / (ptrDist + 0.008);
+  seed += palette(uTime * 0.3, uPalette) * ptrGlow * 0.4;
 
   vec3 outCol = prev * uDecay + seed * 0.34;
   gl_FragColor = vec4(clamp(outCol, 0.0, 1.0), 1.0);
 }
 `;
 
-// Pass 2: Crisp Foreground Waveforms, 3D Ferrofluid / Firestorm Bars & ACES Tonemapping
+// Pass 2: 7 Distinct Visual Worlds & Filmic Tonemapping
 const COMPOSITE_FRAG = `
 precision highp float;
 varying vec2 vUv;
@@ -763,6 +766,18 @@ vec3 palette(float t, int pal) {
   return 0.5 + 0.5 * cos(6.28318 * (t + vec3(0.08, 0.28, 0.58)));
 }
 
+float hash21(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+
+vec2 hash22(vec2 p) {
+  vec3 a = fract(p.xyx * vec3(123.34, 234.34, 345.65));
+  a += dot(a, a + 34.45);
+  return fract(vec2(a.x * a.y, a.y * a.z));
+}
+
 void main() {
   vec2 aspect = vec2(uRes.x / max(1.0, uRes.y), 1.0);
   vec2 p = (vUv - 0.5) * aspect;
@@ -775,72 +790,260 @@ void main() {
   fb.b = texture2D(uFeedbackTex, vUv - caOffset).b;
 
   vec3 col = fb;
-
-  // Crisp foreground overlays per mode
   float waveSample = (texture2D(uAudioTex, vec2(clamp(vUv.x, 0.01, 0.99), 0.75)).r - 0.5) * 2.0;
 
   if (uMode == 0) {
-    // Crisp high-definition oscilloscope core ribbon
+    // MODE 0: ALCHEMY PLASMA — Crisp oscilloscope core ribbon over MilkDrop plasma
     float yCore = waveSample * (0.28 + uBass * 0.22) + sin(vUv.x * 6.28 + uTime * 2.0) * 0.06;
     float coreLine = smoothstep(0.008, 0.001, abs(p.y - yCore));
     col += vec3(0.9, 0.98, 1.0) * coreLine * 0.85;
+
   } else if (uMode == 1) {
-    // WMP Firestorm / Ocean Mist: 96 discrete quantized spectrum bars + mirrored water reflection
+    // MODE 1: FIRESTORM BARS — 96-band LED spectrum skyline + rippled water lake reflection
+    col = fb * 0.35 + vec3(0.02, 0.03, 0.07);
     float bands = 96.0;
     float bandIdx = floor(vUv.x * bands) / bands;
     float cellX = fract(vUv.x * bands);
-    float barMask = smoothstep(0.0, 0.12, cellX) * smoothstep(1.0, 0.82, cellX);
-    float h = texture2D(uAudioTex, vec2(clamp(bandIdx * 0.72 + 0.02, 0.01, 0.99), 0.25)).r * 0.56;
-    float baseline = -0.18;
+    float barMask = smoothstep(0.0, 0.14, cellX) * smoothstep(1.0, 0.80, cellX);
+    float h = texture2D(uAudioTex, vec2(clamp(bandIdx * 0.72 + 0.02, 0.01, 0.99), 0.25)).r * 0.58;
+    float baseline = -0.14;
     float yRel = p.y - baseline;
 
-    vec3 barCol = palette(bandIdx + h * 0.6 + uTime * 0.05, uPalette);
+    vec3 barCol = palette(bandIdx + h * 0.65 + uTime * 0.04, uPalette);
     if (yRel >= 0.0 && yRel <= h) {
+      float segMask = smoothstep(0.0, 0.18, fract(yRel * 48.0));
       float vGrad = yRel / max(0.001, h);
-      col += barCol * barMask * (0.45 + 0.75 * pow(vGrad, 1.5));
+      col += barCol * barMask * segMask * (0.55 + 0.85 * pow(vGrad, 1.4));
     }
-    // Glowing peak cap
     float capDist = abs(yRel - h);
-    col += vec3(1.0, 0.96, 0.85) * barMask * smoothstep(0.009, 0.001, capDist);
+    col += vec3(1.0, 0.97, 0.88) * barMask * smoothstep(0.009, 0.0015, capDist);
+
+    // Horizon line
+    col += palette(uTime * 0.1, uPalette) * smoothstep(0.004, 0.0005, abs(yRel)) * 0.6;
 
     // Mirrored rippled water reflection below baseline
-    if (yRel < 0.0 && yRel > -h * 0.75) {
-      float ripple = sin(p.x * 40.0 + yRel * 65.0 - uTime * 6.0) * 0.5 + 0.5;
-      float reflAlpha = (1.0 - abs(yRel) / max(0.001, h * 0.75)) * 0.42;
-      col += barCol * barMask * reflAlpha * (0.6 + 0.4 * ripple);
+    if (yRel < 0.0) {
+      float waterWave = sin(p.x * 42.0 / max(0.04, abs(yRel)) + uTime * 7.0) * 0.012 * abs(yRel);
+      float sampleX = clamp(bandIdx + waterWave, 0.01, 0.99);
+      float reflH = texture2D(uAudioTex, vec2(sampleX * 0.72, 0.25)).r * 0.46;
+      if (abs(yRel) <= reflH) {
+        float ripple = 0.65 + 0.35 * sin(yRel * 110.0 - uTime * 9.0 + p.x * 20.0);
+        float fade = (1.0 - abs(yRel) / max(0.001, reflH)) * 0.55;
+        col += barCol * barMask * fade * ripple;
+      }
     }
+
   } else if (uMode == 2) {
-    // 3D Ferrofluid Metallic Sphere displaced by live audio harmonics
+    // MODE 2: FERRO-ORB 3D — Metallic liquid sphere + orbital frequency ring
     float r = length(p);
     float ang = atan(p.y, p.x);
     float fftVal = texture2D(uAudioTex, vec2(clamp(abs(ang) / 3.14159, 0.01, 0.99) * 0.6, 0.25)).r;
-    float spikes = sin(ang * 12.0 + uTime * 3.0) * cos(ang * 7.0 - uTime * 2.2) * (0.025 + uBass * 0.065 + fftVal * 0.055);
-    float orbRadius = 0.25 + uBass * 0.07 + spikes;
+    float spikes = sin(ang * 12.0 + uTime * 3.0) * cos(ang * 7.0 - uTime * 2.2) * (0.028 + uBass * 0.07 + fftVal * 0.06);
+    float orbRadius = 0.24 + uBass * 0.07 + spikes;
+
+    // Tilted 3D Saturn orbit ring
+    vec2 ringP = vec2(p.x, p.y * 2.8 + sin(p.x * 4.0 + uTime) * 0.05);
+    float ringDist = abs(length(ringP) - (0.39 + uMid * 0.06));
+    float ringGlow = (0.004 / (ringDist + 0.004)) * (0.5 + fftVal);
 
     if (r < orbRadius) {
       vec2 n2 = p / orbRadius;
       float z = sqrt(max(0.001, 1.0 - dot(n2, n2)));
-      vec3 normal = normalize(vec3(n2 + sin(n2.yx * 18.0 + uTime * 4.0) * (0.12 + fftVal * 0.28), z));
+      vec3 normal = normalize(vec3(n2 + sin(n2.yx * 18.0 + uTime * 4.0) * (0.14 + fftVal * 0.3), z));
       vec3 lightDir = normalize(vec3(uPointer.x - 0.5, uPointer.y - 0.5, 0.85));
       float diff = max(0.0, dot(normal, lightDir));
       float rim = pow(1.0 - max(0.0, normal.z), 3.0);
-      float spec = pow(max(0.0, dot(reflect(-lightDir, normal), vec3(0.0, 0.0, 1.0))), 24.0);
+      float spec = pow(max(0.0, dot(reflect(-lightDir, normal), vec3(0.0, 0.0, 1.0))), 26.0);
       vec3 metalCol = palette(diff * 0.5 + fftVal * 0.4 + uTime * 0.08, uPalette);
-      col = mix(col * 0.25, metalCol * (0.25 + diff * 0.85) + vec3(1.0) * spec * 0.9 + palette(uTime * 0.2, uPalette) * rim * 1.2, 0.95);
+      col = mix(col * 0.2, metalCol * (0.25 + diff * 0.85) + vec3(1.0) * spec * 0.95 + palette(uTime * 0.2, uPalette) * rim * 1.25, 0.96);
     }
-  } else {
-    // MODE 3: HYPER-TUNNEL — Central stargate horizon + radial waveform spokes
+    if (p.y < 0.0 || r >= orbRadius) {
+      col += palette(ang * 0.16 + 0.3, uPalette) * ringGlow;
+    }
+
+  } else if (uMode == 3) {
+    // MODE 3: 3D STARFIELD & HYPER-TUNNEL — Multi-layer parallax warp stars + stargate
+    col = fb * 0.65;
     float r = length(p);
     float ang = atan(p.y, p.x);
+    for (int layer = 1; layer <= 3; layer++) {
+      float fl = float(layer);
+      float z = fract(fl * 0.33 - uTime * (0.35 + uBass * 0.35));
+      float scale = mix(18.0, 1.5, z);
+      vec2 starUv = p * scale + vec2(fl * 17.3, fl * 9.1);
+      vec2 id = floor(starUv);
+      vec2 gv = fract(starUv) - 0.5;
+      vec2 rnd = hash22(id) - 0.5;
+      float d = length(gv - rnd * 0.7);
+      float spark = (0.018 / (d + 0.008)) * smoothstep(0.0, 0.2, z) * (1.0 - z);
+      col += palette(hash21(id) + uTime * 0.1, uPalette) * spark * (0.6 + uHigh * 0.9);
+    }
     float spokeWave = (texture2D(uAudioTex, vec2(clamp((ang + 3.14159) / 6.28318, 0.01, 0.99), 0.75)).r - 0.5) * 2.0;
-    float spokeDist = abs(r - (0.18 + uBass * 0.12 + spokeWave * 0.07));
-    col += vec3(0.95, 0.98, 1.0) * (0.0025 / (spokeDist + 0.003));
+    float spokeDist = abs(r - (0.16 + uBass * 0.11 + spokeWave * 0.06));
+    col += vec3(0.92, 0.98, 1.0) * (0.003 / (spokeDist + 0.0035));
+
+  } else if (uMode == 4) {
+    // MODE 4: SYNTHWAVE SUN & 3D OUTRUN GRID — Retro horizon, sliced sun, audio mountains, 3D wireframe floor
+    float horizon = -0.02 + (uPointer.y - 0.5) * 0.12;
+    vec3 skyTop = vec3(0.03, 0.01, 0.10);
+    vec3 skyHorizon = palette(0.18 + uBass * 0.1, uPalette) * 0.65 + vec3(0.28, 0.04, 0.26);
+    col = mix(skyHorizon, skyTop, clamp((p.y - horizon) * 2.2, 0.0, 1.0));
+
+    // Twinkling stars in upper sky
+    if (p.y > horizon + 0.05) {
+      vec2 sId = floor(p * 42.0);
+      float sRnd = hash21(sId);
+      if (sRnd > 0.93) {
+        float twinkle = 0.5 + 0.5 * sin(uTime * 6.0 + sRnd * 60.0);
+        col += vec3(0.9, 0.95, 1.0) * twinkle * (0.4 + uHigh * 1.1) * smoothstep(horizon + 0.05, horizon + 0.35, p.y);
+      }
+    }
+
+    // Giant Segmented Vaporwave Sun
+    vec2 sunCenter = vec2((uPointer.x - 0.5) * 0.25, horizon + 0.17);
+    float sunR = 0.22 + uBass * 0.04 + uBeat * 0.025;
+    float dSun = length(p - sunCenter);
+    if (dSun < sunR && p.y > horizon) {
+      float sunY = (p.y - (sunCenter.y - sunR)) / (2.0 * sunR);
+      float stripeFreq = 16.0;
+      float stripeCut = step(0.12 + (1.0 - sunY) * 0.38, fract(sunY * stripeFreq - uTime * 0.8));
+      vec3 sunCol = mix(vec3(1.0, 0.12, 0.55), vec3(1.0, 0.92, 0.25), sunY);
+      if (uPalette != 0) sunCol = palette(sunY * 0.5 + 0.1, uPalette) * 1.3;
+      col = mix(col, sunCol, (sunY > 0.55 ? 1.0 : stripeCut));
+    }
+    // Sun atmospheric halo
+    col += palette(0.12, uPalette) * exp(-dSun * 5.0) * (0.35 + uBass * 0.4);
+
+    // Audio-Reactive Jagged Mountain Silhouette along the horizon
+    float mtnX = abs(p.x) * 0.65;
+    float mtnFft = texture2D(uAudioTex, vec2(clamp(mtnX, 0.02, 0.95), 0.25)).r;
+    float mtnNoise = abs(sin(p.x * 9.0) * 0.04 + cos(p.x * 23.0) * 0.02);
+    float mtnHeight = horizon + (mtnFft * 0.22 + mtnNoise) * smoothstep(0.05, 0.32, abs(p.x));
+    if (p.y >= horizon && p.y < mtnHeight) {
+      col = vec3(0.04, 0.02, 0.09);
+      float rim = smoothstep(0.012, 0.0, abs(p.y - mtnHeight));
+      col += palette(mtnX + uTime * 0.1, uPalette) * rim * 1.4;
+    }
+
+    // 3D Perspective Outrun Wireframe Grid below horizon
+    if (p.y < horizon) {
+      float depth = max(0.004, horizon - p.y);
+      float z3d = 0.28 / depth;
+      float x3d = (p.x - (uPointer.x - 0.5) * 0.3) * z3d;
+
+      // Audio waveform ripple on the grid
+      float gridWave = (texture2D(uAudioTex, vec2(clamp(abs(x3d) * 0.12, 0.01, 0.99), 0.75)).r - 0.5) * uBass * 0.6;
+      float gx = abs(fract(x3d * 0.55 + gridWave) - 0.5);
+      float gz = abs(fract(z3d * 0.45 - uTime * (2.6 + uBass * 2.2)) - 0.5);
+
+      float lineX = smoothstep(0.045, 0.008, gx);
+      float lineZ = smoothstep(0.06, 0.01, gz);
+      float gridMask = max(lineX, lineZ) * exp(-depth * 1.6);
+
+      vec3 gridCol = palette(depth * 1.5 + uTime * 0.15, uPalette);
+      col = vec3(0.02, 0.01, 0.06) + gridCol * gridMask * (0.9 + uBass * 0.9);
+      // Glowing horizon laser
+      col += vec3(0.85, 0.98, 1.0) * exp(-depth * 75.0) * (1.1 + uBeat * 0.8);
+    }
+
+  } else if (uMode == 5) {
+    // MODE 5: CYBER MATRIX & 3D AUDIO METROPOLIS — Digital rain + isometric 3D equalizer towers
+    col = vec3(0.01, 0.02, 0.04);
+
+    // Background cascading digital Matrix rain columns
+    float rainCols = 64.0;
+    float colIdx = floor(vUv.x * rainCols);
+    float colSpeed = 0.6 + hash21(vec2(colIdx, 1.0)) * 1.4;
+    float colFft = texture2D(uAudioTex, vec2(clamp(colIdx / rainCols, 0.01, 0.99), 0.25)).r;
+    float rainY = fract(vUv.y * 0.8 + uTime * colSpeed * (0.6 + uHigh * 0.8) + hash21(vec2(colIdx, 2.0)));
+    float charCell = step(0.35, hash21(vec2(colIdx, floor(vUv.y * 42.0 - uTime * 8.0))));
+    float rainTrail = pow(1.0 - rainY, 3.5) * charCell;
+    float rainHead = smoothstep(0.04, 0.0, rainY) * charCell;
+    vec3 rainCol = palette(colIdx / rainCols + uTime * 0.05, uPalette);
+    col += rainCol * rainTrail * (0.28 + colFft * 0.7) + vec3(0.9, 1.0, 0.95) * rainHead * (0.5 + uHigh);
+
+    // Foreground 3D Perspective Equalizer Skyscraper City (28 towers across)
+    float numTowers = 28.0;
+    for (int row = 0; row < 3; row++) {
+      float rF = float(row);
+      float rowScale = 1.0 - rF * 0.22;
+      float rowBaseY = -0.46 + rF * 0.11;
+      float tx = (p.x * rowScale + 0.85) / 1.7;
+      if (tx > 0.0 && tx < 1.0) {
+        float tIdx = floor(tx * numTowers);
+        float tLocalX = fract(tx * numTowers);
+        float binU = clamp(abs(tIdx / numTowers - 0.5) * 1.6 + rF * 0.12, 0.02, 0.96);
+        float towerFft = texture2D(uAudioTex, vec2(binU, 0.25)).r;
+        float towerH = (0.08 + pow(towerFft, 1.25) * (0.52 + uBass * 0.25)) * (1.0 - rF * 0.18);
+        float topY = rowBaseY + towerH;
+
+        if (p.y >= rowBaseY && p.y <= topY && tLocalX > 0.12 && tLocalX < 0.88) {
+          vec3 bldgCol = palette(binU + rF * 0.2 + uTime * 0.06, uPalette);
+          // 3D shaded building facade + lit windows
+          float sideShade = tLocalX < 0.62 ? 0.85 : 0.45;
+          float winX = step(0.3, fract(tLocalX * 5.0));
+          float winY = step(0.35, fract((p.y - rowBaseY) * 55.0));
+          float roofGlow = smoothstep(0.016, 0.0, abs(p.y - topY));
+          col = bldgCol * sideShade * (0.22 + 0.65 * winX * winY * (0.4 + towerFft)) + vec3(0.95, 0.98, 1.0) * roofGlow * 0.95;
+        }
+      }
+    }
+
+  } else {
+    // MODE 6: VORONOI BIO-CELLS / ELECTRIC STAINED GLASS — Cellular crystal tessellation
+    float scale = 5.2 - uBass * 1.1;
+    vec2 st = p * scale;
+    vec2 i_st = floor(st);
+    vec2 f_st = fract(st);
+
+    float minDist1 = 8.0;
+    float minDist2 = 8.0;
+    vec2 bestId = vec2(0.0);
+    vec2 bestVec = vec2(0.0);
+
+    for (int y = -1; y <= 1; y++) {
+      for (int x = -1; x <= 1; x++) {
+        vec2 neighbor = vec2(float(x), float(y));
+        vec2 cellId = i_st + neighbor;
+        vec2 rnd = hash22(cellId);
+        // Cells orbit organically and pulse with bass & cursor
+        vec2 point = 0.5 + 0.42 * sin(uTime * (1.1 + uMid * 0.8) + 6.2831 * rnd + uPhase * 0.35);
+        vec2 diff = neighbor + point - f_st;
+        float d = length(diff);
+        if (d < minDist1) {
+          minDist2 = minDist1;
+          minDist1 = d;
+          bestId = cellId;
+          bestVec = diff;
+        } else if (d < minDist2) {
+          minDist2 = d;
+        }
+      }
+    }
+
+    float edgeDist = minDist2 - minDist1;
+    float cellHash = hash21(bestId);
+    float cellFft = texture2D(uAudioTex, vec2(clamp(cellHash * 0.85 + 0.02, 0.01, 0.99), 0.25)).r;
+
+    vec3 cellColor = palette(cellHash + cellFft * 0.45 + uTime * 0.06, uPalette);
+    // Bioluminescent cell core + internal ripples
+    float corePulse = exp(-minDist1 * (3.2 - cellFft * 1.8)) * (0.35 + cellFft * 1.15);
+    float rings = 0.5 + 0.5 * sin(minDist1 * 24.0 - uTime * 5.0 - cellFft * 8.0);
+    col = cellColor * (corePulse + rings * 0.14 * cellFft);
+
+    // Nucleus spark
+    col += vec3(1.0, 0.97, 0.92) * (0.008 / (minDist1 + 0.012)) * (0.4 + cellFft * 0.9 + uBeat * 0.5);
+
+    // Electric plasma membrane borders
+    float borderThickness = 0.035 + abs(waveSample) * 0.04 + uBeat * 0.02;
+    float borderGlow = smoothstep(borderThickness, 0.004, edgeDist);
+    col += mix(cellColor * 1.4, vec3(0.92, 0.98, 1.0), 0.65) * borderGlow * (0.85 + uHigh * 0.7);
   }
 
   // Subtle vignette & filmic contrast
-  float vig = 1.0 - dot(vUv - 0.5, vUv - 0.5) * 0.55;
+  float vig = 1.0 - dot(vUv - 0.5, vUv - 0.5) * 0.5;
   col *= vig;
-  col = col / (1.0 + col * 0.22); // Soft highlight roll-off
+  col = col / (1.0 + col * 0.22);
   gl_FragColor = vec4(pow(clamp(col, 0.0, 1.0), vec3(0.92)), 1.0);
 }
 `;
@@ -1252,7 +1455,15 @@ document.querySelectorAll('.sp-tab').forEach(tabBtn => {
   });
 });
 
-// --- Spotify OAuth 2.0 PKCE Authentication & Personal Library ---
+// --- Spotify OAuth 2.0 PKCE Popup Login, Account Dashboard & Web Playback SDK ---
+spotifyState.libView = 'playlists'; // 'playlists' | 'liked' | 'top' | 'recent'
+spotifyState.userLikedTracks = [];
+spotifyState.userTopTracks = [];
+spotifyState.userRecentTracks = [];
+spotifyState.refreshToken = localStorage.getItem('sp_refresh_token') || '';
+spotifyState.sdkPlayer = null;
+spotifyState.sdkDeviceId = null;
+
 function getSpotifyRedirectUri() {
   return `${window.location.origin}/visualizer/index.html`;
 }
@@ -1271,8 +1482,18 @@ $('btn-copy-redirect')?.addEventListener('click', () => {
 
 $('btn-spotify-connect')?.addEventListener('click', e => {
   e.stopPropagation();
-  if (authModal) authModal.hidden = false;
-  if ($('btn-disconnect-spotify')) $('btn-disconnect-spotify').hidden = !isSpotifyTokenValid();
+  if (isSpotifyTokenValid()) {
+    toggleSpotifyDrawer(true);
+    selectSpotifyTab('library');
+    renderUserSpotifyLibraryTab();
+    return;
+  }
+  if (spotifyState.clientId) {
+    startSpotifyOAuth(true);
+  } else {
+    if (authModal) authModal.hidden = false;
+    if ($('btn-disconnect-spotify')) $('btn-disconnect-spotify').hidden = true;
+  }
 });
 
 $('close-sp-modal')?.addEventListener('click', e => {
@@ -1307,14 +1528,16 @@ async function generatePkcePair() {
   return { verifier, challenge };
 }
 
-async function startSpotifyOAuth() {
+async function startSpotifyOAuth(usePopup = true) {
   const inputId = $('sp-client-id-input')?.value?.trim() || spotifyState.clientId;
   if (!inputId) {
-    notify('Please enter your Spotify Developer Client ID first.');
+    if (authModal) authModal.hidden = false;
+    notify('Please enter your Spotify App Client ID first.');
     return;
   }
   spotifyState.clientId = inputId;
   localStorage.setItem('sp_client_id', inputId);
+  if (authModal) authModal.hidden = true;
 
   const { verifier, challenge } = await generatePkcePair();
   localStorage.setItem('sp_pkce_verifier', verifier);
@@ -1326,7 +1549,9 @@ async function startSpotifyOAuth() {
     'playlist-read-private',
     'playlist-read-collaborative',
     'user-top-read',
+    'user-read-recently-played',
     'user-read-playback-state',
+    'user-modify-playback-state',
     'user-read-currently-playing',
     'streaming',
   ].join(' ');
@@ -1339,28 +1564,109 @@ async function startSpotifyOAuth() {
   authUrl.searchParams.set('code_challenge', challenge);
   authUrl.searchParams.set('scope', scopes);
 
-  window.location.href = authUrl.toString();
+  if (usePopup) {
+    const w = 520;
+    const h = 720;
+    const left = Math.round(window.screenX + (window.outerWidth - w) / 2);
+    const top = Math.round(window.screenY + (window.outerHeight - h) / 2);
+    const popup = window.open(
+      authUrl.toString(),
+      'SpotifyAuthPopup',
+      `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`
+    );
+    if (!popup) {
+      window.location.href = authUrl.toString();
+    } else {
+      notify('Complete Spotify login in the popup window 🟢', 4500);
+    }
+  } else {
+    window.location.href = authUrl.toString();
+  }
 }
 
-$('btn-start-oauth')?.addEventListener('click', startSpotifyOAuth);
+$('btn-start-oauth')?.addEventListener('click', () => startSpotifyOAuth(true));
 
-$('btn-disconnect-spotify')?.addEventListener('click', () => {
+function disconnectSpotifyAccount() {
   spotifyState.accessToken = '';
+  spotifyState.refreshToken = '';
   spotifyState.tokenExpiry = 0;
   spotifyState.userProfile = null;
+  spotifyState.userPlaylists = [];
+  spotifyState.userLikedTracks = [];
+  spotifyState.userTopTracks = [];
+  spotifyState.userRecentTracks = [];
   localStorage.removeItem('sp_access_token');
+  localStorage.removeItem('sp_refresh_token');
   localStorage.removeItem('sp_token_expiry');
   updateSpotifyAuthBadge();
   if (authModal) authModal.hidden = true;
-  notify('Disconnected Spotify account.');
+  if (spotifyState.tab === 'library') renderUserSpotifyLibraryTab();
+  notify('Logged out of Spotify account.');
+}
+
+$('btn-disconnect-spotify')?.addEventListener('click', disconnectSpotifyAccount);
+$('btn-sp-logout')?.addEventListener('click', disconnectSpotifyAccount);
+
+// Listen for popup completion via postMessage or storage event
+window.addEventListener('message', async e => {
+  if (e.origin !== window.location.origin) return;
+  if (e.data?.type === 'SPOTIFY_AUTH_SUCCESS') {
+    spotifyState.accessToken = localStorage.getItem('sp_access_token') || e.data.accessToken || '';
+    spotifyState.refreshToken = localStorage.getItem('sp_refresh_token') || '';
+    spotifyState.tokenExpiry = Number(localStorage.getItem('sp_token_expiry') || 0);
+    if (authModal) authModal.hidden = true;
+    toggleSpotifyDrawer(true);
+    selectSpotifyTab('library');
+    await fetchSpotifyProfileAndLibrary();
+    initSpotifyWebPlaybackSDK();
+    notify('Logged in to Spotify! Your playlists & liked songs are ready 🟢');
+  }
 });
+
+async function refreshSpotifyAccessToken() {
+  const refresh = spotifyState.refreshToken || localStorage.getItem('sp_refresh_token');
+  const clientId = spotifyState.clientId || localStorage.getItem('sp_client_id');
+  if (!refresh || !clientId) return false;
+  try {
+    const body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refresh,
+      client_id: clientId,
+    });
+    const res = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+    const data = await res.json();
+    if (data?.access_token) {
+      spotifyState.accessToken = data.access_token;
+      spotifyState.tokenExpiry = Date.now() + Number(data.expires_in || 3600) * 1000;
+      localStorage.setItem('sp_access_token', spotifyState.accessToken);
+      localStorage.setItem('sp_token_expiry', String(spotifyState.tokenExpiry));
+      if (data.refresh_token) {
+        spotifyState.refreshToken = data.refresh_token;
+        localStorage.setItem('sp_refresh_token', data.refresh_token);
+      }
+      return true;
+    }
+  } catch {}
+  return false;
+}
 
 async function handleSpotifyOAuthCallback() {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
   if (!code) {
     if (isSpotifyTokenValid()) {
-      fetchSpotifyProfileAndLibrary();
+      await fetchSpotifyProfileAndLibrary();
+      initSpotifyWebPlaybackSDK();
+    } else if (spotifyState.refreshToken) {
+      const ok = await refreshSpotifyAccessToken();
+      if (ok) {
+        await fetchSpotifyProfileAndLibrary();
+        initSpotifyWebPlaybackSDK();
+      }
     }
     return;
   }
@@ -1391,12 +1697,30 @@ async function handleSpotifyOAuthCallback() {
       spotifyState.tokenExpiry = Date.now() + Number(tokenData.expires_in || 3600) * 1000;
       localStorage.setItem('sp_access_token', spotifyState.accessToken);
       localStorage.setItem('sp_token_expiry', String(spotifyState.tokenExpiry));
+      if (tokenData.refresh_token) {
+        spotifyState.refreshToken = tokenData.refresh_token;
+        localStorage.setItem('sp_refresh_token', tokenData.refresh_token);
+      }
+
+      // If running inside the OAuth popup window, notify main window and close popup!
+      if (window.opener && window.opener !== window) {
+        try {
+          window.opener.postMessage(
+            { type: 'SPOTIFY_AUTH_SUCCESS', accessToken: spotifyState.accessToken },
+            window.location.origin
+          );
+          window.close();
+          return;
+        } catch {}
+      }
+
       toggleSpotifyDrawer(true);
       selectSpotifyTab('library');
       await fetchSpotifyProfileAndLibrary();
-      notify('Spotify Account Connected! 🟢');
+      initSpotifyWebPlaybackSDK();
+      notify('Logged in to Spotify! 🟢');
     } else {
-      notify('Spotify authorization failed — check Client ID & Redirect URI.');
+      notify('Spotify authorization failed — verify Client ID & Redirect URI.');
     }
   } catch {
     notify('Could not complete Spotify token exchange.');
@@ -1406,20 +1730,62 @@ async function handleSpotifyOAuthCallback() {
 function updateSpotifyAuthBadge() {
   const btn = $('btn-spotify-connect');
   const status = $('sp-connection-status');
+  const accountBar = $('sp-account-bar');
   if (!btn) return;
+
   if (isSpotifyTokenValid() && spotifyState.userProfile) {
-    btn.textContent = `✓ ${spotifyState.userProfile.display_name || 'Connected'}`;
+    const name = spotifyState.userProfile.display_name || spotifyState.userProfile.id || 'Spotify User';
+    const isPremium = spotifyState.userProfile.product === 'premium';
+    const avatarUrl = spotifyState.userProfile.images?.[0]?.url || '';
+
+    btn.textContent = `✓ ${name}`;
     btn.classList.add('connected');
-    if (status) status.textContent = `CONNECTED AS ${String(spotifyState.userProfile.display_name || 'SPOTIFY USER').toUpperCase()}`;
+    if (status) {
+      status.textContent = `LOGGED IN AS ${name.toUpperCase()} · ${isPremium ? 'SPOTIFY PREMIUM' : 'SPOTIFY ACCOUNT'}`;
+    }
+    if (accountBar) {
+      accountBar.hidden = false;
+      if ($('sp-user-name')) $('sp-user-name').textContent = name;
+      if ($('sp-user-tier')) {
+        $('sp-user-tier').textContent = isPremium
+          ? 'SPOTIFY PREMIUM · FULL LIBRARY & SDK READY'
+          : 'SPOTIFY ACCOUNT CONNECTED';
+      }
+      const av = $('sp-user-avatar');
+      if (av) {
+        if (avatarUrl) {
+          av.src = avatarUrl;
+          av.hidden = false;
+        } else {
+          av.hidden = true;
+        }
+      }
+    }
   } else {
-    btn.textContent = '🔐 Connect Account';
+    btn.textContent = '🟢 Log in with Spotify';
     btn.classList.remove('connected');
-    if (status) status.textContent = 'SEARCH SONGS, PLAYLISTS, OR PASTE SPOTIFY LINK';
+    if (status) status.textContent = 'SEARCH SONGS, PLAYLISTS, OR LOG IN TO YOUR ACCOUNT';
+    if (accountBar) accountBar.hidden = true;
   }
 }
 
+// Sub-tabs inside Connected Spotify Account Bar (Playlists, Liked Songs, Top Tracks, Recent)
+document.querySelectorAll('.sp-subtab').forEach(subBtn => {
+  subBtn.addEventListener('click', () => {
+    document.querySelectorAll('.sp-subtab').forEach(b => b.classList.remove('active'));
+    subBtn.classList.add('active');
+    spotifyState.libView = subBtn.dataset.libView || 'playlists';
+    $('spotify-collection-banner').hidden = true;
+    selectSpotifyTab('library');
+    renderUserSpotifyLibraryTab();
+  });
+});
+
 async function fetchSpotifyWebApi(endpoint) {
-  if (!isSpotifyTokenValid()) return null;
+  if (!isSpotifyTokenValid()) {
+    const refreshed = await refreshSpotifyAccessToken();
+    if (!refreshed) return null;
+  }
   const res = await fetch(`https://api.spotify.com/v1${endpoint}`, {
     headers: { Authorization: `Bearer ${spotifyState.accessToken}` },
   });
@@ -1427,12 +1793,30 @@ async function fetchSpotifyWebApi(endpoint) {
   return res.json();
 }
 
+function mapSpotifyApiTrack(t) {
+  if (!t?.id) return null;
+  return {
+    id: `spotify-${t.id}`,
+    spotifyId: t.id,
+    spotifyUri: t.uri || `spotify:track:${t.id}`,
+    title: t.name || 'Track',
+    artist: Array.isArray(t.artists) ? t.artists.map(a => a.name).join(', ') : '',
+    album: t.album?.name || '',
+    artwork: t.album?.images?.[0]?.url || '',
+    durationMs: Number(t.duration_ms || 30000),
+    previewUrl: t.preview_url || null,
+    streamProxyUrl: t.preview_url ? `/api/visualizer/stream?url=${encodeURIComponent(t.preview_url)}` : null,
+    externalUrl: t.external_urls?.spotify || `https://open.spotify.com/track/${t.id}`,
+  };
+}
+
 async function fetchSpotifyProfileAndLibrary() {
-  const [profile, saved, top, playlists] = await Promise.all([
+  const [profile, saved, top, recent, playlists] = await Promise.all([
     fetchSpotifyWebApi('/me'),
-    fetchSpotifyWebApi('/me/tracks?limit=20'),
-    fetchSpotifyWebApi('/me/top/tracks?limit=15'),
-    fetchSpotifyWebApi('/me/playlists?limit=15'),
+    fetchSpotifyWebApi('/me/tracks?limit=40'),
+    fetchSpotifyWebApi('/me/top/tracks?limit=30&time_range=short_term'),
+    fetchSpotifyWebApi('/me/player/recently-played?limit=30'),
+    fetchSpotifyWebApi('/me/playlists?limit=40'),
   ]);
 
   if (profile) {
@@ -1440,31 +1824,14 @@ async function fetchSpotifyProfileAndLibrary() {
     updateSpotifyAuthBadge();
   }
 
-  const mapApiTrack = t => {
-    if (!t?.id) return null;
-    return {
-      id: `spotify-${t.id}`,
-      spotifyId: t.id,
-      spotifyUri: t.uri || `spotify:track:${t.id}`,
-      title: t.name || 'Track',
-      artist: Array.isArray(t.artists) ? t.artists.map(a => a.name).join(', ') : '',
-      album: t.album?.name || '',
-      artwork: t.album?.images?.[0]?.url || '',
-      durationMs: Number(t.duration_ms || 30000),
-      previewUrl: t.preview_url || null,
-      streamProxyUrl: t.preview_url ? `/api/visualizer/stream?url=${encodeURIComponent(t.preview_url)}` : null,
-      externalUrl: t.external_urls?.spotify || `https://open.spotify.com/track/${t.id}`,
-    };
-  };
-
-  const likedTracks = (saved?.items || []).map(item => mapApiTrack(item.track)).filter(Boolean);
-  const topTracks = (top?.items || []).map(mapApiTrack).filter(Boolean);
-  spotifyState.userLibraryTracks = likedTracks.length ? likedTracks : topTracks;
+  spotifyState.userLikedTracks = (saved?.items || []).map(item => mapSpotifyApiTrack(item.track)).filter(Boolean);
+  spotifyState.userTopTracks = (top?.items || []).map(mapSpotifyApiTrack).filter(Boolean);
+  spotifyState.userRecentTracks = (recent?.items || []).map(item => mapSpotifyApiTrack(item.track)).filter(Boolean);
 
   spotifyState.userPlaylists = (playlists?.items || []).map(pl => ({
     id: pl.id,
     title: pl.name,
-    subtitle: `${pl.tracks?.total || 0} tracks · Personal Playlist`,
+    subtitle: `${pl.tracks?.total || 0} tracks · ${pl.owner?.display_name || 'Your Playlist'}`,
     artwork: pl.images?.[0]?.url || '',
     isOAuthPlaylist: true,
     spotifyUri: pl.uri,
@@ -1475,28 +1842,38 @@ async function fetchSpotifyProfileAndLibrary() {
   }
 }
 
+function initSpotifyWebPlaybackSDK() {
+  if (!window.Spotify || spotifyState.sdkPlayer || !isSpotifyTokenValid()) return;
+  try {
+    const player = new window.Spotify.Player({
+      name: 'SONIC PRISM Web Visualizer',
+      getOAuthToken: cb => cb(spotifyState.accessToken),
+      volume: 0.9,
+    });
+    player.addListener('ready', ({ device_id }) => {
+      spotifyState.sdkDeviceId = device_id;
+    });
+    player.addListener('player_state_changed', st => {
+      if (!st) return;
+      spotifyState.embedPlaying = !st.paused;
+      spotifyState.embedPositionMs = st.position || 0;
+      spotifyState.embedDurationMs = st.duration || 0;
+    });
+    player.connect();
+    spotifyState.sdkPlayer = player;
+  } catch {}
+}
+
+window.onSpotifyWebPlaybackSDKReady = () => {
+  if (isSpotifyTokenValid()) initSpotifyWebPlaybackSDK();
+};
+
 async function loadUserOAuthPlaylistTracks(playlistId, title) {
   const container = $('spotify-results');
   if (container) container.innerHTML = `<div class="sp-loading">Loading "${title}"...</div>`;
-  const data = await fetchSpotifyWebApi(`/playlists/${playlistId}/tracks?limit=25`);
+  const data = await fetchSpotifyWebApi(`/playlists/${playlistId}/tracks?limit=40`);
   const tracks = (data?.items || [])
-    .map(item => {
-      const t = item?.track;
-      if (!t?.id) return null;
-      return {
-        id: `spotify-${t.id}`,
-        spotifyId: t.id,
-        spotifyUri: t.uri || `spotify:track:${t.id}`,
-        title: t.name,
-        artist: Array.isArray(t.artists) ? t.artists.map(a => a.name).join(', ') : '',
-        album: t.album?.name || '',
-        artwork: t.album?.images?.[0]?.url || '',
-        durationMs: Number(t.duration_ms || 30000),
-        previewUrl: t.preview_url || null,
-        streamProxyUrl: t.preview_url ? `/api/visualizer/stream?url=${encodeURIComponent(t.preview_url)}` : null,
-        externalUrl: `https://open.spotify.com/track/${t.id}`,
-      };
-    })
+    .map(item => mapSpotifyApiTrack(item?.track))
     .filter(Boolean);
 
   spotifyState.activeCollection = {
@@ -1506,7 +1883,7 @@ async function loadUserOAuthPlaylistTracks(playlistId, title) {
   };
   $('spotify-collection-banner').hidden = false;
   $('sp-collection-title').textContent = title;
-  $('sp-collection-sub').textContent = `${tracks.length} Tracks`;
+  $('sp-collection-sub').textContent = `${tracks.length} Tracks in Your Playlist`;
   renderSpotifyTracks(tracks, 'No tracks found in this playlist.');
 }
 
@@ -1516,23 +1893,40 @@ function renderUserSpotifyLibraryTab() {
   if (!isSpotifyTokenValid()) {
     container.innerHTML = `
       <div class="sp-loading">
-        <p style="margin-bottom:10px;">Connect your Spotify Account to browse your personal <b>Liked Songs</b> and <b>Playlists</b>—or search any song / paste any Spotify playlist link above!</p>
-        <button type="button" id="sp-inline-connect" class="sp-oauth-go-btn" style="max-width:240px;">🔐 Connect Spotify Account</button>
+        <p style="margin-bottom:12px;">Log in with your Spotify account to view your personal <b>Profile</b>, <b>Playlists</b>, <b>Liked Songs</b>, <b>Top Tracks</b>, and <b>Recently Played</b> right inside the visualizer:</p>
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+          <button type="button" id="sp-inline-connect" class="sp-oauth-go-btn" style="max-width:250px;">🟢 Log in with Spotify</button>
+          <button type="button" id="sp-inline-config" class="sp-back-btn">⚙ App Client ID Setup</button>
+        </div>
       </div>
     `;
     $('sp-inline-connect')?.addEventListener('click', () => {
+      if (spotifyState.clientId) {
+        startSpotifyOAuth(true);
+      } else if (authModal) {
+        authModal.hidden = false;
+      }
+    });
+    $('sp-inline-config')?.addEventListener('click', () => {
       if (authModal) authModal.hidden = false;
     });
     return;
   }
 
-  if (spotifyState.userPlaylists.length) {
-    renderSpotifyPlaylists(spotifyState.userPlaylists);
-  } else if (spotifyState.userLibraryTracks.length) {
-    renderSpotifyTracks(spotifyState.userLibraryTracks);
-  } else {
-    container.innerHTML = '<div class="sp-loading">Loading your Spotify Library...</div>';
-    fetchSpotifyProfileAndLibrary();
+  const view = spotifyState.libView || 'playlists';
+  if (view === 'playlists') {
+    if (spotifyState.userPlaylists.length) {
+      renderSpotifyPlaylists(spotifyState.userPlaylists);
+    } else {
+      container.innerHTML = '<div class="sp-loading">Loading your Spotify Playlists...</div>';
+      fetchSpotifyProfileAndLibrary();
+    }
+  } else if (view === 'liked') {
+    renderSpotifyTracks(spotifyState.userLikedTracks, 'No Liked Songs found in your Spotify library.');
+  } else if (view === 'top') {
+    renderSpotifyTracks(spotifyState.userTopTracks, 'No Top Tracks found yet.');
+  } else if (view === 'recent') {
+    renderSpotifyTracks(spotifyState.userRecentTracks, 'No Recently Played tracks found.');
   }
 }
 
