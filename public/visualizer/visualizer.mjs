@@ -58,12 +58,8 @@ let audioTexData = new Uint8Array(512 * 2); // 512x2 LUMINANCE texture (Row 0: F
 let activeStream = null;
 let streamSourceNode = null;
 let mediaElementSourceNode = null;
-let synthMasterGain = null;
-let synthTimer = null;
-let synthStep = 0;
-let synthGroove = 0;
-let synthPlaying = false;
-let dropIntensity = 0;
+let localFilesQueue = [];
+let localFileIndex = 0;
 
 function ensureAudioContext() {
   if (!audioCtx) {
@@ -81,7 +77,6 @@ function ensureAudioContext() {
 }
 
 function stopCurrentSources(keepSpotifyEmbed = false) {
-  // Stop active MediaStream (system audio or mic)
   if (activeStream) {
     activeStream.getTracks().forEach(t => t.stop());
     activeStream = null;
@@ -90,17 +85,13 @@ function stopCurrentSources(keepSpotifyEmbed = false) {
     try { streamSourceNode.disconnect(); } catch {}
     streamSourceNode = null;
   }
-  // Pause file/stream playback
   if (!audioEl.paused) {
     audioEl.pause();
   }
-  // Pause official Spotify Embed if switching away
   if (!keepSpotifyEmbed && spotifyState.embedController && spotifyState.embedPlaying) {
     try { spotifyState.embedController.pause(); } catch {}
     spotifyState.embedPlaying = false;
   }
-  // Stop procedural synth
-  stopSynth();
   document.querySelectorAll('.source-btn').forEach(b => b.classList.remove('active'));
 }
 
@@ -109,19 +100,21 @@ function setActiveSourceUI(type, badgeText) {
   $('source-badge').textContent = badgeText;
   document.querySelectorAll('.source-btn').forEach(b => b.classList.remove('active'));
   if (type === 'spotify' || type === 'spotify-embed') $('btn-spotify')?.classList.add('active');
-  if (type === 'system') $('btn-system').classList.add('active');
-  if (type === 'file') document.querySelector('label[for="file-input"]')?.classList.add('active');
-  if (type === 'synth') $('btn-synth').classList.add('active');
-  if (type === 'mic') $('btn-mic').classList.add('active');
+  if (type === 'system') $('btn-system')?.classList.add('active');
+  if (type === 'file') $('btn-file-label')?.classList.add('active');
 
   const isSpotify = type === 'spotify' || type === 'spotify-embed';
-  const showTransport = type === 'file' || type === 'synth' || isSpotify;
+  const showTransport = type === 'file' || isSpotify;
   $('transport-bar').hidden = !showTransport;
-  $('synth-grooves').hidden = type !== 'synth';
-  $('seek-bar').hidden = type === 'synth' || type === 'spotify-embed';
-  $('track-time').hidden = type === 'synth' || type === 'spotify-embed';
-  if ($('btn-prev-track')) $('btn-prev-track').hidden = !isSpotify;
-  if ($('btn-next-track')) $('btn-next-track').hidden = !isSpotify;
+  $('seek-bar').hidden = type === 'spotify-embed';
+  $('track-time').hidden = type === 'spotify-embed';
+
+  const hasQueue =
+    (isSpotify && spotifyState.currentQueue.length > 1) ||
+    (type === 'file' && localFilesQueue.length > 1);
+  if ($('btn-prev-track')) $('btn-prev-track').hidden = !hasQueue;
+  if ($('btn-next-track')) $('btn-next-track').hidden = !hasQueue;
+
   if (!isSpotify) {
     if ($('transport-art')) $('transport-art').hidden = true;
     if ($('track-artist')) $('track-artist').textContent = '';
@@ -129,14 +122,14 @@ function setActiveSourceUI(type, badgeText) {
   }
 }
 
-// 1. Desktop System / Tab Audio Capture (Zero-Mic Digital Loopback)
+// 1. Share Tab / Window Audio (Pandora, YouTube, Spotify Desktop, Apple Music)
 async function startSystemAudio() {
   if (!navigator.mediaDevices?.getDisplayMedia) {
-    notify('System/Tab audio capture requires a desktop browser (Chrome, Edge, Brave). On mobile, use Play Audio File or Live Synth Deck!');
+    notify('Sharing Tab/Window audio requires a desktop browser (Chrome, Edge, Brave). On mobile, use Spotify or Local Music!');
     return;
   }
   try {
-    notify('Select a Browser Tab (Spotify, YouTube) or Entire Screen and check "Also share audio" 🔊', 5000);
+    notify('Select a Browser Tab (Pandora, Spotify, YouTube) or Screen and check "Also share audio" 🔊', 5000);
     const stream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
       audio: {
@@ -160,31 +153,47 @@ async function startSystemAudio() {
     activeStream = stream;
     const audioOnlyStream = new MediaStream(audioTracks);
     streamSourceNode = audioCtx.createMediaStreamSource(audioOnlyStream);
-    // Connect ONLY to analyser, NOT to destination, so system audio doesn't double-echo!
+    // Connect ONLY to analyser, NOT to destination, so shared audio doesn't double-echo!
     streamSourceNode.connect(analyser);
 
-    const label = audioTracks[0].label || 'System / Tab Loopback';
-    setActiveSourceUI('system', `LIVE SYSTEM AUDIO · ${label.toUpperCase().slice(0, 28)}`);
-    notify(`Connected to ${label}! Reacting to live digital audio 🌈`);
+    const label = audioTracks[0].label || 'Tab / Window Audio';
+    setActiveSourceUI('system', `LIVE AUDIO · ${label.toUpperCase().slice(0, 32)}`);
+    notify(`Connected to ${label}! Visualizing live audio 🌈`);
 
     stream.getTracks().forEach(track => {
       track.addEventListener('ended', () => {
         if (state.sourceType === 'system') {
           stopCurrentSources();
-          setActiveSourceUI('idle', 'SYSTEM SHARE ENDED · SELECT SOURCE');
+          setActiveSourceUI('idle', 'AUDIO SHARE ENDED · SELECT SOURCE');
         }
       });
     });
   } catch (err) {
     if (err?.name !== 'NotAllowedError') {
-      notify('Could not capture system audio. Try sharing a Chrome/Edge tab with "Share audio" enabled.');
+      notify('Could not capture tab/window audio. Make sure "Share audio" is enabled.');
     }
   }
 }
 
-// 2. Local Audio File Playback (Desktop & Mobile)
-function loadAudioFile(file) {
+// 2. Local Music Files Playback (Single or Multiple Files on Desktop & Phone)
+function loadLocalFiles(fileList) {
+  const files = Array.from(fileList || []).filter(
+    f => f && (f.type.startsWith('audio/') || /\.(mp3|wav|flac|m4a|ogg|aac|opus)$/i.test(f.name))
+  );
+  if (!files.length) {
+    notify('Please select a valid audio file (MP3, WAV, FLAC, M4A, OGG).');
+    return;
+  }
+  localFilesQueue = files;
+  playLocalFileAt(0);
+}
+
+function playLocalFileAt(index) {
+  if (!localFilesQueue.length) return;
+  localFileIndex = (index + localFilesQueue.length) % localFilesQueue.length;
+  const file = localFilesQueue[localFileIndex];
   if (!file) return;
+
   stopCurrentSources();
   ensureAudioContext();
 
@@ -200,220 +209,39 @@ function loadAudioFile(file) {
 
   const cleanName = file.name.replace(/\.[^/.]+$/, '');
   $('track-title').textContent = cleanName;
-  setActiveSourceUI('file', `PLAYING FILE · ${cleanName.toUpperCase().slice(0, 28)}`);
-
-  audioEl.play().then(() => {
-    $('btn-play-pause').textContent = '⏸';
-    notify(`Playing "${cleanName}" 🎵`);
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.metadata = new MediaMetadata({ title: cleanName, artist: 'Sonic Prism Visualizer' });
-      navigator.mediaSession.setActionHandler('play', () => audioEl.play());
-      navigator.mediaSession.setActionHandler('pause', () => audioEl.pause());
-    }
-  }).catch(() => {
-    $('btn-play-pause').textContent = '▶';
-  });
-}
-
-// 3. Built-In Multi-Genre Procedural Synthesizer (Works instantly on Phone & Desktop!)
-const GROOVES = [
-  { name: 'Cyberpunk 124 BPM', bpm: 124, root: 55, scale: [0, 3, 5, 7, 10, 12, 15] },
-  { name: 'Liquid DnB 170 BPM', bpm: 170, root: 65.41, scale: [0, 2, 3, 7, 8, 10, 12] },
-  { name: 'Synthwave Odyssey 102 BPM', bpm: 102, root: 49, scale: [0, 3, 7, 10, 12, 14, 15] },
-];
-
-function triggerKick(time, punch = 1) {
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(135 * punch, time);
-  osc.frequency.exponentialRampToValueAtTime(34, time + 0.14);
-  osc.frequency.exponentialRampToValueAtTime(24, time + 0.34);
-  gain.gain.setValueAtTime(0.65 * punch, time);
-  gain.gain.exponentialRampToValueAtTime(0.001, time + 0.36);
-  osc.connect(gain);
-  gain.connect(synthMasterGain);
-  osc.start(time);
-  osc.stop(time + 0.37);
-}
-
-function triggerSnare(time, level = 0.28) {
-  // Crisp noise + body tone snare
-  const bufSize = Math.floor(audioCtx.sampleRate * 0.16);
-  const buffer = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufSize * 0.28));
-  const noise = audioCtx.createBufferSource();
-  noise.buffer = buffer;
-
-  const filter = audioCtx.createBiquadFilter();
-  filter.type = 'highpass';
-  filter.frequency.setValueAtTime(520, time);
-
-  const gain = audioCtx.createGain();
-  gain.gain.setValueAtTime(level, time);
-  gain.gain.exponentialRampToValueAtTime(0.001, time + 0.16);
-
-  noise.connect(filter);
-  filter.connect(gain);
-  gain.connect(synthMasterGain);
-  noise.start(time);
-}
-
-function triggerHat(time, open = false) {
-  const dur = open ? 0.18 : 0.045;
-  const bufSize = Math.floor(audioCtx.sampleRate * dur);
-  const buffer = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufSize * 0.35));
-  const src = audioCtx.createBufferSource();
-  src.buffer = buffer;
-
-  const hp = audioCtx.createBiquadFilter();
-  hp.type = 'highpass';
-  hp.frequency.setValueAtTime(6500, time);
-
-  const gain = audioCtx.createGain();
-  gain.gain.setValueAtTime(open ? 0.14 : 0.09, time);
-  gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
-
-  src.connect(hp);
-  hp.connect(gain);
-  gain.connect(synthMasterGain);
-  src.start(time);
-}
-
-function triggerBassAndArp(time, step, groove) {
-  const semi = groove.scale[step % groove.scale.length];
-  const bassFreq = groove.root * Math.pow(2, (step % 8 === 7 ? 3 : (step % 4 === 0 ? 0 : semi % 5)) / 12);
-
-  // Sub-bass saw + lowpass filter
-  const bassOsc = audioCtx.createOscillator();
-  const subOsc = audioCtx.createOscillator();
-  const filter = audioCtx.createBiquadFilter();
-  const gain = audioCtx.createGain();
-
-  bassOsc.type = 'sawtooth';
-  subOsc.type = 'sine';
-  bassOsc.frequency.setValueAtTime(bassFreq, time);
-  subOsc.frequency.setValueAtTime(bassFreq * 0.5, time);
-
-  filter.type = 'lowpass';
-  const cutoff = 260 + (Math.sin(step * 0.35) * 0.5 + 0.5) * 950 + dropIntensity * 1800;
-  filter.frequency.setValueAtTime(cutoff, time);
-  filter.Q.setValueAtTime(4.5, time);
-
-  gain.gain.setValueAtTime(0.28 + dropIntensity * 0.18, time);
-  gain.gain.exponentialRampToValueAtTime(0.008, time + 0.19);
-
-  bassOsc.connect(filter);
-  subOsc.connect(filter);
-  filter.connect(gain);
-  gain.connect(synthMasterGain);
-  bassOsc.start(time);
-  subOsc.start(time);
-  bassOsc.stop(time + 0.2);
-  subOsc.stop(time + 0.2);
-
-  // Shimmering high-mid melodic arpeggio
-  if (step % 2 === 0 || dropIntensity > 0.2) {
-    const arpOsc = audioCtx.createOscillator();
-    const arpGain = audioCtx.createGain();
-    arpOsc.type = 'triangle';
-    const arpNote = groove.root * 4 * Math.pow(2, groove.scale[(step * 2) % groove.scale.length] / 12);
-    arpOsc.frequency.setValueAtTime(arpNote, time);
-    arpGain.gain.setValueAtTime(0.11, time);
-    arpGain.gain.exponentialRampToValueAtTime(0.001, time + 0.14);
-    arpOsc.connect(arpGain);
-    arpGain.connect(synthMasterGain);
-    arpOsc.start(time);
-    arpOsc.stop(time + 0.15);
+  if ($('track-artist')) {
+    $('track-artist').textContent =
+      localFilesQueue.length > 1 ? `· File ${localFileIndex + 1} of ${localFilesQueue.length}` : '· Local Music';
   }
-}
+  setActiveSourceUI('file', `LOCAL MUSIC · ${cleanName.toUpperCase().slice(0, 30)}`);
 
-function scheduleSynthStep() {
-  if (!synthPlaying || !audioCtx) return;
-  const groove = GROOVES[synthGroove] || GROOVES[0];
-  state.bpmEstimate = groove.bpm;
-  const stepDur = (60 / groove.bpm) / 4; // 16th note
-  const now = audioCtx.currentTime + 0.02;
-  const s = synthStep % 16;
-
-  if (synthGroove === 1) {
-    // Liquid DnB breakbeat pattern
-    if (s === 0 || s === 10) triggerKick(now, 1.15);
-    if (s === 4 || s === 12) triggerSnare(now, 0.32);
-    triggerHat(now, s % 4 === 2);
-  } else {
-    // Four-on-the-floor Cyberpunk / Synthwave
-    if (s % 4 === 0 || (dropIntensity > 0.3 && s % 2 === 0)) triggerKick(now, 1.1 + dropIntensity * 0.35);
-    if (s % 8 === 4) triggerSnare(now, 0.3);
-    if (s % 2 === 1) triggerHat(now, s === 15);
-  }
-  triggerBassAndArp(now, synthStep, groove);
-
-  dropIntensity = Math.max(0, dropIntensity - 0.04);
-  synthStep++;
-  synthTimer = setTimeout(scheduleSynthStep, stepDur * 1000);
-}
-
-function startSynth() {
-  stopCurrentSources();
-  ensureAudioContext();
-  if (!synthMasterGain) {
-    synthMasterGain = audioCtx.createGain();
-    synthMasterGain.gain.value = 0.85;
-    synthMasterGain.connect(analyser);
-    analyser.connect(audioCtx.destination);
-  }
-  synthPlaying = true;
-  synthStep = 0;
-  const groove = GROOVES[synthGroove];
-  $('track-title').textContent = `LIVE SYNTH · ${groove.name}`;
-  $('btn-play-pause').textContent = '⏸';
-  setActiveSourceUI('synth', `LIVE SYNTHESIZER · ${groove.name.toUpperCase()}`);
-  scheduleSynthStep();
-  notify(`Live Synth Deck active: ${groove.name} 🎹`);
-}
-
-function stopSynth() {
-  synthPlaying = false;
-  clearTimeout(synthTimer);
-}
-
-// 4. Optional Line-In / Microphone Input
-async function startMicAudio() {
-  if (!navigator.mediaDevices?.getUserMedia) {
-    notify('Audio input is not supported in this browser.');
-    return;
-  }
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
-      },
+  audioEl
+    .play()
+    .then(() => {
+      $('btn-play-pause').textContent = '⏸';
+      notify(`Playing "${cleanName}" 🎵`);
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: cleanName,
+          artist: 'Local Music · Sonic Prism',
+        });
+        navigator.mediaSession.setActionHandler('play', () => audioEl.play());
+        navigator.mediaSession.setActionHandler('pause', () => audioEl.pause());
+        navigator.mediaSession.setActionHandler('previoustrack', () => playLocalFileAt(localFileIndex - 1));
+        navigator.mediaSession.setActionHandler('nexttrack', () => playLocalFileAt(localFileIndex + 1));
+      }
+    })
+    .catch(() => {
+      $('btn-play-pause').textContent = '▶';
     });
-    stopCurrentSources();
-    ensureAudioContext();
-    activeStream = stream;
-    streamSourceNode = audioCtx.createMediaStreamSource(stream);
-    // Connect only to analyser (never destination, avoiding feedback loop)
-    streamSourceNode.connect(analyser);
-    setActiveSourceUI('mic', 'LIVE LINE-IN / AMBIENT AUDIO');
-    notify('Listening to Line-In / Ambient Audio 🎙️');
-  } catch {
-    notify('Microphone / Line-In permission was declined.');
-  }
 }
 
-// 5. Direct In-App Spotify & Music Streaming Engine (Direct FFT + Official Spotify Embed + OAuth PKCE)
+// 3. Direct In-App Spotify Player & Search Engine
 const spotifyState = {
-  engine: 'direct', // 'direct' (CORS WebAudio 2048-FFT) | 'embed' (Official Spotify Player + Beat-Sync)
-  tab: 'featured',  // 'featured' | 'playlists' | 'library'
-  curatedTracks: [],
-  curatedPlaylists: [],
+  engine: 'direct', // 'direct' (CORS WebAudio 2048-FFT) | 'embed' (Official Spotify Player)
+  tab: 'playlists', // 'playlists' | 'search' | 'library'
+  officialPlaylists: [],
+  searchResults: [],
   currentQueue: [],
   currentIndex: -1,
   currentTrack: null,
@@ -432,14 +260,13 @@ const spotifyState = {
   userPlaylists: [],
 };
 
-// Hook Spotify IFrame API Ready globally
 window.onSpotifyIframeApiReady = IFrameAPI => {
   const target = $('spotify-embed-target');
   if (!target) return;
   IFrameAPI.createController(
     target,
     {
-      uri: 'spotify:track:0VjIjW4GlUZAMYd2vXMi3b',
+      uri: 'spotify:playlist:37i9dQZF1DXcBWIGoYBM5M',
       width: '100%',
       height: 152,
     },
@@ -476,7 +303,7 @@ function estimateBpmFromTrack(title = '', artist = '') {
     hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
   }
   spotifyState.trackSeed = (hash % 1000) / 1000 + 0.5;
-  return 108 + (hash % 32); // 108..139 BPM
+  return 108 + (hash % 32);
 }
 
 function updateTransportMetadata(track) {
@@ -506,39 +333,40 @@ function updateTransportMetadata(track) {
   }
 }
 
-async function playSpotifyTrack(track, index = 0, queue = spotifyState.currentQueue) {
+async function playSpotifyTrack(track, index = 0, queue = spotifyState.currentQueue, autoCloseDrawer = true) {
   if (!track) return;
   spotifyState.currentTrack = track;
   spotifyState.currentIndex = index;
   if (Array.isArray(queue) && queue.length) {
     spotifyState.currentQueue = queue;
   }
-  state.bpmEstimate = track.bpmHint || estimateBpmFromTrack(track.title, track.artist);
+  state.bpmEstimate = estimateBpmFromTrack(track.title, track.artist);
   updateTransportMetadata(track);
   highlightActiveTrackCard();
 
-  // Mode B: Official Spotify Embed Player
+  // Official Spotify Embed Player Mode
   if (spotifyState.engine === 'embed' && (track.spotifyUri || track.spotifyId)) {
     const uri = track.spotifyUri || `spotify:track:${track.spotifyId}`;
     $('spotify-embed-dock').hidden = false;
     stopCurrentSources(true);
     setActiveSourceUI('spotify-embed', `SPOTIFY PLAYER · ${track.title.toUpperCase().slice(0, 28)}`);
+    if (autoCloseDrawer) toggleSpotifyDrawer(false);
     if (spotifyState.embedController) {
       spotifyState.embedController.loadUri(uri);
       spotifyState.embedController.play();
       spotifyState.embedPlaying = true;
       $('btn-play-pause').textContent = '⏸';
-      notify(`Playing "${track.title}" in Official Spotify Player 🎧`);
+      notify(`Loaded "${track.title}" in Official Spotify Player 🎧`);
     } else {
-      notify('Spotify Embed Player initializing — press Play in the player widget!');
+      notify('Spotify Player ready below — press Play in the widget!');
     }
     return;
   }
 
-  // Mode A: Direct WebAudio FFT Visualizer Stream (Works on Desktop & Phone with zero permissions!)
+  // Direct WebAudio FFT Visualizer Stream
   if (!track.streamProxyUrl && track.title) {
     try {
-      notify(`Resolving audio stream for "${track.title}"...`, 2000);
+      notify(`Loading "${track.title}"...`, 2000);
       const q = new URLSearchParams({
         resolveTrack: '1',
         title: track.title,
@@ -558,12 +386,11 @@ async function playSpotifyTrack(track, index = 0, queue = spotifyState.currentQu
   }
 
   if (!track.streamProxyUrl) {
-    // Fallback to Official Spotify Embed if no direct stream is available
     if (track.spotifyUri || track.spotifyId) {
       setSpotifyEngine('embed');
-      return playSpotifyTrack(track, index, queue);
+      return playSpotifyTrack(track, index, queue, autoCloseDrawer);
     }
-    notify('Could not load audio stream for this track — try another selection!');
+    notify('Could not load audio stream for this track — try another song!');
     return;
   }
 
@@ -580,12 +407,13 @@ async function playSpotifyTrack(track, index = 0, queue = spotifyState.currentQu
   audioEl.src = track.streamProxyUrl;
   audioEl.load();
 
-  setActiveSourceUI('spotify', `SPOTIFY STREAM · ${track.title.toUpperCase().slice(0, 28)}`);
+  setActiveSourceUI('spotify', `SPOTIFY · ${track.title.toUpperCase().slice(0, 30)}`);
+  if (autoCloseDrawer) toggleSpotifyDrawer(false);
 
   try {
     await audioEl.play();
     $('btn-play-pause').textContent = '⏸';
-    notify(`Visualizing "${track.title}" — ${track.artist} 🟢`);
+    notify(`Playing "${track.title}" — ${track.artist} 🟢`);
     if ('mediaSession' in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: track.title,
@@ -604,20 +432,23 @@ async function playSpotifyTrack(track, index = 0, queue = spotifyState.currentQu
 }
 
 function stepSpotifyQueue(delta) {
+  if (state.sourceType === 'file') {
+    playLocalFileAt(localFileIndex + delta);
+    return;
+  }
   const q = spotifyState.currentQueue;
   if (!Array.isArray(q) || !q.length) return;
   const nextIdx = (spotifyState.currentIndex + delta + q.length) % q.length;
-  playSpotifyTrack(q[nextIdx], nextIdx, q);
+  playSpotifyTrack(q[nextIdx], nextIdx, q, false);
 }
 
-// 1-Click Current Tab Audio Sync for DRM Spotify Embed Player on Desktop
 async function startCurrentTabSpotifyAudio() {
   if (!navigator.mediaDevices?.getDisplayMedia) {
-    notify('Tab audio sync requires a desktop browser (Chrome/Edge). Beat-Sync DSP is already active on mobile!');
+    notify('Tab audio sync requires a desktop browser (Chrome/Edge).');
     return;
   }
   try {
-    notify('Allow sharing this tab with "Share tab audio" checked for raw 2048-bin Spotify FFT! 🔊', 4500);
+    notify('Allow sharing this tab with "Share tab audio" checked for raw 2048-bin FFT! 🔊', 4500);
     const stream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
       audio: {
@@ -653,9 +484,7 @@ function updateAudioAnalysis(timeSec, dt) {
     analyser &&
     ((state.sourceType === 'file' && !audioEl.paused) ||
       (state.sourceType === 'spotify' && !audioEl.paused) ||
-      (state.sourceType === 'synth' && synthPlaying) ||
       state.sourceType === 'system' ||
-      state.sourceType === 'mic' ||
       (state.sourceType === 'spotify-embed' && activeStream));
 
   if (hasDirectAudio) {
@@ -1097,19 +926,70 @@ resizeCanvas();
 
 // --- Spotify Hub UI, Search, Playlist Loader & OAuth 2.0 PKCE ---
 const spotifyDrawer = $('spotify-drawer');
+const customDrawer = $('custom-drawer');
+const authModal = $('spotify-auth-modal');
 
 function toggleSpotifyDrawer(forceOpen) {
   if (!spotifyDrawer) return;
   const open = typeof forceOpen === 'boolean' ? forceOpen : spotifyDrawer.hidden;
   spotifyDrawer.hidden = !open;
-  if (open && !spotifyState.curatedTracks.length) {
-    loadCuratedSpotifyCatalog();
+  $('top-spotify-btn')?.classList.toggle('active', open);
+  if (open) {
+    if (customDrawer) {
+      customDrawer.hidden = true;
+      $('toggle-drawer')?.setAttribute('aria-expanded', 'false');
+    }
+    if (!spotifyState.officialPlaylists.length) {
+      loadOfficialSpotifyPlaylists();
+    }
+    setTimeout(() => $('spotify-search-input')?.focus(), 40);
   }
 }
 
-$('btn-spotify')?.addEventListener('click', () => toggleSpotifyDrawer());
-$('top-spotify-btn')?.addEventListener('click', () => toggleSpotifyDrawer());
-$('close-spotify')?.addEventListener('click', () => toggleSpotifyDrawer(false));
+function toggleCustomDrawer(forceOpen) {
+  if (!customDrawer) return;
+  const open = typeof forceOpen === 'boolean' ? forceOpen : customDrawer.hidden;
+  customDrawer.hidden = !open;
+  $('toggle-drawer')?.setAttribute('aria-expanded', String(open));
+  if (open && spotifyDrawer) {
+    spotifyDrawer.hidden = true;
+    $('top-spotify-btn')?.classList.remove('active');
+  }
+}
+
+$('btn-spotify')?.addEventListener('click', e => {
+  e.stopPropagation();
+  toggleSpotifyDrawer();
+});
+$('top-spotify-btn')?.addEventListener('click', e => {
+  e.stopPropagation();
+  toggleSpotifyDrawer();
+});
+$('close-spotify')?.addEventListener('click', e => {
+  e.stopPropagation();
+  toggleSpotifyDrawer(false);
+});
+
+$('toggle-drawer')?.addEventListener('click', e => {
+  e.stopPropagation();
+  toggleCustomDrawer();
+});
+$('close-drawer')?.addEventListener('click', e => {
+  e.stopPropagation();
+  toggleCustomDrawer(false);
+});
+
+$('close-embed-dock')?.addEventListener('click', e => {
+  e.stopPropagation();
+  if ($('spotify-embed-dock')) $('spotify-embed-dock').hidden = true;
+  if (spotifyState.embedController && spotifyState.embedPlaying) {
+    try { spotifyState.embedController.pause(); } catch {}
+    spotifyState.embedPlaying = false;
+  }
+  if (state.sourceType === 'spotify-embed') {
+    setActiveSourceUI('idle', 'READY · CHOOSE SPOTIFY, LOCAL MUSIC, OR TAB AUDIO');
+  }
+});
 
 function setSpotifyEngine(engine) {
   spotifyState.engine = engine;
@@ -1119,13 +999,20 @@ function setSpotifyEngine(engine) {
     $('spotify-embed-dock').hidden = engine !== 'embed';
   }
   if (spotifyState.currentTrack) {
-    playSpotifyTrack(spotifyState.currentTrack, spotifyState.currentIndex, spotifyState.currentQueue);
+    playSpotifyTrack(spotifyState.currentTrack, spotifyState.currentIndex, spotifyState.currentQueue, false);
   }
 }
 
 $('sp-engine-direct')?.addEventListener('click', () => setSpotifyEngine('direct'));
 $('sp-engine-embed')?.addEventListener('click', () => setSpotifyEngine('embed'));
 $('btn-spotify-tab-sync')?.addEventListener('click', startCurrentTabSpotifyAudio);
+
+function selectSpotifyTab(tab) {
+  spotifyState.tab = tab;
+  document.querySelectorAll('.sp-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.spTab === tab);
+  });
+}
 
 function highlightActiveTrackCard() {
   const activeId = spotifyState.currentTrack?.id;
@@ -1184,7 +1071,7 @@ function renderSpotifyTracks(tracks, emptyMessage = 'No tracks found.') {
     btn.appendChild(badge);
 
     btn.addEventListener('click', () => {
-      playSpotifyTrack(track, idx, tracks);
+      playSpotifyTrack(track, idx, tracks, true);
     });
 
     container.appendChild(btn);
@@ -1235,7 +1122,7 @@ function renderSpotifyPlaylists(playlists) {
       if (pl.isOAuthPlaylist && pl.id) {
         loadUserOAuthPlaylistTracks(pl.id, pl.title || pl.name);
       } else {
-        loadSpotifyUrlOrSearch(pl.spotifyUrl || `spotify:playlist:${pl.id}`);
+        loadSpotifyUrlOrSearch(pl.spotifyUrl || `spotify:playlist:${pl.id}`, false);
       }
     });
 
@@ -1243,43 +1130,38 @@ function renderSpotifyPlaylists(playlists) {
   });
 }
 
-async function loadCuratedSpotifyCatalog() {
+async function loadOfficialSpotifyPlaylists() {
   const container = $('spotify-results');
-  if (container && !spotifyState.curatedTracks.length) {
-    container.innerHTML = '<div class="sp-loading">Loading Spotify Showcase tracks...</div>';
+  if (container && !spotifyState.officialPlaylists.length) {
+    container.innerHTML = '<div class="sp-loading">Loading Spotify Playlists...</div>';
   }
   try {
-    const res = await fetch('/api/visualizer/spotify?curated=1');
+    const res = await fetch('/api/visualizer/spotify');
     const data = await res.json();
     if (data?.clientId && !spotifyState.clientId) {
       spotifyState.clientId = data.clientId;
       if ($('sp-client-id-input')) $('sp-client-id-input').value = data.clientId;
     }
-    spotifyState.curatedTracks = Array.isArray(data?.tracks) ? data.tracks : [];
-    spotifyState.curatedPlaylists = Array.isArray(data?.playlists) ? data.playlists : [];
-    if (spotifyState.tab === 'featured') {
-      $('spotify-collection-banner').hidden = true;
-      renderSpotifyTracks(spotifyState.curatedTracks);
-    } else if (spotifyState.tab === 'playlists') {
-      renderSpotifyPlaylists(spotifyState.curatedPlaylists);
+    spotifyState.officialPlaylists = Array.isArray(data?.playlists) ? data.playlists : [];
+    if (spotifyState.tab === 'playlists') {
+      renderSpotifyPlaylists(spotifyState.officialPlaylists);
     }
   } catch {
     if (container) {
-      container.innerHTML = '<div class="sp-loading">Search any song or paste a Spotify URL above!</div>';
+      container.innerHTML = '<div class="sp-loading">Search any song, artist, or paste a Spotify URL above!</div>';
     }
   }
 }
 
-async function loadSpotifyUrlOrSearch(rawInput) {
+async function loadSpotifyUrlOrSearch(rawInput, autoPlayFirst = false) {
   const input = (rawInput || '').trim();
   if (!input) return;
   const container = $('spotify-results');
   if (container) {
-    container.innerHTML = `<div class="sp-loading">Searching Spotify &amp; audio streams for "${input.slice(0, 40)}"...</div>`;
+    container.innerHTML = `<div class="sp-loading">Searching Spotify for "${input.slice(0, 40)}"...</div>`;
   }
 
   try {
-    // If user is authenticated with Spotify OAuth and searching by keyword, we can also search Spotify Web API directly
     const isSpotifyLink =
       input.includes('spotify.com/') || /^spotify:(track|playlist|album|artist):/i.test(input);
     const param = isSpotifyLink
@@ -1298,19 +1180,18 @@ async function loadSpotifyUrlOrSearch(rawInput) {
       spotifyState.activeCollection = data;
       $('spotify-collection-banner').hidden = false;
       $('sp-collection-title').textContent = data.title || 'Spotify Collection';
-      $('sp-collection-sub').textContent = `${data.tracks?.length || 0} Tracks · Click any song to visualize`;
+      $('sp-collection-sub').textContent = `${data.tracks?.length || 0} Tracks · Click any song to play`;
       renderSpotifyTracks(data.tracks || []);
-      if (data.tracks?.length) {
-        playSpotifyTrack(data.tracks[0], 0, data.tracks);
-      }
       return;
     }
 
     $('spotify-collection-banner').hidden = true;
+    selectSpotifyTab('search');
     const tracks = data.tracks || [];
+    spotifyState.searchResults = tracks;
     renderSpotifyTracks(tracks, 'No matching tracks found. Try another artist or song title!');
-    if (data.kind === 'track' && tracks[0]) {
-      playSpotifyTrack(tracks[0], 0, tracks);
+    if ((data.kind === 'track' || autoPlayFirst) && tracks[0]) {
+      playSpotifyTrack(tracks[0], 0, tracks, true);
     }
   } catch {
     renderSpotifyTracks([], 'Could not reach music service. Try again in a moment.');
@@ -1320,17 +1201,16 @@ async function loadSpotifyUrlOrSearch(rawInput) {
 $('spotify-search-form')?.addEventListener('submit', e => {
   e.preventDefault();
   const q = $('spotify-search-input')?.value?.trim();
-  if (q) loadSpotifyUrlOrSearch(q);
+  if (q) loadSpotifyUrlOrSearch(q, false);
 });
 
 $('sp-back-btn')?.addEventListener('click', () => {
   $('spotify-collection-banner').hidden = true;
-  if (spotifyState.tab === 'playlists') {
-    renderSpotifyPlaylists(spotifyState.curatedPlaylists);
-  } else if (spotifyState.tab === 'library' && spotifyState.userPlaylists.length) {
+  if (spotifyState.tab === 'library' && spotifyState.userPlaylists.length) {
     renderSpotifyPlaylists(spotifyState.userPlaylists);
   } else {
-    renderSpotifyTracks(spotifyState.curatedTracks);
+    selectSpotifyTab('playlists');
+    renderSpotifyPlaylists(spotifyState.officialPlaylists);
   }
 });
 
@@ -1339,33 +1219,32 @@ $('sp-play-collection-embed')?.addEventListener('click', () => {
   if (!col?.spotifyUri) return;
   setSpotifyEngine('embed');
   $('spotify-embed-dock').hidden = false;
+  toggleSpotifyDrawer(false);
   if (spotifyState.embedController) {
     spotifyState.embedController.loadUri(col.spotifyUri);
     spotifyState.embedController.play();
-    notify(`Playing full ${col.title} in Official Spotify Player 🎧`);
+    notify(`Loaded ${col.title} in Official Spotify Player below 🎧`);
   }
 });
 
 // Category Tabs in Spotify Drawer
 document.querySelectorAll('.sp-tab').forEach(tabBtn => {
   tabBtn.addEventListener('click', () => {
-    document.querySelectorAll('.sp-tab').forEach(b => b.classList.remove('active'));
-    tabBtn.classList.add('active');
-    const tab = tabBtn.dataset.spTab || 'featured';
-    spotifyState.tab = tab;
+    const tab = tabBtn.dataset.spTab || 'playlists';
+    selectSpotifyTab(tab);
     $('spotify-collection-banner').hidden = true;
 
-    if (tab === 'featured') {
-      if (spotifyState.curatedTracks.length) {
-        renderSpotifyTracks(spotifyState.curatedTracks);
+    if (tab === 'playlists') {
+      if (spotifyState.officialPlaylists.length) {
+        renderSpotifyPlaylists(spotifyState.officialPlaylists);
       } else {
-        loadCuratedSpotifyCatalog();
+        loadOfficialSpotifyPlaylists();
       }
-    } else if (tab === 'playlists') {
-      if (spotifyState.curatedPlaylists.length) {
-        renderSpotifyPlaylists(spotifyState.curatedPlaylists);
+    } else if (tab === 'search') {
+      if (spotifyState.searchResults.length) {
+        renderSpotifyTracks(spotifyState.searchResults);
       } else {
-        loadCuratedSpotifyCatalog();
+        renderSpotifyTracks([], 'Type any artist, song title, or Spotify URL in the search bar above.');
       }
     } else if (tab === 'library') {
       renderUserSpotifyLibraryTab();
@@ -1390,13 +1269,21 @@ $('btn-copy-redirect')?.addEventListener('click', () => {
   notify('Copied Redirect URI to clipboard! 📋');
 });
 
-$('btn-spotify-connect')?.addEventListener('click', () => {
-  $('spotify-auth-modal').hidden = false;
-  $('btn-disconnect-spotify').hidden = !isSpotifyTokenValid();
+$('btn-spotify-connect')?.addEventListener('click', e => {
+  e.stopPropagation();
+  if (authModal) authModal.hidden = false;
+  if ($('btn-disconnect-spotify')) $('btn-disconnect-spotify').hidden = !isSpotifyTokenValid();
 });
 
-$('close-sp-modal')?.addEventListener('click', () => {
-  $('spotify-auth-modal').hidden = true;
+$('close-sp-modal')?.addEventListener('click', e => {
+  e.stopPropagation();
+  if (authModal) authModal.hidden = true;
+});
+
+authModal?.addEventListener('click', e => {
+  if (e.target === authModal) {
+    authModal.hidden = true;
+  }
 });
 
 function isSpotifyTokenValid() {
@@ -1464,7 +1351,7 @@ $('btn-disconnect-spotify')?.addEventListener('click', () => {
   localStorage.removeItem('sp_access_token');
   localStorage.removeItem('sp_token_expiry');
   updateSpotifyAuthBadge();
-  $('spotify-auth-modal').hidden = true;
+  if (authModal) authModal.hidden = true;
   notify('Disconnected Spotify account.');
 });
 
@@ -1505,6 +1392,7 @@ async function handleSpotifyOAuthCallback() {
       localStorage.setItem('sp_access_token', spotifyState.accessToken);
       localStorage.setItem('sp_token_expiry', String(spotifyState.tokenExpiry));
       toggleSpotifyDrawer(true);
+      selectSpotifyTab('library');
       await fetchSpotifyProfileAndLibrary();
       notify('Spotify Account Connected! 🟢');
     } else {
@@ -1526,7 +1414,7 @@ function updateSpotifyAuthBadge() {
   } else {
     btn.textContent = '🔐 Connect Account';
     btn.classList.remove('connected');
-    if (status) status.textContent = 'INSTANT STREAM & SPOTIFY EMBED READY';
+    if (status) status.textContent = 'SEARCH SONGS, PLAYLISTS, OR PASTE SPOTIFY LINK';
   }
 }
 
@@ -1628,20 +1516,20 @@ function renderUserSpotifyLibraryTab() {
   if (!isSpotifyTokenValid()) {
     container.innerHTML = `
       <div class="sp-loading">
-        <p style="margin-bottom:10px;">Connect your Spotify Account to browse your personal <b>Liked Songs</b>, <b>Playlists</b>, and <b>Top Tracks</b>—or paste any public Spotify playlist URL in the search box above!</p>
+        <p style="margin-bottom:10px;">Connect your Spotify Account to browse your personal <b>Liked Songs</b> and <b>Playlists</b>—or search any song / paste any Spotify playlist link above!</p>
         <button type="button" id="sp-inline-connect" class="sp-oauth-go-btn" style="max-width:240px;">🔐 Connect Spotify Account</button>
       </div>
     `;
     $('sp-inline-connect')?.addEventListener('click', () => {
-      $('spotify-auth-modal').hidden = false;
+      if (authModal) authModal.hidden = false;
     });
     return;
   }
 
-  if (spotifyState.userLibraryTracks.length) {
-    renderSpotifyTracks(spotifyState.userLibraryTracks);
-  } else if (spotifyState.userPlaylists.length) {
+  if (spotifyState.userPlaylists.length) {
     renderSpotifyPlaylists(spotifyState.userPlaylists);
+  } else if (spotifyState.userLibraryTracks.length) {
+    renderSpotifyTracks(spotifyState.userLibraryTracks);
   } else {
     container.innerHTML = '<div class="sp-loading">Loading your Spotify Library...</div>';
     fetchSpotifyProfileAndLibrary();
@@ -1651,21 +1539,12 @@ function renderUserSpotifyLibraryTab() {
 handleSpotifyOAuthCallback();
 
 // --- UI Event Listeners & Interactive Controls ---
-$('btn-system').addEventListener('click', startSystemAudio);
-$('file-input').addEventListener('change', e => {
-  const file = e.target.files?.[0];
-  if (file) loadAudioFile(file);
-});
-$('btn-synth').addEventListener('click', () => {
-  if (state.sourceType === 'synth' && synthPlaying) {
-    stopSynth();
-    $('btn-play-pause').textContent = '▶';
-    $('source-badge').textContent = 'SYNTH PAUSED';
-  } else {
-    startSynth();
+$('btn-system')?.addEventListener('click', startSystemAudio);
+$('file-input')?.addEventListener('change', e => {
+  if (e.target.files?.length) {
+    loadLocalFiles(e.target.files);
   }
 });
-$('btn-mic').addEventListener('click', startMicAudio);
 
 // Drag & Drop audio files anywhere on window
 window.addEventListener('dragover', e => {
@@ -1678,11 +1557,8 @@ window.addEventListener('dragleave', e => {
 window.addEventListener('drop', e => {
   e.preventDefault();
   document.body.classList.remove('dragging-file');
-  const file = e.dataTransfer?.files?.[0];
-  if (file && file.type.startsWith('audio/')) {
-    loadAudioFile(file);
-  } else if (file) {
-    loadAudioFile(file);
+  if (e.dataTransfer?.files?.length) {
+    loadLocalFiles(e.dataTransfer.files);
   }
 });
 
@@ -1690,7 +1566,7 @@ window.addEventListener('drop', e => {
 $('btn-prev-track')?.addEventListener('click', () => stepSpotifyQueue(-1));
 $('btn-next-track')?.addEventListener('click', () => stepSpotifyQueue(1));
 
-$('btn-play-pause').addEventListener('click', () => {
+$('btn-play-pause')?.addEventListener('click', () => {
   if (state.sourceType === 'file' || state.sourceType === 'spotify') {
     if (audioEl.paused) {
       ensureAudioContext();
@@ -1702,17 +1578,10 @@ $('btn-play-pause').addEventListener('click', () => {
     }
   } else if (state.sourceType === 'spotify-embed' && spotifyState.embedController) {
     spotifyState.embedController.togglePlay();
-  } else if (state.sourceType === 'synth') {
-    if (synthPlaying) {
-      stopSynth();
-      $('btn-play-pause').textContent = '▶';
-    } else {
-      startSynth();
-    }
   }
 });
 
-$('seek-bar').addEventListener('input', e => {
+$('seek-bar')?.addEventListener('input', e => {
   if ((state.sourceType === 'file' || state.sourceType === 'spotify') && Number.isFinite(audioEl.duration)) {
     audioEl.currentTime = (Number(e.target.value) / 100) * audioEl.duration;
   }
@@ -1727,28 +1596,11 @@ audioEl.addEventListener('timeupdate', () => {
 audioEl.addEventListener('ended', () => {
   if (state.sourceType === 'spotify' && spotifyState.currentQueue.length > 1) {
     stepSpotifyQueue(1);
+  } else if (state.sourceType === 'file' && localFilesQueue.length > 1) {
+    playLocalFileAt(localFileIndex + 1);
   } else {
     $('btn-play-pause').textContent = '▶';
   }
-});
-
-// Synth groove selector & Bass Drop button
-document.querySelectorAll('.groove-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.groove-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    synthGroove = Number(btn.dataset.groove) || 0;
-    if (state.sourceType === 'synth') startSynth();
-  });
-});
-
-$('btn-drop').addEventListener('click', () => {
-  if (state.sourceType !== 'synth' || !synthPlaying) startSynth();
-  dropIntensity = 1.0;
-  state.beatPulse = 1.45;
-  state.beatPhase += 1.5;
-  triggerKick(audioCtx.currentTime, 1.6);
-  notify('⚡ SUB-BASS DROP TRIGGERED!');
 });
 
 // Visual Mode Tabs
@@ -1764,30 +1616,20 @@ document.querySelectorAll('.mode-pill').forEach(btn => {
   });
 });
 
-// Customization Drawer Controls
-const drawer = $('custom-drawer');
-$('toggle-drawer').addEventListener('click', () => {
-  drawer.hidden = !drawer.hidden;
-  $('toggle-drawer').setAttribute('aria-expanded', String(!drawer.hidden));
-});
-$('close-drawer').addEventListener('click', () => {
-  drawer.hidden = true;
-  $('toggle-drawer').setAttribute('aria-expanded', 'false');
-});
-
-$('ctrl-gain').addEventListener('input', e => {
+// Customization Sliders & Palettes
+$('ctrl-gain')?.addEventListener('input', e => {
   state.gain = Number(e.target.value);
   $('val-gain').textContent = `${state.gain.toFixed(2)}×`;
 });
-$('ctrl-decay').addEventListener('input', e => {
+$('ctrl-decay')?.addEventListener('input', e => {
   state.decay = Number(e.target.value);
   $('val-decay').textContent = `${Math.round(state.decay * 100)}%`;
 });
-$('ctrl-warp').addEventListener('input', e => {
+$('ctrl-warp')?.addEventListener('input', e => {
   state.warp = Number(e.target.value);
   $('val-warp').textContent = `${state.warp.toFixed(2)}×`;
 });
-$('ctrl-sym').addEventListener('input', e => {
+$('ctrl-sym')?.addEventListener('input', e => {
   state.symmetry = Number(e.target.value);
   $('val-sym').textContent = state.symmetry === 1 ? 'OFF (1×)' : `${state.symmetry}× KALEIDOSCOPE`;
 });
@@ -1805,10 +1647,10 @@ function setZenMode(on) {
   document.body.classList.toggle('zen-mode', on);
   $('exit-zen').hidden = !on;
 }
-$('zen-btn').addEventListener('click', () => setZenMode(true));
-$('exit-zen').addEventListener('click', () => setZenMode(false));
+$('zen-btn')?.addEventListener('click', () => setZenMode(true));
+$('exit-zen')?.addEventListener('click', () => setZenMode(false));
 
-$('fullscreen-btn').addEventListener('click', () => {
+$('fullscreen-btn')?.addEventListener('click', () => {
   if (!document.fullscreenElement) {
     document.documentElement.requestFullscreen?.().catch(() => {});
   } else {
@@ -1817,15 +1659,25 @@ $('fullscreen-btn').addEventListener('click', () => {
 });
 
 window.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && document.body.classList.contains('zen-mode')) {
-    setZenMode(false);
-  } else if (e.key === ' ' && !['INPUT', 'BUTTON'].includes(document.activeElement?.tagName)) {
-    e.preventDefault();
-    $('btn-play-pause').click();
+  if (e.key === 'Escape') {
+    if (authModal && !authModal.hidden) {
+      authModal.hidden = true;
+    } else if (spotifyDrawer && !spotifyDrawer.hidden) {
+      toggleSpotifyDrawer(false);
+    } else if (customDrawer && !customDrawer.hidden) {
+      toggleCustomDrawer(false);
+    } else if (document.body.classList.contains('zen-mode')) {
+      setZenMode(false);
+    }
+  } else if (e.key === ' ' && !['INPUT', 'BUTTON', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
+    if (!$('transport-bar')?.hidden) {
+      e.preventDefault();
+      $('btn-play-pause')?.click();
+    }
   }
 });
 
-// Interactive Pointer Physics on Canvas
+// Interactive Pointer Physics on Canvas (also dismisses open drawers on background click)
 function updatePointer(clientX, clientY) {
   const nx = clientX / Math.max(1, window.innerWidth);
   const ny = 1.0 - clientY / Math.max(1, window.innerHeight);
@@ -1836,6 +1688,8 @@ function updatePointer(clientX, clientY) {
 }
 
 canvas.addEventListener('pointerdown', e => {
+  if (spotifyDrawer && !spotifyDrawer.hidden) toggleSpotifyDrawer(false);
+  if (customDrawer && !customDrawer.hidden) toggleCustomDrawer(false);
   state.pointerDown = true;
   updatePointer(e.clientX, e.clientY);
   state.beatPulse = Math.max(state.beatPulse, 0.9);
@@ -1867,15 +1721,14 @@ function renderLoop(now) {
 
   updateAudioAnalysis(timeSec, dt);
 
-  // Decay pointer velocity smoothly
   state.pointerVx *= Math.exp(-dt * 10);
   state.pointerVy *= Math.exp(-dt * 10);
 
-  // Update Telemetry DOM meters
   $('meter-bass').style.width = `${Math.min(100, Math.round((state.subBass * 0.5 + state.bass * 0.5) * 85))}%`;
   $('meter-mid').style.width = `${Math.min(100, Math.round(state.mid * 85))}%`;
   $('meter-high').style.width = `${Math.min(100, Math.round(state.high * 90))}%`;
-  $('bpm-readout').textContent = state.sourceType === 'idle' ? 'INTERACTIVE DEMO · TOUCH CANVAS' : `~${state.bpmEstimate} BPM · LIVE DSP`;
+  $('bpm-readout').textContent =
+    state.sourceType === 'idle' ? 'WAITING FOR AUDIO' : `~${state.bpmEstimate} BPM · LIVE DSP`;
 
   const orbScale = 1 + state.beatPulse * 0.55;
   $('beat-indicator').style.transform = `scale(${orbScale.toFixed(2)})`;

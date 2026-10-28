@@ -12,51 +12,44 @@ export interface VisualizerTrack {
   previewUrl: string | null;
   streamProxyUrl: string | null;
   externalUrl?: string;
-  bpmHint?: number;
 }
 
-const CURATED_SEEDS: Array<{
-  spotifyId: string;
-  title: string;
-  artist: string;
-  bpmHint: number;
-}> = [
-  { spotifyId: '0VjIjW4GlUZAMYd2vXMi3b', title: 'Blinding Lights', artist: 'The Weeknd', bpmHint: 171 },
-  { spotifyId: '2Foc5Q5nqNiosCNqttzHof', title: 'Get Lucky', artist: 'Daft Punk', bpmHint: 116 },
-  { spotifyId: '5K5dQs6S1s0B7tC2A8E7m5', title: 'Innerbloom', artist: 'RÜFÜS DU SOL', bpmHint: 122 },
-  { spotifyId: '0DiWol3AO6WpXZgp0goxAV', title: 'One More Time', artist: 'Daft Punk', bpmHint: 123 },
-  { spotifyId: '6K4t31amVTZDgR3sKmwUJJ', title: 'The Less I Know The Better', artist: 'Tame Impala', bpmHint: 117 },
-  { spotifyId: '1A8j067qyiNwQnZT0bzUpZ', title: 'Nightcall', artist: 'Kavinsky', bpmHint: 91 },
-  { spotifyId: '7MXVkk9YMctZqd1Srtv4MB', title: 'Starboy', artist: 'The Weeknd, Daft Punk', bpmHint: 186 },
-  { spotifyId: '3cfOd4CMv2snFaKAnMdnvK', title: 'Strobe', artist: 'deadmau5', bpmHint: 128 },
-  { spotifyId: '4cOdK2wGLETKBW3PvgPWqT', title: 'Genesis', artist: 'Justice', bpmHint: 117 },
-  { spotifyId: '5U2R5P8mE91v7f3N1G3t2y', title: 'The Last Goodbye', artist: 'ODESZA', bpmHint: 115 },
-];
-
-const CURATED_PLAYLISTS = [
+const OFFICIAL_SPOTIFY_PLAYLISTS = [
+  {
+    id: '37i9dQZF1DXcBWIGoYBM5M',
+    title: "Today's Top Hits",
+    subtitle: 'Spotify Official · Global Hits',
+    spotifyUrl: 'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',
+  },
   {
     id: '37i9dQZF1DX4dyzvuaRJ0n',
     title: 'mint · Electronic & Club',
-    subtitle: 'Spotify Official Electronic Playlist',
+    subtitle: 'Spotify Official · Dance & Electronic',
     spotifyUrl: 'https://open.spotify.com/playlist/37i9dQZF1DX4dyzvuaRJ0n',
   },
   {
-    id: '37i9dQZF1DX0BcQWzuB7ZO',
-    title: 'Dance Hits',
-    subtitle: 'High-Energy Festival & Bass Anthems',
-    spotifyUrl: 'https://open.spotify.com/playlist/37i9dQZF1DX0BcQWzuB7ZO',
+    id: '37i9dQZF1DX0XUsuxWHRQd',
+    title: 'RapCaviar',
+    subtitle: 'Spotify Official · Hip-Hop',
+    spotifyUrl: 'https://open.spotify.com/playlist/37i9dQZF1DX0XUsuxWHRQd',
   },
   {
     id: '37i9dQZF1DX8CopunbDxgW',
     title: 'Night Rider',
-    subtitle: 'Dark Synthwave, Cyberpunk & Outrun',
+    subtitle: 'Spotify Official · Synthwave & Electronic',
     spotifyUrl: 'https://open.spotify.com/playlist/37i9dQZF1DX8CopunbDxgW',
   },
   {
-    id: '37i9dQZF1DX6J5NfMJS675',
-    title: 'Techno Bunker',
-    subtitle: 'Hypnotic Driving Peak-Time Techno',
-    spotifyUrl: 'https://open.spotify.com/playlist/37i9dQZF1DX6J5NfMJS675',
+    id: '37i9dQZF1DWXRqgorJj26U',
+    title: 'Rock Classics',
+    subtitle: 'Spotify Official · Iconic Rock Anthems',
+    spotifyUrl: 'https://open.spotify.com/playlist/37i9dQZF1DWXRqgorJj26U',
+  },
+  {
+    id: '37i9dQZF1DX4WYpdgoIcn6',
+    title: 'Chill Hits',
+    subtitle: 'Spotify Official · Laid-Back Pop & Indie',
+    spotifyUrl: 'https://open.spotify.com/playlist/37i9dQZF1DX4WYpdgoIcn6',
   },
 ];
 
@@ -67,7 +60,6 @@ function toProxyUrl(previewUrl: string | null | undefined): string | null {
 
 function parseSpotifyInput(input: string): { type: 'track' | 'playlist' | 'album' | 'artist'; id: string } | null {
   const trimmed = input.trim();
-  // Match spotify:track:ID
   const uriMatch = trimmed.match(/^spotify:(track|playlist|album|artist):([a-zA-Z0-9]+)$/i);
   if (uriMatch) {
     return {
@@ -75,7 +67,6 @@ function parseSpotifyInput(input: string): { type: 'track' | 'playlist' | 'album
       id: uriMatch[2],
     };
   }
-  // Match https://open.spotify.com/(intl-xx/)?(embed/)?(track|playlist|album|artist)/ID
   const urlMatch = trimmed.match(
     /spotify\.com\/(?:intl-[a-z-]+\/)?(?:embed\/)?(track|playlist|album|artist)\/([a-zA-Z0-9]+)/i
   );
@@ -88,7 +79,7 @@ function parseSpotifyInput(input: string): { type: 'track' | 'playlist' | 'album
   return null;
 }
 
-async function searchItunesTracks(query: string, limit = 12): Promise<VisualizerTrack[]> {
+async function searchItunesTracks(query: string, limit = 16): Promise<VisualizerTrack[]> {
   try {
     const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=${limit}`;
     const res = await fetch(url, { next: { revalidate: 1800 } });
@@ -192,7 +183,6 @@ export async function GET(req: NextRequest) {
     process.env.SPOTIFY_CLIENT_ID ||
     '';
 
-  // 1. Resolve a single track by title + artist + optional spotifyId
   if (resolveTrack) {
     const title = sp.get('title') || '';
     const artist = sp.get('artist') || '';
@@ -202,7 +192,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ track, clientId: configuredClientId });
   }
 
-  // 2. Resolve any pasted Spotify URL or URI (Track, Playlist, Album, Artist)
   if (spotifyUrl) {
     const parsed = parseSpotifyInput(spotifyUrl);
     if (!parsed) {
@@ -247,7 +236,6 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Playlist, Album, or Artist top tracks
     if (entity && Array.isArray(entity.trackList) && entity.trackList.length > 0) {
       const collectionArtwork =
         entity?.visualIdentity?.image?.[0]?.url ||
@@ -255,7 +243,6 @@ export async function GET(req: NextRequest) {
         '';
       const rawList = entity.trackList.slice(0, 25);
 
-      // Resolve audio streams for the first 8 tracks immediately in parallel so they play in 1 click
       const tracks: VisualizerTrack[] = await Promise.all(
         rawList.map(async (item: Record<string, any>, index: number) => {
           const uri = String(item.uri || '');
@@ -281,7 +268,7 @@ export async function GET(req: NextRequest) {
             };
           }
 
-          if (index < 8) {
+          if (index < 6) {
             const resolved = await resolveSingleTrackStream(
               tTitle,
               tArtist,
@@ -328,7 +315,6 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // 3. Search tracks by keyword (or if user pasted a Spotify link into the search box)
   if (query) {
     const maybeSpotify = parseSpotifyInput(query);
     if (maybeSpotify) {
@@ -338,7 +324,7 @@ export async function GET(req: NextRequest) {
       return GET(new NextRequest(redirectUrl));
     }
 
-    const tracks = await searchItunesTracks(query, 16);
+    const tracks = await searchItunesTracks(query, 18);
     return NextResponse.json({
       kind: 'search',
       query,
@@ -347,23 +333,9 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // 4. Default: Return Curated Visualizer Showcase Tracks & Official Spotify Playlists
-  const curatedTracks = await Promise.all(
-    CURATED_SEEDS.map(async seed => {
-      const resolved = await resolveSingleTrackStream(
-        seed.title,
-        seed.artist,
-        seed.spotifyId
-      );
-      resolved.bpmHint = seed.bpmHint;
-      return resolved;
-    })
-  );
-
   return NextResponse.json({
-    kind: 'curated',
-    tracks: curatedTracks.filter(t => t.streamProxyUrl),
-    playlists: CURATED_PLAYLISTS,
+    kind: 'playlists',
+    playlists: OFFICIAL_SPOTIFY_PLAYLISTS,
     clientId: configuredClientId,
   });
 }
