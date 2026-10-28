@@ -361,8 +361,78 @@ function estimateBpmFromTrack(title = '', artist = '') {
   return 112 + (hash % 28);
 }
 
-// Silently analyzes the track's audio characteristics in memory (NEVER connected to speakers!)
-// so the visualizer reacts to the song's real bass, mids, highs, and tempo during full-track playback.
+// Fast in-place 1024-point Radix-2 FFT to extract real 512-bin frequency spectra from decoded PCM audio in memory
+const FFT_N = 1024;
+const fftRe = new Float32Array(FFT_N);
+const fftIm = new Float32Array(FFT_N);
+const fftWin = new Float32Array(FFT_N);
+for (let i = 0; i < FFT_N; i++) {
+  fftWin[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (FFT_N - 1)));
+}
+
+function computePcmFftFrame(channelData, startIdx, outFreq512, outWave512) {
+  const maxLen = channelData.length;
+  for (let i = 0; i < FFT_N; i++) {
+    const s = startIdx + i < maxLen ? channelData[startIdx + i] : 0;
+    fftRe[i] = s * fftWin[i];
+    fftIm[i] = 0;
+    if (i < 512) {
+      outWave512[i] = Math.max(0, Math.min(255, Math.round(128 + s * 120)));
+    }
+  }
+
+  // Bit-reversal permutation
+  let j = 0;
+  for (let i = 0; i < FFT_N; i++) {
+    if (i < j) {
+      const tr = fftRe[i];
+      fftRe[i] = fftRe[j];
+      fftRe[j] = tr;
+    }
+    let m = FFT_N >> 1;
+    while (m >= 1 && j >= m) {
+      j -= m;
+      m >>= 1;
+    }
+    j += m;
+  }
+
+  // Cooley-Tukey butterflies
+  for (let len = 2; len <= FFT_N; len <<= 1) {
+    const half = len >> 1;
+    const ang = (-2 * Math.PI) / len;
+    const wCos = Math.cos(ang);
+    const wSin = Math.sin(ang);
+    for (let i = 0; i < FFT_N; i += len) {
+      let uRe = 1;
+      let uIm = 0;
+      for (let k = 0; k < half; k++) {
+        const evenIdx = i + k;
+        const oddIdx = evenIdx + half;
+        const tRe = uRe * fftRe[oddIdx] - uIm * fftIm[oddIdx];
+        const tIm = uRe * fftIm[oddIdx] + uIm * fftRe[oddIdx];
+        fftRe[oddIdx] = fftRe[evenIdx] - tRe;
+        fftIm[oddIdx] = fftIm[evenIdx] - tIm;
+        fftRe[evenIdx] += tRe;
+        fftIm[evenIdx] += tIm;
+        const nextURe = uRe * wCos - uIm * wSin;
+        uIm = uRe * wSin + uIm * wCos;
+        uRe = nextURe;
+      }
+    }
+  }
+
+  // Convert magnitudes to dB-scaled 0..255 byte bins matching WebAudio AnalyserNode
+  for (let i = 0; i < 512; i++) {
+    const mag = Math.hypot(fftRe[i], fftIm[i]) / (FFT_N * 0.25);
+    const db = 20 * Math.log10(mag + 1e-6);
+    const norm = Math.max(0, Math.min(1, (db + 68) / 58));
+    outFreq512[i] = Math.round(norm * 255);
+  }
+}
+
+// Silently analyzes the track's real PCM audio in memory (NEVER connected to speakers!)
+// so the visualizer renders real 512-bin FFT spectra and real waveforms during full-track Spotify playback.
 async function analyzeTrackSignatureInBackground(track) {
   if (!track) return;
   spotifyState.trackSignature = null;
@@ -386,7 +456,7 @@ async function analyzeTrackSignatureInBackground(track) {
       .catch(() => {});
   }
 
-  // 2. Decode sample buffer silently in memory (no AudioNode / no speaker output) to extract real spectral envelope
+  // 2. Decode sample buffer silently in memory (no AudioNode / no speaker output) to extract real 512-bin FFT & waveform frames
   try {
     let streamUrl = track.streamProxyUrl;
     if (!streamUrl && track.title) {
@@ -418,54 +488,39 @@ async function analyzeTrackSignatureInBackground(track) {
     if (spotifyState.currentTrack?.id !== track.id) return;
 
     const ch = decoded.getChannelData(0);
-    const slices = 160;
-    const step = Math.max(1, Math.floor(ch.length / slices));
-    const bassCurve = new Float32Array(slices);
-    const midCurve = new Float32Array(slices);
-    const highCurve = new Float32Array(slices);
+    const slices = 240;
+    const step = Math.max(1, Math.floor(Math.max(1, ch.length - FFT_N) / slices));
+    const fftFrames = new Uint8Array(slices * 512);
+    const waveFrames = new Uint8Array(slices * 512);
+    const tempFreq = new Uint8Array(512);
+    const tempWave = new Uint8Array(512);
 
     let peakOnsets = 0;
     let prevLow = 0;
     for (let s = 0; s < slices; s++) {
-      const start = s * step;
-      const len = Math.min(2048, ch.length - start);
-      let lowAcc = 0;
-      let midAcc = 0;
-      let highAcc = 0;
-      let lp = 0;
-      let prevSample = ch[start] || 0;
-      for (let i = 0; i < len; i++) {
-        const sample = ch[start + i];
-        lp = lp * 0.88 + sample * 0.12;
-        const hp = sample - prevSample;
-        const bp = sample - lp;
-        prevSample = sample;
-        lowAcc += Math.abs(lp);
-        midAcc += Math.abs(bp);
-        highAcc += Math.abs(hp);
-      }
-      const normLow = Math.min(1.6, (lowAcc / Math.max(1, len)) * 6.5);
-      const normMid = Math.min(1.6, (midAcc / Math.max(1, len)) * 5.2);
-      const normHigh = Math.min(1.6, (highAcc / Math.max(1, len)) * 7.5);
-      bassCurve[s] = normLow;
-      midCurve[s] = normMid;
-      highCurve[s] = normHigh;
-      if (normLow > prevLow * 1.25 && normLow > 0.25) peakOnsets++;
+      computePcmFftFrame(ch, s * step, tempFreq, tempWave);
+      fftFrames.set(tempFreq, s * 512);
+      waveFrames.set(tempWave, s * 512);
+
+      let lowSum = 0;
+      for (let b = 1; b <= 16; b++) lowSum += tempFreq[b];
+      const normLow = lowSum / (16 * 255);
+      if (normLow > prevLow * 1.22 && normLow > 0.35) peakOnsets++;
       prevLow = normLow;
     }
 
     const durSec = Math.max(10, decoded.duration);
-    const estimatedBpm = Math.max(88, Math.min(168, Math.round((peakOnsets / durSec) * 60 * 2)));
+    const estimatedBpm = Math.max(88, Math.min(168, Math.round((peakOnsets / durSec) * 60 * 1.6)));
     if (!spotifyState.trackSignature?.energy) {
       state.bpmEstimate = estimatedBpm;
     }
 
     spotifyState.trackSignature = {
       ...(spotifyState.trackSignature || {}),
-      bassCurve,
-      midCurve,
-      highCurve,
+      fftFrames,
+      waveFrames,
       slices,
+      sampleDurationSec: durSec,
     };
   } catch {}
 }
@@ -622,19 +677,18 @@ function stepSpotifyQueue(delta) {
 
 // --- Real-Time Audio Analysis & Beat Detection ---
 function updateAudioAnalysis(timeSec, dt) {
+  const hasLiveStream = Boolean(
+    activeStream && activeStream.getAudioTracks().some(t => t.readyState === 'live')
+  );
   const hasDirectAudio =
-    analyser &&
-    ((state.sourceType === 'file' && !audioEl.paused) ||
-      (state.sourceType === 'system' && activeStream));
+    analyser && (hasLiveStream || (state.sourceType === 'file' && !audioEl.paused));
 
-  if (hasDirectAudio) {
-    analyser.getByteFrequencyData(freqData);
-    analyser.getByteTimeDomainData(waveData);
-  } else if (
+  const isSpotifyActive =
     (state.sourceType === 'spotify-embed' || state.sourceType === 'spotify') &&
-    (spotifyState.embedPlaying || spotifyState.sdkPlaying)
-  ) {
-    // Advance position smoothly between SDK / Embed updates
+    (spotifyState.embedPlaying || spotifyState.sdkPlaying);
+
+  if (isSpotifyActive) {
+    // Advance Spotify timeline scrubber smoothly between SDK / Embed updates
     spotifyState.embedPositionMs += dt * 1000;
     if (spotifyState.embedDurationMs > 0) {
       const pct = Math.min(100, (spotifyState.embedPositionMs / spotifyState.embedDurationMs) * 100);
@@ -647,66 +701,47 @@ function updateAudioAnalysis(timeSec, dt) {
         )}`;
       }
     }
+  }
 
-    // Track-signature + beat-locked multi-band synthesis for full-track Spotify playback
-    const bpm = state.bpmEstimate || 122;
+  if (hasDirectAudio) {
+    analyser.getByteFrequencyData(freqData);
+    analyser.getByteTimeDomainData(waveData);
+  } else if (isSpotifyActive) {
     const posSec = (spotifyState.embedPositionMs || timeSec * 1000) * 0.001;
-    const beatPos = posSec * (bpm / 60);
-    const beatFrac = beatPos - Math.floor(beatPos);
-
-    // Sample the song's real decoded spectral envelope if available
     const sig = spotifyState.trackSignature;
-    let sigBass = 1.0;
-    let sigMid = 1.0;
-    let sigHigh = 1.0;
-    if (sig?.bassCurve && sig.slices > 1) {
-      const cyc = (posSec * 3.8) % sig.slices;
-      const idx0 = Math.floor(cyc) % sig.slices;
-      const idx1 = (idx0 + 1) % sig.slices;
-      const frac = cyc - Math.floor(cyc);
-      sigBass = 0.45 + (sig.bassCurve[idx0] * (1 - frac) + sig.bassCurve[idx1] * frac) * 0.95;
-      sigMid = 0.45 + (sig.midCurve[idx0] * (1 - frac) + sig.midCurve[idx1] * frac) * 0.95;
-      sigHigh = 0.45 + (sig.highCurve[idx0] * (1 - frac) + sig.highCurve[idx1] * frac) * 0.95;
-    }
 
-    const kickEnv = Math.pow(Math.max(0, 1.0 - beatFrac * 2.5), 2.1) * sigBass;
-    const snareEnv =
-      (Math.floor(beatPos) % 2 === 1 ? Math.pow(Math.max(0, 1.0 - beatFrac * 2.9), 1.8) : 0) * sigMid;
-    const hatEnv = Math.pow(Math.max(0, 1.0 - ((beatPos * 2) % 1) * 3.1), 2.0) * sigHigh;
-    const seed = spotifyState.trackSeed || 1.1;
+    if (sig?.fftFrames && sig?.waveFrames && sig.slices > 1) {
+      // Sample the song's real decoded 512-bin FFT frames & real PCM waveform frames
+      const sampleDur = sig.sampleDurationSec || 29.0;
+      const frameRate = sig.slices / sampleDur;
+      const exactFrame = (posSec * frameRate) % sig.slices;
+      const f0 = Math.floor(exactFrame) % sig.slices;
+      const f1 = (f0 + 1) % sig.slices;
+      const mix = exactFrame - Math.floor(exactFrame);
+      const base0 = f0 * 512;
+      const base1 = f1 * 512;
 
-    for (let i = 0; i < 512; i++) {
-      const f = i / 512;
-      const subKick = Math.exp(-f * 14.0) * kickEnv * 240;
-      const bassGroove =
-        Math.exp(-Math.pow((f - 0.07) * 18.0, 2.0)) *
-        (105 + 95 * Math.sin(beatPos * Math.PI * 0.5 * seed)) *
-        sigBass;
-      const vocalMids =
-        Math.exp(-Math.pow((f - 0.24) * 7.5, 2.0)) *
-        (80 + snareEnv * 115 + 55 * Math.sin(f * 32.0 - timeSec * 6.5 * seed)) *
-        sigMid;
-      const hiAir =
-        (Math.pow(f, 0.7) * hatEnv * 130 + Math.sin(f * 70.0 + timeSec * 11.0) * 22) * sigHigh;
-      freqData[i] = Math.max(0, Math.min(255, subKick + bassGroove + vocalMids + hiAir));
-
-      const wave =
-        128 +
-        Math.sin(f * Math.PI * 4.0 + timeSec * 9.0) * (34 + kickEnv * 60) +
-        Math.sin(f * Math.PI * 18.0 - timeSec * 15.0 * seed) * (18 + snareEnv * 36) +
-        Math.cos(f * Math.PI * 42.0 + timeSec * 23.0) * (hatEnv * 24);
-      waveData[i] = Math.max(0, Math.min(255, wave));
+      for (let i = 0; i < 512; i++) {
+        freqData[i] = Math.round(sig.fftFrames[base0 + i] * (1 - mix) + sig.fftFrames[base1 + i] * mix);
+        waveData[i] = Math.round(sig.waveFrames[base0 + i] * (1 - mix) + sig.waveFrames[base1 + i] * mix);
+      }
+    } else {
+      // Brief transient pulse during the first ~300ms while the track's audio signature decodes
+      const bpm = state.bpmEstimate || 122;
+      const beatPos = posSec * (bpm / 60);
+      const beatFrac = beatPos - Math.floor(beatPos);
+      const kickEnv = Math.pow(Math.max(0, 1.0 - beatFrac * 2.8), 2.4);
+      for (let i = 0; i < 512; i++) {
+        const f = i / 512;
+        freqData[i] = Math.round(Math.exp(-f * 9.0) * kickEnv * 190);
+        waveData[i] = Math.round(128 + (Math.random() - 0.5) * kickEnv * 60);
+      }
     }
   } else {
-    // Gentle harmonic demo signal when idle so the visualizer breathes and responds to touch
+    // Calm decay to rest when no music is playing (no fake superimposed demo pattern)
     for (let i = 0; i < 512; i++) {
-      const f = i / 512;
-      const pulse = Math.pow(Math.sin(timeSec * 2.1) * 0.5 + 0.5, 3);
-      const val = Math.max(0, (1 - f * 1.1) * (65 + pulse * 95 * Math.exp(-f * 4)) + Math.sin(f * 28 - timeSec * 4) * 18);
-      freqData[i] = Math.min(255, val);
-      const wave = 128 + Math.sin(f * Math.PI * 6 + timeSec * 5) * (28 + pulse * 36) +
-                   Math.cos(f * Math.PI * 14 - timeSec * 8) * 14;
-      waveData[i] = Math.max(0, Math.min(255, wave));
+      freqData[i] = Math.floor(freqData[i] * 0.86);
+      waveData[i] = Math.round(128 + (waveData[i] - 128) * 0.84);
     }
   }
 
@@ -861,23 +896,20 @@ void main() {
   vec3 seed = vec3(0.0);
 
   if (uMode == 0) {
-    // MODE 0: ALCHEMY PLASMA — Twin intertwined oscilloscope ribbons + radial bass pulse
-    float y1 = waveSample * (0.28 + uBass * 0.22) + sin(vUv.x * 6.28 + uTime * 2.0) * 0.06;
-    float y2 = -waveSample2 * (0.24 + uMid * 0.2) + cos(vUv.x * 6.28 - uTime * 1.7) * 0.06;
+    // MODE 0: ALCHEMY PLASMA — Pure audio-driven oscilloscope ribbons & fluid advection (no static overlay)
+    float energyGate = clamp((uBass + uMid + uHigh) * 1.35, 0.0, 1.0);
+    float y1 = waveSample * (0.34 + uBass * 0.25);
+    float y2 = -waveSample2 * (0.28 + uMid * 0.22);
     float d1 = abs(p.y - y1);
     float d2 = abs(p.y - y2);
-    float glow1 = 0.0045 / (d1 + 0.0035);
-    float glow2 = 0.004 / (d2 + 0.0035);
-
-    float ringR = 0.24 + uBass * 0.14 + fftVal * 0.16 + (waveSample * 0.06);
-    float dRing = abs(rad - ringR);
-    float ringGlow = (0.0035 + uBeat * 0.004) / (dRing + 0.004);
+    float glow1 = (0.0042 / (d1 + 0.004)) * energyGate;
+    float glow2 = (0.0036 / (d2 + 0.004)) * energyGate;
 
     vec3 c1 = palette(vUv.x + uTime * 0.12 + uPhase * 0.1, uPalette);
     vec3 c2 = palette(vUv.x + 0.45 - uTime * 0.1, uPalette);
-    seed += c1 * glow1 * (0.65 + uBass * 0.6);
-    seed += c2 * glow2 * (0.55 + uMid * 0.6);
-    seed += palette(fftU + uTime * 0.2, uPalette) * ringGlow * (0.5 + fftVal);
+    seed += c1 * glow1 * (0.55 + uBass * 0.75);
+    seed += c2 * glow2 * (0.45 + uMid * 0.75);
+    seed += palette(fftU + uTime * 0.18, uPalette) * fftVal * exp(-rad * 3.2) * (0.35 + uBeat * 0.55);
   } else if (uMode == 1) {
     // MODE 1: FIRESTORM BARS — Subtle upward ember smoke from equalizer skyline
     prev = texture2D(uPrevTex, clamp(vUv - vec2(0.0, 0.0045 * uWarp), 0.002, 0.998)).rgb * 0.78;
@@ -898,15 +930,16 @@ void main() {
     float polyR = max(boxP.x, boxP.y);
     float ringPattern = abs(fract(polyR * 5.0 - uTime * (1.4 + uBass * 1.8)) - 0.5);
     float gateGlow = 0.009 / (ringPattern + 0.012) * smoothstep(0.03, 0.22, rad);
-    seed += palette(polyR + uTime * 0.15 + uBeat * 0.2, uPalette) * gateGlow * (0.4 + fftVal * 0.8);
+    seed += palette(polyR + uTime * 0.15 + uBeat * 0.2, uPalette) * gateGlow * (0.2 + fftVal * 0.9);
   } else {
     // Modes 4, 5, 6 use crisp procedural geometry in Pass 2 with minimal background trail
     prev *= 0.65;
   }
 
-  // Interactive pointer spark injection
-  float ptrGlow = (0.0025 + 0.006 * uPointerDown) / (ptrDist + 0.008);
-  seed += palette(uTime * 0.3, uPalette) * ptrGlow * 0.4;
+  // Interactive pointer spark injection ONLY when pointer is actively moving or pressed
+  float ptrActive = clamp(uPointerDown + length(uPointerVel) * 18.0, 0.0, 1.0);
+  float ptrGlow = (0.005 * ptrActive) / (ptrDist + 0.008);
+  seed += palette(uTime * 0.3, uPalette) * ptrGlow * 0.45;
 
   vec3 outCol = prev * uDecay + seed * 0.34;
   gl_FragColor = vec4(clamp(outCol, 0.0, 1.0), 1.0);
@@ -972,10 +1005,10 @@ void main() {
   float waveSample = (texture2D(uAudioTex, vec2(clamp(vUv.x, 0.01, 0.99), 0.75)).r - 0.5) * 2.0;
 
   if (uMode == 0) {
-    // MODE 0: ALCHEMY PLASMA — Crisp oscilloscope core ribbon over MilkDrop plasma
-    float yCore = waveSample * (0.28 + uBass * 0.22) + sin(vUv.x * 6.28 + uTime * 2.0) * 0.06;
-    float coreLine = smoothstep(0.008, 0.001, abs(p.y - yCore));
-    col += vec3(0.9, 0.98, 1.0) * coreLine * 0.85;
+    // MODE 0: ALCHEMY PLASMA — Crisp audio waveform ribbon (scales with live signal, no hardcoded sine overlay)
+    float yCore = waveSample * (0.34 + uBass * 0.25);
+    float coreLine = smoothstep(0.007, 0.001, abs(p.y - yCore)) * clamp(abs(waveSample) * 3.5 + uBass * 0.7, 0.0, 1.0);
+    col += vec3(0.9, 0.98, 1.0) * coreLine * 0.8;
 
   } else if (uMode == 1) {
     // MODE 1: FIRESTORM BARS — 96-band LED spectrum skyline + rippled water lake reflection
@@ -1057,9 +1090,6 @@ void main() {
       float spark = (0.018 / (d + 0.008)) * smoothstep(0.0, 0.2, z) * (1.0 - z);
       col += palette(hash21(id) + uTime * 0.1, uPalette) * spark * (0.6 + uHigh * 0.9);
     }
-    float spokeWave = (texture2D(uAudioTex, vec2(clamp((ang + 3.14159) / 6.28318, 0.01, 0.99), 0.75)).r - 0.5) * 2.0;
-    float spokeDist = abs(r - (0.16 + uBass * 0.11 + spokeWave * 0.06));
-    col += vec3(0.92, 0.98, 1.0) * (0.003 / (spokeDist + 0.0035));
 
   } else if (uMode == 4) {
     // MODE 4: SYNTHWAVE SUN & 3D OUTRUN GRID — Retro horizon, sliced sun, audio mountains, 3D wireframe floor
