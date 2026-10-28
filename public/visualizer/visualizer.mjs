@@ -6,23 +6,30 @@ const audioEl = $('audio-el');
 
 // --- State & Customization Parameters ---
 const state = {
-  mode: 0,          // 0: Alchemy Plasma, 1: Firestorm Waves, 2: Ferro-Orb 3D, 3: Hyper-Tunnel
+  mode: 0,          // 0..6 visual worlds
   palette: 0,       // 0..4 color palettes
-  gain: 1.3,
+  gain: 1.35,
+  bassBoost: 1.35,
+  vocalBoost: 1.45,
+  trebleBoost: 1.35,
   decay: 0.94,
   warp: 1.2,
   symmetry: 1,
-  sourceType: 'idle', // 'idle' | 'system' | 'file' | 'synth' | 'mic'
+  sourceType: 'idle', // 'idle' | 'system' | 'file' | 'spotify' | 'spotify-embed'
   pointerX: 0.5,
   pointerY: 0.5,
   pointerVx: 0,
   pointerVy: 0,
   pointerDown: false,
-  // Audio telemetry
-  subBass: 0,
-  bass: 0,
-  mid: 0,
-  high: 0,
+  // 5-Stem Multi-Dimensional Audio Telemetry
+  subBass: 0,       // 20-110 Hz (808 sub & kick body)
+  bass: 0,          // 110-320 Hz (bassline & warm groove)
+  vocal: 0,         // 320-2800 Hz (lead vocals, lyrics, solo melody)
+  vocalPitch: 0.5,  // 0..1 spectral centroid within the vocal formant band
+  mid: 0,           // 2800-6000 Hz (harmonics, synths, guitars, snare snap)
+  high: 0,          // 6000-16000 Hz (hi-hats, cymbals, air, shimmer)
+  kickImpulse: 0,   // Instantaneous sub/kick shockwave ring radius (0..1)
+  trebleSpark: 0,   // High-frequency transient burst intensity
   beatPulse: 0,
   beatPhase: 0,
   bpmEstimate: 124,
@@ -58,6 +65,8 @@ let audioTexData = new Uint8Array(512 * 2); // 512x2 LUMINANCE texture (Row 0: F
 let activeStream = null;
 let streamSourceNode = null;
 let mediaElementSourceNode = null;
+let silentTrackSourceNode = null; // Feeds decoded track buffer ONLY to analyser (NEVER to destination!)
+let silentTrackBuffer = null;
 let localFilesQueue = [];
 let localFileIndex = 0;
 
@@ -66,7 +75,7 @@ function ensureAudioContext() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     analyser = audioCtx.createAnalyser();
     analyser.fftSize = 2048;
-    analyser.smoothingTimeConstant = 0.76;
+    analyser.smoothingTimeConstant = 0.72;
     freqData = new Uint8Array(analyser.frequencyBinCount);
     waveData = new Uint8Array(analyser.frequencyBinCount);
   }
@@ -74,6 +83,31 @@ function ensureAudioContext() {
     audioCtx.resume();
   }
   return audioCtx;
+}
+
+function stopSilentTrackAnalyser() {
+  if (silentTrackSourceNode) {
+    try { silentTrackSourceNode.stop(); } catch {}
+    try { silentTrackSourceNode.disconnect(); } catch {}
+    silentTrackSourceNode = null;
+  }
+}
+
+function startSilentTrackAnalyser(buffer) {
+  stopSilentTrackAnalyser();
+  if (!buffer) return;
+  const ctx = ensureAudioContext();
+  try {
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    // CRITICAL: Connect ONLY to analyser (NEVER to audioCtx.destination!)
+    // Gives real 60 FPS hardware 2048-bin FFT & phase-accurate waveforms with ZERO speaker output!
+    src.connect(analyser);
+    const offset = ((spotifyState.embedPositionMs || 0) * 0.001) % Math.max(1, buffer.duration);
+    src.start(0, offset);
+    silentTrackSourceNode = src;
+  } catch {}
 }
 
 function stopCurrentSources(keepSpotify = false) {
@@ -92,6 +126,8 @@ function stopCurrentSources(keepSpotify = false) {
   try { audioEl.load(); } catch {}
 
   if (!keepSpotify) {
+    stopSilentTrackAnalyser();
+    silentTrackBuffer = null;
     if (spotifyState.embedController && spotifyState.embedPlaying) {
       try { spotifyState.embedController.pause(); } catch {}
     }
@@ -515,6 +551,18 @@ async function analyzeTrackSignatureInBackground(track) {
       state.bpmEstimate = estimatedBpm;
     }
 
+    silentTrackBuffer = decoded;
+    const hasLiveStream = Boolean(
+      activeStream && activeStream.getAudioTracks().some(t => t.readyState === 'live')
+    );
+    if (
+      !hasLiveStream &&
+      state.sourceType !== 'file' &&
+      (spotifyState.embedPlaying || spotifyState.sdkPlaying)
+    ) {
+      startSilentTrackAnalyser(decoded);
+    }
+
     spotifyState.trackSignature = {
       ...(spotifyState.trackSignature || {}),
       fftFrames,
@@ -675,17 +723,29 @@ function stepSpotifyQueue(delta) {
   playSpotifyTrack(q[nextIdx], nextIdx, q, false);
 }
 
-// --- Real-Time Audio Analysis & Beat Detection ---
+// --- Real-Time 5-Dimension Audio Stem Analysis & Beat Detection ---
+let prevHighRaw = 0;
+
 function updateAudioAnalysis(timeSec, dt) {
   const hasLiveStream = Boolean(
     activeStream && activeStream.getAudioTracks().some(t => t.readyState === 'live')
   );
-  const hasDirectAudio =
-    analyser && (hasLiveStream || (state.sourceType === 'file' && !audioEl.paused));
-
   const isSpotifyActive =
     (state.sourceType === 'spotify-embed' || state.sourceType === 'spotify') &&
     (spotifyState.embedPlaying || spotifyState.sdkPlaying);
+
+  // Manage silent hardware AudioBufferSourceNode for Spotify when no live tab stream is active
+  if (isSpotifyActive && !hasLiveStream && silentTrackBuffer && !silentTrackSourceNode) {
+    startSilentTrackAnalyser(silentTrackBuffer);
+  } else if ((!isSpotifyActive || hasLiveStream || state.sourceType === 'file') && silentTrackSourceNode) {
+    stopSilentTrackAnalyser();
+  }
+
+  const hasDirectAudio =
+    analyser &&
+    (hasLiveStream ||
+      (state.sourceType === 'file' && !audioEl.paused) ||
+      Boolean(isSpotifyActive && silentTrackSourceNode));
 
   if (isSpotifyActive) {
     // Advance Spotify timeline scrubber smoothly between SDK / Embed updates
@@ -704,41 +764,39 @@ function updateAudioAnalysis(timeSec, dt) {
   }
 
   if (hasDirectAudio) {
+    // Real 60 FPS 2048-bin hardware FFT + phase-coherent time-domain waveform
     analyser.getByteFrequencyData(freqData);
     analyser.getByteTimeDomainData(waveData);
   } else if (isSpotifyActive) {
+    // Dynamic multi-stem synthesis while track audio buffer is still decoding
+    const bpm = state.bpmEstimate || 122;
     const posSec = (spotifyState.embedPositionMs || timeSec * 1000) * 0.001;
-    const sig = spotifyState.trackSignature;
+    const beatPos = posSec * (bpm / 60);
+    const beatFrac = beatPos - Math.floor(beatPos);
+    const kickEnv = Math.pow(Math.max(0, 1.0 - beatFrac * 2.5), 2.1);
+    const snareEnv = Math.floor(beatPos) % 2 === 1 ? Math.pow(Math.max(0, 1.0 - beatFrac * 2.9), 1.8) : 0;
+    const vocalEnv = 0.55 + 0.45 * Math.sin(posSec * 2.4) * Math.cos(posSec * 1.1);
+    const vocalCenter = 0.14 + 0.08 * Math.sin(posSec * 1.7);
+    const hatEnv = Math.pow(Math.max(0, 1.0 - ((beatPos * 2) % 1) * 3.0), 1.9);
 
-    if (sig?.fftFrames && sig?.waveFrames && sig.slices > 1) {
-      // Sample the song's real decoded 512-bin FFT frames & real PCM waveform frames
-      const sampleDur = sig.sampleDurationSec || 29.0;
-      const frameRate = sig.slices / sampleDur;
-      const exactFrame = (posSec * frameRate) % sig.slices;
-      const f0 = Math.floor(exactFrame) % sig.slices;
-      const f1 = (f0 + 1) % sig.slices;
-      const mix = exactFrame - Math.floor(exactFrame);
-      const base0 = f0 * 512;
-      const base1 = f1 * 512;
+    for (let i = 0; i < 512; i++) {
+      const f = i / 512;
+      const sub = Math.exp(-f * 16.0) * kickEnv * 245;
+      const bass = Math.exp(-Math.pow((f - 0.05) * 22.0, 2.0)) * (120 + kickEnv * 110);
+      const vocal =
+        Math.exp(-Math.pow((f - vocalCenter) * 11.0, 2.0)) * (95 * vocalEnv + snareEnv * 125);
+      const highs = Math.pow(f, 0.65) * (hatEnv * 145 + snareEnv * 65);
+      freqData[i] = Math.max(0, Math.min(255, Math.round(sub + bass + vocal + highs)));
 
-      for (let i = 0; i < 512; i++) {
-        freqData[i] = Math.round(sig.fftFrames[base0 + i] * (1 - mix) + sig.fftFrames[base1 + i] * mix);
-        waveData[i] = Math.round(sig.waveFrames[base0 + i] * (1 - mix) + sig.waveFrames[base1 + i] * mix);
-      }
-    } else {
-      // Brief transient pulse during the first ~300ms while the track's audio signature decodes
-      const bpm = state.bpmEstimate || 122;
-      const beatPos = posSec * (bpm / 60);
-      const beatFrac = beatPos - Math.floor(beatPos);
-      const kickEnv = Math.pow(Math.max(0, 1.0 - beatFrac * 2.8), 2.4);
-      for (let i = 0; i < 512; i++) {
-        const f = i / 512;
-        freqData[i] = Math.round(Math.exp(-f * 9.0) * kickEnv * 190);
-        waveData[i] = Math.round(128 + (Math.random() - 0.5) * kickEnv * 60);
-      }
+      const w =
+        128 +
+        Math.sin(i * 0.045 + timeSec * 18.0) * (kickEnv * 68 + 18) +
+        Math.sin(i * 0.19 - timeSec * 29.0) * (vocalEnv * 38 + snareEnv * 32) +
+        Math.cos(i * 0.65 + timeSec * 47.0) * (hatEnv * 24);
+      waveData[i] = Math.max(0, Math.min(255, Math.round(w)));
     }
   } else {
-    // Calm decay to rest when no music is playing (no fake superimposed demo pattern)
+    // Calm decay to rest when no music is playing
     for (let i = 0; i < 512; i++) {
       freqData[i] = Math.floor(freqData[i] * 0.86);
       waveData[i] = Math.round(128 + (waveData[i] - 128) * 0.84);
@@ -746,25 +804,56 @@ function updateAudioAnalysis(timeSec, dt) {
   }
 
   const g = state.gain;
-  let subSum = 0, bassSum = 0, midSum = 0, highSum = 0;
+  // 5-Stem Frequency Decomposition (48kHz / 2048 FFT -> ~23.4 Hz per bin):
+  // 1. Sub-Bass & Kick: bins 1..5 (~23-117 Hz)
+  // 2. Bass Groove: bins 6..15 (~140-350 Hz)
+  // 3. Lead Vocals / Formant: bins 16..115 (~375-2,700 Hz) + Vocal Pitch Centroid
+  // 4. Synth / Upper Mids: bins 116..240 (~2,700-5,600 Hz)
+  // 5. Treble / Air / Sparkle: bins 241..440 (~5,600-10,300+ Hz)
+  let subSum = 0;
+  let bassSum = 0;
+  let vocalSum = 0;
+  let vocalWeightedSum = 0;
+  let midSum = 0;
+  let highSum = 0;
+
   for (let i = 1; i <= 5; i++) subSum += freqData[i];
-  for (let i = 6; i <= 22; i++) bassSum += freqData[i];
-  for (let i = 23; i <= 110; i++) midSum += freqData[i];
-  for (let i = 111; i <= 360; i++) highSum += freqData[i];
+  for (let i = 6; i <= 15; i++) bassSum += freqData[i];
+  for (let i = 16; i <= 115; i++) {
+    const val = freqData[i];
+    vocalSum += val;
+    vocalWeightedSum += val * ((i - 16) / 99);
+  }
+  for (let i = 116; i <= 240; i++) midSum += freqData[i];
+  for (let i = 241; i <= 440; i++) highSum += freqData[i];
 
-  const rawSub = Math.min(1.8, (subSum / (5 * 255)) * g);
-  const rawBass = Math.min(1.8, (bassSum / (17 * 255)) * g);
-  const rawMid = Math.min(1.8, (midSum / (88 * 255)) * g);
-  const rawHigh = Math.min(1.8, (highSum / (250 * 255)) * g * 1.35);
+  const rawSub = Math.min(2.2, (subSum / (5 * 255)) * g * state.bassBoost);
+  const rawBass = Math.min(2.2, (bassSum / (10 * 255)) * g * state.bassBoost);
+  const rawVocal = Math.min(2.2, (vocalSum / (100 * 255)) * g * state.vocalBoost * 1.18);
+  const rawVocalPitch = vocalSum > 200 ? vocalWeightedSum / vocalSum : 0.45;
+  const rawMid = Math.min(2.2, (midSum / (125 * 255)) * g * 1.25);
+  const rawHigh = Math.min(2.2, (highSum / (200 * 255)) * g * state.trebleBoost * 1.55);
 
-  const smooth = 1 - Math.exp(-dt * 18);
-  state.subBass += (rawSub - state.subBass) * smooth;
-  state.bass += (rawBass - state.bass) * smooth;
-  state.mid += (rawMid - state.mid) * smooth;
-  state.high += (rawHigh - state.high) * smooth;
+  const fastAttack = 1 - Math.exp(-dt * 26);
+  const smoothRelease = 1 - Math.exp(-dt * 14);
+  state.subBass += (rawSub - state.subBass) * (rawSub > state.subBass ? fastAttack : smoothRelease);
+  state.bass += (rawBass - state.bass) * (rawBass > state.bass ? fastAttack : smoothRelease);
+  state.vocal += (rawVocal - state.vocal) * (rawVocal > state.vocal ? fastAttack : smoothRelease);
+  state.vocalPitch += (rawVocalPitch - state.vocalPitch) * (1 - Math.exp(-dt * 10));
+  state.mid += (rawMid - state.mid) * (rawMid > state.mid ? fastAttack : smoothRelease);
+  state.high += (rawHigh - state.high) * (rawHigh > state.high ? fastAttack : smoothRelease);
 
-  // Adaptive Kick / Transient Beat Detection
-  const lowEnergy = rawSub * 0.65 + rawBass * 0.35;
+  // Treble transient spark detection (hi-hats, cymbals, vocal sibilance)
+  const highDelta = Math.max(0, rawHigh - prevHighRaw);
+  prevHighRaw = rawHigh;
+  if (highDelta > 0.12) {
+    state.trebleSpark = Math.min(1.6, state.trebleSpark + highDelta * 2.8);
+  } else {
+    state.trebleSpark *= Math.exp(-dt * 9.5);
+  }
+
+  // Adaptive Kick / Transient Beat Detection & Expanding Shockwave Ring
+  const lowEnergy = rawSub * 0.68 + rawBass * 0.32;
   let avgEnergy = 0;
   for (let i = 0; i < state.energyHistory.length; i++) avgEnergy += state.energyHistory[i];
   avgEnergy /= state.energyHistory.length;
@@ -772,22 +861,32 @@ function updateAudioAnalysis(timeSec, dt) {
   state.energyIdx = (state.energyIdx + 1) % state.energyHistory.length;
 
   const nowMs = performance.now();
-  if (lowEnergy > Math.max(0.22, avgEnergy * 1.32) && nowMs - state.lastBeatTime > 210) {
+  if (lowEnergy > Math.max(0.20, avgEnergy * 1.26) && nowMs - state.lastBeatTime > 195) {
     const interval = nowMs - state.lastBeatTime;
-    if (interval > 260 && interval < 1200) {
+    if (interval > 250 && interval < 1200) {
       const instantBpm = Math.round(60000 / interval);
       state.bpmEstimate = Math.round(state.bpmEstimate * 0.8 + instantBpm * 0.2);
     }
     state.lastBeatTime = nowMs;
-    state.beatPulse = Math.min(1.5, 0.85 + lowEnergy * 0.5);
-    state.beatPhase += 0.78;
+    state.beatPulse = Math.min(1.6, 0.9 + lowEnergy * 0.55);
+    state.kickImpulse = 0.02; // Launch a new radial sub-kick shockwave from center!
+    state.beatPhase += 0.82;
   } else {
     state.beatPulse *= Math.exp(-dt * 7.5);
   }
 
-  // Pack 512x2 GPU texture (Row 0: Spectrum, Row 1: Oscilloscope Waveform)
+  if (state.kickImpulse > 0.001 && state.kickImpulse < 1.2) {
+    state.kickImpulse += dt * (1.35 + state.subBass * 0.65);
+    if (state.kickImpulse >= 1.2) state.kickImpulse = 0;
+  }
+
+  // Pack 512x2 GPU texture (Row 0: Spectrum with stem boost, Row 1: Oscilloscope Waveform)
   for (let i = 0; i < 512; i++) {
-    audioTexData[i] = Math.min(255, freqData[i] * g);
+    let binBoost = g;
+    if (i <= 15) binBoost *= state.bassBoost;
+    else if (i <= 115) binBoost *= state.vocalBoost;
+    else if (i >= 200) binBoost *= state.trebleBoost;
+    audioTexData[i] = Math.min(255, Math.round(freqData[i] * binBoost));
     audioTexData[512 + i] = waveData[i];
   }
 }
@@ -804,7 +903,7 @@ void main() {
 }
 `;
 
-// Pass 1: Fluid Feedback Advection + Oscilloscope / Spectrum Injection (WMP Alchemy / MilkDrop core)
+// Pass 1: Fluid Feedback Advection + Multi-Stem Injection (Sub/Kick, Bass, Vocal Formant, Synth Mids, Treble Sparkle)
 const FEEDBACK_FRAG = `
 precision highp float;
 varying vec2 vUv;
@@ -812,9 +911,14 @@ uniform sampler2D uPrevTex;
 uniform sampler2D uAudioTex;
 uniform vec2 uRes;
 uniform float uTime;
+uniform float uSubBass;
 uniform float uBass;
+uniform float uVocal;
+uniform float uVocalPitch;
 uniform float uMid;
 uniform float uHigh;
+uniform float uKick;
+uniform float uTrebleSpark;
 uniform float uBeat;
 uniform float uPhase;
 uniform float uDecay;
@@ -860,77 +964,104 @@ void main() {
     p = vec2(cos(a), sin(a)) * r;
   }
 
+  float rad = length(p);
+  float ang = atan(p.y, p.x);
+
   // Interactive pointer gravity & ripple warp
   vec2 ptr = (uPointer - 0.5) * aspect;
   vec2 toPtr = p - ptr;
   float ptrDist = length(toPtr) + 0.001;
   float ptrForce = exp(-ptrDist * 4.5) * (0.018 + 0.035 * uPointerDown + length(uPointerVel) * 0.25);
 
-  // MilkDrop / Alchemy curl-like zoom & rotation warp driven by Bass & Mid
-  float zoom = 1.0 - (0.009 + uBass * 0.022 + uBeat * 0.018) * uWarp;
-  float angle = (0.004 + (uMid - 0.3) * 0.016) * uWarp * sin(uTime * 0.45 + length(p) * 3.2);
+  // Sub-Bass Kick Shockwave radial lens refraction
+  float shockDist = abs(rad - uKick * 0.85);
+  float shockWave = (uKick > 0.01 && uKick < 1.15) ? exp(-shockDist * 28.0) * (1.0 - uKick * 0.8) * uSubBass * 0.024 : 0.0;
+  vec2 shockDir = normalize(p + 1e-5) * shockWave;
+
+  // MilkDrop / Alchemy curl-like zoom & rotation warp driven by SubBass, Bass & Vocal
+  float zoom = 1.0 - (0.008 + uBass * 0.025 + uSubBass * 0.018 + uBeat * 0.018) * uWarp;
+  float angle = (0.004 + (uMid - 0.25) * 0.018 + uVocal * 0.012) * uWarp * sin(uTime * 0.45 + rad * 3.2);
   vec2 warped = (vUv - 0.5) * rot(angle) * zoom;
 
   // Fluid wave displacement
   vec2 swirl = vec2(
-    sin(p.y * 5.5 + uTime * 1.6 + uBass * 3.0),
-    cos(p.x * 5.5 - uTime * 1.4 + uMid * 3.0)
-  ) * 0.0038 * uWarp;
+    sin(p.y * 5.5 + uTime * 1.6 + uBass * 3.2),
+    cos(p.x * 5.5 - uTime * 1.4 + uVocal * 3.0)
+  ) * 0.0042 * uWarp;
 
-  vec2 sampleUv = clamp(0.5 + warped + swirl - normalize(toPtr) * ptrForce + uPointerVel * exp(-ptrDist * 3.5) * 0.04, 0.002, 0.998);
+  vec2 sampleUv = clamp(0.5 + warped + swirl - shockDir - normalize(toPtr) * ptrForce + uPointerVel * exp(-ptrDist * 3.5) * 0.04, 0.002, 0.998);
   vec3 prev = texture2D(uPrevTex, sampleUv).rgb;
 
-  // Slight hue shift inside feedback loop
-  prev = mix(prev, prev.gbr, 0.014 + uHigh * 0.02);
+  // Slight hue shift inside feedback loop driven by Treble & Vocals
+  prev = mix(prev, prev.gbr, 0.012 + uHigh * 0.025 + uVocal * 0.012);
 
   // Sample live Time-Domain Waveform (row y = 0.75) & FFT Spectrum (row y = 0.25)
   float waveX = clamp(vUv.x, 0.01, 0.99);
   float waveSample = (texture2D(uAudioTex, vec2(waveX, 0.75)).r - 0.5) * 2.0;
   float waveSample2 = (texture2D(uAudioTex, vec2(1.0 - waveX, 0.75)).r - 0.5) * 2.0;
 
-  float rad = length(p);
-  float ang = atan(p.y, p.x);
   float fftU = clamp(abs(ang) / 3.14159265, 0.01, 0.99);
   float fftVal = texture2D(uAudioTex, vec2(fftU * 0.65, 0.25)).r;
+  // Dedicated Vocal Formant sample from bins 16..115 (u ~ 0.03..0.22)
+  float vocalFft = texture2D(uAudioTex, vec2(clamp(0.03 + waveX * 0.19, 0.03, 0.22), 0.25)).r;
 
   vec3 seed = vec3(0.0);
 
   if (uMode == 0) {
-    // MODE 0: ALCHEMY PLASMA — Pure audio-driven oscilloscope ribbons & fluid advection (no static overlay)
-    float energyGate = clamp((uBass + uMid + uHigh) * 1.35, 0.0, 1.0);
-    float y1 = waveSample * (0.34 + uBass * 0.25);
-    float y2 = -waveSample2 * (0.28 + uMid * 0.22);
-    float d1 = abs(p.y - y1);
-    float d2 = abs(p.y - y2);
-    float glow1 = (0.0042 / (d1 + 0.004)) * energyGate;
-    float glow2 = (0.0036 / (d2 + 0.004)) * energyGate;
+    // MODE 0: ALCHEMY PLASMA —
+    // Layer 1 (Bass & Waveform): Twin intertwined stereo oscilloscope ribbons
+    // Layer 2 (Vocals): Singing Formant Ribbon tracking uVocalPitch in magenta/gold
+    // Layer 3 (Sub-Bass Kick): Expanding radial shockwave ring
+    // Layer 4 (Treble): Outer electric starlight sparks
+    float energyGate = clamp((uSubBass + uBass + uVocal + uHigh) * 1.25, 0.0, 1.0);
+    float y1 = waveSample * (0.36 + uBass * 0.28);
+    float y2 = -waveSample2 * (0.30 + uMid * 0.24);
+    float glow1 = (0.0048 / (abs(p.y - y1) + 0.0038)) * energyGate;
+    float glow2 = (0.0042 / (abs(p.y - y2) + 0.0038)) * energyGate;
+
+    // Vocal Formant Singing Wave (shifts vertically with singer's pitch centroid uVocalPitch!)
+    float vocalPitchOffset = (uVocalPitch - 0.45) * 0.38;
+    float yVocal = vocalPitchOffset + (vocalFft - 0.35) * 0.28 * sin(waveX * 9.42 + uTime * 3.2);
+    float vocalGlow = (0.0045 / (abs(p.y - yVocal) + 0.0045)) * smoothstep(0.10, 0.45, uVocal);
+
+    // Expanding Sub-Kick Shockwave Ring (only visible when a kick transient fires!)
+    float kickRingGlow = (uKick > 0.01 && uKick < 1.1)
+      ? (0.0045 / (shockDist + 0.005)) * (1.0 - uKick * 0.82) * (0.5 + uSubBass)
+      : 0.0;
 
     vec3 c1 = palette(vUv.x + uTime * 0.12 + uPhase * 0.1, uPalette);
     vec3 c2 = palette(vUv.x + 0.45 - uTime * 0.1, uPalette);
-    seed += c1 * glow1 * (0.55 + uBass * 0.75);
-    seed += c2 * glow2 * (0.45 + uMid * 0.75);
-    seed += palette(fftU + uTime * 0.18, uPalette) * fftVal * exp(-rad * 3.2) * (0.35 + uBeat * 0.55);
+    vec3 cVocal = palette(0.32 + uVocalPitch * 0.4 + uTime * 0.08, uPalette);
+
+    seed += c1 * glow1 * (0.65 + uBass * 0.85);
+    seed += c2 * glow2 * (0.55 + uMid * 0.75);
+    seed += cVocal * vocalGlow * (0.75 + uVocal * 0.95);
+    seed += palette(0.05 + uPhase * 0.15, uPalette) * kickRingGlow * 1.25;
+    seed += palette(fftU + uTime * 0.18, uPalette) * fftVal * exp(-rad * 2.8) * (0.4 + uBeat * 0.65);
   } else if (uMode == 1) {
-    // MODE 1: FIRESTORM BARS — Subtle upward ember smoke from equalizer skyline
-    prev = texture2D(uPrevTex, clamp(vUv - vec2(0.0, 0.0045 * uWarp), 0.002, 0.998)).rgb * 0.78;
+    // MODE 1: FIRESTORM BARS — Upward ember smoke + Vocal Formant aura plumes
+    prev = texture2D(uPrevTex, clamp(vUv - vec2(0.0, (0.0045 + uVocal * 0.003) * uWarp), 0.002, 0.998)).rgb * 0.78;
     float barFft = texture2D(uAudioTex, vec2(clamp(vUv.x * 0.75, 0.01, 0.99), 0.25)).r;
     float waveLine = -0.18 + barFft * 0.56;
     float dWave = abs(p.y - waveLine);
-    seed += palette(vUv.x * 0.6 + barFft * 0.5, uPalette) * (0.003 / (dWave + 0.005)) * barFft;
+    seed += palette(vUv.x * 0.6 + barFft * 0.5, uPalette) * (0.0035 / (dWave + 0.005)) * barFft;
   } else if (uMode == 2) {
-    // MODE 2: FERRO-ORB 3D — Solar flare corona around liquid metal sphere
-    float coronaR = 0.27 + fftVal * 0.16 + uBass * 0.09;
+    // MODE 2: FERRO-ORB 3D — Solar flare corona + Vocal harmonic halo + Sub shockwave
+    float coronaR = 0.27 + fftVal * 0.17 + uBass * 0.10;
     float dCorona = abs(rad - coronaR);
-    seed += palette(ang * 0.159 + uTime * 0.15, uPalette) * (0.004 / (dCorona + 0.005)) * (0.6 + uBass);
+    seed += palette(ang * 0.159 + uTime * 0.15, uPalette) * (0.0045 / (dCorona + 0.005)) * (0.6 + uBass + uVocal * 0.5);
   } else if (uMode == 3) {
-    // MODE 3: STARFIELD TUNNEL — Radial warp streaks
+    // MODE 3: STARFIELD TUNNEL — Radial warp streaks + Vocal Nebula clouds
     vec2 dir = normalize(p + 1e-5);
-    prev = texture2D(uPrevTex, clamp(vUv - dir * (0.012 + uBass * 0.025) * uWarp, 0.002, 0.998)).rgb * 0.88;
+    prev = texture2D(uPrevTex, clamp(vUv - dir * (0.012 + uBass * 0.028 + uSubBass * 0.015) * uWarp, 0.002, 0.998)).rgb * 0.88;
     vec2 boxP = abs(p * rot(uTime * 0.35 + rad * 2.5));
     float polyR = max(boxP.x, boxP.y);
-    float ringPattern = abs(fract(polyR * 5.0 - uTime * (1.4 + uBass * 1.8)) - 0.5);
+    float ringPattern = abs(fract(polyR * 5.0 - uTime * (1.4 + uBass * 1.9)) - 0.5);
     float gateGlow = 0.009 / (ringPattern + 0.012) * smoothstep(0.03, 0.22, rad);
-    seed += palette(polyR + uTime * 0.15 + uBeat * 0.2, uPalette) * gateGlow * (0.2 + fftVal * 0.9);
+    seed += palette(polyR + uTime * 0.15 + uBeat * 0.2, uPalette) * gateGlow * (0.25 + fftVal * 0.95);
+    // Vocal Nebula Aurora cloud inside the tunnel
+    float vocalNebula = sin(ang * 3.0 + uTime * 1.8) * cos(rad * 8.0 - uVocalPitch * 4.0);
+    seed += palette(0.38 + uVocalPitch * 0.3, uPalette) * max(0.0, vocalNebula) * uVocal * exp(-rad * 2.2) * 0.38;
   } else {
     // Modes 4, 5, 6 use crisp procedural geometry in Pass 2 with minimal background trail
     prev *= 0.65;
@@ -941,12 +1072,12 @@ void main() {
   float ptrGlow = (0.005 * ptrActive) / (ptrDist + 0.008);
   seed += palette(uTime * 0.3, uPalette) * ptrGlow * 0.45;
 
-  vec3 outCol = prev * uDecay + seed * 0.34;
+  vec3 outCol = prev * uDecay + seed * 0.36;
   gl_FragColor = vec4(clamp(outCol, 0.0, 1.0), 1.0);
 }
 `;
 
-// Pass 2: 7 Distinct Visual Worlds & Filmic Tonemapping
+// Pass 2: 7 Distinct Visual Worlds with 5-Stem Multi-Dimensional Highlights (Sub/Kick, Bass, Vocals, Mids, Treble)
 const COMPOSITE_FRAG = `
 precision highp float;
 varying vec2 vUv;
@@ -954,9 +1085,14 @@ uniform sampler2D uFeedbackTex;
 uniform sampler2D uAudioTex;
 uniform vec2 uRes;
 uniform float uTime;
+uniform float uSubBass;
 uniform float uBass;
+uniform float uVocal;
+uniform float uVocalPitch;
 uniform float uMid;
 uniform float uHigh;
+uniform float uKick;
+uniform float uTrebleSpark;
 uniform float uBeat;
 uniform float uPhase;
 uniform float uSymmetry;
@@ -993,9 +1129,11 @@ vec2 hash22(vec2 p) {
 void main() {
   vec2 aspect = vec2(uRes.x / max(1.0, uRes.y), 1.0);
   vec2 p = (vUv - 0.5) * aspect;
+  float r = length(p);
+  float ang = atan(p.y, p.x);
 
-  // Beat-reactive chromatic aberration on feedback texture
-  vec2 caOffset = (vUv - 0.5) * (0.002 + uBeat * 0.006 + uBass * 0.004);
+  // Beat & Sub-Kick reactive chromatic dispersion on feedback texture
+  vec2 caOffset = (vUv - 0.5) * (0.0018 + uBeat * 0.0065 + uSubBass * 0.005);
   vec3 fb;
   fb.r = texture2D(uFeedbackTex, vUv + caOffset).r;
   fb.g = texture2D(uFeedbackTex, vUv).g;
@@ -1003,39 +1141,65 @@ void main() {
 
   vec3 col = fb;
   float waveSample = (texture2D(uAudioTex, vec2(clamp(vUv.x, 0.01, 0.99), 0.75)).r - 0.5) * 2.0;
+  float vocalFft = texture2D(uAudioTex, vec2(clamp(0.03 + vUv.x * 0.19, 0.03, 0.22), 0.25)).r;
 
   if (uMode == 0) {
-    // MODE 0: ALCHEMY PLASMA — Crisp audio waveform ribbon (scales with live signal, no hardcoded sine overlay)
-    float yCore = waveSample * (0.34 + uBass * 0.25);
-    float coreLine = smoothstep(0.007, 0.001, abs(p.y - yCore)) * clamp(abs(waveSample) * 3.5 + uBass * 0.7, 0.0, 1.0);
-    col += vec3(0.9, 0.98, 1.0) * coreLine * 0.8;
+    // MODE 0: ALCHEMY PLASMA —
+    // 1. Crisp white-hot waveform core ribbon (Bass + Waveform)
+    float yCore = waveSample * (0.36 + uBass * 0.28);
+    float coreLine = smoothstep(0.0075, 0.001, abs(p.y - yCore)) * clamp(abs(waveSample) * 3.8 + uBass * 0.75, 0.0, 1.0);
+    col += vec3(0.92, 0.98, 1.0) * coreLine * 0.85;
+
+    // 2. Vocal Presence Formant Aura & Singing Ribbon (tracks vocal pitch centroid)
+    float vocalY = (uVocalPitch - 0.45) * 0.38 + (vocalFft - 0.35) * 0.26 * sin(vUv.x * 9.42 + uTime * 3.2);
+    float vocalRibbon = smoothstep(0.010, 0.0012, abs(p.y - vocalY)) * smoothstep(0.12, 0.50, uVocal);
+    col += palette(0.35 + uVocalPitch * 0.35, uPalette) * vocalRibbon * (0.75 + uVocal * 0.7);
+
+    // 3. Treble Sparkle micro-stars on hi-hat / cymbal transients
+    if (uTrebleSpark > 0.08) {
+      vec2 spId = floor(p * 34.0 + vec2(floor(uTime * 10.0), 0.0));
+      float spRnd = hash21(spId);
+      if (spRnd > 0.965) {
+        vec2 gv = fract(p * 34.0) - 0.5;
+        float spark = (0.006 / (length(gv) + 0.01)) * uTrebleSpark;
+        col += vec3(0.9, 0.98, 1.0) * spark;
+      }
+    }
 
   } else if (uMode == 1) {
-    // MODE 1: FIRESTORM BARS — 96-band LED spectrum skyline + rippled water lake reflection
+    // MODE 1: FIRESTORM BARS — 96-band Stem-Coded Skyline (Sub/Bass -> Vocal Formant Crown -> Treble Sparks) + Water Lake
     col = fb * 0.35 + vec3(0.02, 0.03, 0.07);
     float bands = 96.0;
     float bandIdx = floor(vUv.x * bands) / bands;
     float cellX = fract(vUv.x * bands);
     float barMask = smoothstep(0.0, 0.14, cellX) * smoothstep(1.0, 0.80, cellX);
-    float h = texture2D(uAudioTex, vec2(clamp(bandIdx * 0.72 + 0.02, 0.01, 0.99), 0.25)).r * 0.58;
+    float h = texture2D(uAudioTex, vec2(clamp(bandIdx * 0.72 + 0.02, 0.01, 0.99), 0.25)).r * (0.58 + uSubBass * 0.12);
     float baseline = -0.14;
     float yRel = p.y - baseline;
 
-    vec3 barCol = palette(bandIdx + h * 0.65 + uTime * 0.04, uPalette);
+    // Highlight the Vocal Formant zone (bandIdx 0.12..0.48) and Treble zone (0.55..1.0)
+    float isVocalZone = smoothstep(0.08, 0.18, bandIdx) * smoothstep(0.55, 0.42, bandIdx);
+    vec3 barCol = palette(bandIdx + h * 0.65 + uTime * 0.04 + isVocalZone * uVocal * 0.22, uPalette);
     if (yRel >= 0.0 && yRel <= h) {
       float segMask = smoothstep(0.0, 0.18, fract(yRel * 48.0));
       float vGrad = yRel / max(0.001, h);
-      col += barCol * barMask * segMask * (0.55 + 0.85 * pow(vGrad, 1.4));
+      col += barCol * barMask * segMask * (0.58 + 0.92 * pow(vGrad, 1.35));
     }
+    // Peak hold cap + Treble spark flare on high bars
     float capDist = abs(yRel - h);
-    col += vec3(1.0, 0.97, 0.88) * barMask * smoothstep(0.009, 0.0015, capDist);
+    col += vec3(1.0, 0.97, 0.88) * barMask * smoothstep(0.010, 0.0015, capDist) * (1.0 + uTrebleSpark * 0.5);
 
-    // Horizon line
-    col += palette(uTime * 0.1, uPalette) * smoothstep(0.004, 0.0005, abs(yRel)) * 0.6;
+    // Vocal Formant Harmonic Wave floating above the vocal skyline
+    float vocalSkyY = 0.26 + (uVocalPitch - 0.45) * 0.18 + waveSample * 0.09 * uVocal;
+    float vocalArc = (0.0028 / (abs(p.y - vocalSkyY) + 0.004)) * isVocalZone * smoothstep(0.14, 0.45, uVocal);
+    col += palette(0.36 + uVocalPitch * 0.3, uPalette) * vocalArc * 1.1;
+
+    // Sub-Bass horizon pulse line
+    col += palette(uTime * 0.1, uPalette) * smoothstep(0.0045 + uSubBass * 0.004, 0.0005, abs(yRel)) * (0.65 + uSubBass * 0.6);
 
     // Mirrored rippled water reflection below baseline
     if (yRel < 0.0) {
-      float waterWave = sin(p.x * 42.0 / max(0.04, abs(yRel)) + uTime * 7.0) * 0.012 * abs(yRel);
+      float waterWave = sin(p.x * 42.0 / max(0.04, abs(yRel)) + uTime * 7.0) * (0.012 + uBass * 0.012) * abs(yRel);
       float sampleX = clamp(bandIdx + waterWave, 0.01, 0.99);
       float reflH = texture2D(uAudioTex, vec2(sampleX * 0.72, 0.25)).r * 0.46;
       if (abs(yRel) <= reflH) {
@@ -1046,41 +1210,53 @@ void main() {
     }
 
   } else if (uMode == 2) {
-    // MODE 2: FERRO-ORB 3D — Metallic liquid sphere + orbital frequency ring
-    float r = length(p);
-    float ang = atan(p.y, p.x);
+    // MODE 2: FERRO-ORB 3D —
+    // Bass: Liquid ferrofluid spikes | Vocals: Dual Tilted Pitch-Reactive Gyro Rings | Treble: Electric Corona Arcs
     float fftVal = texture2D(uAudioTex, vec2(clamp(abs(ang) / 3.14159, 0.01, 0.99) * 0.6, 0.25)).r;
-    float spikes = sin(ang * 12.0 + uTime * 3.0) * cos(ang * 7.0 - uTime * 2.2) * (0.028 + uBass * 0.07 + fftVal * 0.06);
-    float orbRadius = 0.24 + uBass * 0.07 + spikes;
+    float spikes = sin(ang * 12.0 + uTime * 3.0) * cos(ang * 7.0 - uTime * 2.2) * (0.025 + uBass * 0.085 + uSubBass * 0.05 + fftVal * 0.065);
+    float orbRadius = 0.23 + uBass * 0.075 + uSubBass * 0.04 + spikes;
 
-    // Tilted 3D Saturn orbit ring
+    // Outer Bass / Mid Saturn ring
     vec2 ringP = vec2(p.x, p.y * 2.8 + sin(p.x * 4.0 + uTime) * 0.05);
     float ringDist = abs(length(ringP) - (0.39 + uMid * 0.06));
-    float ringGlow = (0.004 / (ringDist + 0.004)) * (0.5 + fftVal);
+    float ringGlow = (0.0042 / (ringDist + 0.004)) * (0.5 + fftVal);
+
+    // Inner Vocal Formant Gyro Ring (tilts dynamically with singer's vocal pitch uVocalPitch!)
+    float tiltAng = (uVocalPitch - 0.5) * 1.35 + sin(uTime * 0.9) * 0.25;
+    float ca = cos(tiltAng), sa = sin(tiltAng);
+    vec2 vRot = vec2(ca * p.x - sa * p.y, (sa * p.x + ca * p.y) * 2.5);
+    float vocalRingDist = abs(length(vRot) - (0.32 + uVocal * 0.07));
+    float vocalRingGlow = (0.0038 / (vocalRingDist + 0.004)) * smoothstep(0.10, 0.42, uVocal) * (0.7 + uVocal);
+
+    // Treble Electric Lightning Filament around outer rim
+    float arcNoise = sin(ang * 28.0 - uTime * 19.0) * cos(ang * 19.0 + uTime * 23.0) * 0.028;
+    float trebleArcDist = abs(r - (orbRadius + 0.04 + arcNoise));
+    float trebleArcGlow = (0.0022 / (trebleArcDist + 0.003)) * clamp(uHigh * 0.7 + uTrebleSpark, 0.0, 1.5);
 
     if (r < orbRadius) {
       vec2 n2 = p / orbRadius;
       float z = sqrt(max(0.001, 1.0 - dot(n2, n2)));
-      vec3 normal = normalize(vec3(n2 + sin(n2.yx * 18.0 + uTime * 4.0) * (0.14 + fftVal * 0.3), z));
+      vec3 normal = normalize(vec3(n2 + sin(n2.yx * (16.0 + uVocal * 10.0) + uTime * 4.0) * (0.14 + fftVal * 0.32 + uVocal * 0.18), z));
       vec3 lightDir = normalize(vec3(uPointer.x - 0.5, uPointer.y - 0.5, 0.85));
       float diff = max(0.0, dot(normal, lightDir));
       float rim = pow(1.0 - max(0.0, normal.z), 3.0);
       float spec = pow(max(0.0, dot(reflect(-lightDir, normal), vec3(0.0, 0.0, 1.0))), 26.0);
-      vec3 metalCol = palette(diff * 0.5 + fftVal * 0.4 + uTime * 0.08, uPalette);
-      col = mix(col * 0.2, metalCol * (0.25 + diff * 0.85) + vec3(1.0) * spec * 0.95 + palette(uTime * 0.2, uPalette) * rim * 1.25, 0.96);
+      vec3 metalCol = palette(diff * 0.5 + fftVal * 0.4 + uVocalPitch * 0.25 + uTime * 0.08, uPalette);
+      col = mix(col * 0.2, metalCol * (0.25 + diff * 0.85) + vec3(1.0) * spec * 0.95 + palette(uTime * 0.2, uPalette) * rim * 1.3, 0.96);
     }
     if (p.y < 0.0 || r >= orbRadius) {
       col += palette(ang * 0.16 + 0.3, uPalette) * ringGlow;
+      col += palette(0.38 + uVocalPitch * 0.35, uPalette) * vocalRingGlow;
     }
+    col += vec3(0.85, 0.97, 1.0) * trebleArcGlow;
 
   } else if (uMode == 3) {
-    // MODE 3: 3D STARFIELD & HYPER-TUNNEL — Multi-layer parallax warp stars + stargate
-    col = fb * 0.65;
-    float r = length(p);
-    float ang = atan(p.y, p.x);
+    // MODE 3: 3D STARFIELD & HYPER-TUNNEL —
+    // Bass: Warp Speed & Stargate | Vocals: Volumetric Singing Nebula | Treble: High-Density Starlight Sparks
+    col = fb * 0.68;
     for (int layer = 1; layer <= 3; layer++) {
       float fl = float(layer);
-      float z = fract(fl * 0.33 - uTime * (0.35 + uBass * 0.35));
+      float z = fract(fl * 0.33 - uTime * (0.35 + uBass * 0.42 + uSubBass * 0.2));
       float scale = mix(18.0, 1.5, z);
       vec2 starUv = p * scale + vec2(fl * 17.3, fl * 9.1);
       vec2 id = floor(starUv);
@@ -1088,88 +1264,113 @@ void main() {
       vec2 rnd = hash22(id) - 0.5;
       float d = length(gv - rnd * 0.7);
       float spark = (0.018 / (d + 0.008)) * smoothstep(0.0, 0.2, z) * (1.0 - z);
-      col += palette(hash21(id) + uTime * 0.1, uPalette) * spark * (0.6 + uHigh * 0.9);
+      col += palette(hash21(id) + uTime * 0.1, uPalette) * spark * (0.55 + uHigh * 1.1 + uTrebleSpark * 0.8);
+    }
+    // Sub-kick shockwave ring flying down the tunnel
+    if (uKick > 0.01 && uKick < 1.1) {
+      float kDist = abs(r - uKick * 0.75);
+      col += palette(0.1 + uPhase * 0.2, uPalette) * (0.005 / (kDist + 0.005)) * (1.0 - uKick * 0.8) * uSubBass;
     }
 
   } else if (uMode == 4) {
-    // MODE 4: SYNTHWAVE SUN & 3D OUTRUN GRID — Retro horizon, sliced sun, audio mountains, 3D wireframe floor
+    // MODE 4: SYNTHWAVE SUN & 3D OUTRUN GRID —
+    // Bass: 3D Grid & Mountains | Vocals: Dancing Northern-Lights Sky Aurora & Sun Corona | Treble: Twinkling Sky Stars
     float horizon = -0.02 + (uPointer.y - 0.5) * 0.12;
     vec3 skyTop = vec3(0.03, 0.01, 0.10);
     vec3 skyHorizon = palette(0.18 + uBass * 0.1, uPalette) * 0.65 + vec3(0.28, 0.04, 0.26);
     col = mix(skyHorizon, skyTop, clamp((p.y - horizon) * 2.2, 0.0, 1.0));
 
-    // Twinkling stars in upper sky
+    // Vocal Northern-Lights Aurora Ribbon in upper sky (waves with vocal formant & pitch!)
+    if (p.y > horizon + 0.02) {
+      float auroraY = horizon + 0.22 + (uVocalPitch - 0.45) * 0.16 + sin(p.x * 5.5 + uTime * 2.2) * 0.045 + waveSample * 0.05 * uVocal;
+      float auroraBand = exp(-abs(p.y - auroraY) * 18.0) * smoothstep(0.08, 0.38, uVocal);
+      float curtains = 0.5 + 0.5 * sin(p.x * 28.0 + uTime * 3.5 + vocalFft * 6.0);
+      col += palette(0.35 + p.x * 0.3 + uVocalPitch * 0.3, uPalette) * auroraBand * (0.45 + 0.75 * curtains) * uVocal * 1.25;
+    }
+
+    // Treble Twinkling Stars in upper sky
     if (p.y > horizon + 0.05) {
-      vec2 sId = floor(p * 42.0);
+      vec2 sId = floor(p * 44.0);
       float sRnd = hash21(sId);
-      if (sRnd > 0.93) {
-        float twinkle = 0.5 + 0.5 * sin(uTime * 6.0 + sRnd * 60.0);
-        col += vec3(0.9, 0.95, 1.0) * twinkle * (0.4 + uHigh * 1.1) * smoothstep(horizon + 0.05, horizon + 0.35, p.y);
+      if (sRnd > 0.91 - clamp(uHigh * 0.04, 0.0, 0.035)) {
+        float twinkle = 0.5 + 0.5 * sin(uTime * 7.0 + sRnd * 60.0);
+        col += vec3(0.9, 0.96, 1.0) * twinkle * (0.35 + uHigh * 1.25 + uTrebleSpark * 0.8) * smoothstep(horizon + 0.05, horizon + 0.35, p.y);
       }
     }
 
     // Giant Segmented Vaporwave Sun
     vec2 sunCenter = vec2((uPointer.x - 0.5) * 0.25, horizon + 0.17);
-    float sunR = 0.22 + uBass * 0.04 + uBeat * 0.025;
+    float sunR = 0.22 + uBass * 0.045 + uSubBass * 0.03 + uBeat * 0.025;
     float dSun = length(p - sunCenter);
     if (dSun < sunR && p.y > horizon) {
       float sunY = (p.y - (sunCenter.y - sunR)) / (2.0 * sunR);
       float stripeFreq = 16.0;
-      float stripeCut = step(0.12 + (1.0 - sunY) * 0.38, fract(sunY * stripeFreq - uTime * 0.8));
+      float stripeCut = step(0.12 + (1.0 - sunY) * 0.38, fract(sunY * stripeFreq - uTime * (0.8 + uVocal * 0.8)));
       vec3 sunCol = mix(vec3(1.0, 0.12, 0.55), vec3(1.0, 0.92, 0.25), sunY);
       if (uPalette != 0) sunCol = palette(sunY * 0.5 + 0.1, uPalette) * 1.3;
       col = mix(col, sunCol, (sunY > 0.55 ? 1.0 : stripeCut));
     }
-    // Sun atmospheric halo
-    col += palette(0.12, uPalette) * exp(-dSun * 5.0) * (0.35 + uBass * 0.4);
+    col += palette(0.12 + uVocalPitch * 0.2, uPalette) * exp(-dSun * 4.8) * (0.35 + uBass * 0.4 + uVocal * 0.35);
 
     // Audio-Reactive Jagged Mountain Silhouette along the horizon
     float mtnX = abs(p.x) * 0.65;
     float mtnFft = texture2D(uAudioTex, vec2(clamp(mtnX, 0.02, 0.95), 0.25)).r;
     float mtnNoise = abs(sin(p.x * 9.0) * 0.04 + cos(p.x * 23.0) * 0.02);
-    float mtnHeight = horizon + (mtnFft * 0.22 + mtnNoise) * smoothstep(0.05, 0.32, abs(p.x));
+    float mtnHeight = horizon + (mtnFft * 0.24 + mtnNoise) * smoothstep(0.05, 0.32, abs(p.x));
     if (p.y >= horizon && p.y < mtnHeight) {
       col = vec3(0.04, 0.02, 0.09);
       float rim = smoothstep(0.012, 0.0, abs(p.y - mtnHeight));
-      col += palette(mtnX + uTime * 0.1, uPalette) * rim * 1.4;
+      col += palette(mtnX + uTime * 0.1, uPalette) * rim * (1.35 + uVocal * 0.6);
     }
 
-    // 3D Perspective Outrun Wireframe Grid below horizon
+    // 3D Perspective Outrun Wireframe Grid below horizon (driven by Sub-Bass & Bass Groove)
     if (p.y < horizon) {
       float depth = max(0.004, horizon - p.y);
       float z3d = 0.28 / depth;
       float x3d = (p.x - (uPointer.x - 0.5) * 0.3) * z3d;
 
-      // Audio waveform ripple on the grid
-      float gridWave = (texture2D(uAudioTex, vec2(clamp(abs(x3d) * 0.12, 0.01, 0.99), 0.75)).r - 0.5) * uBass * 0.6;
+      float gridWave = (texture2D(uAudioTex, vec2(clamp(abs(x3d) * 0.12, 0.01, 0.99), 0.75)).r - 0.5) * (uBass + uSubBass * 0.8) * 0.65;
       float gx = abs(fract(x3d * 0.55 + gridWave) - 0.5);
-      float gz = abs(fract(z3d * 0.45 - uTime * (2.6 + uBass * 2.2)) - 0.5);
+      float gz = abs(fract(z3d * 0.45 - uTime * (2.6 + uBass * 2.5)) - 0.5);
 
       float lineX = smoothstep(0.045, 0.008, gx);
       float lineZ = smoothstep(0.06, 0.01, gz);
       float gridMask = max(lineX, lineZ) * exp(-depth * 1.6);
 
       vec3 gridCol = palette(depth * 1.5 + uTime * 0.15, uPalette);
-      col = vec3(0.02, 0.01, 0.06) + gridCol * gridMask * (0.9 + uBass * 0.9);
-      // Glowing horizon laser
-      col += vec3(0.85, 0.98, 1.0) * exp(-depth * 75.0) * (1.1 + uBeat * 0.8);
+      col = vec3(0.02, 0.01, 0.06) + gridCol * gridMask * (0.9 + uBass * 0.95 + uSubBass * 0.5);
+      col += vec3(0.85, 0.98, 1.0) * exp(-depth * 75.0) * (1.1 + uBeat * 0.9);
     }
 
   } else if (uMode == 5) {
-    // MODE 5: CYBER MATRIX & 3D AUDIO METROPOLIS — Digital rain + isometric 3D equalizer towers
+    // MODE 5: CYBER MATRIX & 3D AUDIO METROPOLIS —
+    // Treble: Digital Matrix Rain | Vocals: Sweeping Concert Searchlight Beams & Sky Wave | Bass: 3D Skyscraper Towers
     col = vec3(0.01, 0.02, 0.04);
 
-    // Background cascading digital Matrix rain columns
+    // Background cascading digital Matrix rain columns (accelerated by Treble & Sparkle)
     float rainCols = 64.0;
     float colIdx = floor(vUv.x * rainCols);
     float colSpeed = 0.6 + hash21(vec2(colIdx, 1.0)) * 1.4;
     float colFft = texture2D(uAudioTex, vec2(clamp(colIdx / rainCols, 0.01, 0.99), 0.25)).r;
-    float rainY = fract(vUv.y * 0.8 + uTime * colSpeed * (0.6 + uHigh * 0.8) + hash21(vec2(colIdx, 2.0)));
+    float rainY = fract(vUv.y * 0.8 + uTime * colSpeed * (0.55 + uHigh * 1.05 + uTrebleSpark * 0.4) + hash21(vec2(colIdx, 2.0)));
     float charCell = step(0.35, hash21(vec2(colIdx, floor(vUv.y * 42.0 - uTime * 8.0))));
     float rainTrail = pow(1.0 - rainY, 3.5) * charCell;
     float rainHead = smoothstep(0.04, 0.0, rainY) * charCell;
     vec3 rainCol = palette(colIdx / rainCols + uTime * 0.05, uPalette);
-    col += rainCol * rainTrail * (0.28 + colFft * 0.7) + vec3(0.9, 1.0, 0.95) * rainHead * (0.5 + uHigh);
+    col += rainCol * rainTrail * (0.26 + colFft * 0.72) + vec3(0.9, 1.0, 0.95) * rainHead * (0.5 + uHigh + uTrebleSpark * 0.6);
+
+    // Vocal Concert Searchlight Lasers sweeping the sky above the city
+    if (uVocal > 0.08) {
+      float beam1Angle = sin(uTime * 1.7 + uVocalPitch * 2.5) * 0.55;
+      float beam2Angle = cos(uTime * 1.3 - uVocalPitch * 2.5) * 0.55;
+      vec2 bOrigin1 = vec2(-0.42, -0.35);
+      vec2 bOrigin2 = vec2(0.42, -0.35);
+      vec2 d1 = p - bOrigin1;
+      vec2 d2 = p - bOrigin2;
+      float cone1 = exp(-abs( d1.x - d1.y * beam1Angle ) * 16.0) * step(0.0, d1.y);
+      float cone2 = exp(-abs( d2.x - d2.y * beam2Angle ) * 16.0) * step(0.0, d2.y);
+      col += palette(0.32 + uVocalPitch * 0.35, uPalette) * (cone1 + cone2) * uVocal * 0.48;
+    }
 
     // Foreground 3D Perspective Equalizer Skyscraper City (28 towers across)
     float numTowers = 28.0;
@@ -1183,24 +1384,24 @@ void main() {
         float tLocalX = fract(tx * numTowers);
         float binU = clamp(abs(tIdx / numTowers - 0.5) * 1.6 + rF * 0.12, 0.02, 0.96);
         float towerFft = texture2D(uAudioTex, vec2(binU, 0.25)).r;
-        float towerH = (0.08 + pow(towerFft, 1.25) * (0.52 + uBass * 0.25)) * (1.0 - rF * 0.18);
+        float towerH = (0.08 + pow(towerFft, 1.2) * (0.54 + uBass * 0.26 + uSubBass * 0.14)) * (1.0 - rF * 0.18);
         float topY = rowBaseY + towerH;
 
         if (p.y >= rowBaseY && p.y <= topY && tLocalX > 0.12 && tLocalX < 0.88) {
           vec3 bldgCol = palette(binU + rF * 0.2 + uTime * 0.06, uPalette);
-          // 3D shaded building facade + lit windows
           float sideShade = tLocalX < 0.62 ? 0.85 : 0.45;
           float winX = step(0.3, fract(tLocalX * 5.0));
           float winY = step(0.35, fract((p.y - rowBaseY) * 55.0));
           float roofGlow = smoothstep(0.016, 0.0, abs(p.y - topY));
-          col = bldgCol * sideShade * (0.22 + 0.65 * winX * winY * (0.4 + towerFft)) + vec3(0.95, 0.98, 1.0) * roofGlow * 0.95;
+          col = bldgCol * sideShade * (0.22 + 0.68 * winX * winY * (0.4 + towerFft + uVocal * 0.35)) + vec3(0.95, 0.98, 1.0) * roofGlow * 0.95;
         }
       }
     }
 
   } else {
-    // MODE 6: VORONOI BIO-CELLS / ELECTRIC STAINED GLASS — Cellular crystal tessellation
-    float scale = 5.2 - uBass * 1.1;
+    // MODE 6: VORONOI BIO-CELLS / ELECTRIC STAINED GLASS —
+    // Bass: Cell Chamber Scale | Vocals: Bioluminescent Singing Cell Nuclei | Treble: Electric Plasma Membrane Arcs
+    float scale = 5.2 - (uBass * 0.95 + uSubBass * 0.45);
     vec2 st = p * scale;
     vec2 i_st = floor(st);
     vec2 f_st = fract(st);
@@ -1208,22 +1409,19 @@ void main() {
     float minDist1 = 8.0;
     float minDist2 = 8.0;
     vec2 bestId = vec2(0.0);
-    vec2 bestVec = vec2(0.0);
 
     for (int y = -1; y <= 1; y++) {
       for (int x = -1; x <= 1; x++) {
         vec2 neighbor = vec2(float(x), float(y));
         vec2 cellId = i_st + neighbor;
         vec2 rnd = hash22(cellId);
-        // Cells orbit organically and pulse with bass & cursor
-        vec2 point = 0.5 + 0.42 * sin(uTime * (1.1 + uMid * 0.8) + 6.2831 * rnd + uPhase * 0.35);
+        vec2 point = 0.5 + 0.42 * sin(uTime * (1.1 + uMid * 0.8 + uVocal * 0.5) + 6.2831 * rnd + uPhase * 0.35);
         vec2 diff = neighbor + point - f_st;
         float d = length(diff);
         if (d < minDist1) {
           minDist2 = minDist1;
           minDist1 = d;
           bestId = cellId;
-          bestVec = diff;
         } else if (d < minDist2) {
           minDist2 = d;
         }
@@ -1234,19 +1432,19 @@ void main() {
     float cellHash = hash21(bestId);
     float cellFft = texture2D(uAudioTex, vec2(clamp(cellHash * 0.85 + 0.02, 0.01, 0.99), 0.25)).r;
 
-    vec3 cellColor = palette(cellHash + cellFft * 0.45 + uTime * 0.06, uPalette);
-    // Bioluminescent cell core + internal ripples
-    float corePulse = exp(-minDist1 * (3.2 - cellFft * 1.8)) * (0.35 + cellFft * 1.15);
-    float rings = 0.5 + 0.5 * sin(minDist1 * 24.0 - uTime * 5.0 - cellFft * 8.0);
-    col = cellColor * (corePulse + rings * 0.14 * cellFft);
+    vec3 cellColor = palette(cellHash + cellFft * 0.45 + uVocalPitch * 0.2 + uTime * 0.06, uPalette);
+    float corePulse = exp(-minDist1 * (3.1 - cellFft * 1.8)) * (0.35 + cellFft * 1.15);
+    // Vocal Formant concentric ripples inside each cell
+    float vocalRings = (0.5 + 0.5 * sin(minDist1 * (22.0 + uVocalPitch * 18.0) - uTime * 6.0)) * uVocal * 0.28;
+    col = cellColor * (corePulse + vocalRings);
 
-    // Nucleus spark
-    col += vec3(1.0, 0.97, 0.92) * (0.008 / (minDist1 + 0.012)) * (0.4 + cellFft * 0.9 + uBeat * 0.5);
+    // Vocal + Beat Nucleus spark
+    col += vec3(1.0, 0.96, 0.92) * (0.0085 / (minDist1 + 0.012)) * (0.4 + cellFft * 0.85 + uVocal * 0.65 + uBeat * 0.5);
 
-    // Electric plasma membrane borders
-    float borderThickness = 0.035 + abs(waveSample) * 0.04 + uBeat * 0.02;
-    float borderGlow = smoothstep(borderThickness, 0.004, edgeDist);
-    col += mix(cellColor * 1.4, vec3(0.92, 0.98, 1.0), 0.65) * borderGlow * (0.85 + uHigh * 0.7);
+    // Treble Electric plasma membrane borders
+    float borderThickness = 0.034 + abs(waveSample) * 0.042 + uBeat * 0.02 + uTrebleSpark * 0.025;
+    float borderGlow = smoothstep(borderThickness, 0.0035, edgeDist);
+    col += mix(cellColor * 1.4, vec3(0.92, 0.98, 1.0), 0.65) * borderGlow * (0.85 + uHigh * 0.8 + uTrebleSpark * 0.6);
   }
 
   // Subtle vignette & filmic contrast
@@ -2468,6 +2666,18 @@ $('ctrl-gain')?.addEventListener('input', e => {
   state.gain = Number(e.target.value);
   $('val-gain').textContent = `${state.gain.toFixed(2)}×`;
 });
+$('ctrl-bass-boost')?.addEventListener('input', e => {
+  state.bassBoost = Number(e.target.value);
+  $('val-bass-boost').textContent = `${state.bassBoost.toFixed(2)}×`;
+});
+$('ctrl-vocal-boost')?.addEventListener('input', e => {
+  state.vocalBoost = Number(e.target.value);
+  $('val-vocal-boost').textContent = `${state.vocalBoost.toFixed(2)}×`;
+});
+$('ctrl-treble-boost')?.addEventListener('input', e => {
+  state.trebleBoost = Number(e.target.value);
+  $('val-treble-boost').textContent = `${state.trebleBoost.toFixed(2)}×`;
+});
 $('ctrl-decay')?.addEventListener('input', e => {
   state.decay = Number(e.target.value);
   $('val-decay').textContent = `${Math.round(state.decay * 100)}%`;
@@ -2571,11 +2781,17 @@ function renderLoop(now) {
   state.pointerVx *= Math.exp(-dt * 10);
   state.pointerVy *= Math.exp(-dt * 10);
 
-  $('meter-bass').style.width = `${Math.min(100, Math.round((state.subBass * 0.5 + state.bass * 0.5) * 85))}%`;
+  if ($('meter-sub')) {
+    $('meter-sub').style.width = `${Math.min(100, Math.round(state.subBass * 88))}%`;
+  }
+  $('meter-bass').style.width = `${Math.min(100, Math.round(state.bass * 85))}%`;
+  if ($('meter-vocal')) {
+    $('meter-vocal').style.width = `${Math.min(100, Math.round(state.vocal * 88))}%`;
+  }
   $('meter-mid').style.width = `${Math.min(100, Math.round(state.mid * 85))}%`;
-  $('meter-high').style.width = `${Math.min(100, Math.round(state.high * 90))}%`;
+  $('meter-high').style.width = `${Math.min(100, Math.round((state.high * 0.75 + state.trebleSpark * 0.35) * 90))}%`;
   $('bpm-readout').textContent =
-    state.sourceType === 'idle' ? 'WAITING FOR AUDIO' : `~${state.bpmEstimate} BPM · LIVE DSP`;
+    state.sourceType === 'idle' ? 'WAITING FOR AUDIO' : `~${state.bpmEstimate} BPM · 5-STEM DSP`;
 
   const orbScale = 1 + state.beatPulse * 0.55;
   $('beat-indicator').style.transform = `scale(${orbScale.toFixed(2)})`;
@@ -2604,9 +2820,14 @@ function renderLoop(now) {
   gl.uniform1i(gl.getUniformLocation(feedbackProg, 'uAudioTex'), 1);
   gl.uniform2f(gl.getUniformLocation(feedbackProg, 'uRes'), fboWidth, fboHeight);
   gl.uniform1f(gl.getUniformLocation(feedbackProg, 'uTime'), timeSec);
+  gl.uniform1f(gl.getUniformLocation(feedbackProg, 'uSubBass'), state.subBass);
   gl.uniform1f(gl.getUniformLocation(feedbackProg, 'uBass'), state.bass);
+  gl.uniform1f(gl.getUniformLocation(feedbackProg, 'uVocal'), state.vocal);
+  gl.uniform1f(gl.getUniformLocation(feedbackProg, 'uVocalPitch'), state.vocalPitch);
   gl.uniform1f(gl.getUniformLocation(feedbackProg, 'uMid'), state.mid);
   gl.uniform1f(gl.getUniformLocation(feedbackProg, 'uHigh'), state.high);
+  gl.uniform1f(gl.getUniformLocation(feedbackProg, 'uKick'), state.kickImpulse);
+  gl.uniform1f(gl.getUniformLocation(feedbackProg, 'uTrebleSpark'), state.trebleSpark);
   gl.uniform1f(gl.getUniformLocation(feedbackProg, 'uBeat'), state.beatPulse);
   gl.uniform1f(gl.getUniformLocation(feedbackProg, 'uPhase'), state.beatPhase);
   gl.uniform1f(gl.getUniformLocation(feedbackProg, 'uDecay'), state.decay);
@@ -2635,9 +2856,14 @@ function renderLoop(now) {
   gl.uniform1i(gl.getUniformLocation(compositeProg, 'uAudioTex'), 1);
   gl.uniform2f(gl.getUniformLocation(compositeProg, 'uRes'), canvas.width, canvas.height);
   gl.uniform1f(gl.getUniformLocation(compositeProg, 'uTime'), timeSec);
+  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uSubBass'), state.subBass);
   gl.uniform1f(gl.getUniformLocation(compositeProg, 'uBass'), state.bass);
+  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uVocal'), state.vocal);
+  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uVocalPitch'), state.vocalPitch);
   gl.uniform1f(gl.getUniformLocation(compositeProg, 'uMid'), state.mid);
   gl.uniform1f(gl.getUniformLocation(compositeProg, 'uHigh'), state.high);
+  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uKick'), state.kickImpulse);
+  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uTrebleSpark'), state.trebleSpark);
   gl.uniform1f(gl.getUniformLocation(compositeProg, 'uBeat'), state.beatPulse);
   gl.uniform1f(gl.getUniformLocation(compositeProg, 'uPhase'), state.beatPhase);
   gl.uniform1f(gl.getUniformLocation(compositeProg, 'uSymmetry'), state.symmetry);

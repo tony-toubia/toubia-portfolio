@@ -82,4 +82,20 @@ test('AnalyserNode is never connected to audioCtx.destination (prevents double-p
   }
 });
 
+test('5-Stem Audio Decomposition (Sub/Kick, Bass, Vocal Formants/Pitch, Mid, Treble Spark) and 60 FPS Silent Hardware Analyser', () => {
+  assert.ok(js.includes('function startSilentTrackAnalyser(buffer)'), 'Uses native 60 FPS AudioBufferSourceNode connected only to analyser');
+  assert.ok(js.includes('src.connect(analyser)'), 'Silent track source connects to analyser without speaker output');
+  for (const meterId of ['meter-sub', 'meter-bass', 'meter-vocal', 'meter-mid', 'meter-high']) {
+    assert.ok(html.includes(`id="${meterId}"`), `HTML includes #${meterId}`);
+  }
+  for (const boostId of ['ctrl-bass-boost', 'ctrl-vocal-boost', 'ctrl-treble-boost']) {
+    assert.ok(html.includes(`id="${boostId}"`), `HTML includes #${boostId}`);
+    assert.ok(js.includes(`$('${boostId}')`), `JS binds #${boostId}`);
+  }
+  for (const uniformName of ['uSubBass', 'uBass', 'uVocal', 'uVocalPitch', 'uMid', 'uHigh', 'uKick', 'uTrebleSpark']) {
+    assert.ok(js.includes(`'${uniformName}'`), `Passes uniform ${uniformName} to WebGL shaders`);
+  }
+});
+
+
 

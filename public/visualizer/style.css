@@ -237,7 +237,23 @@ input, textarea, code {
   height: 100%;
   border-radius: 99px;
   background: linear-gradient(90deg, #00f5d4, #ff3e9d);
-  transition: width 0.04s linear;
+  transition: width 0.03s linear;
+}
+
+#meter-sub {
+  background: linear-gradient(90deg, #ff2a5f, #ff8a00);
+}
+#meter-bass {
+  background: linear-gradient(90deg, #ff8a00, #ffd000);
+}
+#meter-vocal {
+  background: linear-gradient(90deg, #ff3e9d, #c77dff);
+}
+#meter-mid {
+  background: linear-gradient(90deg, #00f5d4, #00bbf9);
+}
+#meter-high {
+  background: linear-gradient(90deg, #72efdd, #ffffff);
 }
 
 .telemetry-meta {
