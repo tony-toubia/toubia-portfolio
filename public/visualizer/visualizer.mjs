@@ -76,7 +76,7 @@ function ensureAudioContext() {
   return audioCtx;
 }
 
-function stopCurrentSources(keepSpotifyEmbed = false) {
+function stopCurrentSources(keepSpotify = false) {
   if (activeStream) {
     activeStream.getTracks().forEach(t => t.stop());
     activeStream = null;
@@ -88,9 +88,18 @@ function stopCurrentSources(keepSpotifyEmbed = false) {
   if (!audioEl.paused) {
     audioEl.pause();
   }
-  if (!keepSpotifyEmbed && spotifyState.embedController && spotifyState.embedPlaying) {
-    try { spotifyState.embedController.pause(); } catch {}
+  audioEl.removeAttribute('src');
+  try { audioEl.load(); } catch {}
+
+  if (!keepSpotify) {
+    if (spotifyState.embedController && spotifyState.embedPlaying) {
+      try { spotifyState.embedController.pause(); } catch {}
+    }
+    if (spotifyState.sdkPlayer && spotifyState.sdkPlaying) {
+      try { spotifyState.sdkPlayer.pause(); } catch {}
+    }
     spotifyState.embedPlaying = false;
+    spotifyState.sdkPlaying = false;
   }
   document.querySelectorAll('.source-btn').forEach(b => b.classList.remove('active'));
 }
@@ -106,8 +115,11 @@ function setActiveSourceUI(type, badgeText) {
   const isSpotify = type === 'spotify' || type === 'spotify-embed';
   const showTransport = type === 'file' || isSpotify;
   $('transport-bar').hidden = !showTransport;
-  $('seek-bar').hidden = type === 'spotify-embed';
-  $('track-time').hidden = type === 'spotify-embed';
+  const showScrubber =
+    type === 'file' ||
+    (isSpotify && (spotifyState.activePlayer === 'sdk' || spotifyState.embedDurationMs > 0));
+  $('seek-bar').hidden = !showScrubber;
+  $('track-time').hidden = !showScrubber;
 
   const hasQueue =
     (isSpotify && spotifyState.currentQueue.length > 1) ||
@@ -129,7 +141,7 @@ async function startSystemAudio() {
     return;
   }
   try {
-    notify('Select a Browser Tab (Pandora, Spotify, YouTube) or Screen and check "Also share audio" 🔊', 5000);
+    notify('Select a Browser Tab (Pandora, YouTube, Apple Music) or Screen and check "Also share audio" 🔊', 5000);
     const stream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
       audio: {
@@ -148,12 +160,15 @@ async function startSystemAudio() {
       return;
     }
 
-    stopCurrentSources();
+    // Keep Spotify playing if the user is sharing the visualizer tab itself;
+    // analyser is NEVER connected to audioCtx.destination so it will never double-play or echo!
+    const keepSpotifyRunning = spotifyState.embedPlaying || spotifyState.sdkPlaying;
+    stopCurrentSources(keepSpotifyRunning);
     ensureAudioContext();
     activeStream = stream;
     const audioOnlyStream = new MediaStream(audioTracks);
     streamSourceNode = audioCtx.createMediaStreamSource(audioOnlyStream);
-    // Connect ONLY to analyser, NOT to destination, so shared audio doesn't double-echo!
+    // Connect ONLY to analyser (silent FFT sink — never connected to destination/speakers!)
     streamSourceNode.connect(analyser);
 
     const label = audioTracks[0].label || 'Tab / Window Audio';
@@ -163,8 +178,13 @@ async function startSystemAudio() {
     stream.getTracks().forEach(track => {
       track.addEventListener('ended', () => {
         if (state.sourceType === 'system') {
-          stopCurrentSources();
-          setActiveSourceUI('idle', 'AUDIO SHARE ENDED · SELECT SOURCE');
+          stopCurrentSources(true);
+          if (spotifyState.embedPlaying || spotifyState.sdkPlaying) {
+            const title = spotifyState.currentTrack?.title || 'Spotify Player';
+            setActiveSourceUI('spotify-embed', `SPOTIFY · ${title.toUpperCase().slice(0, 28)}`);
+          } else {
+            setActiveSourceUI('idle', 'AUDIO SHARE ENDED · SELECT SOURCE');
+          }
         }
       });
     });
@@ -194,7 +214,8 @@ function playLocalFileAt(index) {
   const file = localFilesQueue[localFileIndex];
   if (!file) return;
 
-  stopCurrentSources();
+  stopCurrentSources(false);
+  if ($('spotify-embed-dock')) $('spotify-embed-dock').hidden = true;
   ensureAudioContext();
 
   const url = URL.createObjectURL(file);
@@ -203,8 +224,10 @@ function playLocalFileAt(index) {
 
   if (!mediaElementSourceNode) {
     mediaElementSourceNode = audioCtx.createMediaElementSource(audioEl);
+    // Connect mediaElementSourceNode to analyser AND separately to destination.
+    // Never connect analyser to destination so shared tab streams never output to speakers!
     mediaElementSourceNode.connect(analyser);
-    analyser.connect(audioCtx.destination);
+    mediaElementSourceNode.connect(audioCtx.destination);
   }
 
   const cleanName = file.name.replace(/\.[^/.]+$/, '');
@@ -236,13 +259,13 @@ function playLocalFileAt(index) {
     });
 }
 
-// 3. Direct In-App Spotify Player & Search Engine
+// 3. Full-Track In-App Spotify Player (Web Playback SDK + Official Embed + Silent Spectral Fingerprint)
 const bootQueryParams = new URLSearchParams(window.location.search);
 const bootEnvClientId = (bootQueryParams.get('envClientId') || '').trim();
 const bootEnvRedirectUri = (bootQueryParams.get('envRedirectUri') || '').trim();
 
 const spotifyState = {
-  engine: 'direct', // 'direct' (CORS WebAudio 2048-FFT) | 'embed' (Official Spotify Player)
+  activePlayer: 'embed', // 'sdk' (Web Playback SDK Full Track) | 'embed' (Official Spotify Full-Track Embed)
   tab: 'playlists', // 'playlists' | 'search' | 'library'
   officialPlaylists: [],
   searchResults: [],
@@ -253,9 +276,11 @@ const spotifyState = {
   embedController: null,
   embedReady: false,
   embedPlaying: false,
+  sdkPlaying: false,
   embedPositionMs: 0,
   embedDurationMs: 0,
   trackSeed: 1.0,
+  trackSignature: null, // Decoded silent spectral envelope { bassCurve, midCurve, highCurve, energy, bpm }
   envClientId: bootEnvClientId,
   envRedirectUri: bootEnvRedirectUri,
   clientId: bootEnvClientId || localStorage.getItem('sp_client_id') || '',
@@ -283,16 +308,39 @@ window.onSpotifyIframeApiReady = IFrameAPI => {
       controller.addListener('playback_update', e => {
         const data = e?.data;
         if (!data) return;
+        // Ignore embed updates if the Web Playback SDK is currently the active player
+        if (spotifyState.activePlayer === 'sdk' && spotifyState.sdkPlaying) {
+          if (!data.isPaused) {
+            try { controller.pause(); } catch {}
+          }
+          return;
+        }
         const wasPlaying = spotifyState.embedPlaying;
         spotifyState.embedPlaying = !data.isPaused;
         spotifyState.embedPositionMs = Number(data.position || 0);
         spotifyState.embedDurationMs = Number(data.duration || 0);
 
+        if (spotifyState.embedDurationMs > 0) {
+          $('seek-bar').hidden = false;
+          $('track-time').hidden = false;
+          $('seek-bar').value = String(
+            Math.min(100, (spotifyState.embedPositionMs / spotifyState.embedDurationMs) * 100)
+          );
+          $('track-time').textContent = `${formatTime(spotifyState.embedPositionMs * 0.001)} / ${formatTime(
+            spotifyState.embedDurationMs * 0.001
+          )}`;
+        }
+
         if (spotifyState.embedPlaying && !wasPlaying) {
+          spotifyState.activePlayer = 'embed';
+          if (spotifyState.sdkPlayer && spotifyState.sdkPlaying) {
+            try { spotifyState.sdkPlayer.pause(); } catch {}
+            spotifyState.sdkPlaying = false;
+          }
           if (state.sourceType !== 'system') {
             stopCurrentSources(true);
             const title = spotifyState.currentTrack?.title || 'Spotify Player';
-            setActiveSourceUI('spotify-embed', `SPOTIFY PLAYER · ${title.toUpperCase().slice(0, 28)}`);
+            setActiveSourceUI('spotify-embed', `SPOTIFY · ${title.toUpperCase().slice(0, 28)}`);
           }
           $('btn-play-pause').textContent = '⏸';
         } else if (!spotifyState.embedPlaying && wasPlaying && state.sourceType === 'spotify-embed') {
@@ -310,7 +358,116 @@ function estimateBpmFromTrack(title = '', artist = '') {
     hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
   }
   spotifyState.trackSeed = (hash % 1000) / 1000 + 0.5;
-  return 108 + (hash % 32);
+  return 112 + (hash % 28);
+}
+
+// Silently analyzes the track's audio characteristics in memory (NEVER connected to speakers!)
+// so the visualizer reacts to the song's real bass, mids, highs, and tempo during full-track playback.
+async function analyzeTrackSignatureInBackground(track) {
+  if (!track) return;
+  spotifyState.trackSignature = null;
+
+  // 1. If logged in to Spotify OAuth, check audio-features for exact BPM & energy
+  if (track.spotifyId && isSpotifyTokenValid()) {
+    fetchSpotifyWebApi(`/audio-features/${track.spotifyId}`)
+      .then(feat => {
+        if (feat?.tempo) {
+          state.bpmEstimate = Math.round(feat.tempo);
+        }
+        if (feat && spotifyState.currentTrack?.id === track.id) {
+          spotifyState.trackSignature = {
+            ...(spotifyState.trackSignature || {}),
+            energy: Number(feat.energy || 0.78),
+            danceability: Number(feat.danceability || 0.72),
+            valence: Number(feat.valence || 0.6),
+          };
+        }
+      })
+      .catch(() => {});
+  }
+
+  // 2. Decode sample buffer silently in memory (no AudioNode / no speaker output) to extract real spectral envelope
+  try {
+    let streamUrl = track.streamProxyUrl;
+    if (!streamUrl && track.title) {
+      const q = new URLSearchParams({
+        resolveTrack: '1',
+        title: track.title,
+        artist: track.artist || '',
+        spotifyId: track.spotifyId || '',
+        artwork: track.artwork || '',
+      });
+      const res = await fetch(`/api/visualizer/spotify?${q.toString()}`);
+      const data = await res.json();
+      if (data?.track?.streamProxyUrl) {
+        streamUrl = data.track.streamProxyUrl;
+        track.streamProxyUrl = streamUrl;
+        if (!track.artwork && data.track.artwork) {
+          track.artwork = data.track.artwork;
+          updateTransportMetadata(track);
+        }
+      }
+    }
+    if (!streamUrl || spotifyState.currentTrack?.id !== track.id) return;
+
+    const audioRes = await fetch(streamUrl);
+    if (!audioRes.ok) return;
+    const arrayBuf = await audioRes.arrayBuffer();
+    const ctx = ensureAudioContext();
+    const decoded = await ctx.decodeAudioData(arrayBuf.slice(0));
+    if (spotifyState.currentTrack?.id !== track.id) return;
+
+    const ch = decoded.getChannelData(0);
+    const slices = 160;
+    const step = Math.max(1, Math.floor(ch.length / slices));
+    const bassCurve = new Float32Array(slices);
+    const midCurve = new Float32Array(slices);
+    const highCurve = new Float32Array(slices);
+
+    let peakOnsets = 0;
+    let prevLow = 0;
+    for (let s = 0; s < slices; s++) {
+      const start = s * step;
+      const len = Math.min(2048, ch.length - start);
+      let lowAcc = 0;
+      let midAcc = 0;
+      let highAcc = 0;
+      let lp = 0;
+      let prevSample = ch[start] || 0;
+      for (let i = 0; i < len; i++) {
+        const sample = ch[start + i];
+        lp = lp * 0.88 + sample * 0.12;
+        const hp = sample - prevSample;
+        const bp = sample - lp;
+        prevSample = sample;
+        lowAcc += Math.abs(lp);
+        midAcc += Math.abs(bp);
+        highAcc += Math.abs(hp);
+      }
+      const normLow = Math.min(1.6, (lowAcc / Math.max(1, len)) * 6.5);
+      const normMid = Math.min(1.6, (midAcc / Math.max(1, len)) * 5.2);
+      const normHigh = Math.min(1.6, (highAcc / Math.max(1, len)) * 7.5);
+      bassCurve[s] = normLow;
+      midCurve[s] = normMid;
+      highCurve[s] = normHigh;
+      if (normLow > prevLow * 1.25 && normLow > 0.25) peakOnsets++;
+      prevLow = normLow;
+    }
+
+    const durSec = Math.max(10, decoded.duration);
+    const estimatedBpm = Math.max(88, Math.min(168, Math.round((peakOnsets / durSec) * 60 * 2)));
+    if (!spotifyState.trackSignature?.energy) {
+      state.bpmEstimate = estimatedBpm;
+    }
+
+    spotifyState.trackSignature = {
+      ...(spotifyState.trackSignature || {}),
+      bassCurve,
+      midCurve,
+      highCurve,
+      slices,
+    };
+  } catch {}
 }
 
 function updateTransportMetadata(track) {
@@ -351,91 +508,105 @@ async function playSpotifyTrack(track, index = 0, queue = spotifyState.currentQu
   updateTransportMetadata(track);
   highlightActiveTrackCard();
 
-  // Official Spotify Embed Player Mode
-  if (spotifyState.engine === 'embed' && (track.spotifyUri || track.spotifyId)) {
-    const uri = track.spotifyUri || `spotify:track:${track.spotifyId}`;
+  // Analyze track spectral signature silently in the background (zero audio output)
+  analyzeTrackSignatureInBackground(track);
+
+  // If track was from a text search without a Spotify URI yet, resolve its Spotify ID/URI first
+  if (!track.spotifyUri && !track.spotifyId && track.title) {
+    try {
+      const q = new URLSearchParams({
+        resolveTrack: '1',
+        title: track.title,
+        artist: track.artist || '',
+      });
+      const res = await fetch(`/api/visualizer/spotify?${q.toString()}`);
+      const data = await res.json();
+      if (data?.track?.spotifyId) {
+        track.spotifyId = data.track.spotifyId;
+        track.spotifyUri = `spotify:track:${data.track.spotifyId}`;
+      }
+    } catch {}
+  }
+
+  const uri = track.spotifyUri || (track.spotifyId ? `spotify:track:${track.spotifyId}` : '');
+
+  // 1. Primary Full-Track Playback: Spotify Web Playback SDK (when logged in & SDK device ready)
+  if (uri && isSpotifyTokenValid() && spotifyState.sdkDeviceId) {
+    try {
+      // Ensure Embed widget & local audio are stopped so only the SDK plays
+      if (spotifyState.embedController && spotifyState.embedPlaying) {
+        try { spotifyState.embedController.pause(); } catch {}
+      }
+      if ($('spotify-embed-dock')) $('spotify-embed-dock').hidden = true;
+      if (!audioEl.paused) audioEl.pause();
+
+      const queueUris = spotifyState.currentQueue
+        .map(t => t.spotifyUri || (t.spotifyId ? `spotify:track:${t.spotifyId}` : ''))
+        .filter(u => u.startsWith('spotify:track:'));
+
+      const playBody =
+        queueUris.length > 1 && queueUris.includes(uri)
+          ? { uris: queueUris.slice(0, 60), offset: { uri } }
+          : { uris: [uri] };
+
+      const sdkRes = await fetch(
+        `https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(spotifyState.sdkDeviceId)}`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${spotifyState.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(playBody),
+        }
+      );
+
+      if (sdkRes.ok || sdkRes.status === 204 || sdkRes.status === 202) {
+        spotifyState.activePlayer = 'sdk';
+        spotifyState.sdkPlaying = true;
+        spotifyState.embedPlaying = true;
+        spotifyState.embedPositionMs = 0;
+        spotifyState.embedDurationMs = track.durationMs || 210000;
+        if (state.sourceType !== 'system') {
+          setActiveSourceUI('spotify-embed', `SPOTIFY · ${track.title.toUpperCase().slice(0, 28)}`);
+        }
+        if (autoCloseDrawer) toggleSpotifyDrawer(false);
+        $('btn-play-pause').textContent = '⏸';
+        notify(`Playing full track "${track.title}" — ${track.artist} 🟢`);
+        return;
+      }
+    } catch {}
+  }
+
+  // 2. Fallback Full-Track Playback: Official Spotify Embed Player
+  if (uri) {
+    if (spotifyState.sdkPlayer && spotifyState.sdkPlaying) {
+      try { spotifyState.sdkPlayer.pause(); } catch {}
+      spotifyState.sdkPlaying = false;
+    }
+    if (!audioEl.paused) audioEl.pause();
+
+    spotifyState.activePlayer = 'embed';
     $('spotify-embed-dock').hidden = false;
-    stopCurrentSources(true);
-    setActiveSourceUI('spotify-embed', `SPOTIFY PLAYER · ${track.title.toUpperCase().slice(0, 28)}`);
+    if (state.sourceType !== 'system') {
+      setActiveSourceUI('spotify-embed', `SPOTIFY PLAYER · ${track.title.toUpperCase().slice(0, 28)}`);
+    }
     if (autoCloseDrawer) toggleSpotifyDrawer(false);
     if (spotifyState.embedController) {
       spotifyState.embedController.loadUri(uri);
       spotifyState.embedController.play();
       spotifyState.embedPlaying = true;
+      spotifyState.embedPositionMs = 0;
+      spotifyState.embedDurationMs = track.durationMs || 210000;
       $('btn-play-pause').textContent = '⏸';
-      notify(`Loaded "${track.title}" in Official Spotify Player 🎧`);
+      notify(`Playing "${track.title}" in Spotify Player 🎧`);
     } else {
       notify('Spotify Player ready below — press Play in the widget!');
     }
     return;
   }
 
-  // Direct WebAudio FFT Visualizer Stream
-  if (!track.streamProxyUrl && track.title) {
-    try {
-      notify(`Loading "${track.title}"...`, 2000);
-      const q = new URLSearchParams({
-        resolveTrack: '1',
-        title: track.title,
-        artist: track.artist || '',
-        spotifyId: track.spotifyId || '',
-        artwork: track.artwork || '',
-      });
-      const res = await fetch(`/api/visualizer/spotify?${q.toString()}`);
-      const data = await res.json();
-      if (data?.track?.streamProxyUrl) {
-        track.streamProxyUrl = data.track.streamProxyUrl;
-        track.previewUrl = data.track.previewUrl;
-        if (!track.artwork && data.track.artwork) track.artwork = data.track.artwork;
-        updateTransportMetadata(track);
-      }
-    } catch {}
-  }
-
-  if (!track.streamProxyUrl) {
-    if (track.spotifyUri || track.spotifyId) {
-      setSpotifyEngine('embed');
-      return playSpotifyTrack(track, index, queue, autoCloseDrawer);
-    }
-    notify('Could not load audio stream for this track — try another song!');
-    return;
-  }
-
-  stopCurrentSources(false);
-  ensureAudioContext();
-
-  if (!mediaElementSourceNode) {
-    mediaElementSourceNode = audioCtx.createMediaElementSource(audioEl);
-    mediaElementSourceNode.connect(analyser);
-    analyser.connect(audioCtx.destination);
-  }
-
-  audioEl.crossOrigin = 'anonymous';
-  audioEl.src = track.streamProxyUrl;
-  audioEl.load();
-
-  setActiveSourceUI('spotify', `SPOTIFY · ${track.title.toUpperCase().slice(0, 30)}`);
-  if (autoCloseDrawer) toggleSpotifyDrawer(false);
-
-  try {
-    await audioEl.play();
-    $('btn-play-pause').textContent = '⏸';
-    notify(`Playing "${track.title}" — ${track.artist} 🟢`);
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: track.title,
-        artist: track.artist || 'Spotify Visualizer',
-        artwork: track.artwork ? [{ src: track.artwork, sizes: '512x512', type: 'image/jpeg' }] : [],
-      });
-      navigator.mediaSession.setActionHandler('play', () => audioEl.play());
-      navigator.mediaSession.setActionHandler('pause', () => audioEl.pause());
-      navigator.mediaSession.setActionHandler('previoustrack', () => stepSpotifyQueue(-1));
-      navigator.mediaSession.setActionHandler('nexttrack', () => stepSpotifyQueue(1));
-    }
-  } catch {
-    $('btn-play-pause').textContent = '▶';
-    notify('Tap Play (▶) in the bottom bar to start audio!');
-  }
+  notify('Select a Spotify playlist or log in with Spotify to play full tracks!');
 }
 
 function stepSpotifyQueue(delta) {
@@ -449,80 +620,81 @@ function stepSpotifyQueue(delta) {
   playSpotifyTrack(q[nextIdx], nextIdx, q, false);
 }
 
-async function startCurrentTabSpotifyAudio() {
-  if (!navigator.mediaDevices?.getDisplayMedia) {
-    notify('Tab audio sync requires a desktop browser (Chrome/Edge).');
-    return;
-  }
-  try {
-    notify('Allow sharing this tab with "Share tab audio" checked for raw 2048-bin FFT! 🔊', 4500);
-    const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: true,
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
-        suppressLocalAudioPlayback: false,
-      },
-      preferCurrentTab: true,
-      selfBrowserSurface: 'include',
-      systemAudio: 'include',
-    });
-    const audioTracks = stream.getAudioTracks();
-    if (!audioTracks.length) {
-      stream.getTracks().forEach(t => t.stop());
-      notify('⚠️ Make sure "Share tab audio" is toggled ON in the popup!');
-      return;
-    }
-    ensureAudioContext();
-    if (activeStream) activeStream.getTracks().forEach(t => t.stop());
-    activeStream = stream;
-    const audioOnly = new MediaStream(audioTracks);
-    streamSourceNode = audioCtx.createMediaStreamSource(audioOnly);
-    streamSourceNode.connect(analyser);
-    $('sp-embed-hint').textContent = '✓ Live 2048-bin Tab Audio FFT connected!';
-    notify('Connected raw 2048-bin FFT to Spotify Player! 🌈');
-  } catch {}
-}
-
 // --- Real-Time Audio Analysis & Beat Detection ---
 function updateAudioAnalysis(timeSec, dt) {
   const hasDirectAudio =
     analyser &&
     ((state.sourceType === 'file' && !audioEl.paused) ||
-      (state.sourceType === 'spotify' && !audioEl.paused) ||
-      state.sourceType === 'system' ||
-      (state.sourceType === 'spotify-embed' && activeStream));
+      (state.sourceType === 'system' && activeStream));
 
   if (hasDirectAudio) {
     analyser.getByteFrequencyData(freqData);
     analyser.getByteTimeDomainData(waveData);
-  } else if (state.sourceType === 'spotify-embed' && spotifyState.embedPlaying) {
-    // Beat-locked harmonic telemetry synchronized to live Spotify Embed playback position & BPM
+  } else if (
+    (state.sourceType === 'spotify-embed' || state.sourceType === 'spotify') &&
+    (spotifyState.embedPlaying || spotifyState.sdkPlaying)
+  ) {
+    // Advance position smoothly between SDK / Embed updates
+    spotifyState.embedPositionMs += dt * 1000;
+    if (spotifyState.embedDurationMs > 0) {
+      const pct = Math.min(100, (spotifyState.embedPositionMs / spotifyState.embedDurationMs) * 100);
+      if ($('seek-bar') && document.activeElement !== $('seek-bar')) {
+        $('seek-bar').value = String(pct);
+      }
+      if ($('track-time')) {
+        $('track-time').textContent = `${formatTime(spotifyState.embedPositionMs * 0.001)} / ${formatTime(
+          spotifyState.embedDurationMs * 0.001
+        )}`;
+      }
+    }
+
+    // Track-signature + beat-locked multi-band synthesis for full-track Spotify playback
     const bpm = state.bpmEstimate || 122;
     const posSec = (spotifyState.embedPositionMs || timeSec * 1000) * 0.001;
     const beatPos = posSec * (bpm / 60);
     const beatFrac = beatPos - Math.floor(beatPos);
-    const kickEnv = Math.pow(Math.max(0, 1.0 - beatFrac * 2.6), 2.2);
-    const snareEnv = Math.floor(beatPos) % 2 === 1 ? Math.pow(Math.max(0, 1.0 - beatFrac * 3.0), 1.8) : 0;
-    const hatEnv = Math.pow(Math.max(0, 1.0 - ((beatPos * 2) % 1) * 3.2), 2.0);
+
+    // Sample the song's real decoded spectral envelope if available
+    const sig = spotifyState.trackSignature;
+    let sigBass = 1.0;
+    let sigMid = 1.0;
+    let sigHigh = 1.0;
+    if (sig?.bassCurve && sig.slices > 1) {
+      const cyc = (posSec * 3.8) % sig.slices;
+      const idx0 = Math.floor(cyc) % sig.slices;
+      const idx1 = (idx0 + 1) % sig.slices;
+      const frac = cyc - Math.floor(cyc);
+      sigBass = 0.45 + (sig.bassCurve[idx0] * (1 - frac) + sig.bassCurve[idx1] * frac) * 0.95;
+      sigMid = 0.45 + (sig.midCurve[idx0] * (1 - frac) + sig.midCurve[idx1] * frac) * 0.95;
+      sigHigh = 0.45 + (sig.highCurve[idx0] * (1 - frac) + sig.highCurve[idx1] * frac) * 0.95;
+    }
+
+    const kickEnv = Math.pow(Math.max(0, 1.0 - beatFrac * 2.5), 2.1) * sigBass;
+    const snareEnv =
+      (Math.floor(beatPos) % 2 === 1 ? Math.pow(Math.max(0, 1.0 - beatFrac * 2.9), 1.8) : 0) * sigMid;
+    const hatEnv = Math.pow(Math.max(0, 1.0 - ((beatPos * 2) % 1) * 3.1), 2.0) * sigHigh;
     const seed = spotifyState.trackSeed || 1.1;
 
     for (let i = 0; i < 512; i++) {
       const f = i / 512;
-      const subKick = Math.exp(-f * 14.0) * kickEnv * 235;
-      const bassGroove = Math.exp(-Math.pow((f - 0.07) * 18.0, 2.0)) * (110 + 95 * Math.sin(beatPos * Math.PI * 0.5 * seed));
+      const subKick = Math.exp(-f * 14.0) * kickEnv * 240;
+      const bassGroove =
+        Math.exp(-Math.pow((f - 0.07) * 18.0, 2.0)) *
+        (105 + 95 * Math.sin(beatPos * Math.PI * 0.5 * seed)) *
+        sigBass;
       const vocalMids =
         Math.exp(-Math.pow((f - 0.24) * 7.5, 2.0)) *
-        (85 + snareEnv * 110 + 55 * Math.sin(f * 32.0 - timeSec * 6.5 * seed));
-      const hiAir = Math.pow(f, 0.7) * hatEnv * 125 + Math.sin(f * 70.0 + timeSec * 11.0) * 22;
+        (80 + snareEnv * 115 + 55 * Math.sin(f * 32.0 - timeSec * 6.5 * seed)) *
+        sigMid;
+      const hiAir =
+        (Math.pow(f, 0.7) * hatEnv * 130 + Math.sin(f * 70.0 + timeSec * 11.0) * 22) * sigHigh;
       freqData[i] = Math.max(0, Math.min(255, subKick + bassGroove + vocalMids + hiAir));
 
       const wave =
         128 +
-        Math.sin(f * Math.PI * 4.0 + timeSec * 9.0) * (35 + kickEnv * 58) +
-        Math.sin(f * Math.PI * 18.0 - timeSec * 15.0 * seed) * (18 + snareEnv * 34) +
-        Math.cos(f * Math.PI * 42.0 + timeSec * 23.0) * (hatEnv * 22);
+        Math.sin(f * Math.PI * 4.0 + timeSec * 9.0) * (34 + kickEnv * 60) +
+        Math.sin(f * Math.PI * 18.0 - timeSec * 15.0 * seed) * (18 + snareEnv * 36) +
+        Math.cos(f * Math.PI * 42.0 + timeSec * 23.0) * (hatEnv * 24);
       waveData[i] = Math.max(0, Math.min(255, wave));
     }
   } else {
@@ -1196,26 +1368,10 @@ $('close-embed-dock')?.addEventListener('click', e => {
     try { spotifyState.embedController.pause(); } catch {}
     spotifyState.embedPlaying = false;
   }
-  if (state.sourceType === 'spotify-embed') {
+  if (state.sourceType === 'spotify-embed' && !spotifyState.sdkPlaying) {
     setActiveSourceUI('idle', 'READY · CHOOSE SPOTIFY, LOCAL MUSIC, OR TAB AUDIO');
   }
 });
-
-function setSpotifyEngine(engine) {
-  spotifyState.engine = engine;
-  $('sp-engine-direct')?.classList.toggle('active', engine === 'direct');
-  $('sp-engine-embed')?.classList.toggle('active', engine === 'embed');
-  if ($('spotify-embed-dock')) {
-    $('spotify-embed-dock').hidden = engine !== 'embed';
-  }
-  if (spotifyState.currentTrack) {
-    playSpotifyTrack(spotifyState.currentTrack, spotifyState.currentIndex, spotifyState.currentQueue, false);
-  }
-}
-
-$('sp-engine-direct')?.addEventListener('click', () => setSpotifyEngine('direct'));
-$('sp-engine-embed')?.addEventListener('click', () => setSpotifyEngine('embed'));
-$('btn-spotify-tab-sync')?.addEventListener('click', startCurrentTabSpotifyAudio);
 
 function selectSpotifyTab(tab) {
   spotifyState.tab = tab;
@@ -1438,14 +1594,22 @@ $('sp-back-btn')?.addEventListener('click', () => {
 
 $('sp-play-collection-embed')?.addEventListener('click', () => {
   const col = spotifyState.activeCollection;
+  if (col?.tracks?.length) {
+    playSpotifyTrack(col.tracks[0], 0, col.tracks, true);
+    return;
+  }
   if (!col?.spotifyUri) return;
-  setSpotifyEngine('embed');
+  if (spotifyState.sdkPlayer && spotifyState.sdkPlaying) {
+    try { spotifyState.sdkPlayer.pause(); } catch {}
+    spotifyState.sdkPlaying = false;
+  }
+  spotifyState.activePlayer = 'embed';
   $('spotify-embed-dock').hidden = false;
   toggleSpotifyDrawer(false);
   if (spotifyState.embedController) {
     spotifyState.embedController.loadUri(col.spotifyUri);
     spotifyState.embedController.play();
-    notify(`Loaded ${col.title} in Official Spotify Player below 🎧`);
+    notify(`Playing ${col.title} in Official Spotify Player 🎧`);
   }
 });
 
@@ -2046,7 +2210,12 @@ function initSpotifyWebPlaybackSDK() {
   try {
     const player = new window.Spotify.Player({
       name: 'SONIC PRISM Web Visualizer',
-      getOAuthToken: cb => cb(spotifyState.accessToken),
+      getOAuthToken: async cb => {
+        if (!isSpotifyTokenValid()) {
+          await refreshSpotifyAccessToken();
+        }
+        cb(spotifyState.accessToken);
+      },
       volume: 0.9,
     });
     player.addListener('ready', ({ device_id }) => {
@@ -2054,9 +2223,46 @@ function initSpotifyWebPlaybackSDK() {
     });
     player.addListener('player_state_changed', st => {
       if (!st) return;
+      spotifyState.activePlayer = 'sdk';
+      spotifyState.sdkPlaying = !st.paused;
       spotifyState.embedPlaying = !st.paused;
       spotifyState.embedPositionMs = st.position || 0;
       spotifyState.embedDurationMs = st.duration || 0;
+
+      if (!st.paused && spotifyState.embedController) {
+        try { spotifyState.embedController.pause(); } catch {}
+        if ($('spotify-embed-dock')) $('spotify-embed-dock').hidden = true;
+      }
+
+      const cur = st.track_window?.current_track;
+      if (cur?.id && spotifyState.currentTrack?.spotifyId !== cur.id) {
+        const mapped = {
+          id: `spotify-${cur.id}`,
+          spotifyId: cur.id,
+          spotifyUri: cur.uri,
+          title: cur.name || 'Track',
+          artist: Array.isArray(cur.artists) ? cur.artists.map(a => a.name).join(', ') : '',
+          artwork: cur.album?.images?.[0]?.url || '',
+          durationMs: st.duration || 210000,
+        };
+        spotifyState.currentTrack = mapped;
+        updateTransportMetadata(mapped);
+        highlightActiveTrackCard();
+        analyzeTrackSignatureInBackground(mapped);
+        if (state.sourceType !== 'system') {
+          setActiveSourceUI('spotify-embed', `SPOTIFY · ${mapped.title.toUpperCase().slice(0, 28)}`);
+        }
+      }
+
+      if ($('btn-play-pause')) {
+        $('btn-play-pause').textContent = st.paused ? '▶' : '⏸';
+      }
+      if (st.duration > 0) {
+        $('seek-bar').hidden = false;
+        $('track-time').hidden = false;
+        $('seek-bar').value = String(Math.min(100, (st.position / st.duration) * 100));
+        $('track-time').textContent = `${formatTime(st.position * 0.001)} / ${formatTime(st.duration * 0.001)}`;
+      }
     });
     player.connect();
     spotifyState.sdkPlayer = player;
@@ -2162,7 +2368,7 @@ $('btn-prev-track')?.addEventListener('click', () => stepSpotifyQueue(-1));
 $('btn-next-track')?.addEventListener('click', () => stepSpotifyQueue(1));
 
 $('btn-play-pause')?.addEventListener('click', () => {
-  if (state.sourceType === 'file' || state.sourceType === 'spotify') {
+  if (state.sourceType === 'file') {
     if (audioEl.paused) {
       ensureAudioContext();
       audioEl.play();
@@ -2171,14 +2377,30 @@ $('btn-play-pause')?.addEventListener('click', () => {
       audioEl.pause();
       $('btn-play-pause').textContent = '▶';
     }
-  } else if (state.sourceType === 'spotify-embed' && spotifyState.embedController) {
-    spotifyState.embedController.togglePlay();
+  } else if (state.sourceType === 'spotify-embed' || state.sourceType === 'spotify') {
+    if (spotifyState.activePlayer === 'sdk' && spotifyState.sdkPlayer) {
+      spotifyState.sdkPlayer.togglePlay();
+    } else if (spotifyState.embedController) {
+      spotifyState.embedController.togglePlay();
+    }
   }
 });
 
 $('seek-bar')?.addEventListener('input', e => {
-  if ((state.sourceType === 'file' || state.sourceType === 'spotify') && Number.isFinite(audioEl.duration)) {
-    audioEl.currentTime = (Number(e.target.value) / 100) * audioEl.duration;
+  const pct = Number(e.target.value) / 100;
+  if (state.sourceType === 'file' && Number.isFinite(audioEl.duration)) {
+    audioEl.currentTime = pct * audioEl.duration;
+  } else if (
+    (state.sourceType === 'spotify-embed' || state.sourceType === 'spotify') &&
+    spotifyState.embedDurationMs > 0
+  ) {
+    const targetMs = Math.round(pct * spotifyState.embedDurationMs);
+    spotifyState.embedPositionMs = targetMs;
+    if (spotifyState.activePlayer === 'sdk' && spotifyState.sdkPlayer) {
+      spotifyState.sdkPlayer.seek(targetMs);
+    } else if (spotifyState.embedController?.seek) {
+      spotifyState.embedController.seek(Math.round(targetMs / 1000));
+    }
   }
 });
 

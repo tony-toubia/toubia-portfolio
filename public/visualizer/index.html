@@ -102,16 +102,6 @@
       <button type="button" id="btn-sp-logout" class="sp-logout-pill" title="Disconnect or switch Spotify account">Log Out</button>
     </div>
 
-    <!-- Playback Mode Switcher -->
-    <div class="sp-engine-bar" role="group" aria-label="Spotify Playback Mode">
-      <button type="button" id="sp-engine-direct" class="sp-engine-btn active" data-engine="direct">
-        ⚡ Direct Visualizer Stream (Instant FFT)
-      </button>
-      <button type="button" id="sp-engine-embed" class="sp-engine-btn" data-engine="embed">
-        🎧 Official Spotify Player (Full Tracks)
-      </button>
-    </div>
-
     <!-- Search Any Track / Artist or Paste Any Spotify Link -->
     <form id="spotify-search-form" class="sp-search-bar">
       <input
@@ -235,14 +225,11 @@
 
   <!-- Bottom Control Deck: 3 Clean Sources (Spotify, Local Music, Share Tab/Window Audio) -->
   <footer id="control-deck" class="control-deck">
-    <!-- Docked Official Spotify Embed Player (only shown when Embed mode is active) -->
+    <!-- Docked Official Spotify Player -->
     <div id="spotify-embed-dock" class="sp-embed-dock" hidden>
       <div class="sp-embed-top">
-        <span id="sp-embed-hint">🎧 Official Spotify Player · Click "Sync Tab Audio" for raw 2048-bin FFT</span>
+        <span id="sp-embed-hint">🎧 Official Spotify Full-Track Player · Synchronized to Visualizer</span>
         <div class="sp-embed-top-btns">
-          <button type="button" id="btn-spotify-tab-sync" class="sp-tab-sync-btn">
-            🔊 Sync Tab Audio
-          </button>
           <button type="button" id="close-embed-dock" class="text-close sm-close" aria-label="Hide Spotify Widget">×</button>
         </div>
       </div>
@@ -312,6 +299,6 @@
 
   <script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
   <script src="https://sdk.scdn.co/spotify-player.js" async></script>
-  <script type="module" src="visualizer.mjs?v=5"></script>
+  <script type="module" src="visualizer.mjs?v=6"></script>
 </body>
 </html>

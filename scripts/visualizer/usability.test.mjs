@@ -73,3 +73,13 @@ test('Spotify OAuth Redirect URI defaults to canonical /visualizer and supports 
   assert.ok(js.includes('sp_oauth_pending_redirect_uri'), 'Token exchange uses exact redirect_uri from authorize step');
 });
 
+test('AnalyserNode is never connected to audioCtx.destination (prevents double-play / feedback chaos on tab audio share) and 30s clip toggle is removed', () => {
+  assert.ok(!js.includes('analyser.connect(audioCtx.destination)'), 'analyser must never connect to audioCtx.destination');
+  assert.ok(js.includes('mediaElementSourceNode.connect(audioCtx.destination)'), 'local file media element connects directly to destination');
+  for (const removed of ['sp-engine-direct', 'sp-engine-embed', 'btn-spotify-tab-sync']) {
+    assert.ok(!html.includes(`id="${removed}"`), `HTML should not contain #${removed}`);
+    assert.ok(!js.includes(`'${removed}'`), `JS should not reference #${removed}`);
+  }
+});
+
+
