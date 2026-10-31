@@ -50,13 +50,13 @@ test('All modals and drawers start with the hidden attribute in index.html', () 
   }
 });
 
-test('All 7 distinct visual modes (0..6) are wired in HTML and WebGL shader', () => {
-  for (let m = 0; m <= 6; m++) {
-    assert.ok(html.includes(`data-mode="${m}"`), `HTML should have mode pill ${m}`);
-  }
-  assert.ok(js.includes('uMode == 4'), 'Shader should implement Mode 4 (Synthwave Sun & 3D Grid)');
-  assert.ok(js.includes('uMode == 5'), 'Shader should implement Mode 5 (Cyber Matrix & 3D City)');
-  assert.ok(js.includes('MODE 6: VORONOI'), 'Shader should implement Mode 6 (Voronoi Bio-Cells)');
+test('the curated five worlds replace the retired City, Cells and starfield Tunnel', () => {
+  const modeIds=[...html.matchAll(/data-mode="(\d+)"/g)].map(m=>Number(m[1]));
+  assert.deepEqual(modeIds,[0,1,2,3,4]);
+  assert.match(html,/>Vortex<\/span>/,'the replacement is named Vortex');
+  for(const label of ['City','Cells','Tunnel']) assert.doesNotMatch(html,new RegExp(`>${label}</span>`),`${label} is no longer a selectable world`);
+  assert.ok(!/uMode\s*==\s*[56]\b/.test(js),'retired shader branches are removed');
+  assert.ok(!/MODE 6: VORONOI|MODE 5: CYBER MATRIX|MODE 3: 3D STARFIELD/.test(js),'retired implementations are not kept behind the new menu');
 });
 
 test('Every close button (x) has an explicit click listener in visualizer.mjs', () => {

@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#06070d">
   <title>SONIC PRISM — Spotify &amp; Music Visualizer</title>
-  <meta name="description" content="A modern WebGL music visualizer with 7 distinct shader worlds, direct Spotify account integration, local music playback, and live tab/window audio capture.">
-  <link rel="stylesheet" href="style.css?v=10">
+  <meta name="description" content="A modern WebGL music visualizer with five distinct shader worlds, direct Spotify account integration, local music playback, and live tab/window audio capture.">
+  <link rel="stylesheet" href="style.css?v=11">
 </head>
 <body data-audio-status="idle">
   <canvas id="gl-canvas" aria-label="Interactive audio-reactive music visualizer"></canvas>
@@ -46,7 +46,7 @@
   <section id="audio-onboarding" class="audio-onboarding" aria-labelledby="intro-title">
     <span class="intro-eyebrow">LISTEN DIFFERENTLY</span>
     <h1 id="intro-title">Your sound.<br><em>Another dimension.</em></h1>
-    <p>Seven worlds shaped by your music. Open a track, or capture the audio already playing in a browser tab.</p>
+    <p>Five worlds shaped by your music. Open a track, or capture the audio already playing in a browser tab.</p>
     <div class="intro-actions"><button type="button" id="open-audio" class="intro-primary">Open a music file <span aria-hidden="true">↗</span></button><button type="button" id="capture-audio" class="intro-secondary">Capture playing audio</button></div>
     <small>Playing from Spotify? Start playback, then capture its tab with audio sharing on.</small>
   </section>
@@ -266,14 +266,12 @@
       <button type="button" id="connect-spotify-audio">Connect Spotify audio</button>
     </section>
 
-    <nav class="scene-picker" aria-label="Choose a visual world"><span class="scene-label">WORLDS <small>01 — 07</small></span><div class="mode-pills" role="tablist" aria-label="Visual modes">
+    <nav class="scene-picker" aria-label="Choose a visual world"><span class="scene-label">WORLDS <small>01 — 05</small></span><div class="mode-pills" role="tablist" aria-label="Visual modes">
       <button type="button" class="mode-pill active" data-mode="0" role="tab" aria-selected="true" tabindex="0"><span class="mode-swatch" aria-hidden="true"></span><span>Plasma</span></button>
       <button type="button" class="mode-pill" data-mode="1" role="tab" aria-selected="false" tabindex="-1"><span class="mode-swatch" aria-hidden="true"></span><span>Spectrum</span></button>
       <button type="button" class="mode-pill" data-mode="2" role="tab" aria-selected="false" tabindex="-1"><span class="mode-swatch" aria-hidden="true"></span><span>Ferro</span></button>
-      <button type="button" class="mode-pill" data-mode="3" role="tab" aria-selected="false" tabindex="-1"><span class="mode-swatch" aria-hidden="true"></span><span>Tunnel</span></button>
+      <button type="button" class="mode-pill" data-mode="3" role="tab" aria-selected="false" tabindex="-1"><span class="mode-swatch" aria-hidden="true"></span><span>Vortex</span></button>
       <button type="button" class="mode-pill" data-mode="4" role="tab" aria-selected="false" tabindex="-1"><span class="mode-swatch" aria-hidden="true"></span><span>Sunset</span></button>
-      <button type="button" class="mode-pill" data-mode="5" role="tab" aria-selected="false" tabindex="-1"><span class="mode-swatch" aria-hidden="true"></span><span>City</span></button>
-      <button type="button" class="mode-pill" data-mode="6" role="tab" aria-selected="false" tabindex="-1"><span class="mode-swatch" aria-hidden="true"></span><span>Cells</span></button>
     </div></nav>
 
     <!-- 3 Primary Music Sources -->
@@ -316,7 +314,7 @@
 
   <script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
   <script src="https://sdk.scdn.co/spotify-player.js" async></script>
-  <script type="module" src="visualizer.mjs?v=10"></script>
+  <script type="module" src="visualizer.mjs?v=11"></script>
   <script type="module" src="visualizer-ui.mjs?v=9"></script>
 </body>
 </html>
