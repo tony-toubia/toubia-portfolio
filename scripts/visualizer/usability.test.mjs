@@ -12,7 +12,7 @@ test('CSS enforces [hidden] { display: none !important } so modals and drawers a
   assert.match(css, /\[hidden\]\s*\{\s*display:\s*none\s*!important;\s*\}/);
 });
 
-test('Removed synth demo, seed tracks, bass drop, and mic clutter from HTML and JS', () => {
+test('Removed synthetic demos, seed tracks and bass-drop controls stay absent', () => {
   for (const removedId of ['btn-synth', 'btn-mic', 'btn-drop', 'synth-grooves', 'synth-label']) {
     assert.ok(!html.includes(`id="${removedId}"`), `HTML should not contain #${removedId}`);
     assert.ok(!js.includes(`'${removedId}'`), `JS should not reference #${removedId}`);

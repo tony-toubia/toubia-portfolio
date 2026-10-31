@@ -5,13 +5,16 @@ import vm from 'node:vm';
 
 // Execute the application rather than a copy of its state machine. Browser APIs are
 // adapters here: this checks routing, signal state and uniforms, not WebGL pixels.
-async function createApp({ captureSupported = true, contextState = 'running', resumeReject = false } = {}) {
+async function createApp({ captureSupported = true, microphoneSupported = true, secureContext = true,
+  userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0.0.0',
+  reducedMotion = false, contextState = 'running', resumeReject = false } = {}) {
   const html = await fs.readFile('public/visualizer/index.html', 'utf8');
   const source = await fs.readFile('public/visualizer/visualizer.mjs', 'utf8');
   const uiSource = await fs.readFile('public/visualizer/visualizer-ui.mjs', 'utf8');
-  const nodes = new Map(), elements = [], windowEvents = new Map();
-  const connections = [], uniformValues = new Map(), captures = [];
-  let now = 0, frame = { frequency: 0, amplitude: 0 }, nextCapture, lastContext;
+  const nodes = new Map(), elements = [], windowEvents = new Map(), documentEvents = new Map();
+  const connections = [], uniformValues = new Map(), captures = [], microphones = [], glCalls = [];
+  let now = 0, frame = { frequency: 0, amplitude: 0 }, nextCapture, nextMicrophone, lastContext;
+  let framebufferId = 0, boundFramebuffer = null;
 
   class Element {
     constructor(tagName = 'div', attrs = '') {
@@ -52,10 +55,11 @@ async function createApp({ captureSupported = true, contextState = 'running', re
     const node = new Element(match[1], match[2]); elements.push(node); if (node.id) nodes.set(node.id, node);
   }
   const document = {
-    body: new Element('body'), documentElement: new Element('html'), activeElement: null,
+    body: new Element('body'), documentElement: new Element('html'), activeElement: null, hidden: false,
     getElementById(id) { assert.ok(nodes.has(id), `application references missing #${id}`); return nodes.get(id); },
     querySelectorAll: selector => elements.filter(el => matches(el, selector)),
-    createElement: tag => new Element(tag), addEventListener() {},
+    createElement: tag => new Element(tag),
+    addEventListener(name, fn) { if (!documentEvents.has(name)) documentEvents.set(name, []); documentEvents.get(name).push(fn); },
   };
   const gl = new Proxy({
     getShaderParameter: () => true, getProgramParameter: () => true,
@@ -63,6 +67,12 @@ async function createApp({ captureSupported = true, contextState = 'running', re
     uniform1f: (name, value) => uniformValues.set(name, value),
     uniform1i: (name, value) => uniformValues.set(name, value),
     getAttribLocation: () => 0,
+    createFramebuffer() { const fbo = { testFbo: ++framebufferId }; glCalls.push(['createFramebuffer', fbo]); return fbo; },
+    bindFramebuffer(target, fbo) { boundFramebuffer = fbo; glCalls.push(['bindFramebuffer', target, fbo]); },
+    copyTexSubImage2D: (...args) => glCalls.push(['copyTexSubImage2D', ...args]),
+    drawArrays: (...args) => glCalls.push(['drawArrays', boundFramebuffer, ...args]),
+    enable: (...args) => glCalls.push(['enable', ...args]),
+    disable: (...args) => glCalls.push(['disable', ...args]),
   }, { get(target, name) { if (name in target) return target[name]; if (/^[A-Z_\d]+$/.test(name)) return 1; return () => ({}); } });
 
   const audioNode = label => ({ label, connect(target) { connections.push([label, target.label]); }, disconnect() { connections.push([label, 'disconnected']); } });
@@ -94,28 +104,34 @@ async function createApp({ captureSupported = true, contextState = 'running', re
   class MediaStream { constructor(tracks) { this.tracks = tracks; } getTracks() { return this.tracks; } getAudioTracks() { return this.tracks.filter(t => t.kind === 'audio'); } }
   const makeTrack = kind => ({ kind, readyState: 'live', label: 'Test tab audio', muted: false, handlers: new Map(), addEventListener(name, fn) { this.handlers.set(name, fn); }, stop() { this.readyState = 'ended'; }, end() { this.readyState = 'ended'; this.handlers.get('ended')?.(); } });
   const location = new URL('https://example.test/visualizer/index.html');
-  const window = { location, AudioContext, isSecureContext: true, devicePixelRatio: 1, innerWidth: 1280, innerHeight: 720, matchMedia: () => ({ matches: false }),
+  const window = { location, AudioContext, isSecureContext: secureContext, devicePixelRatio: 1, innerWidth: 1280, innerHeight: 720, matchMedia: () => ({ matches: reducedMotion }),
     addEventListener: (name, fn) => { if (!windowEvents.has(name)) windowEvents.set(name, []); windowEvents.get(name).push(fn); },
   };
   window.top = window;
   class TestURL extends URL { static createObjectURL() { return 'blob:test-track'; } static revokeObjectURL() {} }
   const stores = new Map();
   const audioModule = await import('../../public/visualizer/audio-reactivity.mjs');
-  const navigator = { userAgent:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0.0.0', mediaDevices: captureSupported ? { async getDisplayMedia(options) { captures.push(options); if (nextCapture instanceof Error) throw nextCapture; return nextCapture || new MediaStream([makeTrack('audio'), makeTrack('video')]); } } : {} };
-  const context = vm.createContext({ ...audioModule, window, document, navigator,
+  const sceneModule = await import('../../public/visualizer/scene-cycle.mjs');
+  const navigator = { userAgent, mediaDevices: {
+    ...(captureSupported ? { async getDisplayMedia(options) { captures.push(options); if (nextCapture instanceof Error) throw nextCapture; return nextCapture || new MediaStream([makeTrack('audio'), makeTrack('video')]); } } : {}),
+    ...(microphoneSupported ? { async getUserMedia(options) { microphones.push(options); if (nextMicrophone instanceof Error) throw nextMicrophone; return nextMicrophone || new MediaStream([makeTrack('audio')]); } } : {}),
+  } };
+  const context = vm.createContext({ ...audioModule, ...sceneModule, window, document, navigator,
     URL: TestURL, URLSearchParams, MediaStream, Uint8Array, Float32Array, Float64Array, TextEncoder, console,
     performance: { now: () => now }, requestAnimationFrame() {}, setTimeout() { return 1; }, clearTimeout() {}, setInterval() { return 1; }, clearInterval() {},
     matchMedia: window.matchMedia, localStorage: { getItem: key => stores.get(key) || '', setItem: (key, value) => stores.set(key, value), removeItem: key => stores.delete(key) },
     fetch: async () => ({ ok: true, json: async () => ({}) }),
   });
-  vm.runInContext(source.replace(/^import .*;\r?\n/gm, '') + `\n;globalThis.testApp = { state, spotifyState, startSystemAudio, loadLocalFiles, playSpotifyTrack, stopCurrentSources, setActiveSourceUI, renderLoop, get texture() { return audioTexData; } };`, context);
-  vm.runInContext(uiSource,context);
+  vm.runInContext(source.replace(/^import .*;\r?\n/gm, '') + `\n;globalThis.testApp = { state, spotifyState, startSystemAudio, startMicrophone, loadLocalFiles, playSpotifyTrack, stopCurrentSources, setActiveSourceUI, renderLoop, get texture() { return audioTexData; } };`, context);
+  vm.runInContext(`(() => { ${uiSource}\n})();`,context);
   const app = context.testApp;
   const tick = (seconds = 1 / 60) => { const steps = Math.ceil(seconds * 60); for (let i = 0; i < steps; i++) { now += 1000 / 60; app.renderLoop(now); } };
   await Promise.resolve();
-  return { app, nodes, elements, windowEvents, uniformValues, captures, connections, tick, makeTrack, MediaStream,
+  return { app, nodes, elements, windowEvents, uniformValues, captures, microphones, connections, glCalls, tick, makeTrack, MediaStream,
     signal(frequency, amplitude) { frame = { frequency, amplitude }; },
     capture(value) { nextCapture = value; }, get audioContext() { return lastContext; },
+    microphone(value) { nextMicrophone = value; },
+    async setHidden(value) { document.hidden = value; for (const fn of documentEvents.get('visibilitychange') || []) await fn(); },
   };
 }
 
@@ -427,4 +443,182 @@ test('Spotify reconnection guidance follows sustained silence and hides again wh
   h.signal(900,.16);h.tick(.8);
   assert.equal(h.app.state.audioStatus,'live');assert.equal(h.nodes.get('spotify-audio-guide').hidden,true);
   assert.equal(h.app.spotifyState.embedPlaying,true);assert.equal(h.captures.length,1);
+});
+
+const androidUserAgent = 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/142.0.0.0 Mobile Safari/537.36';
+
+test('Android presents microphone and local files instead of an unavailable tab-capture path', async () => {
+  const h = await createApp({ captureSupported: false, userAgent: androidUserAgent });
+  h.tick(.5);
+  assert.equal(h.nodes.get('btn-system').hidden, true);
+  assert.equal(h.nodes.get('capture-audio').hidden, true);
+  assert.equal(h.nodes.get('btn-listen').hidden, false);
+  assert.equal(h.nodes.get('listen-audio').hidden, false);
+  assert.equal(h.microphones.length, 0, 'boot never opens a microphone permission prompt');
+  assert.match(h.nodes.get('audio-source-help').textContent, /file|speaker|microphone/i);
+  h.app.loadLocalFiles([{ name: 'phone-track.mp3', type: 'audio/mpeg' }]);
+  await Promise.resolve(); h.signal(180, .2); h.tick(.6);
+  assert.equal(h.app.state.sourceType, 'file');
+  assert.equal(h.app.state.audioStatus, 'live');
+  assert.equal(h.microphones.length, 0, 'local playback needs no microphone permission');
+  assert.ok(h.connections.some(([from, to]) => from === 'local-file' && to === 'speakers'));
+});
+
+test('microphone is explicitly requested, analyzes real input and never monitors sound to the speakers', async () => {
+  const h = await createApp({ captureSupported: false, userAgent: androidUserAgent });
+  const track = h.makeTrack('audio'); h.microphone(new h.MediaStream([track]));
+  await h.nodes.get('btn-listen').click(); h.signal(900, .2); h.tick(.6);
+  assert.equal(h.microphones.length, 1);
+  assert.equal(h.microphones[0].video, false, 'the microphone path never requests a camera');
+  assert.ok(h.microphones[0].audio);
+  assert.equal(h.app.state.sourceType, 'microphone');
+  assert.equal(h.app.state.audioStatus, 'live');
+  assert.match(h.nodes.get('signal-detail').textContent, /microphone/i);
+  assert.equal(h.nodes.get('stop-capture').hidden, false);
+  assert.match(h.nodes.get('stop-capture').textContent, /microphone/i);
+  assert.ok(h.app.texture.slice(0, 512).some(value => value > 0));
+  assert.equal(h.connections.some(([from, to]) => from === 'captured-stream' && to === 'speakers'), false);
+  assert.equal(h.connections.some(([from, to]) => from === 'analyser' && to === 'speakers'), false);
+
+  h.signal(900, 0); h.tick(2);
+  assert.equal(h.app.state.audioStatus, 'silent');
+  assert.ok(h.app.texture.slice(0, 512).every(value => value === 0));
+  h.signal(900, .2); track.muted = true; h.tick(1);
+  assert.notEqual(h.app.state.audioStatus, 'live', 'a muted microphone gates stale analyzer output');
+  track.muted = false; h.tick(.6); assert.equal(h.app.state.audioStatus, 'live');
+  await h.nodes.get('stop-capture').click(); h.tick(.6);
+  assert.equal(track.readyState, 'ended');
+  assert.equal(h.app.state.audioStatus, 'idle');
+  assert.equal(h.nodes.get('stop-capture').hidden, true);
+  assert.ok(h.connections.some(([from, to]) => from === 'captured-stream' && to === 'disconnected'));
+});
+
+test('microphone permission denial preserves the current file or Spotify playback', async () => {
+  for (const previous of ['file', 'spotify-embed']) {
+    const h = await createApp({ captureSupported: false, userAgent: androidUserAgent });
+    let pauses = 0;
+    if (previous === 'file') {
+      h.app.loadLocalFiles([{ name: 'keep-playing.mp3', type: 'audio/mpeg' }]);
+      await Promise.resolve();
+    } else {
+      h.app.spotifyState.embedPlaying = true;
+      h.app.spotifyState.embedController = { pause() { pauses++; } };
+      h.app.setActiveSourceUI('spotify-embed', 'Spotify test');
+    }
+    const denial = new Error('Microphone permission denied'); denial.name = 'NotAllowedError';
+    h.microphone(denial); await h.app.startMicrophone(); h.tick(.6);
+    assert.equal(h.app.state.sourceType, previous);
+    assert.equal(h.nodes.get('audio-el').paused, previous !== 'file');
+    assert.equal(pauses, 0);
+    assert.equal(h.app.spotifyState.embedPlaying, previous === 'spotify-embed');
+    assert.match(h.nodes.get('toast').textContent, /microphone|permission|allow/i);
+  }
+});
+
+test('late microphone permission grants cannot replace a newer file or a stopped request', async () => {
+  for (const cancelBy of ['file', 'stop']) {
+    const h = await createApp({ captureSupported: false, userAgent: androidUserAgent });
+    let resolveMicrophone;
+    h.microphone(new Promise(resolve => { resolveMicrophone = resolve; }));
+    const pending = h.app.startMicrophone();
+    await Promise.resolve();
+    assert.equal(h.microphones.length, 1);
+    if (cancelBy === 'file') {
+      h.app.loadLocalFiles([{ name: 'newer.mp3', type: 'audio/mpeg' }]);
+      await Promise.resolve();
+    } else h.app.stopCurrentSources();
+    const late = h.makeTrack('audio'); resolveMicrophone(new h.MediaStream([late]));
+    await pending; h.tick(.6);
+    assert.equal(late.readyState, 'ended', 'an abandoned grant immediately releases its track');
+    assert.equal(h.app.state.sourceType, cancelBy === 'file' ? 'file' : 'idle');
+    assert.equal(h.nodes.get('btn-listen').disabled, false, 'an abandoned request cannot leave the control stuck');
+  }
+});
+
+test('a microphone ended event releases input while unavailable microphones stay out of the interface', async () => {
+  const h = await createApp({ captureSupported: false });
+  const track = h.makeTrack('audio'); h.microphone(new h.MediaStream([track]));
+  await h.app.startMicrophone(); h.signal(440, .2); h.tick(.5);
+  track.end(); h.tick(.5);
+  assert.equal(h.app.state.audioStatus, 'idle');
+  assert.ok(h.app.texture.slice(0, 512).every(value => value === 0));
+  for (const options of [{ microphoneSupported: false }, { secureContext: false }]) {
+    const unsupported = await createApp({ captureSupported: false, ...options });
+    assert.equal(unsupported.nodes.get('btn-listen').hidden, true);
+    assert.equal(unsupported.nodes.get('listen-audio').hidden, true);
+    await unsupported.app.startMicrophone();
+    assert.equal(unsupported.microphones.length, 0);
+  }
+});
+
+test('unsupported Spotify capture offers an explicit nearby-speaker microphone action', async () => {
+  const h = await createApp({ captureSupported: false, userAgent: androidUserAgent });
+  h.app.spotifyState.embedPlaying = true;
+  h.app.setActiveSourceUI('spotify-embed', 'Spotify test'); h.tick(.5);
+  assert.equal(h.microphones.length, 0);
+  assert.equal(h.nodes.get('connect-spotify-audio').disabled, false);
+  assert.match(h.nodes.get('connect-spotify-audio').textContent, /microphone|listen/i);
+  assert.match(h.nodes.get('spotify-audio-instructions').textContent, /speaker|headphone/i);
+  await h.nodes.get('connect-spotify-audio').click();
+  assert.equal(h.microphones.length, 1);
+  assert.equal(h.captures.length, 0);
+});
+
+test('mobile Spotify activation happens synchronously on the play gesture, before track resolution awaits', async () => {
+  const h = await createApp({ captureSupported: false, userAgent: androidUserAgent });
+  const calls = [];
+  h.app.spotifyState.sdkPlayer = {
+    activateElement() { calls.push('activate'); return Promise.resolve(); },
+    togglePlay() { calls.push('toggle'); },
+  };
+  // A title without a Spotify ID takes the asynchronous resolution branch.
+  const pending = h.app.playSpotifyTrack({ title: 'Unresolved track', artist: 'Test artist' }, 0, [], false);
+  assert.deepEqual(calls, ['activate'], 'the browser activation call retains the original user gesture');
+  await pending;
+  h.app.spotifyState.activePlayer = 'sdk';
+  h.app.setActiveSourceUI('spotify', 'Spotify ready');
+  await h.nodes.get('btn-play-pause').click();
+  assert.deepEqual(calls, ['activate', 'activate', 'toggle'], 'transport activates before starting the SDK player');
+  assert.equal(h.microphones.length, 0);
+  assert.equal(h.captures.length, 0);
+});
+
+test('Auto cycles only with live visible audio, blends once, and manual selection takes over', async () => {
+  const h = await createApp();
+  assert.equal(h.nodes.get('auto-mode').getAttribute('aria-pressed'), 'false');
+  await h.nodes.get('auto-mode').click(); h.tick(25);
+  assert.equal(h.app.state.autoMode, true);
+  assert.equal(h.app.state.mode, 0, 'idle preview does not start a fake music-driven cycle');
+  h.app.loadLocalFiles([{ name: 'auto.mp3', type: 'audio/mpeg' }]); await Promise.resolve();
+  h.signal(180, .2); h.tick(19);
+  await h.setHidden(true); h.tick(20);
+  assert.equal(h.app.state.mode, 0, 'a hidden page does not jump ahead');
+  await h.setHidden(false); h.tick(1.2);
+  assert.equal(h.app.state.mode, 1);
+  assert.equal(h.nodes.get('auto-mode').getAttribute('aria-pressed'), 'true');
+  assert.ok(h.uniformValues.get('uOpacity') > .9, 'the old scene remains visible at the start of the fade');
+  assert.equal(h.glCalls.filter(([name]) => name === 'createFramebuffer').length, 3, 'only one snapshot target is added to the feedback pair');
+  assert.equal(h.glCalls.filter(([name, target]) => name === 'drawArrays' && target?.testFbo === 3).length, 1, 'the old scene is rendered into its snapshot exactly once');
+  h.tick(.8);
+  assert.ok(h.uniformValues.get('uOpacity') > .3 && h.uniformValues.get('uOpacity') < .7, 'the presentation pass fades the snapshot');
+  const manual = h.elements.find(el => el.dataset.mode === '4' && el.classList.contains('mode-pill'));
+  await manual.click(); h.tick(40);
+  assert.equal(h.app.state.autoMode, false);
+  assert.equal(h.nodes.get('auto-mode').getAttribute('aria-pressed'), 'false');
+  assert.equal(h.app.state.mode, 4);
+  assert.equal(h.glCalls.filter(([name, target]) => name === 'drawArrays' && target?.testFbo === 3).length, 1, 'manual selection cancels the active transition');
+});
+
+test('Auto waits during paused playback and reduced motion uses a clean cut', async () => {
+  for (const reducedMotion of [false, true]) {
+    const h = await createApp({ reducedMotion });
+    h.app.loadLocalFiles([{ name: 'auto.mp3', type: 'audio/mpeg' }]); await Promise.resolve();
+    h.signal(900, .2); h.tick(.6);
+    await h.nodes.get('auto-mode').click(); h.tick(19);
+    await h.nodes.get('btn-play-pause').click(); h.tick(30);
+    assert.equal(h.app.state.mode, 0);
+    await h.nodes.get('btn-play-pause').click(); h.tick(1.3);
+    assert.equal(h.app.state.mode, 1);
+    assert.equal(h.glCalls.filter(([name, target]) => name === 'drawArrays' && target?.testFbo === 3).length, reducedMotion ? 0 : 1);
+  }
 });

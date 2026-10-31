@@ -1,6 +1,6 @@
 # Sonic Prism visualizer
 
-`/visualizer` embeds `public/visualizer/index.html`. The WebGL app has seven worlds (Plasma, Spectrum, Ferro, Vortex, Sunset, Aurora and Silk), local-file playback, tab/system audio capture and Spotify playback/transport.
+`/visualizer` embeds `public/visualizer/index.html`. The WebGL app has seven worlds (Plasma, Spectrum, Ferro, Vortex, Sunset, Aurora and Silk), local-file playback, optional microphone listening, supported tab/system audio capture and Spotify playback/transport.
 
 ## Visual direction
 
@@ -12,7 +12,7 @@ The research revisited classic Windows Media Player visualizations. Microsoft's 
 
 ## Audio contract
 
-Only local-file PCM or an explicitly shared audio stream drives the analyzer. Spotify metadata and playback events are not PCM: an uncaptured Spotify player displays a waiting state, not synthetic visualization. The old title-derived tempo, generated fallback spectrum and independently looping preview-buffer analysis were removed.
+Only local-file PCM or an explicitly shared audio/microphone stream drives the analyzer. Spotify metadata and playback events are not PCM: an uncaptured Spotify player displays a waiting state, not synthetic visualization. The old title-derived tempo, generated fallback spectrum and independently looping preview-buffer analysis were removed.
 
 The analyzer connects through a zero-gain sink so capture is processed without playing it again. Local files have their own audible destination connection. Shared audio can coexist with Spotify controls in either selection order. Stopping/replacing capture stops tracks and disconnects the graph; a stale ended event cannot stop the replacement stream. The picker explicitly includes the current tab for embedded Spotify. Capture still requires browser support and the user's permission each time.
 
@@ -20,13 +20,17 @@ The analyzer connects through a zero-gain sink so capture is processed without p
 
 ## Interface
 
+Android browser audio was investigated before Auto mode. Chrome for Android lacks `getDisplayMedia()` and shared audio capture in [MDN's current compatibility data](https://github.com/mdn/browser-compat-data/blob/main/api/MediaDevices.json). Installing the site as a PWA does not add that API. The browser flow now emphasizes Files/Downloads for direct audio, including headphones, and offers explicit **Listen nearby** microphone input for music audible from a nearby speaker. It never promises direct Spotify/other-app/headphone capture. Microphone samples stay in the local analyzer with no monitoring, recording or upload. Permission denial preserves current playback; Stop, ended streams and late grants after source changes clean up tracks. The existing wrapper already permits microphone access. Known screen-video-only Safari/iOS/Firefox paths do not offer shared-audio controls. SDK playback calls activate Spotify synchronously in the user gesture, as [Spotify documents for mobile](https://developer.spotify.com/documentation/web-playback-sdk/reference#spotifyplayeractivateelement); playback activation still does not expose PCM.
+
+**Auto** cycles through all seven worlds after every 20 seconds of visible, live audio. Its 1.8-second smoothstep crossfade captures the outgoing composite once into a reusable framebuffer, clears scene feedback, then overlays that frozen texture on the live incoming scene. Only the short fade adds a simple texture pass; two live scene graphs are never run. Silence, paused playback and hidden tabs pause the cycle and fade. Manual world selection stops Auto; turning the toggle off lets a fade finish. Reduced-motion preferences skip fades. Resize releases the snapshot and keeps the current world. The snapshot uses at most one additional RGBA texture at the existing two-million-pixel budget.
+
 A single bottom dock holds world selection, sources and transport. Customize and Spotify stay in secondary drawers. Signal status, a level meter, optional band details and Stop sharing audio distinguish real input from ambient movement. File input and world tabs support keyboard operation; Focus mode is reversible with Escape or Show controls.
 
 Spotify playback shows a prominent Connect Spotify audio banner beside transport until shared audio is available. The button directly opens the browser picker on a user click; playback events never open it automatically. Instructions name this Sonic Prism tab, Share tab audio, and Share. Cancellation and video-only shares preserve Spotify playback and show retry instructions. Unsupported browsers explain that Spotify playback and audio capture are separate capabilities. Captured-but-quiet input shows reconnection guidance after three seconds; muted tracks cannot create a live signal. The capture request includes the nonmandatory restrictOwnAudio:false hint to include this page's playback.
 
 ## Validation, October 31, 2026
 
-`npm run visualizer:test`: 32 tests pass. Generated PCM tones at 44.1, 48 and 96 kHz check band response, silence, onset-based tempo and bass/treble texture coverage. The full-app runtime harness checks audio-to-GPU uniforms, source replacement/cleanup, both Spotify/capture selection orders, errors, pause, stopped capture and honest waiting states. Seven-world keyboard navigation, invalid mode IDs and Vortex PCM/silence uniforms are also covered. Aurora and Silk each receive real bass/middle/treble data, clear their spectrum/waveform on silence, and freeze visual time during silence and pause. The harness mocks browser APIs and does not validate physical capture or Spotify authentication.
+`npm run visualizer:test`: 46 tests pass. Generated PCM tones at 44.1, 48 and 96 kHz check band response, silence, onset-based tempo and bass/treble texture coverage. The full-app runtime harness checks audio-to-GPU uniforms, source replacement/cleanup, both Spotify/capture selection orders, errors, pause, stopped capture and honest waiting states. Seven-world keyboard navigation, invalid mode IDs and Vortex PCM/silence uniforms are also covered. Aurora and Silk each receive real bass/middle/treble data, clear their spectrum/waveform on silence, and freeze visual time during silence and pause. The harness mocks browser APIs and does not validate physical capture or Spotify authentication.
 
 The production build passes. Native Chrome visual checks verified the redesigned desktop, scene switching and real local WAV playback: a 900 Hz tone produced a concentrated spectrum and a measured -25 dB live signal; a silent passage stayed flat during playback, and Pause reported paused. OS capture permission and authenticated Spotify playback were not exercised. Real mobile hardware remains untested.
 
@@ -35,3 +39,7 @@ Spotify connection follow-up: regression checks cover the guided connection, can
 Vortex follow-up: native Chrome rendered the new shader and five-world picker. A generated local WAV produced a measured live signal and brighter, waveform-detailed ribbons; its silent passages reported waiting for sound. The existing production tab's Spotify/capture session was preserved during this separate local preview.
 
 Aurora/Silk follow-up: native Chrome rendered both new shaders with an original generated PCM groove. Aurora visibly brightened into broad multicolored curtains, and Silk showed separate glossy crossing ribbons with live signal levels around -32 to -36 dB. The existing production tab's capture session was preserved. Actual tablet GPU performance remains unmeasured.
+
+Mobile/Auto follow-up: regressions cover Android local-file playback without screen sharing, opt-in microphone permission/error/race cleanup, silent monitoring, muted/ended streams, Spotify playback activation, live/visible-only cycling, one snapshot capture per fade, opacity progression, manual takeover and reduced-motion behavior. Physical Android microphone permission and audio routing remain untested.
+
+Native Chrome confirmed Auto stayed enabled and advanced from Plasma to Spectrum during real local PCM playback, then reported Track ended at the end of the file. The existing production capture tab was preserved. The new phone layout has CSS/static checks; it was not verified on physical Android hardware.
