@@ -50,12 +50,13 @@ test('All modals and drawers start with the hidden attribute in index.html', () 
   }
 });
 
-test('the curated five worlds replace the retired City, Cells and starfield Tunnel', () => {
+test('seven curated worlds include Aurora and Silk while City, Cells and starfield Tunnel stay retired', () => {
   const modeIds=[...html.matchAll(/data-mode="(\d+)"/g)].map(m=>Number(m[1]));
-  assert.deepEqual(modeIds,[0,1,2,3,4]);
+  assert.deepEqual(modeIds,[0,1,2,3,4,5,6]);
   assert.match(html,/>Vortex<\/span>/,'the replacement is named Vortex');
+  assert.match(html,/>Aurora<\/span>/,'Aurora is available');
+  assert.match(html,/>Silk<\/span>/,'Silk is available');
   for(const label of ['City','Cells','Tunnel']) assert.doesNotMatch(html,new RegExp(`>${label}</span>`),`${label} is no longer a selectable world`);
-  assert.ok(!/uMode\s*==\s*[56]\b/.test(js),'retired shader branches are removed');
   assert.ok(!/MODE 6: VORONOI|MODE 5: CYBER MATRIX|MODE 3: 3D STARFIELD/.test(js),'retired implementations are not kept behind the new menu');
 });
 

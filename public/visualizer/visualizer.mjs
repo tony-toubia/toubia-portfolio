@@ -8,7 +8,7 @@ const audioEl = $('audio-el');
 
 // --- State & Customization Parameters ---
 const state = {
-  mode: 0,          // 0..4 visual worlds
+  mode: 0,          // 0..6 visual worlds
   palette: 0,       // 0..4 color palettes
   gain: 1.35,
   bassBoost: 1.35,
@@ -665,7 +665,7 @@ void main() {
 }
 `;
 
-// Pass 1: Fluid Feedback Advection + Multi-Stem Injection (Sub/Kick, Bass, Vocal Formant, Synth Mids, Treble Sparkle)
+// Pass 1: Fluid feedback and light injection from measured frequency ranges.
 const FEEDBACK_FRAG = `
 precision highp float;
 varying vec2 vUv;
@@ -820,6 +820,23 @@ void main() {
     float contour = 0.29 + sin(ang * 3.0 + uTime * 0.28) * 0.035 + waveSample * uVocal * 0.018;
     float ribbon = exp(-abs(rad - contour) * 65.0);
     seed += palette(ang * 0.08 + uTime * 0.012, uPalette) * ribbon * (uBass + uVocal + uHigh) * 0.18;
+  } else if (uMode == 5) {
+    // MODE 5: AURORA — lift and gently shear the colored curtain trails.
+    float low = clamp(uSubBass * 0.65 + uBass * 0.5, 0.0, 1.0);
+    vec2 drift = vec2(sin(p.y * 5.0 + uTime * 0.55) * 0.0025, 0.002 + low * 0.003);
+    prev = texture2D(uPrevTex, clamp(vUv - drift * uWarp, 0.002, 0.998)).rgb * 0.92;
+    float curtainY = sin(p.x * 2.8 + uTime * 0.65) * (0.12 + low * 0.12);
+    curtainY += sin(p.x * 5.0 - uTime * 0.4) * 0.05 + waveSample * 0.06;
+    float light = exp(-abs(p.y - curtainY) * 32.0);
+    seed += palette(p.x * 0.28 + uTime * 0.045, uPalette) * light * clamp(low + uVocal + uHigh, 0.0, 1.6) * 0.3;
+  } else if (uMode == 6) {
+    // MODE 6: SILK — low-frequency twist leaves a soft, bounded ink wake.
+    float low = clamp(uSubBass * 0.6 + uBass * 0.55, 0.0, 1.0);
+    vec2 flow = vec2(sin(p.y * 4.0 - uTime * 0.42), cos(p.x * 4.0 + uTime * 0.35));
+    vec2 memoryUv = (vUv - 0.5) * rot(0.002 + low * 0.006) * 0.996 + 0.5;
+    prev = texture2D(uPrevTex, clamp(memoryUv + flow * 0.003 * uWarp, 0.002, 0.998)).rgb * 0.93;
+    float inkY = sin(p.x * 3.2 + uTime * 0.7) * 0.22 + waveSample * 0.08;
+    seed += palette(p.x * 0.35 - uTime * 0.035, uPalette) * exp(-abs(p.y - inkY) * 22.0) * clamp(low + uVocal + uMid, 0.0, 1.6) * 0.17;
   } else {
     // Sunset uses crisp procedural geometry with a restrained background trail.
     prev *= 0.65;
@@ -835,7 +852,7 @@ void main() {
 }
 `;
 
-// Pass 2: Five distinct worlds shaped by measured frequency ranges and waveform.
+// Pass 2: Seven distinct worlds shaped by measured frequency ranges and waveform.
 const COMPOSITE_FRAG = `
 precision highp float;
 varying vec2 vUv;
@@ -1110,6 +1127,77 @@ void main() {
       vec3 gridCol = palette(depth * 1.5 + uTime * 0.15, uPalette);
       col = vec3(0.02, 0.01, 0.06) + gridCol * gridMask * (0.9 + uBass * 0.95 + uSubBass * 0.5);
       col += vec3(0.85, 0.98, 1.0) * exp(-depth * 75.0) * (1.1 + uBeat * 0.9);
+    }
+
+  } else if (uMode == 5) {
+    // MODE 5: AURORA — overlapping veils, inspired by Plenoptic's broad color flow.
+    float low = clamp(uSubBass * 0.65 + uBass * 0.5, 0.0, 1.0);
+    float voice = clamp(uVocal, 0.0, 1.0);
+    float mids = clamp(uMid, 0.0, 1.0);
+    float air = clamp(uHigh, 0.0, 1.0);
+    float energy = clamp(low * 0.5 + voice * 0.55 + mids * 0.45 + air * 0.35, 0.0, 1.0);
+    vec2 q = p + (uPointer - 0.5) * 0.065;
+    col = vec3(0.006, 0.009, 0.024) + fb * 0.38;
+    for (int layer = 0; layer < 6; layer++) {
+      float index = float(layer);
+      float phase = index * 0.83;
+      float x = q.x * (1.25 + index * 0.07);
+      float spectrum = texture2D(uAudioTex, vec2(clamp(vUv.x * 0.88 + index * 0.018, 0.01, 0.99), 0.25)).r;
+      float trace = (texture2D(uAudioTex, vec2(clamp(vUv.x * 0.88 + index * 0.018, 0.01, 0.99), 0.75)).r - 0.5) * 2.0;
+      float sweep = sin(x * 2.7 + uTime * 0.72 + phase) * (0.105 + low * 0.14);
+      sweep += sin(x * 5.4 - uTime * 0.48 + phase * 1.6) * (0.025 + voice * 0.055);
+      sweep += sin(x * 9.0 + uTime * 0.7 + phase) * mids * 0.025;
+      float center = (index - 2.5) * 0.075 + sweep + trace * 0.07 + spectrum * 0.045;
+      float distanceToVeil = q.y - center;
+      // A luminous edge fades upward into a wide translucent curtain.
+      float width = 0.035 + low * 0.045 + index * 0.002;
+      float sheet = exp(-abs(distanceToVeil) / (width * (distanceToVeil > 0.0 ? 2.5 : 0.72)));
+      float edgeDistance = distanceToVeil / (0.004 + air * 0.003);
+      float edge = exp(-edgeDistance * edgeDistance);
+      float folds = 0.68 + 0.32 * sin(x * 28.0 + sin(x * 6.0 + phase) * 3.0 - uTime * 1.1 + trace * 2.0);
+      vec3 tint = palette(vUv.x * 0.24 + index * 0.135 + uTime * 0.035 + voice * 0.09, uPalette);
+      float brightness = 0.10 + energy * 0.70 + spectrum * 0.28 + uBeat * 0.10;
+      col += tint * sheet * folds * brightness * 0.57;
+      col += mix(tint, vec3(0.88, 0.96, 1.0), 0.28) * edge * (0.035 + air * 0.20 + uTrebleSpark * 0.12);
+    }
+
+  } else if (uMode == 6) {
+    // MODE 6: SILK — broad iridescent ribbons folded through a liquid flow field.
+    float low = clamp(uSubBass * 0.6 + uBass * 0.55, 0.0, 1.0);
+    float voice = clamp(uVocal, 0.0, 1.0);
+    float mids = clamp(uMid, 0.0, 1.0);
+    float air = clamp(uHigh, 0.0, 1.0);
+    float energy = clamp(low * 0.55 + voice * 0.55 + mids * 0.45 + air * 0.35, 0.0, 1.0);
+    vec2 q = p * 1.5 + (uPointer - 0.5) * 0.10;
+    // Fixed-cost domain warping gives smooth liquid folds without a fluid simulation.
+    for (int fold = 0; fold < 3; fold++) {
+      float phase = float(fold) * 1.7;
+      vec2 curl = vec2(sin(q.y * 2.7 + uTime * 0.42 + phase), cos(q.x * 2.4 - uTime * 0.36 + phase));
+      q += curl * (0.12 + low * 0.12 + voice * 0.07);
+    }
+    col = vec3(0.009, 0.006, 0.022) + fb * 0.30;
+    for (int ribbon = 0; ribbon < 3; ribbon++) {
+      float index = float(ribbon);
+      float phase = index * 2.1;
+      float angle = (index - 1.0) * 0.75 + sin(uTime * 0.23 + phase) * (0.18 + low * 0.22);
+      float c = cos(angle), s = sin(angle);
+      vec2 z = mat2(c, -s, s, c) * q;
+      float spectrum = texture2D(uAudioTex, vec2(clamp(vUv.x * 0.85 + index * 0.04, 0.01, 0.99), 0.25)).r;
+      float trace = (texture2D(uAudioTex, vec2(clamp(vUv.x * 0.90 + index * 0.025, 0.01, 0.99), 0.75)).r - 0.5) * 2.0;
+      float center = sin(z.x * 2.1 - uTime * 0.68 + phase) * (0.14 + low * 0.17);
+      center += cos(z.x * 4.1 + uTime * 0.5 + phase) * (0.035 + mids * 0.06);
+      center += (index - 1.0) * (0.14 + voice * 0.09) + trace * 0.065;
+      float width = 0.095 + low * 0.085 + spectrum * 0.035;
+      float crossSection = (z.y - center) / width;
+      float mask = 1.0 - smoothstep(0.78, 1.0, abs(crossSection));
+      float roundness = sqrt(max(0.0, 1.0 - crossSection * crossSection));
+      float sheenDistance = (crossSection + 0.48) / 0.18;
+      float sheen = exp(-sheenDistance * sheenDistance);
+      vec3 tint = palette(z.x * 0.22 + index * 0.23 + uTime * 0.035 + uVocalPitch * 0.1, uPalette);
+      vec3 surface = tint * (0.16 + roundness * 0.88) * (0.18 + energy * 0.95 + spectrum * 0.22);
+      surface += mix(tint, vec3(0.90, 0.95, 1.0), 0.65) * sheen * (0.035 + energy * 0.12 + air * 0.17 + uTrebleSpark * 0.07);
+      // Translucent layering preserves the crossing ribbons' different colors.
+      col = mix(col, surface + col * 0.20, mask * 0.91);
     }
 
   }
@@ -2317,7 +2405,7 @@ audioEl.addEventListener('ended', () => {
 document.querySelectorAll('.mode-pill').forEach(btn => {
   btn.addEventListener('click', () => {
     const nextMode = Number(btn.dataset.mode);
-    if (!Number.isInteger(nextMode) || nextMode < 0 || nextMode > 4) return;
+    if (!Number.isInteger(nextMode) || nextMode < 0 || nextMode > 6) return;
     if (nextMode !== state.mode) {
       // A new world starts clean, without ghost images from the previous scene.
       for (const fbo of fbos) {

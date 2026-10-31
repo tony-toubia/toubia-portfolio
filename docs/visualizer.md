@@ -1,10 +1,12 @@
 # Sonic Prism visualizer
 
-`/visualizer` embeds `public/visualizer/index.html`. The WebGL app has five worlds (Plasma, Spectrum, Ferro, Vortex and Sunset), local-file playback, tab/system audio capture and Spotify playback/transport.
+`/visualizer` embeds `public/visualizer/index.html`. The WebGL app has seven worlds (Plasma, Spectrum, Ferro, Vortex, Sunset, Aurora and Silk), local-file playback, tab/system audio capture and Spotify playback/transport.
 
 ## Visual direction
 
 City and Cells are retired. The old starfield Tunnel is replaced by Vortex: continuous curved light ribbons, perspective depth and soft feedback trails. Measured bass changes its radius, middle frequencies bend the contours, and real waveform/spectrum samples add edge detail and brightness. Changing worlds clears both feedback buffers so the previous scene cannot leave ghost images.
+
+Aurora adds six broad, overlapping curtains with luminous edges and colored trails. Bass changes their height and width, middle frequencies add folds, and real waveform/spectrum samples shape their contours and brightness. Silk uses three crossing, iridescent ribbons with rounded shading and a liquid flow field; bass controls width and twist, middle frequencies bend the folds, and the waveform shapes the edges. Both use bounded feedback, fixed layer counts and the shared silence/pause gate. They respond to measured frequency ranges rather than pretending to isolate instruments.
 
 The research revisited classic Windows Media Player visualizations. Microsoft's [user overview](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/wmp/user-overview) documents Ambience and Plenoptic; [Using Timed Levels](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/wmp/using-timed-levels) describes its waveform and frequency inputs. Historical screenshots of [Ambience](https://betawiki.net/images/5/50/WMP7.0.png) and [Plenoptic Smokey Lines](https://copaxsenior.weebly.com/uploads/1/2/7/4/127480288/267273960_orig.jpg) informed the flowing contours and layered color direction. These are visual observations, not claims about those presets' algorithms. Vortex is an original shader, not a port of WMP code or assets.
 
@@ -24,10 +26,12 @@ Spotify playback shows a prominent Connect Spotify audio banner beside transport
 
 ## Validation, October 31, 2026
 
-`npm run visualizer:test`: 30 tests pass. Generated PCM tones at 44.1, 48 and 96 kHz check band response, silence, onset-based tempo and bass/treble texture coverage. The full-app runtime harness checks audio-to-GPU uniforms, source replacement/cleanup, both Spotify/capture selection orders, errors, pause, stopped capture and honest waiting states. Five-world keyboard navigation, rejected retired mode IDs and Vortex PCM/silence uniforms are also covered. The harness mocks browser APIs and does not validate physical capture or Spotify authentication.
+`npm run visualizer:test`: 32 tests pass. Generated PCM tones at 44.1, 48 and 96 kHz check band response, silence, onset-based tempo and bass/treble texture coverage. The full-app runtime harness checks audio-to-GPU uniforms, source replacement/cleanup, both Spotify/capture selection orders, errors, pause, stopped capture and honest waiting states. Seven-world keyboard navigation, invalid mode IDs and Vortex PCM/silence uniforms are also covered. Aurora and Silk each receive real bass/middle/treble data, clear their spectrum/waveform on silence, and freeze visual time during silence and pause. The harness mocks browser APIs and does not validate physical capture or Spotify authentication.
 
 The production build passes. Native Chrome visual checks verified the redesigned desktop, scene switching and real local WAV playback: a 900 Hz tone produced a concentrated spectrum and a measured -25 dB live signal; a silent passage stayed flat during playback, and Pause reported paused. OS capture permission and authenticated Spotify playback were not exercised. Real mobile hardware remains untested.
 
 Spotify connection follow-up: regression checks cover the guided connection, cancellation/retry, unsupported capture APIs, audio-less shares, muted tracks and a blocked AudioContext. The new banner's browser spot-check was unavailable because native automation could not verify the newly opened tab URL; the earlier rendered-audio checks above predate the banner.
 
 Vortex follow-up: native Chrome rendered the new shader and five-world picker. A generated local WAV produced a measured live signal and brighter, waveform-detailed ribbons; its silent passages reported waiting for sound. The existing production tab's Spotify/capture session was preserved during this separate local preview.
+
+Aurora/Silk follow-up: native Chrome rendered both new shaders with an original generated PCM groove. Aurora visibly brightened into broad multicolored curtains, and Silk showed separate glossy crossing ribbons with live signal levels around -32 to -36 dB. The existing production tab's capture session was preserved. Actual tablet GPU performance remains unmeasured.
