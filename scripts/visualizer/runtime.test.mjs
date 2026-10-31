@@ -71,7 +71,17 @@ async function createApp({ captureSupported = true, contextState = 'running', re
     resume() { if(resumeReject)return Promise.reject(new Error('Audio context is blocked')); this.state = 'running'; return Promise.resolve(); }
     createAnalyser() {
       return { ...audioNode('analyser'), fftSize: 2048, frequencyBinCount: 1024,
-        getByteFrequencyData(out) { out.fill(0); if (frame.amplitude) out[Math.round(frame.frequency * 2048 / 48000)] = Math.round(frame.amplitude * 800); },
+        getByteFrequencyData(out) {
+          out.fill(0);
+          if (!frame.amplitude) return;
+          // Model the adjacent bins from the AnalyserNode's windowed FFT. A
+          // one-bin impulse is unrealistic and can fall between log samples.
+          const center = Math.round(frame.frequency * 2048 / 48000);
+          for (const [offset, weight] of [[-2, .1], [-1, .6], [0, 1], [1, .6], [2, .1]]) {
+            const bin = center + offset;
+            if (bin >= 0 && bin < out.length) out[bin] = Math.min(255, Math.round(frame.amplitude * 800 * weight));
+          }
+        },
         getFloatTimeDomainData(out) { for (let i = 0; i < out.length; i++) out[i] = frame.amplitude * Math.sin(2 * Math.PI * frame.frequency * i / 48000); },
         getByteTimeDomainData(out) { for (let i = 0; i < out.length; i++) out[i] = Math.round(128 + frame.amplitude * 127 * Math.sin(2 * Math.PI * frame.frequency * i / 48000)); },
       };
@@ -120,19 +130,19 @@ test('application boots with no invented audio and every visual mode is selectab
     assert.equal(h.uniformValues.get('uMode'), Number(button.dataset.mode));
     assert.equal(button.getAttribute('aria-selected'), 'true');
   }
-  assert.equal(h.elements.filter(el => el.classList.contains('mode-pill')).length, 5);
+  assert.equal(h.elements.filter(el => el.classList.contains('mode-pill')).length, 7);
 });
 
-test('keyboard world navigation wraps through the five choices and invalid retired ids cannot select a shader',async()=>{
+test('keyboard world navigation wraps through seven choices and invalid ids cannot select a shader',async()=>{
   const h=await createApp(),tabs=h.elements.filter(el=>el.classList.contains('mode-pill'));
   await tabs[0].emit('keydown',{key:'End'});h.tick();
-  assert.equal(h.app.state.mode,4);assert.equal(h.uniformValues.get('uMode'),4);
-  await tabs[4].emit('keydown',{key:'ArrowRight'});h.tick();
+  assert.equal(h.app.state.mode,6);assert.equal(h.uniformValues.get('uMode'),6);
+  await tabs[6].emit('keydown',{key:'ArrowRight'});h.tick();
   assert.equal(h.app.state.mode,0,'right wraps to the first choice');
   await tabs[0].emit('keydown',{key:'ArrowLeft'});h.tick();
-  assert.equal(h.app.state.mode,4,'left wraps to the last remaining choice');
-  await tabs[4].emit('keydown',{key:'Home'});h.tick();assert.equal(h.app.state.mode,0);
-  for(const invalid of ['5','6','-1','NaN','3.5']){
+  assert.equal(h.app.state.mode,6,'left wraps to the last choice');
+  await tabs[6].emit('keydown',{key:'Home'});h.tick();assert.equal(h.app.state.mode,0);
+  for(const invalid of ['7','8','-1','NaN','3.5']){
     tabs[3].dataset.mode=invalid;await tabs[3].click();h.tick();
     assert.equal(h.app.state.mode,0,`invalid mode ${invalid} is ignored`);
     assert.equal(h.uniformValues.get('uMode'),0);
@@ -152,6 +162,42 @@ test('Vortex receives measured audio uniforms and returns to zero signal during 
   assert.equal(h.app.state.audioStatus,'silent');assert.ok(h.uniformValues.get('uSubBass')<.01);
   assert.ok(h.app.texture.slice(0,512).every(value=>value===0),'a silent source does not synthesize Vortex activity');
 });
+
+for (const [mode, name] of [[5, 'Aurora'], [6, 'Silk']]) {
+  test(`${name} receives real bass, mids and treble, and freezes during silence and pause`, async () => {
+    const h = await createApp();
+    const tab = h.elements.find(el => el.dataset.mode === String(mode) && el.classList.contains('mode-pill'));
+    assert.ok(tab, `${name} is available in the picker`);
+    await tab.click();
+    h.app.loadLocalFiles([{ name: `${name.toLowerCase()}-tones.wav`, type: 'audio/wav' }]);
+    await Promise.resolve();
+
+    for (const [frequency, uniform] of [[180, 'uBass'], [3500, 'uMid'], [8500, 'uHigh']]) {
+      const before = h.uniformValues.get('uTime') || 0;
+      h.signal(frequency, .2); h.tick(.6);
+      assert.equal(h.app.state.audioStatus, 'live');
+      assert.equal(h.uniformValues.get('uMode'), mode);
+      assert.ok(h.uniformValues.get(uniform) > .01, `${frequency} Hz reaches ${uniform}`);
+      assert.ok(h.uniformValues.get('uTime') > before, 'real audio advances the flow');
+      assert.ok(h.app.texture.slice(0, 512).some(value => value > 0), 'the real spectrum reaches the shader texture');
+      assert.ok(h.app.texture.slice(512).some(value => value !== 128), 'the real waveform reaches the shader texture');
+
+      h.signal(frequency, 0); h.tick(2);
+      assert.equal(h.app.state.audioStatus, 'silent');
+      assert.ok(h.app.texture.slice(0, 512).every(value => value === 0), 'silence clears the spectrum');
+      assert.ok(h.app.texture.slice(512).every(value => value === 128), 'silence centers the waveform');
+      const silentTime = h.uniformValues.get('uTime'); h.tick(.5);
+      assert.equal(h.uniformValues.get('uTime'), silentTime, 'silent input freezes motion');
+    }
+
+    h.signal(900, .2); h.tick(.5);
+    await h.nodes.get('btn-play-pause').click(); h.tick(.6);
+    assert.equal(h.app.state.audioStatus, 'paused');
+    const pausedTime = h.uniformValues.get('uTime'); h.tick(.5);
+    assert.equal(h.uniformValues.get('uTime'), pausedTime, 'paused playback freezes motion');
+    assert.ok(h.app.texture.slice(0, 512).every(value => value === 0), 'paused playback has no stale spectrum');
+  });
+}
 
 test('a local file drives actual uniforms, silence closes the gate, and pause stops signal', async () => {
   const h = await createApp();

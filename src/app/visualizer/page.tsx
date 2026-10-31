@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'SONIC PRISM — Spotify & System Audio Shader Visualizer | Tony Toubia',
   description:
-    'Five WebGL visual worlds driven by local music or shared tab audio, with live signal meters, Spotify playback, and a clean distraction-free studio.',
+    'Seven WebGL visual worlds driven by local music or shared tab audio, with live signal meters, Spotify playback, and a clean distraction-free studio.',
 };
 
 interface VisualizerPageProps {

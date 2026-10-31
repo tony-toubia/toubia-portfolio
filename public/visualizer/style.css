@@ -1425,6 +1425,8 @@ body:not([data-audio-status=idle]) .audio-onboarding { display:none; }
 .mode-pill[data-mode="2"] .mode-swatch { border-radius:50%; background:radial-gradient(circle at 35% 25%,#e0edf1,#8b93aa 45%,#202c41 70%); }
 .mode-pill[data-mode="3"] .mode-swatch { border-radius:50%; background:radial-gradient(ellipse at center,#0c1020 12%,transparent 18%,#ccb8f05a 33%,transparent 42%),conic-gradient(from 35deg,#70d0d0,#6d6aaf,#d499ce,#70d0d0); }
 .mode-pill[data-mode="4"] .mode-swatch { background:linear-gradient(0deg,#6f6aa8 25%,#d3a996 28%,#e8c8a2 65%,#555d7d); }
+.mode-pill[data-mode="5"] .mode-swatch { background:linear-gradient(120deg,#122c42 8%,#84e5cf 31%,#8068ca 51%,#d9a4dd 72%,#182240 94%); }
+.mode-pill[data-mode="6"] .mode-swatch { background:radial-gradient(ellipse at 30% 70%,#f3c4a3 0%,transparent 48%),conic-gradient(from 70deg at 65% 40%,#663f91,#e5a2cb,#a080e3,#64b2cf,#663f91); }
 .source-buttons { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; padding-top:8px; }
 .source-btn,.spotify-source-btn,.source-btn.primary-source { min-width:0; min-height:58px; padding:9px 13px; gap:10px; background:transparent; border:1px solid transparent; border-radius:10px; box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none; }
 .source-btn:hover,.spotify-source-btn:hover { background:#dbe9ed09; border-color:#dbe9ed20; transform:none; box-shadow:none; }
