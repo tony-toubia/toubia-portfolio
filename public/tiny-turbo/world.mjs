@@ -1,7 +1,9 @@
+import { COURSE_FEATURES } from './core.mjs?v=7';
 // Course construction is separate from gameplay. New worlds use the same racing rules.
 export function createWorld({THREE,track,box,addMesh,roundedBox,material,textTexture,makeStar}) {
   const group=new THREE.Group();group.name='course:'+track.id;
   const curve=new THREE.CatmullRomCurve3(track.points.map(p=>new THREE.Vector3(...p)),true,'catmullrom',.4),pickups=[],boostPads=[],itemBoxes=[],ramps=[],shortcuts=[],courseHazards=[],skyRings=[],night=track.theme==='forest';
+  const courseLength=curve.getLength(),features=COURSE_FEATURES[track.id];
   const frame=u=>{const t=((u%1)+1)%1,point=curve.getPointAt(t),tangent=curve.getTangentAt(t).normalize(),right=new THREE.Vector3(-tangent.z,0,tangent.x).normalize();return {point,tangent,right};};
   const curveSideAt=u=>{const f1=frame(u-.015),f2=frame(u+.015),cross=f1.tangent.x*f2.tangent.z-f1.tangent.z*f2.tangent.x;return cross>=0?1:-1;};
   function place(object,u,offset=0,height=0){const f=frame(u);object.position.copy(f.point).addScaledVector(f.right,offset);object.position.y+=height;object.rotation.y=Math.atan2(f.tangent.x,f.tangent.z);return f;}
@@ -99,43 +101,62 @@ export function createWorld({THREE,track,box,addMesh,roundedBox,material,textTex
   arch(0,true);arch(.51);
 
   // Glowing Chevron Boost Pads
-  for(const u of [.17,.48,.77]){
-    const pad=new THREE.Group();
-    addMesh(pad,roundedBox(5.8,.08,5.6),material('#e2ff78',{emissive:'#9eff3b',emissiveIntensity:.45,roughness:.2}),0,.1,0);
+  for(const [u,lane] of features.boosts){
+    const pad=new THREE.Group(),width=lane===0?5.8:3.8;
+    addMesh(pad,roundedBox(width,.08,5.6),material('#e2ff78',{emissive:'#9eff3b',emissiveIntensity:.45,roughness:.2}),0,.1,0);
     for(let i=0;i<3;i++)for(const side of [-1,1]){
-      const bar=addMesh(pad,roundedBox(2.0,.04,.34),material('#ff4f9a',{emissive:'#ff4f9a',emissiveIntensity:.55}),side*.74,.17,i*1.3-1.3);
+      const bar=addMesh(pad,roundedBox(width*.34,.04,.34),material('#ff4f9a',{emissive:'#ff4f9a',emissiveIntensity:.55}),side*width*.13,.17,i*1.3-1.3);
       bar.rotation.y=side*Math.PI/5;
     }
-    place(pad,u);group.add(pad);boostPads.push({u});
+    place(pad,u,lane);group.add(pad);boostPads.push({u,lane,width});
   }
 
-  // Mario Kart Trick Jump Ramps + Blue Hang-Glider Cannon Ramp!
-  for(const [idx,u] of [.28,.64,.89].entries()){
-    const isGlider=idx===1;
-    const lateral=isGlider?0:[0,-2.1,2.1][idx%3];
-    const ramp=new THREE.Group();
+  // Solid wedges follow the course beneath them; their lip is the physics takeoff point.
+  for(const feature of features.ramps){
+    const {u,lane,width,length,height,glider:isGlider}=feature,ramp=new THREE.Group();
+    ramp.name='ramp:'+feature.name;
     const wedgeColor=isGlider?'#00b4d8':'#ff9f43';
     const stripColor=isGlider?'#90e0ef':'#00f5d4';
-    const wedge=addMesh(ramp,roundedBox(isGlider?6.2:4.8,.48,isGlider?5.2:4.4),material(wedgeColor,{roughness:.24,metalness:.16,emissive:isGlider?'#0077b6':'#000000',emissiveIntensity:.35}),0,.38,0);
-    wedge.rotation.x=isGlider?-.23:-.19;
+    const positions=[],indices=[],segments=18;
+    for(let i=0;i<=segments;i++){
+      const t=i/segments,{point,right}=frame(u-(1-t)*length/courseLength);
+      for(const offset of [-width,width]){
+        const p=point.clone().addScaledVector(right,lane+offset);
+        positions.push(p.x,p.y+.08+height*t,p.z,p.x,p.y+.04,p.z);
+      }
+    }
+    for(let i=0;i<segments;i++){
+      const a=i*4,b=a+4;
+      indices.push(a,a+2,b,a+2,b+2,b,a,b,a+1,a+1,b,b+1,a+2,a+3,b+2,a+3,b+3,b+2);
+    }
+    const lip=segments*4;indices.push(lip,lip+1,lip+2,lip+1,lip+3,lip+2);
+    const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geo.setIndex(indices);geo.computeVertexNormals();
+    addMesh(ramp,geo,material(wedgeColor,{side:THREE.DoubleSide,roughness:.3,metalness:.12}));
     const stripMat=material(stripColor,{emissive:stripColor,emissiveIntensity:.85,roughness:.15});
-    for(let i=-1;i<=1;i++){
-      const chevron=addMesh(ramp,new THREE.BoxGeometry(isGlider?5.0:3.8,.06,.34),stripMat,0,.46+i*.15,i*1.05);
-      chevron.rotation.x=isGlider?-.23:-.19;
+    for(const t of [.3,.55,.8]){
+      const stripe=new THREE.Group();
+      for(const side of [-1,1]){
+        const bar=addMesh(stripe,new THREE.BoxGeometry(width*.85,.06,.3),stripMat,side*width*.31,0,0);bar.rotation.y=side*Math.PI/5;
+      }
+      place(stripe,u-(1-t)*length/courseLength,lane,.15+height*t);stripe.rotation.x=-Math.atan2(height,length);ramp.add(stripe);
     }
-    if(isGlider){
-      for(const s of [-1,1])box(ramp,.45,3.2,.45,'#00f5d4',s*3.3,1.6,1.2);
+    // Lip markers make the route readable without blocking the landing zone.
+    for(const side of [-1,1]){
+      const marker=new THREE.Group();box(marker,.2,2.4,.2,stripColor,0,1.2,0);
+      addMesh(marker,new THREE.SphereGeometry(.28,8,6),stripMat,0,2.45,0);
+      place(marker,u,lane+side*(width+.2),height*.5);ramp.add(marker);
     }
-    place(ramp,u,lateral,0);group.add(ramp);
-    ramps.push({u,lane:lateral,width:isGlider?3.5:2.9,glider:isGlider});
+    group.add(ramp);ramps.push({...feature});
   }
 
-  // Floating Golden Sky Rings after the Blue Glider Ramp!
-  for(const [idx,u] of [.665,.692].entries()){
+  // Each world's rings follow its own glider ramp, with a clear open road below.
+  const gliderRamp=features.ramps.find(r=>r.glider);
+  for(const [idx,offset] of [.045,.08].entries()){
+    const u=gliderRamp.u+offset;
     const ringGroup=new THREE.Group();
     const torus=addMesh(ringGroup,new THREE.TorusGeometry(2.35,.22,12,28),material('#ffd43b',{emissive:'#ffa800',emissiveIntensity:.75,roughness:.18,metalness:.3}),0,0,0);
     torus.castShadow=false;
-    const h=idx===0?4.2:3.6;
+    const h=gliderRamp.height+(idx===0?6:5.5);
     place(ringGroup,u,0,h);group.add(ringGroup);
     skyRings.push({mesh:ringGroup,u,lane:0,height:h});
   }
