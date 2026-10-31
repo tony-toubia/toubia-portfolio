@@ -1,4 +1,5 @@
 import { createAudioReactivity, analyzeAudioFrame, packAudioTexture } from './audio-reactivity.mjs?v=1';
+import { createSceneCycle, setSceneAuto, selectScene, advanceScene, sceneBlendOpacity } from './scene-cycle.mjs?v=1';
 
 // SONIC PRISM — Modern WebGL Audio-Reactive Visualizer (WMP Alchemy / MilkDrop / Firestorm tribute)
 
@@ -17,7 +18,7 @@ const state = {
   decay: 0.94,
   warp: 1.2,
   symmetry: 1,
-  sourceType: 'idle', // 'idle' | 'system' | 'file' | 'spotify' | 'spotify-embed'
+  sourceType: 'idle', // 'idle' | 'system' | 'microphone' | 'file' | 'spotify' | 'spotify-embed'
   pointerX: 0.5,
   pointerY: 0.5,
   pointerVx: 0,
@@ -38,6 +39,9 @@ const state = {
   audioStatus: 'idle',
   audioLevel: 0,
 };
+
+const sceneCycle = createSceneCycle({ reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches });
+state.autoMode = false;
 
 let toastTimer = null;
 function notify(msg, duration = 3400) {
@@ -67,6 +71,7 @@ let signalSource = '';
 let lastSignalUi = '', lastSignalUiTime = 0;
 let lastStrongAudioTime = -Infinity;
 let capturePending = false, captureNotice = '', captureStartedAt = 0;
+let microphoneRequest = null, sourceRequestVersion = 0;
 let audioTexData = new Uint8Array(512 * 2); // 512x2 LUMINANCE texture (Row 0: FFT, Row 1: Waveform)
 
 let activeStream = null;
@@ -74,6 +79,52 @@ let streamSourceNode = null;
 let mediaElementSourceNode = null;
 let localFilesQueue = [];
 let localFileIndex = 0;
+
+function isStreamSource(type = state.sourceType) {
+  return type === 'system' || type === 'microphone';
+}
+
+function supportsSharedAudio() {
+  if (!navigator.mediaDevices?.getDisplayMedia || !window.isSecureContext) return false;
+  // These browsers can expose screen video without offering its audio. Unknown
+  // browsers still get a chance; every grant is checked for a real audio track.
+  const ua = navigator.userAgent || '';
+  const appleMobile = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const safari = /Safari\//.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|FxiOS/.test(ua);
+  return !appleMobile && !safari && !/Firefox|FxiOS/.test(ua);
+}
+
+function supportsMicrophone() {
+  return Boolean(window.isSecureContext && navigator.mediaDevices?.getUserMedia);
+}
+
+function invalidateSourceRequests() {
+  sourceRequestVersion++;
+  microphoneRequest = null;
+}
+
+function renderAudioSourceOptions() {
+  const sharedAudio = supportsSharedAudio(), microphone = supportsMicrophone();
+  for (const id of ['btn-system', 'capture-audio']) $(id).hidden = !sharedAudio;
+  for (const id of ['btn-listen', 'listen-audio']) {
+    $(id).hidden = !microphone;
+    $(id).disabled = microphoneRequest !== null;
+  }
+  const help = $('audio-source-help');
+  help.hidden = sharedAudio;
+  help.textContent = microphone ?
+    'For music on this device, open a file from Files or Downloads. Listen nearby uses your microphone for music from a nearby speaker; it cannot hear headphones or directly capture another app.' :
+    'Open a music file from Files or Downloads for live visuals. This browser cannot share other apps\' audio. Microphone input needs HTTPS and browser support.';
+  $('file-source-detail').textContent = 'Files or Downloads · direct audio';
+  $('capture-source-detail').textContent = 'Share a playing tab with audio';
+  $('spotify-source-detail').textContent = sharedAudio ? 'Play here, then share tab audio' : 'Playback · use a file or nearby speaker';
+  $('intro-description').textContent = sharedAudio ?
+    'Seven worlds shaped by your music. Open a track, share a playing tab, or listen to a nearby speaker.' :
+    'Open a song from Files or Downloads for visuals on this device. Or use your microphone to listen to music from a nearby speaker.';
+  $('intro-audio-help').textContent = sharedAudio ?
+    'Playing from Spotify? Start playback, then share this tab with audio. Microphone listening is for nearby speakers.' :
+    'Spotify and other apps do not share their audio with this browser. Files work with headphones; microphone listening is for nearby speakers. Nothing is recorded or uploaded.';
+}
 
 function ensureAudioContext() {
   if (!audioCtx) {
@@ -91,13 +142,14 @@ function ensureAudioContext() {
     analyser.connect(analysisSink);
     analysisSink.connect(audioCtx.destination);
   }
-  if (audioCtx.state === 'suspended') {
+  if (audioCtx.state === 'suspended' || audioCtx.state === 'interrupted') {
     audioCtx.resume().catch(() => {});
   }
   return audioCtx;
 }
 
 function stopCurrentSources(keepSpotify = false) {
+  invalidateSourceRequests();
   lastStrongAudioTime = -Infinity;
   if (activeStream) {
     activeStream.getTracks().forEach(t => t.stop());
@@ -129,8 +181,12 @@ function stopCurrentSources(keepSpotify = false) {
 }
 
 function setActiveSourceUI(type, badgeText) {
+  if (type !== state.sourceType) invalidateSourceRequests();
   state.sourceType = type;
-  if ($('stop-capture')) $('stop-capture').hidden = type !== 'system';
+  if ($('stop-capture')) {
+    $('stop-capture').hidden = !isStreamSource(type);
+    $('stop-capture').textContent = type === 'microphone' ? 'Stop microphone' : 'Stop sharing audio';
+  }
   if (signalSource !== type) {
     signalSource = type;
     Object.assign(audioReactivity, createAudioReactivity());
@@ -140,9 +196,10 @@ function setActiveSourceUI(type, badgeText) {
   document.querySelectorAll('.source-btn').forEach(b => b.classList.remove('active'));
   if (type === 'spotify' || type === 'spotify-embed') $('btn-spotify')?.classList.add('active');
   if (type === 'system') $('btn-system')?.classList.add('active');
+  if (type === 'microphone') $('btn-listen')?.classList.add('active');
   if (type === 'file') $('btn-file-label')?.classList.add('active');
 
-  const isSpotify = type === 'spotify' || type === 'spotify-embed' || (type === 'system' && spotifyState.captureWithSpotify);
+  const isSpotify = type === 'spotify' || type === 'spotify-embed' || (isStreamSource(type) && spotifyState.captureWithSpotify);
   const showTransport = type === 'file' || isSpotify;
   $('transport-bar').hidden = !showTransport;
   const showScrubber =
@@ -162,6 +219,7 @@ function setActiveSourceUI(type, badgeText) {
     if ($('track-artist')) $('track-artist').textContent = '';
     if ($('transport-spotify-link')) $('transport-spotify-link').hidden = true;
   }
+  renderAudioSourceOptions();
   renderSpotifyAudioGuide();
 }
 
@@ -169,17 +227,19 @@ function renderSpotifyAudioGuide() {
   const guide=$('spotify-audio-guide');
   if (!guide) return;
   const spotifySelected=['spotify','spotify-embed'].includes(state.sourceType) ||
-    (state.sourceType==='system' && spotifyState.captureWithSpotify);
-  const needsConnection=state.sourceType!=='system';
-  const quietCapture=state.sourceType==='system' && state.audioStatus!=='live' &&
+    (isStreamSource() && spotifyState.captureWithSpotify);
+  const needsConnection=!isStreamSource();
+  const quietCapture=isStreamSource() && state.audioStatus!=='live' &&
     performance.now()-captureStartedAt>3000;
   guide.hidden=!spotifySelected || (!needsConnection && !quietCapture && !captureNotice);
-  const supported=Boolean(navigator.mediaDevices?.getDisplayMedia);
+  const supported=supportsSharedAudio(), microphone=supportsMicrophone();
   const button=$('connect-spotify-audio');
-  button.disabled=capturePending || !supported;
-  button.textContent=capturePending?'Choose a tab in the sharing window…':needsConnection?'Connect Spotify audio':'Reconnect Spotify audio';
+  const listening=state.sourceType==='microphone';
+  button.disabled=(supported?capturePending:microphoneRequest!==null) || (!supported && !microphone);
+  button.textContent=!supported ? (microphoneRequest!==null?'Allow microphone in your browser…':listening?'Reconnect microphone':'Listen with microphone') : capturePending?'Choose a tab in the sharing window…':needsConnection?'Connect Spotify audio':'Reconnect Spotify audio';
   $('spotify-audio-instructions').textContent=!supported?
-    'This browser can play Spotify but cannot share its audio with the visuals. Open this page in desktop Chrome or Edge, or use a music file for live visuals.':
+    'This browser cannot share Spotify audio with the visuals. Open a music file for direct audio, or use the microphone for a nearby speaker. Headphones and direct audio from another app cannot be captured by microphone listening.':
+    listening?'The microphone listens to nearby speakers, not directly to Spotify. Keep the speaker audible nearby, or open a music file for direct audio.':
     quietCapture?'The shared input is quiet. Keep Spotify playing here, reconnect, and choose this Sonic Prism tab with Share tab audio turned on.':
     'In the sharing window, choose This Tab (Sonic Prism), turn on Share tab audio, then choose Share. Keep Spotify playing in this tab.';
   $('spotify-audio-help').hidden=!captureNotice;
@@ -187,9 +247,9 @@ function renderSpotifyAudioGuide() {
 }
 
 function selectSpotifyPlaybackSource(badgeText) {
-  if (state.sourceType === 'system' && activeStream?.getAudioTracks().some(track => track.readyState === 'live')) {
+  if (isStreamSource() && activeStream?.getAudioTracks().some(track => track.readyState === 'live')) {
     spotifyState.captureWithSpotify = true;
-    setActiveSourceUI('system', $('source-badge').textContent || 'SHARED AUDIO');
+    setActiveSourceUI(state.sourceType, $('source-badge').textContent || 'LIVE AUDIO');
   } else {
     setActiveSourceUI('spotify-embed', badgeText);
   }
@@ -199,13 +259,16 @@ function selectSpotifyPlaybackSource(badgeText) {
 async function startSystemAudio() {
   if (capturePending) return;
   captureNotice='';
-  if (!navigator.mediaDevices?.getDisplayMedia) {
-    captureNotice='Audio capture is unavailable in this browser. Use desktop Chrome or Edge, or open a music file.';
+  if (!supportsSharedAudio()) {
+    captureNotice='Shared audio capture is unavailable in this browser. Open a music file, or choose Listen nearby for a nearby speaker.';
     renderSpotifyAudioGuide();
     notify(captureNotice, 5000);
     return;
   }
+  const requestVersion = ++sourceRequestVersion;
+  microphoneRequest = null;
   capturePending=true;
+  renderAudioSourceOptions();
   renderSpotifyAudioGuide();
   try {
     ensureAudioContext();
@@ -223,6 +286,11 @@ async function startSystemAudio() {
       selfBrowserSurface: 'include',
       preferCurrentTab: Boolean(['spotify','spotify-embed'].includes(state.sourceType) || spotifyState.captureWithSpotify || spotifyState.embedPlaying || spotifyState.sdkPlaying),
     });
+
+    if (requestVersion !== sourceRequestVersion) {
+      stream.getTracks().forEach(track => track.stop());
+      return;
+    }
 
     const audioTracks = stream.getAudioTracks();
     if (!audioTracks.length) {
@@ -270,10 +338,79 @@ async function startSystemAudio() {
     notify(captureNotice, 5000);
   } finally {
     capturePending=false;
+    renderAudioSourceOptions();
     renderSpotifyAudioGuide();
   }
 }
-$('connect-spotify-audio')?.addEventListener('click',startSystemAudio);
+$('connect-spotify-audio')?.addEventListener('click', () => supportsSharedAudio() ? startSystemAudio() : startMicrophone());
+
+// Microphone listening is deliberately opt-in and analyzed locally without monitoring.
+async function startMicrophone() {
+  if (microphoneRequest !== null) return;
+  if (!supportsMicrophone()) {
+    notify('Microphone listening is unavailable. Open a music file, or use a browser with microphone support over HTTPS.', 5000);
+    return;
+  }
+  const requestVersion = ++sourceRequestVersion;
+  microphoneRequest = requestVersion;
+  let requestedStream = null;
+  captureNotice = '';
+  renderAudioSourceOptions();
+  renderSpotifyAudioGuide();
+  try {
+    ensureAudioContext();
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      video: false,
+    });
+    requestedStream = stream;
+    if (requestVersion !== sourceRequestVersion) {
+      stream.getTracks().forEach(track => track.stop());
+      return;
+    }
+    if (!stream.getAudioTracks().some(track => track.readyState === 'live')) {
+      stream.getTracks().forEach(track => track.stop());
+      throw new Error('No microphone audio track was available');
+    }
+    const keepSpotifyRunning = spotifyState.embedPlaying || spotifyState.sdkPlaying;
+    stopCurrentSources(keepSpotifyRunning);
+    spotifyState.captureWithSpotify = keepSpotifyRunning;
+    ensureAudioContext();
+    activeStream = stream;
+    captureStartedAt = performance.now();
+    streamSourceNode = audioCtx.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));
+    streamSourceNode.connect(analyser);
+    setActiveSourceUI('microphone', 'MICROPHONE · NEARBY SOUND');
+    notify('Listening to nearby speakers. Microphone audio stays on this device; nothing is recorded or uploaded.', 5000);
+    stream.getTracks().forEach(track => track.addEventListener('ended', () => {
+      if (activeStream !== stream || state.sourceType !== 'microphone') return;
+      stopCurrentSources(true);
+      spotifyState.captureWithSpotify = false;
+      if (spotifyState.embedPlaying || spotifyState.sdkPlaying) {
+        setActiveSourceUI(spotifyState.sdkPlaying ? 'spotify' : 'spotify-embed', 'SPOTIFY · AUDIO NOT CONNECTED');
+      } else setActiveSourceUI('idle', 'MICROPHONE ENDED · SELECT SOURCE');
+    }));
+  } catch (err) {
+    const failedConnection = requestedStream && activeStream === requestedStream;
+    if (failedConnection) {
+      stopCurrentSources(true);
+      spotifyState.captureWithSpotify = false;
+      setActiveSourceUI(spotifyState.sdkPlaying ? 'spotify' : spotifyState.embedPlaying ? 'spotify-embed' : 'idle', 'MICROPHONE COULD NOT CONNECT');
+    } else if (requestVersion !== sourceRequestVersion) {
+      requestedStream?.getTracks().forEach(track => track.stop());
+      return;
+    }
+    requestedStream?.getTracks().forEach(track => track.stop());
+    captureNotice = err?.name === 'NotAllowedError' ?
+      'Microphone access was not allowed. Your current playback is unchanged. Choose a music file, or allow microphone access and try again.' :
+      failedConnection ? 'Could not connect microphone audio. Try again or open a music file.' : 'Could not listen to the microphone. Your current playback is unchanged. Try again or open a music file.';
+    notify(captureNotice, 5500);
+  } finally {
+    if (microphoneRequest === requestVersion) microphoneRequest = null;
+    renderAudioSourceOptions();
+    renderSpotifyAudioGuide();
+  }
+}
 
 // 2. Local Music Files Playback (Single or Multiple Files on Desktop & Phone)
 $('stop-capture')?.addEventListener('click', () => {
@@ -426,7 +563,7 @@ window.onSpotifyIframeApiReady = IFrameAPI => {
             try { spotifyState.sdkPlayer.pause(); } catch {}
             spotifyState.sdkPlaying = false;
           }
-          if (state.sourceType !== 'system') stopCurrentSources(true);
+          if (!isStreamSource()) stopCurrentSources(true);
           const title = spotifyState.currentTrack?.title || 'Spotify Player';
           selectSpotifyPlaybackSource(`SPOTIFY · ${title.toUpperCase().slice(0, 28)}`);
           $('btn-play-pause').textContent = '⏸';
@@ -467,8 +604,15 @@ function updateTransportMetadata(track) {
   }
 }
 
+function activateSpotifyPlayback() {
+  // Safari/mobile must receive this call in the click handler before any await.
+  try { spotifyState.sdkPlayer?.activateElement?.()?.catch?.(() => {}); } catch {}
+}
+
 async function playSpotifyTrack(track, index = 0, queue = spotifyState.currentQueue, autoCloseDrawer = true) {
   if (!track) return;
+  invalidateSourceRequests();
+  activateSpotifyPlayback();
   spotifyState.currentTrack = track;
   spotifyState.currentIndex = index;
   if (Array.isArray(queue) && queue.length) {
@@ -586,11 +730,11 @@ function stepSpotifyQueue(delta) {
 
 // --- Real captured PCM analysis, with explicit source and signal state ---
 function updateAudioAnalysis(timeSec, dt) {
-  const hasLiveStream = state.sourceType === 'system' && Boolean(
+  const hasLiveStream = isStreamSource() && Boolean(
     activeStream && activeStream.getAudioTracks().some(t => t.readyState === 'live')
   );
   const isSpotifyActive = (state.sourceType === 'spotify-embed' || state.sourceType === 'spotify' ||
-    (state.sourceType === 'system' && spotifyState.captureWithSpotify)) &&
+    (isStreamSource() && spotifyState.captureWithSpotify)) &&
     (spotifyState.embedPlaying || spotifyState.sdkPlaying);
   if (isSpotifyActive) {
     spotifyState.embedPositionMs += dt * 1000;
@@ -622,7 +766,7 @@ function updateAudioAnalysis(timeSec, dt) {
   }, audioTexData);
   let label, detail;
   if (state.sourceType === 'idle') {
-    state.audioStatus='idle';label='Choose your audio';detail='Open a music file or share a tab with audio to begin.';
+    state.audioStatus='idle';label='Choose your audio';detail=supportsSharedAudio()?'Open a music file, share a tab with audio, or listen to a nearby speaker.':'Open a music file from Files or Downloads, or listen to a nearby speaker.';
   } else if (sourceConnected && audioCtx?.state !== 'running') {
     state.audioStatus='blocked';label='Audio needs a click';detail='Click the canvas or press Play to enable audio analysis.';
   } else if (fileSelected && audioEl.error) {
@@ -630,15 +774,15 @@ function updateAudioAnalysis(timeSec, dt) {
   } else if (fileSelected && (audioEl.paused || audioEl.ended)) {
     state.audioStatus='paused';label=audioEl.ended?'Track ended':'Audio paused';detail='Press Play to resume the music and visuals.';
   } else if (mutedCapture) {
-    state.audioStatus='silent';label='Shared audio is muted';detail='Reconnect the playing tab with Share tab audio enabled.';
+    state.audioStatus='silent';label=state.sourceType==='microphone'?'Microphone is muted':'Shared audio is muted';detail=state.sourceType==='microphone'?'Check microphone access and keep a speaker audible nearby.':'Reconnect the playing tab with Share tab audio enabled.';
   } else if (directAudio && (features.hasSignal || timeSec-lastStrongAudioTime<.45)) {
     state.audioStatus='live';label='Reacting to live audio';
-    detail=features.hasSignal?`${fileSelected?'Music file':'Shared audio'} · ${Math.round(20*Math.log10(features.rms))} dB · measured in real time`:'Quiet passage · listening for audio';
+    detail=features.hasSignal?`${fileSelected?'Music file':state.sourceType==='microphone'?'Microphone · nearby sound':'Shared audio'} · ${Math.round(20*Math.log10(features.rms))} dB · measured in real time`:'Quiet passage · listening for audio';
   } else if (directAudio) {
-    state.audioStatus='silent';label='Connected · waiting for sound';detail='The audio input is silent. Play music, or check that Share audio is enabled.';
+    state.audioStatus='silent';label='Connected · waiting for sound';detail=state.sourceType==='microphone'?'The microphone is quiet. Play music through a nearby speaker; headphones and another app\'s direct audio are not captured.':'The audio input is silent. Play music, or check that Share audio is enabled.';
   } else if (state.sourceType === 'spotify' || state.sourceType === 'spotify-embed') {
     state.audioStatus=isSpotifyActive?'waiting':'paused';label=isSpotifyActive?'Spotify playing · audio not shared':'Spotify ready';
-    detail='Share this playing tab with audio to sync the visuals. Spotify playback alone cannot provide live audio data.';
+    detail=supportsSharedAudio()?'Share this playing tab with audio to sync the visuals. Spotify playback alone cannot provide live audio data.':'Spotify playback alone cannot provide live audio data here. Open a music file, or use the microphone for a nearby speaker.';
   } else {
     state.audioStatus='waiting';label='Waiting for audio';detail='Connect an audio source to sync the visuals.';
   }
@@ -1228,8 +1372,19 @@ function createProgram(vs, fs) {
   return prog;
 }
 
+const SNAPSHOT_FRAG = `
+precision mediump float;
+varying vec2 vUv;
+uniform sampler2D uSnapshot;
+uniform float uOpacity;
+void main() {
+  gl_FragColor = vec4(texture2D(uSnapshot, vUv).rgb, uOpacity);
+}
+`;
+
 const feedbackProg = createProgram(VERT_SRC, FEEDBACK_FRAG);
 const compositeProg = createProgram(VERT_SRC, COMPOSITE_FRAG);
+const snapshotProg = createProgram(VERT_SRC, SNAPSHOT_FRAG);
 
 // Fullscreen quad buffer
 const quadBuf = gl.createBuffer();
@@ -1250,6 +1405,7 @@ let fboWidth = 0, fboHeight = 0;
 const fbos = [null, null];
 const fboTexs = [null, null];
 let pingIndex = 0;
+let sceneSnapshot = null;
 
 function createFbo(w, h) {
   const tex = gl.createTexture();
@@ -1277,6 +1433,14 @@ function resizeCanvas() {
   canvas.height = h;
   fboWidth = w;
   fboHeight = h;
+
+  // A resized snapshot cannot match the new viewport. Keep the current world.
+  if (sceneSnapshot) {
+    gl.deleteTexture(sceneSnapshot.tex);
+    gl.deleteFramebuffer(sceneSnapshot.fbo);
+    sceneSnapshot = null;
+  }
+  sceneCycle.transition = null;
 
   for (let i = 0; i < 2; i++) {
     if (fboTexs[i]) gl.deleteTexture(fboTexs[i]);
@@ -2322,6 +2486,9 @@ handleSpotifyOAuthCallback();
 
 // --- UI Event Listeners & Interactive Controls ---
 $('btn-system')?.addEventListener('click', startSystemAudio);
+$('btn-listen')?.addEventListener('click', startMicrophone);
+$('listen-audio')?.addEventListener('click', startMicrophone);
+renderAudioSourceOptions();
 $('file-input')?.addEventListener('change', e => {
   if (e.target.files?.length) {
     loadLocalFiles(e.target.files);
@@ -2358,8 +2525,9 @@ $('btn-play-pause')?.addEventListener('click', () => {
       audioEl.pause();
       $('btn-play-pause').textContent = '▶';
     }
-  } else if (state.sourceType === 'spotify-embed' || state.sourceType === 'spotify' || (state.sourceType === 'system' && spotifyState.captureWithSpotify)) {
+  } else if (state.sourceType === 'spotify-embed' || state.sourceType === 'spotify' || (isStreamSource() && spotifyState.captureWithSpotify)) {
     if (spotifyState.activePlayer === 'sdk' && spotifyState.sdkPlayer) {
+      activateSpotifyPlayback();
       spotifyState.sdkPlayer.togglePlay();
     } else if (spotifyState.embedController) {
       spotifyState.embedController.togglePlay();
@@ -2372,7 +2540,7 @@ $('seek-bar')?.addEventListener('input', e => {
   if (state.sourceType === 'file' && Number.isFinite(audioEl.duration)) {
     audioEl.currentTime = pct * audioEl.duration;
   } else if (
-    (state.sourceType === 'spotify-embed' || state.sourceType === 'spotify' || (state.sourceType === 'system' && spotifyState.captureWithSpotify)) &&
+    (state.sourceType === 'spotify-embed' || state.sourceType === 'spotify' || (isStreamSource() && spotifyState.captureWithSpotify)) &&
     spotifyState.embedDurationMs > 0
   ) {
     const targetMs = Math.round(pct * spotifyState.embedDurationMs);
@@ -2401,29 +2569,43 @@ audioEl.addEventListener('ended', () => {
   }
 });
 
-// Visual Mode Tabs
+function clearSceneFeedback() {
+  for (const fbo of fbos) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  pingIndex = 0;
+}
+
+function syncSceneControls(scroll = false) {
+  state.mode = sceneCycle.mode;
+  state.autoMode = sceneCycle.enabled;
+  $('auto-mode')?.setAttribute('aria-pressed', String(state.autoMode));
+  document.querySelectorAll('.mode-pill').forEach(tab => {
+    const selected = Number(tab.dataset.mode) === state.mode;
+    tab.classList.toggle('active', selected);
+    tab.setAttribute('aria-selected', String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+    // Do not move keyboard focus when Auto advances the world.
+    if (selected && scroll) tab.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+  });
+}
+
+// A manual choice takes control immediately and stops automatic scene changes.
 document.querySelectorAll('.mode-pill').forEach(btn => {
   btn.addEventListener('click', () => {
     const nextMode = Number(btn.dataset.mode);
     if (!Number.isInteger(nextMode) || nextMode < 0 || nextMode > 6) return;
-    if (nextMode !== state.mode) {
-      // A new world starts clean, without ghost images from the previous scene.
-      for (const fbo of fbos) {
-        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-        gl.clearColor(0, 0, 0, 1);
-        gl.clear(gl.COLOR_BUFFER_BIT);
-      }
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      pingIndex = 0;
-    }
-    document.querySelectorAll('.mode-pill').forEach(b => {
-      b.classList.remove('active');
-      b.setAttribute('aria-selected', 'false');
-    });
-    btn.classList.add('active');
-    btn.setAttribute('aria-selected', 'true');
-    state.mode = nextMode;
+    if (selectScene(sceneCycle, nextMode)) clearSceneFeedback();
+    syncSceneControls();
   });
+});
+$('auto-mode')?.addEventListener('click', () => {
+  setSceneAuto(sceneCycle, !sceneCycle.enabled);
+  syncSceneControls();
+  notify(sceneCycle.enabled ? 'Auto on · a new world every 20 seconds of live audio.' : 'Auto off · stay in this world.');
 });
 
 // Customization Sliders & Palettes
@@ -2510,7 +2692,7 @@ function updatePointer(clientX, clientY) {
 }
 
 canvas.addEventListener('pointerdown', e => {
-  if (state.sourceType !== 'idle' && audioCtx?.state === 'suspended') audioCtx.resume().catch(() => {});
+  if (state.sourceType !== 'idle' && ['suspended', 'interrupted'].includes(audioCtx?.state)) audioCtx.resume().catch(() => {});
   if (spotifyDrawer && !spotifyDrawer.hidden) toggleSpotifyDrawer(false);
   if (customDrawer && !customDrawer.hidden) toggleCustomDrawer(false);
   state.pointerDown = true;
@@ -2523,6 +2705,65 @@ window.addEventListener('pointermove', e => {
 window.addEventListener('pointerup', () => {
   state.pointerDown = false;
 });
+
+function drawSceneComposite(targetFramebuffer, feedbackTexture, mode) {
+  gl.bindFramebuffer(gl.FRAMEBUFFER, targetFramebuffer);
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.useProgram(compositeProg);
+
+  const posLoc2 = gl.getAttribLocation(compositeProg, 'aPos');
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+  gl.enableVertexAttribArray(posLoc2);
+  gl.vertexAttribPointer(posLoc2, 2, gl.FLOAT, false, 0, 0);
+
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, feedbackTexture);
+  gl.uniform1i(gl.getUniformLocation(compositeProg, 'uFeedbackTex'), 0);
+  gl.uniform1i(gl.getUniformLocation(compositeProg, 'uAudioTex'), 1);
+  gl.uniform2f(gl.getUniformLocation(compositeProg, 'uRes'), canvas.width, canvas.height);
+  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uTime'), visualTime);
+  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uSubBass'), state.subBass);
+  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uBass'), state.bass);
+  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uVocal'), state.vocal);
+  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uVocalPitch'), state.vocalPitch);
+  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uMid'), state.mid);
+  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uHigh'), state.high);
+  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uKick'), state.kickImpulse);
+  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uTrebleSpark'), state.trebleSpark);
+  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uBeat'), state.beatPulse);
+  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uPhase'), state.beatPhase);
+  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uSymmetry'), state.symmetry);
+  gl.uniform1i(gl.getUniformLocation(compositeProg, 'uMode'), mode);
+  gl.uniform1i(gl.getUniformLocation(compositeProg, 'uPalette'), state.palette);
+  gl.uniform2f(gl.getUniformLocation(compositeProg, 'uPointer'), state.pointerX, state.pointerY);
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+
+function captureSceneSnapshot(mode) {
+  // FBO creation binds a texture; preserve the audio texture on texture unit 1.
+  gl.activeTexture(gl.TEXTURE0);
+  if (!sceneSnapshot) sceneSnapshot = createFbo(canvas.width, canvas.height);
+  drawSceneComposite(sceneSnapshot.fbo, fboTexs[pingIndex], mode);
+}
+
+function drawSceneTransition() {
+  const opacity = sceneBlendOpacity(sceneCycle);
+  if (!sceneSnapshot || opacity <= 0) return;
+  gl.useProgram(snapshotProg);
+  const position = gl.getAttribLocation(snapshotProg, 'aPos');
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+  gl.enableVertexAttribArray(position);
+  gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, sceneSnapshot.tex);
+  gl.uniform1i(gl.getUniformLocation(snapshotProg, 'uSnapshot'), 0);
+  gl.uniform1f(gl.getUniformLocation(snapshotProg, 'uOpacity'), opacity);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  gl.disable(gl.BLEND);
+}
 
 // --- Main Render Loop ---
 let lastTime = performance.now();
@@ -2571,6 +2812,14 @@ function renderLoop(now) {
   gl.bindTexture(gl.TEXTURE_2D, audioTex);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 512, 2, gl.LUMINANCE, gl.UNSIGNED_BYTE, audioTexData);
 
+  const nextScene = advanceScene(sceneCycle, dt, { live: state.audioStatus === 'live', visible: !document.hidden });
+  if (nextScene) {
+    // Capture before clearing feedback, inside this frame while textures are valid.
+    if (sceneCycle.transition) captureSceneSnapshot(nextScene.from);
+    clearSceneFeedback();
+    syncSceneControls(true);
+  }
+
   const readIdx = pingIndex;
   const writeIdx = 1 - pingIndex;
 
@@ -2611,37 +2860,9 @@ function renderLoop(now) {
 
   gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-  // PASS 2: Render Composite + Foreground Waves to Screen
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  gl.viewport(0, 0, canvas.width, canvas.height);
-  gl.useProgram(compositeProg);
-
-  const posLoc2 = gl.getAttribLocation(compositeProg, 'aPos');
-  gl.enableVertexAttribArray(posLoc2);
-  gl.vertexAttribPointer(posLoc2, 2, gl.FLOAT, false, 0, 0);
-
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, fboTexs[writeIdx]);
-  gl.uniform1i(gl.getUniformLocation(compositeProg, 'uFeedbackTex'), 0);
-  gl.uniform1i(gl.getUniformLocation(compositeProg, 'uAudioTex'), 1);
-  gl.uniform2f(gl.getUniformLocation(compositeProg, 'uRes'), canvas.width, canvas.height);
-  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uTime'), visualTime);
-  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uSubBass'), state.subBass);
-  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uBass'), state.bass);
-  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uVocal'), state.vocal);
-  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uVocalPitch'), state.vocalPitch);
-  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uMid'), state.mid);
-  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uHigh'), state.high);
-  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uKick'), state.kickImpulse);
-  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uTrebleSpark'), state.trebleSpark);
-  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uBeat'), state.beatPulse);
-  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uPhase'), state.beatPhase);
-  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uSymmetry'), state.symmetry);
-  gl.uniform1i(gl.getUniformLocation(compositeProg, 'uMode'), state.mode);
-  gl.uniform1i(gl.getUniformLocation(compositeProg, 'uPalette'), state.palette);
-  gl.uniform2f(gl.getUniformLocation(compositeProg, 'uPointer'), state.pointerX, state.pointerY);
-
-  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  // New world stays live; the previous world is one frozen texture during the fade.
+  drawSceneComposite(null, fboTexs[writeIdx], state.mode);
+  drawSceneTransition();
 
   pingIndex = writeIdx;
   requestAnimationFrame(renderLoop);
