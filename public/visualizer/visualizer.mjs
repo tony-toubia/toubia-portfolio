@@ -1,3 +1,5 @@
+import { createAudioReactivity, analyzeAudioFrame, packAudioTexture } from './audio-reactivity.mjs?v=1';
+
 // SONIC PRISM — Modern WebGL Audio-Reactive Visualizer (WMP Alchemy / MilkDrop / Firestorm tribute)
 
 const $ = id => document.getElementById(id);
@@ -21,7 +23,7 @@ const state = {
   pointerVx: 0,
   pointerVy: 0,
   pointerDown: false,
-  // 5-Stem Multi-Dimensional Audio Telemetry
+  // Frequency-range telemetry from real PCM, not separated musical stems.
   subBass: 0,       // 20-110 Hz (808 sub & kick body)
   bass: 0,          // 110-320 Hz (bassline & warm groove)
   vocal: 0,         // 320-2800 Hz (lead vocals, lyrics, solo melody)
@@ -32,10 +34,9 @@ const state = {
   trebleSpark: 0,   // High-frequency transient burst intensity
   beatPulse: 0,
   beatPhase: 0,
-  bpmEstimate: 124,
-  lastBeatTime: 0,
-  energyHistory: new Float32Array(45),
-  energyIdx: 0,
+  bpmEstimate: 0,
+  audioStatus: 'idle',
+  audioLevel: 0,
 };
 
 let toastTimer = null;
@@ -59,14 +60,17 @@ function formatTime(sec) {
 let audioCtx = null;
 let analyser = null;
 let freqData = new Uint8Array(1024);
-let waveData = new Uint8Array(1024);
+let waveData = new Float32Array(2048);
+const audioReactivity = createAudioReactivity();
+let analysisSink = null, currentFileUrl = null;
+let signalSource = '';
+let lastSignalUi = '', lastSignalUiTime = 0;
+let lastStrongAudioTime = -Infinity;
 let audioTexData = new Uint8Array(512 * 2); // 512x2 LUMINANCE texture (Row 0: FFT, Row 1: Waveform)
 
 let activeStream = null;
 let streamSourceNode = null;
 let mediaElementSourceNode = null;
-let silentTrackSourceNode = null; // Feeds decoded track buffer ONLY to analyser (NEVER to destination!)
-let silentTrackBuffer = null;
 let localFilesQueue = [];
 let localFileIndex = 0;
 
@@ -74,43 +78,26 @@ function ensureAudioContext() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 2048;
-    analyser.smoothingTimeConstant = 0.72;
+    analyser.fftSize = audioCtx.sampleRate > 60000 ? 4096 : 2048;
+    analyser.smoothingTimeConstant = 0.28;
+    analyser.minDecibels = -85;
+    analyser.maxDecibels = -15;
     freqData = new Uint8Array(analyser.frequencyBinCount);
-    waveData = new Uint8Array(analyser.frequencyBinCount);
+    waveData = new Float32Array(analyser.fftSize);
+    // Keep analysis in the rendering graph without replaying captured sound.
+    analysisSink = audioCtx.createGain();
+    analysisSink.gain.value = 0;
+    analyser.connect(analysisSink);
+    analysisSink.connect(audioCtx.destination);
   }
   if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
+    audioCtx.resume().catch(() => {});
   }
   return audioCtx;
 }
 
-function stopSilentTrackAnalyser() {
-  if (silentTrackSourceNode) {
-    try { silentTrackSourceNode.stop(); } catch {}
-    try { silentTrackSourceNode.disconnect(); } catch {}
-    silentTrackSourceNode = null;
-  }
-}
-
-function startSilentTrackAnalyser(buffer) {
-  stopSilentTrackAnalyser();
-  if (!buffer) return;
-  const ctx = ensureAudioContext();
-  try {
-    const src = ctx.createBufferSource();
-    src.buffer = buffer;
-    src.loop = true;
-    // CRITICAL: Connect ONLY to analyser (NEVER to audioCtx.destination!)
-    // Gives real 60 FPS hardware 2048-bin FFT & phase-accurate waveforms with ZERO speaker output!
-    src.connect(analyser);
-    const offset = ((spotifyState.embedPositionMs || 0) * 0.001) % Math.max(1, buffer.duration);
-    src.start(0, offset);
-    silentTrackSourceNode = src;
-  } catch {}
-}
-
 function stopCurrentSources(keepSpotify = false) {
+  lastStrongAudioTime = -Infinity;
   if (activeStream) {
     activeStream.getTracks().forEach(t => t.stop());
     activeStream = null;
@@ -123,11 +110,11 @@ function stopCurrentSources(keepSpotify = false) {
     audioEl.pause();
   }
   audioEl.removeAttribute('src');
+  if (currentFileUrl) { URL.revokeObjectURL(currentFileUrl); currentFileUrl = null; }
   try { audioEl.load(); } catch {}
 
   if (!keepSpotify) {
-    stopSilentTrackAnalyser();
-    silentTrackBuffer = null;
+    spotifyState.captureWithSpotify = false;
     if (spotifyState.embedController && spotifyState.embedPlaying) {
       try { spotifyState.embedController.pause(); } catch {}
     }
@@ -142,13 +129,19 @@ function stopCurrentSources(keepSpotify = false) {
 
 function setActiveSourceUI(type, badgeText) {
   state.sourceType = type;
+  if ($('stop-capture')) $('stop-capture').hidden = type !== 'system';
+  if (signalSource !== type) {
+    signalSource = type;
+    Object.assign(audioReactivity, createAudioReactivity());
+    freqData.fill(0); waveData.fill(0);
+  }
   $('source-badge').textContent = badgeText;
   document.querySelectorAll('.source-btn').forEach(b => b.classList.remove('active'));
   if (type === 'spotify' || type === 'spotify-embed') $('btn-spotify')?.classList.add('active');
   if (type === 'system') $('btn-system')?.classList.add('active');
   if (type === 'file') $('btn-file-label')?.classList.add('active');
 
-  const isSpotify = type === 'spotify' || type === 'spotify-embed';
+  const isSpotify = type === 'spotify' || type === 'spotify-embed' || (type === 'system' && spotifyState.captureWithSpotify);
   const showTransport = type === 'file' || isSpotify;
   $('transport-bar').hidden = !showTransport;
   const showScrubber =
@@ -170,6 +163,15 @@ function setActiveSourceUI(type, badgeText) {
   }
 }
 
+function selectSpotifyPlaybackSource(badgeText) {
+  if (state.sourceType === 'system' && activeStream?.getAudioTracks().some(track => track.readyState === 'live')) {
+    spotifyState.captureWithSpotify = true;
+    setActiveSourceUI('system', $('source-badge').textContent || 'SHARED AUDIO');
+  } else {
+    setActiveSourceUI('spotify-embed', badgeText);
+  }
+}
+
 // 1. Share Tab / Window Audio (Pandora, YouTube, Spotify Desktop, Apple Music)
 async function startSystemAudio() {
   if (!navigator.mediaDevices?.getDisplayMedia) {
@@ -177,6 +179,7 @@ async function startSystemAudio() {
     return;
   }
   try {
+    ensureAudioContext();
     notify('Select a Browser Tab (Pandora, YouTube, Apple Music) or Screen and check "Also share audio" 🔊', 5000);
     const stream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
@@ -187,6 +190,8 @@ async function startSystemAudio() {
         suppressLocalAudioPlayback: false,
       },
       systemAudio: 'include',
+      selfBrowserSurface: 'include',
+      preferCurrentTab: Boolean(spotifyState.embedPlaying || spotifyState.sdkPlaying),
     });
 
     const audioTracks = stream.getAudioTracks();
@@ -200,6 +205,7 @@ async function startSystemAudio() {
     // analyser is NEVER connected to audioCtx.destination so it will never double-play or echo!
     const keepSpotifyRunning = spotifyState.embedPlaying || spotifyState.sdkPlaying;
     stopCurrentSources(keepSpotifyRunning);
+    spotifyState.captureWithSpotify = keepSpotifyRunning;
     ensureAudioContext();
     activeStream = stream;
     const audioOnlyStream = new MediaStream(audioTracks);
@@ -208,11 +214,12 @@ async function startSystemAudio() {
     streamSourceNode.connect(analyser);
 
     const label = audioTracks[0].label || 'Tab / Window Audio';
-    setActiveSourceUI('system', `LIVE AUDIO · ${label.toUpperCase().slice(0, 32)}`);
-    notify(`Connected to ${label}! Visualizing live audio 🌈`);
+    setActiveSourceUI('system', `SHARED AUDIO · ${label.toUpperCase().slice(0, 32)}`);
+    notify(`Connected to ${label}. Play music to drive the visuals.`);
 
     stream.getTracks().forEach(track => {
       track.addEventListener('ended', () => {
+        if (activeStream !== stream) return;
         if (state.sourceType === 'system') {
           stopCurrentSources(true);
           if (spotifyState.embedPlaying || spotifyState.sdkPlaying) {
@@ -232,6 +239,14 @@ async function startSystemAudio() {
 }
 
 // 2. Local Music Files Playback (Single or Multiple Files on Desktop & Phone)
+$('stop-capture')?.addEventListener('click', () => {
+  stopCurrentSources(true);
+  spotifyState.captureWithSpotify = false;
+  if (spotifyState.embedPlaying || spotifyState.sdkPlaying) {
+    setActiveSourceUI(spotifyState.sdkPlaying ? 'spotify' : 'spotify-embed', 'SPOTIFY · AUDIO NOT SHARED');
+  } else setActiveSourceUI('idle', 'Audio visualizer');
+});
+
 function loadLocalFiles(fileList) {
   const files = Array.from(fileList || []).filter(
     f => f && (f.type.startsWith('audio/') || /\.(mp3|wav|flac|m4a|ogg|aac|opus)$/i.test(f.name))
@@ -255,6 +270,7 @@ function playLocalFileAt(index) {
   ensureAudioContext();
 
   const url = URL.createObjectURL(file);
+  currentFileUrl = url;
   audioEl.src = url;
   audioEl.load();
 
@@ -290,12 +306,13 @@ function playLocalFileAt(index) {
         navigator.mediaSession.setActionHandler('nexttrack', () => playLocalFileAt(localFileIndex + 1));
       }
     })
-    .catch(() => {
+    .catch(err => {
       $('btn-play-pause').textContent = '▶';
+      notify(err?.name === 'NotAllowedError' ? 'Your browser paused playback. Press Play to start this file.' : 'This audio file could not play. Try another MP3 or WAV file.');
     });
 }
 
-// 3. Full-Track In-App Spotify Player (Web Playback SDK + Official Embed + Silent Spectral Fingerprint)
+// 3. Spotify playback. Live visualization requires an explicitly shared audio stream.
 const bootQueryParams = new URLSearchParams(window.location.search);
 const bootEnvClientId = (bootQueryParams.get('envClientId') || '').trim();
 const bootEnvRedirectUri = (bootQueryParams.get('envRedirectUri') || '').trim();
@@ -315,8 +332,7 @@ const spotifyState = {
   sdkPlaying: false,
   embedPositionMs: 0,
   embedDurationMs: 0,
-  trackSeed: 1.0,
-  trackSignature: null, // Decoded silent spectral envelope { bassCurve, midCurve, highCurve, energy, bpm }
+  captureWithSpotify: false,
   envClientId: bootEnvClientId,
   envRedirectUri: bootEnvRedirectUri,
   clientId: bootEnvClientId || localStorage.getItem('sp_client_id') || '',
@@ -373,13 +389,11 @@ window.onSpotifyIframeApiReady = IFrameAPI => {
             try { spotifyState.sdkPlayer.pause(); } catch {}
             spotifyState.sdkPlaying = false;
           }
-          if (state.sourceType !== 'system') {
-            stopCurrentSources(true);
-            const title = spotifyState.currentTrack?.title || 'Spotify Player';
-            setActiveSourceUI('spotify-embed', `SPOTIFY · ${title.toUpperCase().slice(0, 28)}`);
-          }
+          if (state.sourceType !== 'system') stopCurrentSources(true);
+          const title = spotifyState.currentTrack?.title || 'Spotify Player';
+          selectSpotifyPlaybackSource(`SPOTIFY · ${title.toUpperCase().slice(0, 28)}`);
           $('btn-play-pause').textContent = '⏸';
-        } else if (!spotifyState.embedPlaying && wasPlaying && state.sourceType === 'spotify-embed') {
+        } else if (!spotifyState.embedPlaying && wasPlaying && (state.sourceType === 'spotify-embed' || spotifyState.captureWithSpotify)) {
           $('btn-play-pause').textContent = '▶';
         }
       });
@@ -387,192 +401,8 @@ window.onSpotifyIframeApiReady = IFrameAPI => {
   );
 };
 
-function estimateBpmFromTrack(title = '', artist = '') {
-  const str = `${title} ${artist}`.toLowerCase();
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
-  }
-  spotifyState.trackSeed = (hash % 1000) / 1000 + 0.5;
-  return 112 + (hash % 28);
-}
-
-// Fast in-place 1024-point Radix-2 FFT to extract real 512-bin frequency spectra from decoded PCM audio in memory
-const FFT_N = 1024;
-const fftRe = new Float32Array(FFT_N);
-const fftIm = new Float32Array(FFT_N);
-const fftWin = new Float32Array(FFT_N);
-for (let i = 0; i < FFT_N; i++) {
-  fftWin[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (FFT_N - 1)));
-}
-
-function computePcmFftFrame(channelData, startIdx, outFreq512, outWave512) {
-  const maxLen = channelData.length;
-  for (let i = 0; i < FFT_N; i++) {
-    const s = startIdx + i < maxLen ? channelData[startIdx + i] : 0;
-    fftRe[i] = s * fftWin[i];
-    fftIm[i] = 0;
-    if (i < 512) {
-      outWave512[i] = Math.max(0, Math.min(255, Math.round(128 + s * 120)));
-    }
-  }
-
-  // Bit-reversal permutation
-  let j = 0;
-  for (let i = 0; i < FFT_N; i++) {
-    if (i < j) {
-      const tr = fftRe[i];
-      fftRe[i] = fftRe[j];
-      fftRe[j] = tr;
-    }
-    let m = FFT_N >> 1;
-    while (m >= 1 && j >= m) {
-      j -= m;
-      m >>= 1;
-    }
-    j += m;
-  }
-
-  // Cooley-Tukey butterflies
-  for (let len = 2; len <= FFT_N; len <<= 1) {
-    const half = len >> 1;
-    const ang = (-2 * Math.PI) / len;
-    const wCos = Math.cos(ang);
-    const wSin = Math.sin(ang);
-    for (let i = 0; i < FFT_N; i += len) {
-      let uRe = 1;
-      let uIm = 0;
-      for (let k = 0; k < half; k++) {
-        const evenIdx = i + k;
-        const oddIdx = evenIdx + half;
-        const tRe = uRe * fftRe[oddIdx] - uIm * fftIm[oddIdx];
-        const tIm = uRe * fftIm[oddIdx] + uIm * fftRe[oddIdx];
-        fftRe[oddIdx] = fftRe[evenIdx] - tRe;
-        fftIm[oddIdx] = fftIm[evenIdx] - tIm;
-        fftRe[evenIdx] += tRe;
-        fftIm[evenIdx] += tIm;
-        const nextURe = uRe * wCos - uIm * wSin;
-        uIm = uRe * wSin + uIm * wCos;
-        uRe = nextURe;
-      }
-    }
-  }
-
-  // Convert magnitudes to dB-scaled 0..255 byte bins matching WebAudio AnalyserNode
-  for (let i = 0; i < 512; i++) {
-    const mag = Math.hypot(fftRe[i], fftIm[i]) / (FFT_N * 0.25);
-    const db = 20 * Math.log10(mag + 1e-6);
-    const norm = Math.max(0, Math.min(1, (db + 68) / 58));
-    outFreq512[i] = Math.round(norm * 255);
-  }
-}
-
-// Silently analyzes the track's real PCM audio in memory (NEVER connected to speakers!)
-// so the visualizer renders real 512-bin FFT spectra and real waveforms during full-track Spotify playback.
-async function analyzeTrackSignatureInBackground(track) {
-  if (!track) return;
-  spotifyState.trackSignature = null;
-
-  // 1. If logged in to Spotify OAuth, check audio-features for exact BPM & energy
-  if (track.spotifyId && isSpotifyTokenValid()) {
-    fetchSpotifyWebApi(`/audio-features/${track.spotifyId}`)
-      .then(feat => {
-        if (feat?.tempo) {
-          state.bpmEstimate = Math.round(feat.tempo);
-        }
-        if (feat && spotifyState.currentTrack?.id === track.id) {
-          spotifyState.trackSignature = {
-            ...(spotifyState.trackSignature || {}),
-            energy: Number(feat.energy || 0.78),
-            danceability: Number(feat.danceability || 0.72),
-            valence: Number(feat.valence || 0.6),
-          };
-        }
-      })
-      .catch(() => {});
-  }
-
-  // 2. Decode sample buffer silently in memory (no AudioNode / no speaker output) to extract real 512-bin FFT & waveform frames
-  try {
-    let streamUrl = track.streamProxyUrl;
-    if (!streamUrl && track.title) {
-      const q = new URLSearchParams({
-        resolveTrack: '1',
-        title: track.title,
-        artist: track.artist || '',
-        spotifyId: track.spotifyId || '',
-        artwork: track.artwork || '',
-      });
-      const res = await fetch(`/api/visualizer/spotify?${q.toString()}`);
-      const data = await res.json();
-      if (data?.track?.streamProxyUrl) {
-        streamUrl = data.track.streamProxyUrl;
-        track.streamProxyUrl = streamUrl;
-        if (!track.artwork && data.track.artwork) {
-          track.artwork = data.track.artwork;
-          updateTransportMetadata(track);
-        }
-      }
-    }
-    if (!streamUrl || spotifyState.currentTrack?.id !== track.id) return;
-
-    const audioRes = await fetch(streamUrl);
-    if (!audioRes.ok) return;
-    const arrayBuf = await audioRes.arrayBuffer();
-    const ctx = ensureAudioContext();
-    const decoded = await ctx.decodeAudioData(arrayBuf.slice(0));
-    if (spotifyState.currentTrack?.id !== track.id) return;
-
-    const ch = decoded.getChannelData(0);
-    const slices = 240;
-    const step = Math.max(1, Math.floor(Math.max(1, ch.length - FFT_N) / slices));
-    const fftFrames = new Uint8Array(slices * 512);
-    const waveFrames = new Uint8Array(slices * 512);
-    const tempFreq = new Uint8Array(512);
-    const tempWave = new Uint8Array(512);
-
-    let peakOnsets = 0;
-    let prevLow = 0;
-    for (let s = 0; s < slices; s++) {
-      computePcmFftFrame(ch, s * step, tempFreq, tempWave);
-      fftFrames.set(tempFreq, s * 512);
-      waveFrames.set(tempWave, s * 512);
-
-      let lowSum = 0;
-      for (let b = 1; b <= 16; b++) lowSum += tempFreq[b];
-      const normLow = lowSum / (16 * 255);
-      if (normLow > prevLow * 1.22 && normLow > 0.35) peakOnsets++;
-      prevLow = normLow;
-    }
-
-    const durSec = Math.max(10, decoded.duration);
-    const estimatedBpm = Math.max(88, Math.min(168, Math.round((peakOnsets / durSec) * 60 * 1.6)));
-    if (!spotifyState.trackSignature?.energy) {
-      state.bpmEstimate = estimatedBpm;
-    }
-
-    silentTrackBuffer = decoded;
-    const hasLiveStream = Boolean(
-      activeStream && activeStream.getAudioTracks().some(t => t.readyState === 'live')
-    );
-    if (
-      !hasLiveStream &&
-      state.sourceType !== 'file' &&
-      (spotifyState.embedPlaying || spotifyState.sdkPlaying)
-    ) {
-      startSilentTrackAnalyser(decoded);
-    }
-
-    spotifyState.trackSignature = {
-      ...(spotifyState.trackSignature || {}),
-      fftFrames,
-      waveFrames,
-      slices,
-      sampleDurationSec: durSec,
-    };
-  } catch {}
-}
-
+// Spotify embeds and SDK playback do not expose decoded PCM to this page.
+// Real reactivity requires sharing the playing tab/system audio, never a looped preview.
 function updateTransportMetadata(track) {
   if (!track) return;
   $('track-title').textContent = track.title || 'Spotify Track';
@@ -607,12 +437,10 @@ async function playSpotifyTrack(track, index = 0, queue = spotifyState.currentQu
   if (Array.isArray(queue) && queue.length) {
     spotifyState.currentQueue = queue;
   }
-  state.bpmEstimate = estimateBpmFromTrack(track.title, track.artist);
+  state.bpmEstimate = 0;
   updateTransportMetadata(track);
   highlightActiveTrackCard();
 
-  // Analyze track spectral signature silently in the background (zero audio output)
-  analyzeTrackSignatureInBackground(track);
 
   // If track was from a text search without a Spotify URI yet, resolve its Spotify ID/URI first
   if (!track.spotifyUri && !track.spotifyId && track.title) {
@@ -670,9 +498,7 @@ async function playSpotifyTrack(track, index = 0, queue = spotifyState.currentQu
         spotifyState.embedPlaying = true;
         spotifyState.embedPositionMs = 0;
         spotifyState.embedDurationMs = track.durationMs || 210000;
-        if (state.sourceType !== 'system') {
-          setActiveSourceUI('spotify-embed', `SPOTIFY · ${track.title.toUpperCase().slice(0, 28)}`);
-        }
+        selectSpotifyPlaybackSource(`SPOTIFY · ${track.title.toUpperCase().slice(0, 28)}`);
         if (autoCloseDrawer) toggleSpotifyDrawer(false);
         $('btn-play-pause').textContent = '⏸';
         notify(`Playing full track "${track.title}" — ${track.artist} 🟢`);
@@ -691,9 +517,7 @@ async function playSpotifyTrack(track, index = 0, queue = spotifyState.currentQu
 
     spotifyState.activePlayer = 'embed';
     $('spotify-embed-dock').hidden = false;
-    if (state.sourceType !== 'system') {
-      setActiveSourceUI('spotify-embed', `SPOTIFY PLAYER · ${track.title.toUpperCase().slice(0, 28)}`);
-    }
+    selectSpotifyPlaybackSource(`SPOTIFY PLAYER · ${track.title.toUpperCase().slice(0, 28)}`);
     if (autoCloseDrawer) toggleSpotifyDrawer(false);
     if (spotifyState.embedController) {
       spotifyState.embedController.loadUri(uri);
@@ -723,171 +547,68 @@ function stepSpotifyQueue(delta) {
   playSpotifyTrack(q[nextIdx], nextIdx, q, false);
 }
 
-// --- Real-Time 5-Dimension Audio Stem Analysis & Beat Detection ---
-let prevHighRaw = 0;
-
+// --- Real captured PCM analysis, with explicit source and signal state ---
 function updateAudioAnalysis(timeSec, dt) {
-  const hasLiveStream = Boolean(
+  const hasLiveStream = state.sourceType === 'system' && Boolean(
     activeStream && activeStream.getAudioTracks().some(t => t.readyState === 'live')
   );
-  const isSpotifyActive =
-    (state.sourceType === 'spotify-embed' || state.sourceType === 'spotify') &&
+  const isSpotifyActive = (state.sourceType === 'spotify-embed' || state.sourceType === 'spotify' ||
+    (state.sourceType === 'system' && spotifyState.captureWithSpotify)) &&
     (spotifyState.embedPlaying || spotifyState.sdkPlaying);
-
-  // Manage silent hardware AudioBufferSourceNode for Spotify when no live tab stream is active
-  if (isSpotifyActive && !hasLiveStream && silentTrackBuffer && !silentTrackSourceNode) {
-    startSilentTrackAnalyser(silentTrackBuffer);
-  } else if ((!isSpotifyActive || hasLiveStream || state.sourceType === 'file') && silentTrackSourceNode) {
-    stopSilentTrackAnalyser();
-  }
-
-  const hasDirectAudio =
-    analyser &&
-    (hasLiveStream ||
-      (state.sourceType === 'file' && !audioEl.paused) ||
-      Boolean(isSpotifyActive && silentTrackSourceNode));
-
   if (isSpotifyActive) {
-    // Advance Spotify timeline scrubber smoothly between SDK / Embed updates
     spotifyState.embedPositionMs += dt * 1000;
     if (spotifyState.embedDurationMs > 0) {
-      const pct = Math.min(100, (spotifyState.embedPositionMs / spotifyState.embedDurationMs) * 100);
-      if ($('seek-bar') && document.activeElement !== $('seek-bar')) {
-        $('seek-bar').value = String(pct);
-      }
-      if ($('track-time')) {
-        $('track-time').textContent = `${formatTime(spotifyState.embedPositionMs * 0.001)} / ${formatTime(
-          spotifyState.embedDurationMs * 0.001
-        )}`;
-      }
+      if ($('seek-bar') && document.activeElement !== $('seek-bar')) $('seek-bar').value = String(Math.min(100, spotifyState.embedPositionMs / spotifyState.embedDurationMs * 100));
+      if ($('track-time')) $('track-time').textContent = `${formatTime(spotifyState.embedPositionMs * .001)} / ${formatTime(spotifyState.embedDurationMs * .001)}`;
     }
   }
-
-  if (hasDirectAudio) {
-    // Real 60 FPS 2048-bin hardware FFT + phase-coherent time-domain waveform
+  const fileSelected = state.sourceType === 'file';
+  const sourceConnected = hasLiveStream || (fileSelected && !audioEl.paused && !audioEl.ended);
+  const directAudio = Boolean(analyser && sourceConnected && audioCtx?.state === 'running');
+  if (directAudio) {
     analyser.getByteFrequencyData(freqData);
-    analyser.getByteTimeDomainData(waveData);
-  } else if (isSpotifyActive) {
-    // Dynamic multi-stem synthesis while track audio buffer is still decoding
-    const bpm = state.bpmEstimate || 122;
-    const posSec = (spotifyState.embedPositionMs || timeSec * 1000) * 0.001;
-    const beatPos = posSec * (bpm / 60);
-    const beatFrac = beatPos - Math.floor(beatPos);
-    const kickEnv = Math.pow(Math.max(0, 1.0 - beatFrac * 2.5), 2.1);
-    const snareEnv = Math.floor(beatPos) % 2 === 1 ? Math.pow(Math.max(0, 1.0 - beatFrac * 2.9), 1.8) : 0;
-    const vocalEnv = 0.55 + 0.45 * Math.sin(posSec * 2.4) * Math.cos(posSec * 1.1);
-    const vocalCenter = 0.14 + 0.08 * Math.sin(posSec * 1.7);
-    const hatEnv = Math.pow(Math.max(0, 1.0 - ((beatPos * 2) % 1) * 3.0), 1.9);
-
-    for (let i = 0; i < 512; i++) {
-      const f = i / 512;
-      const sub = Math.exp(-f * 16.0) * kickEnv * 245;
-      const bass = Math.exp(-Math.pow((f - 0.05) * 22.0, 2.0)) * (120 + kickEnv * 110);
-      const vocal =
-        Math.exp(-Math.pow((f - vocalCenter) * 11.0, 2.0)) * (95 * vocalEnv + snareEnv * 125);
-      const highs = Math.pow(f, 0.65) * (hatEnv * 145 + snareEnv * 65);
-      freqData[i] = Math.max(0, Math.min(255, Math.round(sub + bass + vocal + highs)));
-
-      const w =
-        128 +
-        Math.sin(i * 0.045 + timeSec * 18.0) * (kickEnv * 68 + 18) +
-        Math.sin(i * 0.19 - timeSec * 29.0) * (vocalEnv * 38 + snareEnv * 32) +
-        Math.cos(i * 0.65 + timeSec * 47.0) * (hatEnv * 24);
-      waveData[i] = Math.max(0, Math.min(255, Math.round(w)));
-    }
+    analyser.getFloatTimeDomainData(waveData);
+  } else { freqData.fill(0); waveData.fill(0); }
+  const features = analyzeAudioFrame(freqData, waveData, {
+    sampleRate: audioCtx?.sampleRate || 48000, fftSize: analyser?.fftSize || 2048,
+    dt, now: timeSec, gain: state.gain, bassBoost: state.bassBoost,
+    vocalBoost: state.vocalBoost, trebleBoost: state.trebleBoost,
+  }, audioReactivity);
+  for (const key of ['subBass','bass','vocal','vocalPitch','mid','high','trebleSpark','beatPulse','kickImpulse','beatPhase','bpmEstimate']) state[key] = features[key];
+  state.audioLevel = features.level;
+  if (directAudio && features.hasSignal) lastStrongAudioTime = timeSec;
+  packAudioTexture(freqData, waveData, {
+    sampleRate: audioCtx?.sampleRate || 48000, fftSize: analyser?.fftSize || 2048,
+    gain: state.gain, bassBoost: state.bassBoost, vocalBoost: state.vocalBoost,
+    trebleBoost: state.trebleBoost, hasSignal: directAudio && features.hasSignal,
+  }, audioTexData);
+  let label, detail;
+  if (state.sourceType === 'idle') {
+    state.audioStatus='idle';label='Choose your audio';detail='Open a music file or share a tab with audio to begin.';
+  } else if (sourceConnected && audioCtx?.state !== 'running') {
+    state.audioStatus='blocked';label='Audio needs a click';detail='Click the canvas or press Play to enable audio analysis.';
+  } else if (fileSelected && audioEl.error) {
+    state.audioStatus='blocked';label='This file could not play';detail='Choose another audio file, such as an MP3 or WAV.';
+  } else if (fileSelected && (audioEl.paused || audioEl.ended)) {
+    state.audioStatus='paused';label=audioEl.ended?'Track ended':'Audio paused';detail='Press Play to resume the music and visuals.';
+  } else if (directAudio && (features.hasSignal || timeSec-lastStrongAudioTime<.45)) {
+    state.audioStatus='live';label='Reacting to live audio';
+    detail=features.hasSignal?`${fileSelected?'Music file':'Shared audio'} · ${Math.round(20*Math.log10(features.rms))} dB · measured in real time`:'Quiet passage · listening for audio';
+  } else if (directAudio) {
+    state.audioStatus='silent';label='Connected · waiting for sound';detail='The audio input is silent. Play music, or check that Share audio is enabled.';
+  } else if (state.sourceType === 'spotify' || state.sourceType === 'spotify-embed') {
+    state.audioStatus=isSpotifyActive?'waiting':'paused';label=isSpotifyActive?'Spotify playing · audio not shared':'Spotify ready';
+    detail='Share this playing tab with audio to sync the visuals. Spotify playback alone cannot provide live audio data.';
   } else {
-    // Calm decay to rest when no music is playing
-    for (let i = 0; i < 512; i++) {
-      freqData[i] = Math.floor(freqData[i] * 0.86);
-      waveData[i] = Math.round(128 + (waveData[i] - 128) * 0.84);
-    }
+    state.audioStatus='waiting';label='Waiting for audio';detail='Connect an audio source to sync the visuals.';
   }
-
-  const g = state.gain;
-  // 5-Stem Frequency Decomposition (48kHz / 2048 FFT -> ~23.4 Hz per bin):
-  // 1. Sub-Bass & Kick: bins 1..5 (~23-117 Hz)
-  // 2. Bass Groove: bins 6..15 (~140-350 Hz)
-  // 3. Lead Vocals / Formant: bins 16..115 (~375-2,700 Hz) + Vocal Pitch Centroid
-  // 4. Synth / Upper Mids: bins 116..240 (~2,700-5,600 Hz)
-  // 5. Treble / Air / Sparkle: bins 241..440 (~5,600-10,300+ Hz)
-  let subSum = 0;
-  let bassSum = 0;
-  let vocalSum = 0;
-  let vocalWeightedSum = 0;
-  let midSum = 0;
-  let highSum = 0;
-
-  for (let i = 1; i <= 5; i++) subSum += freqData[i];
-  for (let i = 6; i <= 15; i++) bassSum += freqData[i];
-  for (let i = 16; i <= 115; i++) {
-    const val = freqData[i];
-    vocalSum += val;
-    vocalWeightedSum += val * ((i - 16) / 99);
-  }
-  for (let i = 116; i <= 240; i++) midSum += freqData[i];
-  for (let i = 241; i <= 440; i++) highSum += freqData[i];
-
-  const rawSub = Math.min(2.2, (subSum / (5 * 255)) * g * state.bassBoost);
-  const rawBass = Math.min(2.2, (bassSum / (10 * 255)) * g * state.bassBoost);
-  const rawVocal = Math.min(2.2, (vocalSum / (100 * 255)) * g * state.vocalBoost * 1.18);
-  const rawVocalPitch = vocalSum > 200 ? vocalWeightedSum / vocalSum : 0.45;
-  const rawMid = Math.min(2.2, (midSum / (125 * 255)) * g * 1.25);
-  const rawHigh = Math.min(2.2, (highSum / (200 * 255)) * g * state.trebleBoost * 1.55);
-
-  const fastAttack = 1 - Math.exp(-dt * 26);
-  const smoothRelease = 1 - Math.exp(-dt * 14);
-  state.subBass += (rawSub - state.subBass) * (rawSub > state.subBass ? fastAttack : smoothRelease);
-  state.bass += (rawBass - state.bass) * (rawBass > state.bass ? fastAttack : smoothRelease);
-  state.vocal += (rawVocal - state.vocal) * (rawVocal > state.vocal ? fastAttack : smoothRelease);
-  state.vocalPitch += (rawVocalPitch - state.vocalPitch) * (1 - Math.exp(-dt * 10));
-  state.mid += (rawMid - state.mid) * (rawMid > state.mid ? fastAttack : smoothRelease);
-  state.high += (rawHigh - state.high) * (rawHigh > state.high ? fastAttack : smoothRelease);
-
-  // Treble transient spark detection (hi-hats, cymbals, vocal sibilance)
-  const highDelta = Math.max(0, rawHigh - prevHighRaw);
-  prevHighRaw = rawHigh;
-  if (highDelta > 0.12) {
-    state.trebleSpark = Math.min(1.6, state.trebleSpark + highDelta * 2.8);
-  } else {
-    state.trebleSpark *= Math.exp(-dt * 9.5);
-  }
-
-  // Adaptive Kick / Transient Beat Detection & Expanding Shockwave Ring
-  const lowEnergy = rawSub * 0.68 + rawBass * 0.32;
-  let avgEnergy = 0;
-  for (let i = 0; i < state.energyHistory.length; i++) avgEnergy += state.energyHistory[i];
-  avgEnergy /= state.energyHistory.length;
-  state.energyHistory[state.energyIdx] = lowEnergy;
-  state.energyIdx = (state.energyIdx + 1) % state.energyHistory.length;
-
-  const nowMs = performance.now();
-  if (lowEnergy > Math.max(0.20, avgEnergy * 1.26) && nowMs - state.lastBeatTime > 195) {
-    const interval = nowMs - state.lastBeatTime;
-    if (interval > 250 && interval < 1200) {
-      const instantBpm = Math.round(60000 / interval);
-      state.bpmEstimate = Math.round(state.bpmEstimate * 0.8 + instantBpm * 0.2);
-    }
-    state.lastBeatTime = nowMs;
-    state.beatPulse = Math.min(1.6, 0.9 + lowEnergy * 0.55);
-    state.kickImpulse = 0.02; // Launch a new radial sub-kick shockwave from center!
-    state.beatPhase += 0.82;
-  } else {
-    state.beatPulse *= Math.exp(-dt * 7.5);
-  }
-
-  if (state.kickImpulse > 0.001 && state.kickImpulse < 1.2) {
-    state.kickImpulse += dt * (1.35 + state.subBass * 0.65);
-    if (state.kickImpulse >= 1.2) state.kickImpulse = 0;
-  }
-
-  // Pack 512x2 GPU texture (Row 0: Spectrum with stem boost, Row 1: Oscilloscope Waveform)
-  for (let i = 0; i < 512; i++) {
-    let binBoost = g;
-    if (i <= 15) binBoost *= state.bassBoost;
-    else if (i <= 115) binBoost *= state.vocalBoost;
-    else if (i >= 200) binBoost *= state.trebleBoost;
-    audioTexData[i] = Math.min(255, Math.round(freqData[i] * binBoost));
-    audioTexData[512 + i] = waveData[i];
+  document.body.dataset.audioStatus=state.audioStatus;
+  const signalKey=`${state.audioStatus}:${label}`;
+  if(signalKey!==lastSignalUi || timeSec-lastSignalUiTime>.3){
+    if($('signal-status')) $('signal-status').textContent=label;
+    if($('signal-detail')) $('signal-detail').textContent=detail;
+    if($('signal-level')) $('signal-level').style.width=`${Math.round(features.level*100)}%`;
+    lastSignalUi=signalKey;lastSignalUiTime=timeSec;
   }
 }
 
@@ -1001,9 +722,9 @@ void main() {
   float waveSample2 = (texture2D(uAudioTex, vec2(1.0 - waveX, 0.75)).r - 0.5) * 2.0;
 
   float fftU = clamp(abs(ang) / 3.14159265, 0.01, 0.99);
-  float fftVal = texture2D(uAudioTex, vec2(fftU * 0.65, 0.25)).r;
-  // Dedicated Vocal Formant sample from bins 16..115 (u ~ 0.03..0.22)
-  float vocalFft = texture2D(uAudioTex, vec2(clamp(0.03 + waveX * 0.19, 0.03, 0.22), 0.25)).r;
+  float fftVal = texture2D(uAudioTex, vec2(fftU, 0.25)).r;
+  // Voice-range samples in the logarithmic 30 Hz..16 kHz spectrum (not isolated vocals).
+  float vocalFft = texture2D(uAudioTex, vec2(clamp(0.38 + waveX * 0.34, 0.38, 0.72), 0.25)).r;
 
   vec3 seed = vec3(0.0);
 
@@ -1041,7 +762,7 @@ void main() {
   } else if (uMode == 1) {
     // MODE 1: FIRESTORM BARS — Upward ember smoke + Vocal Formant aura plumes
     prev = texture2D(uPrevTex, clamp(vUv - vec2(0.0, (0.0045 + uVocal * 0.003) * uWarp), 0.002, 0.998)).rgb * 0.78;
-    float barFft = texture2D(uAudioTex, vec2(clamp(vUv.x * 0.75, 0.01, 0.99), 0.25)).r;
+    float barFft = texture2D(uAudioTex, vec2(clamp(vUv.x, 0.01, 0.99), 0.25)).r;
     float waveLine = -0.18 + barFft * 0.56;
     float dWave = abs(p.y - waveLine);
     seed += palette(vUv.x * 0.6 + barFft * 0.5, uPalette) * (0.0035 / (dWave + 0.005)) * barFft;
@@ -1141,7 +862,7 @@ void main() {
 
   vec3 col = fb;
   float waveSample = (texture2D(uAudioTex, vec2(clamp(vUv.x, 0.01, 0.99), 0.75)).r - 0.5) * 2.0;
-  float vocalFft = texture2D(uAudioTex, vec2(clamp(0.03 + vUv.x * 0.19, 0.03, 0.22), 0.25)).r;
+  float vocalFft = texture2D(uAudioTex, vec2(clamp(0.38 + vUv.x * 0.34, 0.38, 0.72), 0.25)).r;
 
   if (uMode == 0) {
     // MODE 0: ALCHEMY PLASMA —
@@ -1173,12 +894,12 @@ void main() {
     float bandIdx = floor(vUv.x * bands) / bands;
     float cellX = fract(vUv.x * bands);
     float barMask = smoothstep(0.0, 0.14, cellX) * smoothstep(1.0, 0.80, cellX);
-    float h = texture2D(uAudioTex, vec2(clamp(bandIdx * 0.72 + 0.02, 0.01, 0.99), 0.25)).r * (0.58 + uSubBass * 0.12);
+    float h = texture2D(uAudioTex, vec2(clamp(bandIdx * 0.98 + 0.01, 0.01, 0.99), 0.25)).r * (0.58 + uSubBass * 0.12);
     float baseline = -0.14;
     float yRel = p.y - baseline;
 
-    // Highlight the Vocal Formant zone (bandIdx 0.12..0.48) and Treble zone (0.55..1.0)
-    float isVocalZone = smoothstep(0.08, 0.18, bandIdx) * smoothstep(0.55, 0.42, bandIdx);
+    // Highlight the voice-range section of the logarithmic spectrum.
+    float isVocalZone = smoothstep(0.34, 0.40, bandIdx) * smoothstep(0.76, 0.70, bandIdx);
     vec3 barCol = palette(bandIdx + h * 0.65 + uTime * 0.04 + isVocalZone * uVocal * 0.22, uPalette);
     if (yRel >= 0.0 && yRel <= h) {
       float segMask = smoothstep(0.0, 0.18, fract(yRel * 48.0));
@@ -1201,7 +922,7 @@ void main() {
     if (yRel < 0.0) {
       float waterWave = sin(p.x * 42.0 / max(0.04, abs(yRel)) + uTime * 7.0) * (0.012 + uBass * 0.012) * abs(yRel);
       float sampleX = clamp(bandIdx + waterWave, 0.01, 0.99);
-      float reflH = texture2D(uAudioTex, vec2(sampleX * 0.72, 0.25)).r * 0.46;
+      float reflH = texture2D(uAudioTex, vec2(sampleX, 0.25)).r * 0.46;
       if (abs(yRel) <= reflH) {
         float ripple = 0.65 + 0.35 * sin(yRel * 110.0 - uTime * 9.0 + p.x * 20.0);
         float fade = (1.0 - abs(yRel) / max(0.001, reflH)) * 0.55;
@@ -1212,7 +933,7 @@ void main() {
   } else if (uMode == 2) {
     // MODE 2: FERRO-ORB 3D —
     // Bass: Liquid ferrofluid spikes | Vocals: Dual Tilted Pitch-Reactive Gyro Rings | Treble: Electric Corona Arcs
-    float fftVal = texture2D(uAudioTex, vec2(clamp(abs(ang) / 3.14159, 0.01, 0.99) * 0.6, 0.25)).r;
+    float fftVal = texture2D(uAudioTex, vec2(clamp(abs(ang) / 3.14159, 0.01, 0.99), 0.25)).r;
     float spikes = sin(ang * 12.0 + uTime * 3.0) * cos(ang * 7.0 - uTime * 2.2) * (0.025 + uBass * 0.085 + uSubBass * 0.05 + fftVal * 0.065);
     float orbRadius = 0.23 + uBass * 0.075 + uSubBass * 0.04 + spikes;
 
@@ -1514,8 +1235,9 @@ function createFbo(w, h) {
 
 function resizeCanvas() {
   const dpr = Math.min(window.devicePixelRatio || 1, 1.75);
-  const w = Math.max(1, Math.floor(window.innerWidth * dpr));
-  const h = Math.max(1, Math.floor(window.innerHeight * dpr));
+  const scale = Math.min(1, Math.sqrt(2000000 / (window.innerWidth * window.innerHeight * dpr * dpr)));
+  const w = Math.max(1, Math.floor(window.innerWidth * dpr * scale));
+  const h = Math.max(1, Math.floor(window.innerHeight * dpr * scale));
   if (canvas.width === w && canvas.height === h) return;
   canvas.width = w;
   canvas.height = h;
@@ -2476,10 +2198,7 @@ function initSpotifyWebPlaybackSDK() {
         spotifyState.currentTrack = mapped;
         updateTransportMetadata(mapped);
         highlightActiveTrackCard();
-        analyzeTrackSignatureInBackground(mapped);
-        if (state.sourceType !== 'system') {
-          setActiveSourceUI('spotify-embed', `SPOTIFY · ${mapped.title.toUpperCase().slice(0, 28)}`);
-        }
+        selectSpotifyPlaybackSource(`SPOTIFY · ${mapped.title.toUpperCase().slice(0, 28)}`);
       }
 
       if ($('btn-play-pause')) {
@@ -2605,7 +2324,7 @@ $('btn-play-pause')?.addEventListener('click', () => {
       audioEl.pause();
       $('btn-play-pause').textContent = '▶';
     }
-  } else if (state.sourceType === 'spotify-embed' || state.sourceType === 'spotify') {
+  } else if (state.sourceType === 'spotify-embed' || state.sourceType === 'spotify' || (state.sourceType === 'system' && spotifyState.captureWithSpotify)) {
     if (spotifyState.activePlayer === 'sdk' && spotifyState.sdkPlayer) {
       spotifyState.sdkPlayer.togglePlay();
     } else if (spotifyState.embedController) {
@@ -2619,7 +2338,7 @@ $('seek-bar')?.addEventListener('input', e => {
   if (state.sourceType === 'file' && Number.isFinite(audioEl.duration)) {
     audioEl.currentTime = pct * audioEl.duration;
   } else if (
-    (state.sourceType === 'spotify-embed' || state.sourceType === 'spotify') &&
+    (state.sourceType === 'spotify-embed' || state.sourceType === 'spotify' || (state.sourceType === 'system' && spotifyState.captureWithSpotify)) &&
     spotifyState.embedDurationMs > 0
   ) {
     const targetMs = Math.round(pct * spotifyState.embedDurationMs);
@@ -2745,6 +2464,7 @@ function updatePointer(clientX, clientY) {
 }
 
 canvas.addEventListener('pointerdown', e => {
+  if (state.sourceType !== 'idle' && audioCtx?.state === 'suspended') audioCtx.resume().catch(() => {});
   if (spotifyDrawer && !spotifyDrawer.hidden) toggleSpotifyDrawer(false);
   if (customDrawer && !customDrawer.hidden) toggleCustomDrawer(false);
   state.pointerDown = true;
@@ -2760,6 +2480,7 @@ window.addEventListener('pointerup', () => {
 
 // --- Main Render Loop ---
 let lastTime = performance.now();
+let visualTime = 0;
 let frames = 0;
 let fpsClock = performance.now();
 
@@ -2777,6 +2498,9 @@ function renderLoop(now) {
   }
 
   updateAudioAnalysis(timeSec, dt);
+  // Ambient motion is deliberately slow; live PCM energy sets the visual pace.
+  const motionRate = state.audioStatus === 'live' ? 0.25 + Math.min(2, state.audioLevel * 2.2) : state.audioStatus === 'idle' ? 0.06 : 0;
+  visualTime += dt * motionRate;
 
   state.pointerVx *= Math.exp(-dt * 10);
   state.pointerVy *= Math.exp(-dt * 10);
@@ -2791,7 +2515,7 @@ function renderLoop(now) {
   $('meter-mid').style.width = `${Math.min(100, Math.round(state.mid * 85))}%`;
   $('meter-high').style.width = `${Math.min(100, Math.round((state.high * 0.75 + state.trebleSpark * 0.35) * 90))}%`;
   $('bpm-readout').textContent =
-    state.sourceType === 'idle' ? 'WAITING FOR AUDIO' : `~${state.bpmEstimate} BPM · 5-STEM DSP`;
+    state.audioStatus === 'live' ? (state.bpmEstimate ? `~${state.bpmEstimate} BPM · LIVE AUDIO` : 'LIVE AUDIO · FREQUENCY BANDS') : state.audioStatus === 'paused' ? 'AUDIO PAUSED' : 'WAITING FOR LIVE AUDIO';
 
   const orbScale = 1 + state.beatPulse * 0.55;
   $('beat-indicator').style.transform = `scale(${orbScale.toFixed(2)})`;
@@ -2819,7 +2543,7 @@ function renderLoop(now) {
   gl.uniform1i(gl.getUniformLocation(feedbackProg, 'uPrevTex'), 0);
   gl.uniform1i(gl.getUniformLocation(feedbackProg, 'uAudioTex'), 1);
   gl.uniform2f(gl.getUniformLocation(feedbackProg, 'uRes'), fboWidth, fboHeight);
-  gl.uniform1f(gl.getUniformLocation(feedbackProg, 'uTime'), timeSec);
+  gl.uniform1f(gl.getUniformLocation(feedbackProg, 'uTime'), visualTime);
   gl.uniform1f(gl.getUniformLocation(feedbackProg, 'uSubBass'), state.subBass);
   gl.uniform1f(gl.getUniformLocation(feedbackProg, 'uBass'), state.bass);
   gl.uniform1f(gl.getUniformLocation(feedbackProg, 'uVocal'), state.vocal);
@@ -2855,7 +2579,7 @@ function renderLoop(now) {
   gl.uniform1i(gl.getUniformLocation(compositeProg, 'uFeedbackTex'), 0);
   gl.uniform1i(gl.getUniformLocation(compositeProg, 'uAudioTex'), 1);
   gl.uniform2f(gl.getUniformLocation(compositeProg, 'uRes'), canvas.width, canvas.height);
-  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uTime'), timeSec);
+  gl.uniform1f(gl.getUniformLocation(compositeProg, 'uTime'), visualTime);
   gl.uniform1f(gl.getUniformLocation(compositeProg, 'uSubBass'), state.subBass);
   gl.uniform1f(gl.getUniformLocation(compositeProg, 'uBass'), state.bass);
   gl.uniform1f(gl.getUniformLocation(compositeProg, 'uVocal'), state.vocal);
