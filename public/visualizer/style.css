@@ -1438,6 +1438,15 @@ body:not([data-audio-status=idle]) .audio-onboarding { display:none; }
 .source-btn strong { font-size:11px; letter-spacing:0; font-weight:550; }
 .source-btn small { font-size:9px; color:#788f9a; margin-top:4px; white-space:nowrap; }
 .transport-bar { margin:8px 0 0; padding:8px 13px 12px; border:0; border-bottom:1px solid #d6e9ed18; border-radius:0; background:none; backdrop-filter:none; -webkit-backdrop-filter:none; gap:10px; }
+.spotify-audio-guide { display:flex; align-items:center; gap:20px; margin:8px 6px; padding:15px; border:1px solid #b4e5d93d; border-radius:11px; background:#b4e5d90c; }
+.spotify-audio-guide>div { flex:1; min-width:0; }
+.spotify-audio-guide strong { font-size:12px; font-weight:550; color:#d8eee8; }
+.spotify-audio-guide p { font-size:11px; line-height:1.6; color:#b3c4c9; margin-top:5px; max-width:660px; }
+.spotify-audio-guide button { flex-shrink:0; max-width:240px; min-height:44px; border:0; border-radius:8px; background:#b4e5d9; color:#112520; padding:10px 15px; font:inherit; font-size:12px; font-weight:600; cursor:pointer; }
+.spotify-audio-guide button:disabled { opacity:.55; cursor:default; }
+.spotify-audio-guide .spotify-audio-help { color:#e5d1a9; }
+.control-deck:has(.spotify-audio-guide:not([hidden])) { max-height:calc(100dvh - 90px); overflow-y:auto; scrollbar-width:thin; }
+@media(max-width:700px) { .spotify-audio-guide { flex-direction:column; align-items:stretch; gap:10px; padding:12px; margin:7px 3px; }.spotify-audio-guide button { max-width:none; }.spotify-audio-guide p { font-size:10px; } }
 .transport-play { background:#b4e5d9; width:34px; height:34px; font-size:12px; }
 .transport-art { width:34px; height:34px; border-radius:6px; border:0; }
 .transport-nav { width:32px; height:32px; }

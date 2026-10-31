@@ -66,6 +66,7 @@ let analysisSink = null, currentFileUrl = null;
 let signalSource = '';
 let lastSignalUi = '', lastSignalUiTime = 0;
 let lastStrongAudioTime = -Infinity;
+let capturePending = false, captureNotice = '', captureStartedAt = 0;
 let audioTexData = new Uint8Array(512 * 2); // 512x2 LUMINANCE texture (Row 0: FFT, Row 1: Waveform)
 
 let activeStream = null;
@@ -161,6 +162,28 @@ function setActiveSourceUI(type, badgeText) {
     if ($('track-artist')) $('track-artist').textContent = '';
     if ($('transport-spotify-link')) $('transport-spotify-link').hidden = true;
   }
+  renderSpotifyAudioGuide();
+}
+
+function renderSpotifyAudioGuide() {
+  const guide=$('spotify-audio-guide');
+  if (!guide) return;
+  const spotifySelected=['spotify','spotify-embed'].includes(state.sourceType) ||
+    (state.sourceType==='system' && spotifyState.captureWithSpotify);
+  const needsConnection=state.sourceType!=='system';
+  const quietCapture=state.sourceType==='system' && state.audioStatus!=='live' &&
+    performance.now()-captureStartedAt>3000;
+  guide.hidden=!spotifySelected || (!needsConnection && !quietCapture && !captureNotice);
+  const supported=Boolean(navigator.mediaDevices?.getDisplayMedia);
+  const button=$('connect-spotify-audio');
+  button.disabled=capturePending || !supported;
+  button.textContent=capturePending?'Choose a tab in the sharing window…':needsConnection?'Connect Spotify audio':'Reconnect Spotify audio';
+  $('spotify-audio-instructions').textContent=!supported?
+    'This browser can play Spotify but cannot share its audio with the visuals. Open this page in desktop Chrome or Edge, or use a music file for live visuals.':
+    quietCapture?'The shared input is quiet. Keep Spotify playing here, reconnect, and choose this Sonic Prism tab with Share tab audio turned on.':
+    'In the sharing window, choose This Tab (Sonic Prism), turn on Share tab audio, then choose Share. Keep Spotify playing in this tab.';
+  $('spotify-audio-help').hidden=!captureNotice;
+  if ($('spotify-audio-help').textContent!==captureNotice) $('spotify-audio-help').textContent=captureNotice;
 }
 
 function selectSpotifyPlaybackSource(badgeText) {
@@ -174,10 +197,16 @@ function selectSpotifyPlaybackSource(badgeText) {
 
 // 1. Share Tab / Window Audio (Pandora, YouTube, Spotify Desktop, Apple Music)
 async function startSystemAudio() {
+  if (capturePending) return;
+  captureNotice='';
   if (!navigator.mediaDevices?.getDisplayMedia) {
-    notify('Sharing Tab/Window audio requires a desktop browser (Chrome, Edge, Brave). On mobile, use Spotify or Local Music!');
+    captureNotice='Audio capture is unavailable in this browser. Use desktop Chrome or Edge, or open a music file.';
+    renderSpotifyAudioGuide();
+    notify(captureNotice, 5000);
     return;
   }
+  capturePending=true;
+  renderSpotifyAudioGuide();
   try {
     ensureAudioContext();
     notify('Select a Browser Tab (Pandora, YouTube, Apple Music) or Screen and check "Also share audio" 🔊', 5000);
@@ -188,16 +217,18 @@ async function startSystemAudio() {
         noiseSuppression: false,
         autoGainControl: false,
         suppressLocalAudioPlayback: false,
+        restrictOwnAudio: false,
       },
       systemAudio: 'include',
       selfBrowserSurface: 'include',
-      preferCurrentTab: Boolean(spotifyState.embedPlaying || spotifyState.sdkPlaying),
+      preferCurrentTab: Boolean(['spotify','spotify-embed'].includes(state.sourceType) || spotifyState.captureWithSpotify || spotifyState.embedPlaying || spotifyState.sdkPlaying),
     });
 
     const audioTracks = stream.getAudioTracks();
     if (!audioTracks.length) {
       stream.getTracks().forEach(t => t.stop());
-      notify('⚠️ No audio track was shared! Make sure "Also share tab/system audio" is toggled ON in the picker.', 5200);
+      captureNotice='No audio was shared. Try again: choose This Tab and turn on Share tab audio.';
+      notify(captureNotice, 5200);
       return;
     }
 
@@ -208,6 +239,7 @@ async function startSystemAudio() {
     spotifyState.captureWithSpotify = keepSpotifyRunning;
     ensureAudioContext();
     activeStream = stream;
+    captureStartedAt=performance.now();
     const audioOnlyStream = new MediaStream(audioTracks);
     streamSourceNode = audioCtx.createMediaStreamSource(audioOnlyStream);
     // Connect ONLY to analyser (silent FFT sink — never connected to destination/speakers!)
@@ -232,11 +264,16 @@ async function startSystemAudio() {
       });
     });
   } catch (err) {
-    if (err?.name !== 'NotAllowedError') {
-      notify('Could not capture tab/window audio. Make sure "Share audio" is enabled.');
-    }
+    captureNotice=err?.name==='NotAllowedError'?
+      'Sharing was cancelled or not allowed. Your Spotify playback can continue; choose Connect Spotify audio to try again.':
+      'Could not connect audio. Try again with this Sonic Prism tab and Share tab audio turned on.';
+    notify(captureNotice, 5000);
+  } finally {
+    capturePending=false;
+    renderSpotifyAudioGuide();
   }
 }
+$('connect-spotify-audio')?.addEventListener('click',startSystemAudio);
 
 // 2. Local Music Files Playback (Single or Multiple Files on Desktop & Phone)
 $('stop-capture')?.addEventListener('click', () => {
@@ -563,8 +600,9 @@ function updateAudioAnalysis(timeSec, dt) {
     }
   }
   const fileSelected = state.sourceType === 'file';
+  const mutedCapture=hasLiveStream && activeStream.getAudioTracks().every(track=>track.muted || track.enabled===false);
   const sourceConnected = hasLiveStream || (fileSelected && !audioEl.paused && !audioEl.ended);
-  const directAudio = Boolean(analyser && sourceConnected && audioCtx?.state === 'running');
+  const directAudio = Boolean(analyser && sourceConnected && !mutedCapture && audioCtx?.state === 'running');
   if (directAudio) {
     analyser.getByteFrequencyData(freqData);
     analyser.getFloatTimeDomainData(waveData);
@@ -591,6 +629,8 @@ function updateAudioAnalysis(timeSec, dt) {
     state.audioStatus='blocked';label='This file could not play';detail='Choose another audio file, such as an MP3 or WAV.';
   } else if (fileSelected && (audioEl.paused || audioEl.ended)) {
     state.audioStatus='paused';label=audioEl.ended?'Track ended':'Audio paused';detail='Press Play to resume the music and visuals.';
+  } else if (mutedCapture) {
+    state.audioStatus='silent';label='Shared audio is muted';detail='Reconnect the playing tab with Share tab audio enabled.';
   } else if (directAudio && (features.hasSignal || timeSec-lastStrongAudioTime<.45)) {
     state.audioStatus='live';label='Reacting to live audio';
     detail=features.hasSignal?`${fileSelected?'Music file':'Shared audio'} · ${Math.round(20*Math.log10(features.rms))} dB · measured in real time`:'Quiet passage · listening for audio';
@@ -605,10 +645,11 @@ function updateAudioAnalysis(timeSec, dt) {
   document.body.dataset.audioStatus=state.audioStatus;
   const signalKey=`${state.audioStatus}:${label}`;
   if(signalKey!==lastSignalUi || timeSec-lastSignalUiTime>.3){
-    if($('signal-status')) $('signal-status').textContent=label;
+    if($('signal-status') && $('signal-status').textContent!==label) $('signal-status').textContent=label;
     if($('signal-detail')) $('signal-detail').textContent=detail;
     if($('signal-level')) $('signal-level').style.width=`${Math.round(features.level*100)}%`;
     lastSignalUi=signalKey;lastSignalUiTime=timeSec;
+    renderSpotifyAudioGuide();
   }
 }
 
