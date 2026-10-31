@@ -5,7 +5,7 @@ import vm from 'node:vm';
 
 // Execute the application rather than a copy of its state machine. Browser APIs are
 // adapters here: this checks routing, signal state and uniforms, not WebGL pixels.
-async function createApp() {
+async function createApp({ captureSupported = true, contextState = 'running', resumeReject = false } = {}) {
   const html = await fs.readFile('public/visualizer/index.html', 'utf8');
   const source = await fs.readFile('public/visualizer/visualizer.mjs', 'utf8');
   const nodes = new Map(), elements = [], windowEvents = new Map();
@@ -18,6 +18,7 @@ async function createApp() {
       this.style = { setProperty(key, value) { this[key] = value; } }; this.children = [];
       this.textContent = ''; this.value = ''; this.hidden = /\bhidden(?:\s|$|>)/.test(attrs);
       this.paused = true; this.duration = 180; this.currentTime = 0; this.width = 0; this.height = 0;
+      this.disabled = /\bdisabled(?:\s|$|>)/.test(attrs);
       for (const m of attrs.matchAll(/([\w-]+)="([^"]*)"/g)) {
         this.attrs[m[1]] = m[2];
         if (m[1].startsWith('data-')) this.dataset[m[1].slice(5).replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = m[2];
@@ -29,7 +30,7 @@ async function createApp() {
     }
     addEventListener(name, fn) { if (!this.events.has(name)) this.events.set(name, []); this.events.get(name).push(fn); }
     async emit(name, extra = {}) { for (const fn of this.events.get(name) || []) await fn({ target: this, preventDefault() {}, stopPropagation() {}, ...extra }); }
-    click() { return this.emit('click'); }
+    click() { return this.disabled ? Promise.resolve() : this.emit('click'); }
     focus() { document.activeElement = this; }
     setAttribute(name, value) { this.attrs[name] = String(value); }
     getAttribute(name) { return this.attrs[name] ?? null; }
@@ -65,8 +66,8 @@ async function createApp() {
 
   const audioNode = label => ({ label, connect(target) { connections.push([label, target.label]); }, disconnect() { connections.push([label, 'disconnected']); } });
   class AudioContext {
-    constructor() { this.state = 'running'; this.sampleRate = 48000; this.destination = audioNode('speakers'); lastContext = this; }
-    resume() { this.state = 'running'; return Promise.resolve(); }
+    constructor() { this.state = contextState; this.sampleRate = 48000; this.destination = audioNode('speakers'); lastContext = this; }
+    resume() { if(resumeReject)return Promise.reject(new Error('Audio context is blocked')); this.state = 'running'; return Promise.resolve(); }
     createAnalyser() {
       return { ...audioNode('analyser'), fftSize: 2048, frequencyBinCount: 1024,
         getByteFrequencyData(out) { out.fill(0); if (frame.amplitude) out[Math.round(frame.frequency * 2048 / 48000)] = Math.round(frame.amplitude * 800); },
@@ -82,14 +83,15 @@ async function createApp() {
   class MediaStream { constructor(tracks) { this.tracks = tracks; } getTracks() { return this.tracks; } getAudioTracks() { return this.tracks.filter(t => t.kind === 'audio'); } }
   const makeTrack = kind => ({ kind, readyState: 'live', label: 'Test tab audio', muted: false, handlers: new Map(), addEventListener(name, fn) { this.handlers.set(name, fn); }, stop() { this.readyState = 'ended'; }, end() { this.readyState = 'ended'; this.handlers.get('ended')?.(); } });
   const location = new URL('https://example.test/visualizer/index.html');
-  const window = { location, AudioContext, devicePixelRatio: 1, innerWidth: 1280, innerHeight: 720, matchMedia: () => ({ matches: false }),
+  const window = { location, AudioContext, isSecureContext: true, devicePixelRatio: 1, innerWidth: 1280, innerHeight: 720, matchMedia: () => ({ matches: false }),
     addEventListener: (name, fn) => { if (!windowEvents.has(name)) windowEvents.set(name, []); windowEvents.get(name).push(fn); },
   };
   window.top = window;
   class TestURL extends URL { static createObjectURL() { return 'blob:test-track'; } static revokeObjectURL() {} }
   const stores = new Map();
   const audioModule = await import('../../public/visualizer/audio-reactivity.mjs');
-  const context = vm.createContext({ ...audioModule, window, document, navigator: { mediaDevices: { async getDisplayMedia(options) { captures.push(options); if (nextCapture instanceof Error) throw nextCapture; return nextCapture || new MediaStream([makeTrack('audio'), makeTrack('video')]); } } },
+  const navigator = { userAgent:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0.0.0', mediaDevices: captureSupported ? { async getDisplayMedia(options) { captures.push(options); if (nextCapture instanceof Error) throw nextCapture; return nextCapture || new MediaStream([makeTrack('audio'), makeTrack('video')]); } } : {} };
+  const context = vm.createContext({ ...audioModule, window, document, navigator,
     URL: TestURL, URLSearchParams, MediaStream, Uint8Array, Float32Array, Float64Array, TextEncoder, console,
     performance: { now: () => now }, requestAnimationFrame() {}, setTimeout() { return 1; }, clearTimeout() {}, setInterval() { return 1; }, clearInterval() {},
     matchMedia: window.matchMedia, localStorage: { getItem: key => stores.get(key) || '', setItem: (key, value) => stores.set(key, value), removeItem: key => stores.delete(key) },
@@ -261,4 +263,90 @@ test('settings and Spotify stay secondary, mutually exclusive drawers; focus mod
   assert.equal(h.nodes.get('spotify-drawer').hidden, true);
   await h.nodes.get('zen-btn').click(); assert.equal(h.nodes.get('exit-zen').hidden, false);
   await h.nodes.get('exit-zen').click(); assert.equal(h.nodes.get('exit-zen').hidden, true);
+});
+
+test('Spotify playback presents a direct connect action without opening permission prompts automatically', async () => {
+  const h=await createApp();let plays=0,pauses=0;
+  h.app.spotifyState.embedController={loadUri(){},play(){plays++;},pause(){pauses++;}};
+  await h.app.playSpotifyTrack({title:'Test song',artist:'Test artist',spotifyId:'abcdefghijklmnopqrstuv'},0,[],false);
+  h.tick(.5);
+  assert.equal(plays,1);assert.equal(pauses,0);
+  assert.equal(h.captures.length,0,'async playback events must not request capture permissions');
+  assert.equal(h.nodes.get('spotify-audio-guide').hidden,false,'missing audio connection is actionable beside the player');
+  const button=h.nodes.get('connect-spotify-audio');
+  assert.ok(button&&!button.hidden&&!button.disabled,'a playing Spotify song offers a visible connect button');
+  await button.click();
+  assert.equal(h.captures.length,1,'a deliberate user click opens the capture picker once');
+  assert.equal(h.captures[0].selfBrowserSurface,'include');assert.equal(h.captures[0].preferCurrentTab,true);
+  assert.equal(h.captures[0].audio.restrictOwnAudio,false,'the capture request does not exclude audio from this application');
+  h.signal(440,.18);h.tick(.5);
+  assert.equal(h.app.state.audioStatus,'live');assert.equal(h.nodes.get('spotify-audio-guide').hidden,true);
+  assert.equal(h.nodes.get('transport-bar').hidden,false);assert.equal(pauses,0,'connecting visuals never stops Spotify');
+});
+
+test('cancelled Spotify audio connection preserves playback and provides a retry instead of pretending it is live',async()=>{
+  const h=await createApp();let pauses=0;
+  h.app.spotifyState.embedPlaying=true;h.app.spotifyState.embedController={pause(){pauses++;}};
+  h.app.setActiveSourceUI('spotify-embed','Spotify test');h.tick(.1);
+  const denied=new Error('The picker was cancelled');denied.name='NotAllowedError';h.capture(denied);
+  await h.nodes.get('connect-spotify-audio').click();h.tick(1);
+  assert.equal(h.app.state.audioStatus,'waiting');assert.equal(h.app.spotifyState.embedPlaying,true);
+  assert.equal(h.nodes.get('transport-bar').hidden,false);assert.equal(h.nodes.get('spotify-audio-guide').hidden,false);
+  assert.match(h.nodes.get('spotify-audio-help').textContent,/cancel|connect|share|permission/i);
+  assert.equal(h.captures.length,1);assert.equal(pauses,0);
+  h.tick(4);assert.equal(h.captures.length,1,'cancellation must not trigger a permission loop');
+  h.capture(new h.MediaStream([h.makeTrack('audio'),h.makeTrack('video')]));
+  await h.nodes.get('connect-spotify-audio').click();h.signal(900,.12);h.tick(.6);
+  assert.equal(h.captures.length,2);assert.equal(h.app.state.audioStatus,'live');
+});
+
+test('unsupported browsers and video-only shares explain why Spotify cannot reach the analyzer',async()=>{
+  const unsupported=await createApp({captureSupported:false});
+  unsupported.app.spotifyState.embedPlaying=true;unsupported.app.setActiveSourceUI('spotify-embed','Spotify test');unsupported.tick(.5);
+  assert.equal(unsupported.nodes.get('spotify-audio-guide').hidden,false);
+  const copy=unsupported.nodes.get('spotify-audio-instructions').textContent+' '+unsupported.nodes.get('spotify-audio-help').textContent;
+  assert.match(copy,/support|desktop|chrome|edge|file/i);
+  await unsupported.app.startSystemAudio();unsupported.tick(.5);
+  assert.equal(unsupported.app.state.audioStatus,'waiting');assert.equal(unsupported.captures.length,0);
+  assert.equal(unsupported.app.spotifyState.embedPlaying,true);
+  const h=await createApp();h.app.spotifyState.embedPlaying=true;h.app.setActiveSourceUI('spotify-embed','Spotify test');
+  const video=h.makeTrack('video');h.capture(new h.MediaStream([video]));
+  await h.nodes.get('connect-spotify-audio').click();h.tick(.5);
+  assert.equal(video.readyState,'ended');assert.equal(h.app.spotifyState.embedPlaying,true);
+  assert.equal(h.nodes.get('spotify-audio-guide').hidden,false);
+  assert.match(h.nodes.get('spotify-audio-help').textContent,/audio|sound/i);
+  assert.ok(h.app.texture.slice(0,512).every(v=>v===0));
+});
+
+test('a muted shared audio track and blocked context remain non-live and keep connection guidance available',async()=>{
+  const h=await createApp();h.app.spotifyState.embedPlaying=true;h.app.setActiveSourceUI('spotify-embed','Spotify test');
+  const audio=h.makeTrack('audio');audio.muted=true;h.capture(new h.MediaStream([audio,h.makeTrack('video')]));
+  await h.nodes.get('connect-spotify-audio').click();h.signal(1000,.2);h.tick(4);
+  assert.equal(h.app.state.audioStatus,'silent');assert.equal(h.app.state.audioLevel,0);
+  assert.ok(h.app.texture.slice(0,512).every(v=>v===0),'muted track metadata gates any stale analyzer frame');
+  assert.equal(h.nodes.get('spotify-audio-guide').hidden,false);
+  assert.match(h.nodes.get('spotify-audio-help').textContent+' '+h.nodes.get('spotify-audio-instructions').textContent,/audio|sound|muted|share/i);
+  const blocked=await createApp({contextState:'suspended',resumeReject:true});
+  blocked.app.spotifyState.embedPlaying=true;blocked.app.setActiveSourceUI('spotify-embed','Spotify test');
+  await blocked.nodes.get('connect-spotify-audio').click();blocked.signal(900,.2);blocked.tick(4);
+  assert.equal(blocked.app.state.audioStatus,'blocked');assert.ok(blocked.app.texture.slice(0,512).every(v=>v===0));
+  assert.equal(blocked.nodes.get('spotify-audio-guide').hidden,false);
+});
+
+test('Spotify reconnection guidance follows sustained silence and hides again when real captured audio returns',async()=>{
+  const h=await createApp();
+  h.app.spotifyState.embedPlaying=true;
+  h.app.setActiveSourceUI('spotify-embed','Spotify test');
+  await h.nodes.get('connect-spotify-audio').click();
+  h.signal(900,.16);h.tick(1);
+  assert.equal(h.app.state.audioStatus,'live');assert.equal(h.nodes.get('spotify-audio-guide').hidden,true);
+  h.signal(900,0);h.tick(4);
+  assert.equal(h.app.state.audioStatus,'silent');assert.equal(h.nodes.get('spotify-audio-guide').hidden,false);
+  assert.match(h.nodes.get('connect-spotify-audio').textContent,/reconnect/i);
+  assert.match(h.nodes.get('spotify-audio-instructions').textContent,/this Sonic Prism tab/i);
+  assert.match(h.nodes.get('spotify-audio-instructions').textContent,/Share tab audio/i);
+  assert.equal(h.captures.length,1,'quiet audio only offers guidance; it does not reopen permissions');
+  h.signal(900,.16);h.tick(.8);
+  assert.equal(h.app.state.audioStatus,'live');assert.equal(h.nodes.get('spotify-audio-guide').hidden,true);
+  assert.equal(h.app.spotifyState.embedPlaying,true);assert.equal(h.captures.length,1);
 });
