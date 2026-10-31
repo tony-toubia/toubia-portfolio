@@ -82,9 +82,10 @@ test('AnalyserNode is never connected to audioCtx.destination (prevents double-p
   }
 });
 
-test('5-Stem Audio Decomposition (Sub/Kick, Bass, Vocal Formants/Pitch, Mid, Treble Spark) and 60 FPS Silent Hardware Analyser', () => {
-  assert.ok(js.includes('function startSilentTrackAnalyser(buffer)'), 'Uses native 60 FPS AudioBufferSourceNode connected only to analyser');
-  assert.ok(js.includes('src.connect(analyser)'), 'Silent track source connects to analyser without speaker output');
+test('frequency-band controls are wired while live analysis never substitutes a looped Spotify preview', () => {
+  assert.ok(js.includes('analyzeAudioFrame'), 'Real frames reach the shared frequency-band analyzer');
+  assert.ok(!js.includes('startSilentTrackAnalyser'), 'A looped preview cannot stand in for the music playing');
+  assert.ok(!js.includes('Dynamic multi-stem synthesis'), 'Spotify waiting state must not synthesize a signal');
   for (const meterId of ['meter-sub', 'meter-bass', 'meter-vocal', 'meter-mid', 'meter-high']) {
     assert.ok(html.includes(`id="${meterId}"`), `HTML includes #${meterId}`);
   }
@@ -94,6 +95,9 @@ test('5-Stem Audio Decomposition (Sub/Kick, Bass, Vocal Formants/Pitch, Mid, Tre
   }
   for (const uniformName of ['uSubBass', 'uBass', 'uVocal', 'uVocalPitch', 'uMid', 'uHigh', 'uKick', 'uTrebleSpark']) {
     assert.ok(js.includes(`'${uniformName}'`), `Passes uniform ${uniformName} to WebGL shaders`);
+  }
+  for (const id of ['signal-status', 'signal-detail', 'signal-level']) {
+    assert.ok(html.includes(`id="${id}"`), `UI provides honest signal status at #${id}`);
   }
 });
 

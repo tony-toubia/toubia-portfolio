@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'SONIC PRISM — Spotify & System Audio Shader Visualizer | Tony Toubia',
   description:
-    'A modern Windows Media Player & MilkDrop-inspired WebGL audio visualizer with direct in-app Spotify integration, zero-mic desktop/tab digital loopback, local audio file deck, and 7 interactive shader worlds.',
+    'Seven WebGL visual worlds driven by local music or shared tab audio, with live signal meters, Spotify playback, and a clean distraction-free studio.',
 };
 
 interface VisualizerPageProps {

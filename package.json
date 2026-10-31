@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "tiny-turbo:test": "node --test scripts/tiny-turbo/core.test.mjs scripts/tiny-turbo/gameplay.test.mjs",
+    "visualizer:test": "node --test scripts/visualizer/*.test.mjs",
     "studforge:import": "node scripts/studforge/backfill-library.mjs",
     "studforge:backfill": "node scripts/studforge/backfill-library.mjs",
     "studforge:motion": "node scripts/studforge/backfill-motion.mjs",

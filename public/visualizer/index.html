@@ -6,68 +6,50 @@
   <meta name="theme-color" content="#06070d">
   <title>SONIC PRISM — Spotify &amp; Music Visualizer</title>
   <meta name="description" content="A modern WebGL music visualizer with 7 distinct shader worlds, direct Spotify account integration, local music playback, and live tab/window audio capture.">
-  <link rel="stylesheet" href="style.css?v=8">
+  <link rel="stylesheet" href="style.css?v=9">
 </head>
-<body>
+<body data-audio-status="idle">
   <canvas id="gl-canvas" aria-label="Interactive audio-reactive music visualizer"></canvas>
 
-  <!-- Top Navigation & 7 Visual Modes Bar -->
   <header id="top-bar" class="top-bar">
-    <div class="brand">
-      <span class="brand-orb" id="beat-indicator"></span>
-      <div>
-        <strong>SONIC PRISM</strong>
-        <small id="source-badge">READY · CHOOSE SPOTIFY, LOCAL MUSIC, OR TAB AUDIO</small>
-      </div>
-    </div>
-
-    <div class="mode-pills" role="tablist" aria-label="Visual modes">
-      <button type="button" class="mode-pill active" data-mode="0" role="tab" aria-selected="true">01 · ALCHEMY PLASMA</button>
-      <button type="button" class="mode-pill" data-mode="1" role="tab" aria-selected="false">02 · FIRESTORM BARS</button>
-      <button type="button" class="mode-pill" data-mode="2" role="tab" aria-selected="false">03 · FERRO-ORB 3D</button>
-      <button type="button" class="mode-pill" data-mode="3" role="tab" aria-selected="false">04 · STARFIELD TUNNEL</button>
-      <button type="button" class="mode-pill" data-mode="4" role="tab" aria-selected="false">05 · SYNTHWAVE SUN</button>
-      <button type="button" class="mode-pill" data-mode="5" role="tab" aria-selected="false">06 · MATRIX CITY</button>
-      <button type="button" class="mode-pill" data-mode="6" role="tab" aria-selected="false">07 · VORONOI CELLS</button>
-    </div>
-
+    <a class="brand" href="/" aria-label="Sonic Prism — back to portfolio">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16 3 29 26H3Z"/><path d="M16 3v23M3 26l13-9 13 9"/></svg></span>
+      <div><strong>Sonic<span>Prism</span></strong><small id="source-badge">Audio visualizer</small></div>
+    </a>
     <div class="top-actions">
-      <button type="button" id="top-spotify-btn" class="icon-btn spotify-pill-btn" title="Open Spotify Player &amp; Account">
-        <span class="sp-dot"></span> SPOTIFY
-      </button>
-      <button type="button" id="toggle-drawer" class="icon-btn" title="Customize visual parameters" aria-expanded="false">⚙ CUSTOMIZE</button>
-      <button type="button" id="zen-btn" class="icon-btn" title="Hide UI (Zen Mode — press Esc or click button to restore)">👁 ZEN</button>
-      <button type="button" id="fullscreen-btn" class="icon-btn" title="Toggle Fullscreen">⛶</button>
+      <button type="button" id="top-spotify-btn" class="icon-btn spotify-pill-btn" title="Open Spotify library" hidden><span class="sp-dot"></span> Spotify</button>
+      <button type="button" id="toggle-drawer" class="icon-btn" title="Customize visuals" aria-label="Customize visuals" aria-expanded="false" aria-controls="custom-drawer"><span aria-hidden="true">☷</span> <span>Customize</span></button>
+      <button type="button" id="zen-btn" class="icon-btn" title="Hide controls; press Escape to restore" aria-label="Focus mode"><span aria-hidden="true">◫</span> <span>Focus</span></button>
+      <button type="button" id="fullscreen-btn" class="icon-btn fullscreen-btn" title="Toggle fullscreen" aria-label="Toggle fullscreen">⛶</button>
     </div>
   </header>
 
-  <!-- Live 5-Dimension Audio Stem Telemetry Readout -->
-  <aside id="telemetry" class="telemetry" aria-hidden="true">
-    <div class="meter-row">
-      <span>SUB / KICK</span>
-      <div class="meter"><i id="meter-sub"></i></div>
-    </div>
-    <div class="meter-row">
-      <span>BASS GROOVE</span>
-      <div class="meter"><i id="meter-bass"></i></div>
-    </div>
-    <div class="meter-row">
-      <span>VOCALS / LEAD</span>
-      <div class="meter"><i id="meter-vocal"></i></div>
-    </div>
-    <div class="meter-row">
-      <span>SYNTH / MIDS</span>
-      <div class="meter"><i id="meter-mid"></i></div>
-    </div>
-    <div class="meter-row">
-      <span>TREBLE / SPARK</span>
-      <div class="meter"><i id="meter-high"></i></div>
-    </div>
-    <div class="telemetry-meta">
-      <span id="bpm-readout">WAITING FOR AUDIO</span>
-      <span id="fps-readout">60 FPS</span>
-    </div>
-  </aside>
+  <section class="signal-panel" aria-label="Audio signal">
+    <div class="signal-heading"><span class="signal-dot" id="beat-indicator" aria-hidden="true"></span><strong id="signal-status" role="status" aria-live="polite">No audio connected</strong><span class="signal-tag">AUDIO INPUT</span></div>
+    <p id="signal-detail">Connect a source below. Ambient motion is not an audio signal.</p>
+    <div class="signal-track" aria-hidden="true"><i id="signal-level"></i></div>
+    <button type="button" id="stop-capture" class="stop-capture" hidden>Stop sharing audio</button>
+    <details class="signal-details">
+      <summary>Frequency bands <span aria-hidden="true">⌄</span></summary>
+      <aside id="telemetry" class="telemetry" aria-label="Live frequency levels">
+        <div class="meter-row"><span>Sub</span><div class="meter"><i id="meter-sub"></i></div></div>
+        <div class="meter-row"><span>Bass</span><div class="meter"><i id="meter-bass"></i></div></div>
+        <div class="meter-row"><span>Voice range</span><div class="meter"><i id="meter-vocal"></i></div></div>
+        <div class="meter-row"><span>Mids</span><div class="meter"><i id="meter-mid"></i></div></div>
+        <div class="meter-row"><span>Highs</span><div class="meter"><i id="meter-high"></i></div></div>
+        <div class="telemetry-meta"><span id="bpm-readout">Waiting for audio</span><span id="fps-readout">60 FPS</span></div>
+        <p class="band-note">Frequency ranges, not isolated instruments.</p>
+      </aside>
+    </details>
+  </section>
+
+  <section id="audio-onboarding" class="audio-onboarding" aria-labelledby="intro-title">
+    <span class="intro-eyebrow">LISTEN DIFFERENTLY</span>
+    <h1 id="intro-title">Your sound.<br><em>Another dimension.</em></h1>
+    <p>Seven worlds shaped by your music. Open a track, or capture the audio already playing in a browser tab.</p>
+    <div class="intro-actions"><button type="button" id="open-audio" class="intro-primary">Open a music file <span aria-hidden="true">↗</span></button><button type="button" id="capture-audio" class="intro-secondary">Capture playing audio</button></div>
+    <small>Playing from Spotify? Start playback, then capture its tab with audio sharing on.</small>
+  </section>
 
   <!-- In-App Spotify Player, Account & Search Drawer -->
   <section id="spotify-drawer" class="spotify-drawer" hidden aria-label="Spotify Music Player and Account">
@@ -77,18 +59,18 @@
           <path fill="#1ed760" d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
         </svg>
         <div>
-          <strong>SPOTIFY MUSIC HUB</strong>
-          <small id="sp-connection-status">SEARCH SONGS, PLAYLISTS, OR LOG IN TO YOUR ACCOUNT</small>
+          <strong>Spotify library</strong>
+          <small id="sp-connection-status">Find music, or connect your account</small>
         </div>
       </div>
       <div class="sp-header-actions">
         <button type="button" id="btn-spotify-connect" class="sp-connect-btn" title="Log in to your Spotify account">
-          🟢 Log in with Spotify
+          Connect Spotify
         </button>
         <button type="button" id="btn-spotify-settings" class="sp-settings-btn" title="Spotify Client ID &amp; Redirect URI Settings" aria-label="Spotify OAuth Settings">
           ⚙️
         </button>
-        <button type="button" id="close-spotify" class="text-close" aria-label="Close Spotify Hub">×</button>
+        <button type="button" id="close-spotify" class="text-close" aria-label="Close Spotify library">×</button>
       </div>
     </div>
 
@@ -115,17 +97,17 @@
       <input
         id="spotify-search-input"
         type="search"
-        placeholder="Search any artist, song, or paste a Spotify Track / Playlist URL..."
+        placeholder="Search songs, artists, or paste a Spotify link" aria-label="Search Spotify"
         autocomplete="off"
       >
-      <button type="submit" id="spotify-search-btn" class="sp-search-submit">SEARCH</button>
+      <button type="submit" id="spotify-search-btn" class="sp-search-submit">Search</button>
     </form>
 
     <!-- Navigation Tabs -->
     <div class="sp-tabs" role="tablist">
-      <button type="button" class="sp-tab active" data-sp-tab="playlists" role="tab">💿 Spotify Playlists</button>
-      <button type="button" class="sp-tab" data-sp-tab="search" role="tab">🔍 Search Results</button>
-      <button type="button" class="sp-tab" data-sp-tab="library" role="tab">💚 My Spotify Account</button>
+      <button type="button" class="sp-tab active" data-sp-tab="playlists" role="tab">Playlists</button>
+      <button type="button" class="sp-tab" data-sp-tab="search" role="tab">Search results</button>
+      <button type="button" class="sp-tab" data-sp-tab="library" role="tab">Your library</button>
     </div>
 
     <!-- Collection Header Banner (when viewing a playlist/album) -->
@@ -199,39 +181,39 @@
   <!-- Visual Customization Drawer -->
   <section id="custom-drawer" class="custom-drawer" hidden aria-label="Visualizer customization">
     <div class="drawer-header">
-      <strong>VISUAL CUSTOMIZATION</strong>
+      <strong>Make it yours</strong>
       <button type="button" id="close-drawer" class="text-close" aria-label="Close customization">×</button>
     </div>
     <label class="control-row">
-      <span>Master Audio Sensitivity <b id="val-gain">1.35×</b></span>
+      <span>Audio sensitivity <b id="val-gain">1.35×</b></span>
       <input type="range" id="ctrl-gain" min="0.4" max="3.0" step="0.05" value="1.35">
     </label>
     <label class="control-row">
-      <span>Sub-Bass &amp; Kick Shockwaves <b id="val-bass-boost">1.35×</b></span>
+      <span>Low-frequency impact <b id="val-bass-boost">1.35×</b></span>
       <input type="range" id="ctrl-bass-boost" min="0.4" max="2.5" step="0.05" value="1.35">
     </label>
     <label class="control-row">
-      <span>Vocal Formant &amp; Lead Aurora <b id="val-vocal-boost">1.45×</b></span>
+      <span>Voice-range response <b id="val-vocal-boost">1.45×</b></span>
       <input type="range" id="ctrl-vocal-boost" min="0.4" max="2.5" step="0.05" value="1.45">
     </label>
     <label class="control-row">
-      <span>Treble Sparkle &amp; Electric Arcs <b id="val-treble-boost">1.35×</b></span>
+      <span>High-frequency detail <b id="val-treble-boost">1.35×</b></span>
       <input type="range" id="ctrl-treble-boost" min="0.4" max="2.5" step="0.05" value="1.35">
     </label>
     <label class="control-row">
-      <span>Fluid Trail Persistence <b id="val-decay">94%</b></span>
+      <span>Trail persistence <b id="val-decay">94%</b></span>
       <input type="range" id="ctrl-decay" min="0.75" max="0.985" step="0.005" value="0.94">
     </label>
     <label class="control-row">
-      <span>Warp &amp; Swirl Velocity <b id="val-warp">1.20×</b></span>
+      <span>Motion speed <b id="val-warp">1.20×</b></span>
       <input type="range" id="ctrl-warp" min="0.1" max="3.0" step="0.05" value="1.2">
     </label>
     <label class="control-row">
-      <span>Kaleidoscope Symmetry <b id="val-sym">OFF (1×)</b></span>
+      <span>Symmetry <b id="val-sym">OFF (1×)</b></span>
       <input type="range" id="ctrl-sym" min="1" max="8" step="1" value="1">
     </label>
     <div class="control-row">
-      <span>Color Palette</span>
+      <span>Color palette</span>
       <div class="palette-grid" id="palette-list">
         <button type="button" class="palette-btn active" data-palette="0">WMP Alchemy</button>
         <button type="button" class="palette-btn" data-palette="1">Cyber Neon</button>
@@ -240,7 +222,7 @@
         <button type="button" class="palette-btn" data-palette="4">Liquid Chrome</button>
       </div>
     </div>
-    <p class="drawer-tip">💡 <b>Tip:</b> Drag your mouse or finger across the visualizer to interact with the waves and cells in real time.</p>
+    <p class="drawer-tip">Drag across the canvas to explore. Changes to these controls never affect your music.</p>
   </section>
 
   <!-- Bottom Control Deck: 3 Clean Sources (Spotify, Local Music, Share Tab/Window Audio) -->
@@ -248,7 +230,7 @@
     <!-- Docked Official Spotify Player -->
     <div id="spotify-embed-dock" class="sp-embed-dock" hidden>
       <div class="sp-embed-top">
-        <span id="sp-embed-hint">🎧 Official Spotify Full-Track Player · Synchronized to Visualizer</span>
+        <span id="sp-embed-hint">Spotify player · capture playing audio for live visuals</span>
         <div class="sp-embed-top-btns">
           <button type="button" id="close-embed-dock" class="text-close sm-close" aria-label="Hide Spotify Widget">×</button>
         </div>
@@ -279,8 +261,34 @@
       </a>
     </div>
 
+    <nav class="scene-picker" aria-label="Choose a visual world"><span class="scene-label">WORLDS <small>01 — 07</small></span><div class="mode-pills" role="tablist" aria-label="Visual modes">
+      <button type="button" class="mode-pill active" data-mode="0" role="tab" aria-selected="true" tabindex="0"><span class="mode-swatch" aria-hidden="true"></span><span>Plasma</span></button>
+      <button type="button" class="mode-pill" data-mode="1" role="tab" aria-selected="false" tabindex="-1"><span class="mode-swatch" aria-hidden="true"></span><span>Spectrum</span></button>
+      <button type="button" class="mode-pill" data-mode="2" role="tab" aria-selected="false" tabindex="-1"><span class="mode-swatch" aria-hidden="true"></span><span>Ferro</span></button>
+      <button type="button" class="mode-pill" data-mode="3" role="tab" aria-selected="false" tabindex="-1"><span class="mode-swatch" aria-hidden="true"></span><span>Tunnel</span></button>
+      <button type="button" class="mode-pill" data-mode="4" role="tab" aria-selected="false" tabindex="-1"><span class="mode-swatch" aria-hidden="true"></span><span>Sunset</span></button>
+      <button type="button" class="mode-pill" data-mode="5" role="tab" aria-selected="false" tabindex="-1"><span class="mode-swatch" aria-hidden="true"></span><span>City</span></button>
+      <button type="button" class="mode-pill" data-mode="6" role="tab" aria-selected="false" tabindex="-1"><span class="mode-swatch" aria-hidden="true"></span><span>Cells</span></button>
+    </div></nav>
+
     <!-- 3 Primary Music Sources -->
     <div class="source-buttons">
+      <label for="file-input" id="btn-file-label" class="source-btn" tabindex="0" role="button">
+        <span class="src-icon" aria-hidden="true">♫</span>
+        <div>
+          <strong>Open a file</strong>
+          <small>Your music, directly connected</small>
+        </div>
+        <input id="file-input" type="file" accept="audio/*" multiple hidden>
+      </label>
+
+      <button type="button" id="btn-system" class="source-btn primary-source">
+        <span class="src-icon capture-icon" aria-hidden="true">⌁</span>
+        <div>
+          <strong>Capture audio</strong>
+          <small>A playing tab or supported screen</small>
+        </div>
+      </button>
       <button type="button" id="btn-spotify" class="source-btn spotify-source-btn">
         <span class="src-icon sp-src-icon">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
@@ -288,37 +296,22 @@
           </svg>
         </span>
         <div>
-          <strong>SPOTIFY PLAYER</strong>
-          <small>Account, Playlists &amp; Song Search</small>
+          <strong>Spotify</strong>
+          <small>Browse &amp; play, then capture audio</small>
         </div>
       </button>
 
-      <label for="file-input" id="btn-file-label" class="source-btn" tabindex="0" role="button">
-        <span class="src-icon">📂</span>
-        <div>
-          <strong>LOCAL MUSIC FILES</strong>
-          <small>MP3, WAV, FLAC, M4A (or Drag &amp; Drop)</small>
-        </div>
-        <input id="file-input" type="file" accept="audio/*" multiple hidden>
-      </label>
-
-      <button type="button" id="btn-system" class="source-btn primary-source">
-        <span class="src-icon">🖥️</span>
-        <div>
-          <strong>SHARE TAB / WINDOW AUDIO</strong>
-          <small>Pandora, YouTube, Apple Music, Desktop</small>
-        </div>
-      </button>
     </div>
   </footer>
 
   <!-- Toast & Zen Exit -->
   <div id="toast" class="toast" hidden role="status"></div>
-  <button type="button" id="exit-zen" class="exit-zen" hidden>SHOW CONTROLS</button>
+  <button type="button" id="exit-zen" class="exit-zen" hidden>Show controls</button>
   <audio id="audio-el" crossorigin="anonymous" preload="auto" hidden></audio>
 
   <script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
   <script src="https://sdk.scdn.co/spotify-player.js" async></script>
-  <script type="module" src="visualizer.mjs?v=8"></script>
+  <script type="module" src="visualizer.mjs?v=9"></script>
+  <script type="module" src="visualizer-ui.mjs?v=9"></script>
 </body>
 </html>
