@@ -2,12 +2,57 @@ export const CARS = [
   { id: 'comet', name: 'Comet', nickname: 'The little speedster', driver: 'Pip', color: '#9b83ff', accent: '#e8ff7d', helmet: '#fff5dc', shape: 'racer', badge: '01', speed: 5, accel: 4, drift: 4, weight: 1.0, stats: { speed: 92, accel: 86, drift: 90 } },
   { id: 'clementine', name: 'Clementine', nickname: 'Big wheels. Bigger smiles.', driver: 'Sunny', color: '#ff9f66', accent: '#fff4be', helmet: '#ffe4ef', shape: 'buggy', badge: '02', speed: 4, accel: 5, drift: 4, weight: 1.25, stats: { speed: 86, accel: 94, drift: 88 } },
   { id: 'mint-chip', name: 'Mint Chip', nickname: 'A very speedy little van', driver: 'Mochi', color: '#69d9b2', accent: '#fff5dc', helmet: '#e8ddff', shape: 'van', badge: '03', speed: 4, accel: 4, drift: 5, weight: 1.35, stats: { speed: 88, accel: 90, drift: 95 } },
+  { id: 'cherry-pop', name: 'Cherry Pop', nickname: 'Top down. Smiles up.', driver: 'Ruby', color: '#f07191', accent: '#fff2bd', helmet: '#d7fff4', shape: 'roadster', badge: '04', speed: 4, accel: 5, drift: 5, weight: .95, stats: { speed: 88, accel: 94, drift: 95 } },
+  { id: 'blueberry', name: 'Blueberry', nickname: 'A pocket-sized pickup', driver: 'Bean', color: '#75b5f1', accent: '#ffe89e', helmet: '#fff1dc', shape: 'pickup', badge: '05', speed: 4, accel: 5, drift: 4, weight: 1.3, stats: { speed: 87, accel: 94, drift: 88 } },
+  { id: 'sunbeam', name: 'Sunbeam', nickname: 'Little wings. Big zoom.', driver: 'Ziggy', color: '#f5cf59', accent: '#77dfc5', helmet: '#f8d9ff', shape: 'formula', badge: '06', speed: 5, accel: 4, drift: 5, weight: .9, stats: { speed: 94, accel: 87, drift: 94 } },
 ];
 export const TRACKS = [
   { id:'cloudtop',name:'Cloudtop Circuit',number:'01',icon:'☁',theme:'clouds',tag:'FLOAT ON AIR',description:'Fluffy clouds & happy little hills',character:'Easy-going curves',sky:'#c7e1f5',ground:'#e3ebce',base:'#c9d9c6',road:'#f1af7a',edge:'#9879c8',rails:['#aa8cdc','#e7d8fc'],accent:'#9b83ff',ink:'#282344',points:[[-65,0,0],[-47,2,-52],[14,4,-69],[65,1,-43],[73,0,8],[44,4,50],[-20,1,60],[-67,0,36]] },
   { id:'peachy-palms',name:'Peachy Palms',number:'02',icon:'☀',theme:'beach',tag:'SUNSHINE, ON REPEAT',description:'Salty air & the scenic route',character:'Breezy beach bends',sky:'#bce6ed',ground:'#fff0cf',base:'#e4bc8d',road:'#f5b199',edge:'#e98872',rails:['#ffb69a','#fff4d9'],accent:'#ff996e',ink:'#553b40',points:[[-78,0,6],[-66,.5,-46],[-18,1,-63],[38,.7,-57],[75,0,-18],[70,1,37],[25,1.5,57],[-8,.5,20],[-54,0,54]] },
   { id:'twilight-trail',name:'Twilight Trail',number:'03',icon:'☾',theme:'forest',tag:'CHASE A LITTLE MAGIC',description:'Glow mushrooms & moonlit woods',character:'Sweeping woodland turns',sky:'#222b4b',ground:'#48596b',base:'#303d58',road:'#8585ad',edge:'#b7a0e5',rails:['#d3b5f4','#686b99'],accent:'#b8a2ef',ink:'#f7edff',points:[[-64,0,0],[-72,2,-44],[-28,4,-66],[9,1,-35],[51,3,-64],[78,5,-16],[52,3,25],[63,1,58],[4,2,70],[-42,4,43]] },
 ];
+
+// Ramp u is the takeoff lip. Length and height are shared by geometry and driving.
+export const COURSE_FEATURES = {
+  cloudtop: {
+    boosts: [[.08,0],[.18,0],[.36,-3],[.53,3],[.78,0],[.95,0]],
+    ramps: [
+      {u:.22,lane:0,width:3.1,length:7,height:1.5,launchSpeed:9.8,name:'Cloud Hop'},
+      {u:.45,lane:-3,width:2.7,length:7,height:1.3,launchSpeed:9.4,name:'Balloon Bounce'},
+      {u:.64,lane:0,width:3.5,length:10,height:2,launchSpeed:11,glider:true,name:'Sky Sail'},
+      {u:.90,lane:0,width:3.1,length:8,height:1.7,launchSpeed:10.2,name:'Rainbow Rise'},
+    ],
+  },
+  'peachy-palms': {
+    boosts: [[.07,0],[.14,0],[.30,3],[.49,-3],[.75,0],[.95,0]],
+    ramps: [
+      {u:.18,lane:0,width:3.1,length:8,height:1.4,launchSpeed:9.4,name:'Sandcastle Hop'},
+      {u:.39,lane:3,width:2.7,length:8,height:1.6,launchSpeed:10,name:'Seaside Skip'},
+      {u:.60,lane:0,width:3.5,length:11,height:2.1,launchSpeed:11,glider:true,name:'Ocean Glide'},
+      {u:.88,lane:0,width:3.1,length:8,height:1.5,launchSpeed:9.8,name:'Sunset Jump'},
+    ],
+  },
+  'twilight-trail': {
+    boosts: [[.05,0],[.11,0],[.27,-3],[.46,3],[.73,0],[.94,0]],
+    ramps: [
+      {u:.15,lane:0,width:3.1,length:7,height:1.6,launchSpeed:10,name:'Firefly Hop'},
+      {u:.36,lane:-3,width:2.7,length:7,height:1.4,launchSpeed:9.6,name:'Mushroom Bounce'},
+      {u:.56,lane:0,width:3.5,length:10,height:2,launchSpeed:11,glider:true,name:'Moonbeam Glide'},
+      {u:.86,lane:0,width:3.1,length:8,height:1.8,launchSpeed:10.2,name:'Starlight Leap'},
+    ],
+  },
+};
+
+export function sampleRampSurface(ramps,distance,lane,trackLength) {
+  const local=((distance%trackLength)+trackLength)%trackLength;
+  for(const ramp of ramps){
+    const remaining=ramp.u*trackLength-local;
+    if(remaining>=0&&remaining<=ramp.length&&Math.abs(lane-ramp.lane)<=ramp.width){
+      return {height:ramp.height*(1-remaining/ramp.length),pitch:-Math.atan2(ramp.height,ramp.length)};
+    }
+  }
+  return {height:0,pitch:0};
+}
 
 export const ITEMS = [
   { id: 'mushroom', name: 'Turbo Shroom', icon: '🍄', color: '#ff6b6b', desc: 'Instant speed burst & off-road shortcut pass!' },

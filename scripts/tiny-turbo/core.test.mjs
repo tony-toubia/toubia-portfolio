@@ -29,7 +29,7 @@ test('finish rewards bank once; car upgrades only spend earned stars and respect
   settleRace(profile,race,1);assert.equal(profile.stars,16);assert.equal(profile.wins,1);assert.equal(settleRace(profile,race,1),0);assert.equal(profile.stars,16);
   assert.equal(buyUpgrade(profile,'comet'),true);assert.equal(profile.stars,4);assert.equal(profile.upgrades.comet,1);assert.equal(buyUpgrade(profile,'no-car'),false);
   profile.stars=100;profile.upgrades.comet=3;assert.equal(buyUpgrade(profile,'comet'),false);assert.equal(profile.stars,100);
-  assert.equal(CARS.length,3);assert.equal(new Set(CARS.map(c=>c.id)).size,3);
+  assert.equal(CARS.length,6);assert.equal(new Set(CARS.map(c=>c.id)).size,6);
 });
 test('invalid or old saved preferences recover without locking out the garage',()=>{
   const profile=normalizeProfile({grade:99,car:'gone',stars:-500,cadence:0,subject:'ads',upgrades:{comet:100}});

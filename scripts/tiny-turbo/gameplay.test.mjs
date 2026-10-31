@@ -35,7 +35,7 @@ async function makeGame(saved={sound:false}) {
   const window={addEventListener:(event,fn)=>listeners.set('window:'+event,fn)};
   const context=vm.createContext({THREE:{...RealThree,WebGLRenderer:Renderer,Clock:class{getDelta(){return delta;}}},...core,createWorld,disposeWorld,document,window,console,devicePixelRatio:1,innerWidth:1024,innerHeight:768,performance:{now:()=>frames*50},requestAnimationFrame(){},setTimeout(){return 1;},clearTimeout(){},matchMedia:()=>({matches:false}),localStorage:{getItem:()=>savedValue,setItem:(_key,v)=>{savedValue=v;}}});
   const source=(await fs.readFile('public/tiny-turbo/game.mjs','utf8')).replace(/^import .*;\r?\n/gm,'');
-  vm.runInContext(source+`\n;globalThis.testGame={get state(){return {profile,race,lane,speed,question,player,camera,scene,trackLength,rivals,stick,courseGroup,curve};},loop,startRace,home,frameAt,pauseRace};`,context);
+  vm.runInContext(source+`\n;globalThis.testGame={get state(){return {profile,race,lane,speed,question,player,camera,scene,trackLength,rivals,stick,courseGroup,curve,ramps,boostPads};},loop,startRace,home,frameAt,pauseRace};`,context);
   return {app:context.testGame,nodes,listeners,tick:seconds=>{for(let t=0;t<seconds;t+=delta)context.testGame.loop();},readSaved:()=>JSON.parse(savedValue)};
 }
 
@@ -163,4 +163,47 @@ test('steering right and left always moves the kart in the matching screen direc
   const playerScreen2=app.state.player.position.clone().project(app.state.camera);
   assert.ok(playerScreen2.x<centerScreen2.x,'kart appears to the left of center on screen when steering left');
   keyup({key:'ArrowLeft'});
+});
+
+test('six distinct cars can be selected, raced and saved without losing legacy upgrades',async()=>{
+  const game=await makeGame({sound:false,stars:40,upgrades:{comet:2}}),{app,nodes}=game;
+  const shapes=new Set();
+  for(const car of core.CARS){
+    nodes.get('car-list').children.find(b=>b.dataset.car===car.id).click();
+    assert.equal(game.readSaved().car,car.id);assert.equal(game.readSaved().upgrades.comet,2);
+    nodes.get('start').click();game.tick(4);
+    const bounds=new RealThree.Box3().setFromObject(app.state.player);
+    assert.ok(Number.isFinite(bounds.min.y)&&bounds.getSize(new RealThree.Vector3()).y>1);
+    assert.equal(app.state.player.userData.baseColor,car.color);
+    assert.equal(app.state.rivals.length,3,'garage expansion does not add more opponents');
+    shapes.add(car.shape);nodes.get('pause').click();nodes.get('quit').click();
+  }
+  assert.equal(shapes.size,6);
+  assert.equal(game.readSaved().stars,40,'changing cars never spends stars');
+});
+
+test('course ramps support the kart before takeoff, fly, freeze, land and work again on lap two',async()=>{
+  for(const track of core.TRACKS){
+    const game=await makeGame({sound:false,track:track.id,cadence:26}),{app,nodes}=game;
+    nodes.get('start').click();game.tick(4);
+    const {ramps,boostPads,trackLength}=app.state;
+    assert.equal(ramps.length,4);assert.equal(boostPads.length,6);
+    assert.ok(boostPads.some(p=>p.lane<0)&&boostPads.some(p=>p.lane>0),'boost paths reward steering in both directions');
+    for(const lap of [0,1]){
+      const ramp=ramps.find(r=>r.lane===0&&!r.glider),race=app.state.race;
+      race.distance=(lap+ramp.u)*trackLength-ramp.length*.55;race.airY=0;race.airVy=0;race.nextQuestion=999;
+      game.tick(.05);
+      const road=app.frameAt(race.distance/trackLength).point;
+      assert.ok(app.state.player.position.y-road.y>.6,'wheels climb the solid ramp');
+      assert.ok(app.state.player.rotation.x<0,'nose points up the approach');
+      const tricks=race.tricks;race.distance=(lap+ramp.u)*trackLength-.1;game.tick(.05);
+      assert.equal(race.tricks,tricks+1);assert.ok(race.airY>ramp.height,'takeoff begins above the ramp lip');
+      const airborne=race.airY;race.mode='challenge';game.tick(.5);assert.equal(race.airY,airborne,'questions freeze a jump');race.mode='racing';
+      game.tick(1.5);assert.equal(race.airY,0,'automatic landing returns the kart to the road');assert.equal(race.airVy,0);
+    }
+    const glider=ramps.find(r=>r.glider),race=app.state.race;
+    race.distance=glider.u*trackLength-.1;race.airY=0;race.airVy=0;game.tick(.05);
+    assert.equal(race.gliding,true);assert.equal(app.state.player.userData.glider.visible,true);
+    game.tick(4);assert.equal(race.gliding,false);assert.equal(race.airY,0,'gliders also return safely to the road');
+  }
 });
