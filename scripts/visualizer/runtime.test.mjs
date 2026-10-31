@@ -8,6 +8,7 @@ import vm from 'node:vm';
 async function createApp({ captureSupported = true, contextState = 'running', resumeReject = false } = {}) {
   const html = await fs.readFile('public/visualizer/index.html', 'utf8');
   const source = await fs.readFile('public/visualizer/visualizer.mjs', 'utf8');
+  const uiSource = await fs.readFile('public/visualizer/visualizer-ui.mjs', 'utf8');
   const nodes = new Map(), elements = [], windowEvents = new Map();
   const connections = [], uniformValues = new Map(), captures = [];
   let now = 0, frame = { frequency: 0, amplitude: 0 }, nextCapture, lastContext;
@@ -98,6 +99,7 @@ async function createApp({ captureSupported = true, contextState = 'running', re
     fetch: async () => ({ ok: true, json: async () => ({}) }),
   });
   vm.runInContext(source.replace(/^import .*;\r?\n/gm, '') + `\n;globalThis.testApp = { state, spotifyState, startSystemAudio, loadLocalFiles, playSpotifyTrack, stopCurrentSources, setActiveSourceUI, renderLoop, get texture() { return audioTexData; } };`, context);
+  vm.runInContext(uiSource,context);
   const app = context.testApp;
   const tick = (seconds = 1 / 60) => { const steps = Math.ceil(seconds * 60); for (let i = 0; i < steps; i++) { now += 1000 / 60; app.renderLoop(now); } };
   await Promise.resolve();
@@ -118,7 +120,37 @@ test('application boots with no invented audio and every visual mode is selectab
     assert.equal(h.uniformValues.get('uMode'), Number(button.dataset.mode));
     assert.equal(button.getAttribute('aria-selected'), 'true');
   }
-  assert.equal(h.elements.filter(el => el.classList.contains('mode-pill')).length, 7);
+  assert.equal(h.elements.filter(el => el.classList.contains('mode-pill')).length, 5);
+});
+
+test('keyboard world navigation wraps through the five choices and invalid retired ids cannot select a shader',async()=>{
+  const h=await createApp(),tabs=h.elements.filter(el=>el.classList.contains('mode-pill'));
+  await tabs[0].emit('keydown',{key:'End'});h.tick();
+  assert.equal(h.app.state.mode,4);assert.equal(h.uniformValues.get('uMode'),4);
+  await tabs[4].emit('keydown',{key:'ArrowRight'});h.tick();
+  assert.equal(h.app.state.mode,0,'right wraps to the first choice');
+  await tabs[0].emit('keydown',{key:'ArrowLeft'});h.tick();
+  assert.equal(h.app.state.mode,4,'left wraps to the last remaining choice');
+  await tabs[4].emit('keydown',{key:'Home'});h.tick();assert.equal(h.app.state.mode,0);
+  for(const invalid of ['5','6','-1','NaN','3.5']){
+    tabs[3].dataset.mode=invalid;await tabs[3].click();h.tick();
+    assert.equal(h.app.state.mode,0,`invalid mode ${invalid} is ignored`);
+    assert.equal(h.uniformValues.get('uMode'),0);
+    assert.equal(tabs[0].getAttribute('aria-selected'),'true');
+    assert.equal(tabs[3].getAttribute('aria-selected'),'false');
+  }
+});
+
+test('Vortex receives measured audio uniforms and returns to zero signal during silence',async()=>{
+  const h=await createApp(),vortex=h.elements.find(el=>el.dataset.mode==='3'&&el.classList.contains('mode-pill'));
+  await vortex.click();h.app.loadLocalFiles([{name:'vortex-tone.wav',type:'audio/wav'}]);await Promise.resolve();
+  h.signal(80,.24);h.tick(.6);
+  assert.equal(h.uniformValues.get('uMode'),3);assert.equal(h.app.state.audioStatus,'live');
+  assert.ok(h.uniformValues.get('uSubBass')>.05,'real low frequencies reach the Vortex pass');
+  assert.ok(h.uniformValues.get('uTime')>0,'measured audio advances its flow');
+  h.signal(80,0);h.tick(2);
+  assert.equal(h.app.state.audioStatus,'silent');assert.ok(h.uniformValues.get('uSubBass')<.01);
+  assert.ok(h.app.texture.slice(0,512).every(value=>value===0),'a silent source does not synthesize Vortex activity');
 });
 
 test('a local file drives actual uniforms, silence closes the gate, and pause stops signal', async () => {

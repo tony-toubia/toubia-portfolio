@@ -8,7 +8,7 @@ const audioEl = $('audio-el');
 
 // --- State & Customization Parameters ---
 const state = {
-  mode: 0,          // 0..6 visual worlds
+  mode: 0,          // 0..4 visual worlds
   palette: 0,       // 0..4 color palettes
   gain: 1.35,
   bassBoost: 1.35,
@@ -813,19 +813,15 @@ void main() {
     float dCorona = abs(rad - coronaR);
     seed += palette(ang * 0.159 + uTime * 0.15, uPalette) * (0.0045 / (dCorona + 0.005)) * (0.6 + uBass + uVocal * 0.5);
   } else if (uMode == 3) {
-    // MODE 3: STARFIELD TUNNEL — Radial warp streaks + Vocal Nebula clouds
-    vec2 dir = normalize(p + 1e-5);
-    prev = texture2D(uPrevTex, clamp(vUv - dir * (0.012 + uBass * 0.028 + uSubBass * 0.015) * uWarp, 0.002, 0.998)).rgb * 0.88;
-    vec2 boxP = abs(p * rot(uTime * 0.35 + rad * 2.5));
-    float polyR = max(boxP.x, boxP.y);
-    float ringPattern = abs(fract(polyR * 5.0 - uTime * (1.4 + uBass * 1.9)) - 0.5);
-    float gateGlow = 0.009 / (ringPattern + 0.012) * smoothstep(0.03, 0.22, rad);
-    seed += palette(polyR + uTime * 0.15 + uBeat * 0.2, uPalette) * gateGlow * (0.25 + fftVal * 0.95);
-    // Vocal Nebula Aurora cloud inside the tunnel
-    float vocalNebula = sin(ang * 3.0 + uTime * 1.8) * cos(rad * 8.0 - uVocalPitch * 4.0);
-    seed += palette(0.38 + uVocalPitch * 0.3, uPalette) * max(0.0, vocalNebula) * uVocal * exp(-rad * 2.2) * 0.38;
+    // MODE 3: VORTEX — fluid light with soft visual memory, inspired by classic WMP.
+    vec2 bend = vec2(sin(uTime * 0.21), cos(uTime * 0.17)) * 0.035;
+    vec2 memoryUv = (vUv - 0.5 - bend) * rot(0.003 + uMid * 0.006) * (0.989 - uBass * 0.012) + 0.5 + bend;
+    prev = texture2D(uPrevTex, clamp(memoryUv, 0.002, 0.998)).rgb * 0.89;
+    float contour = 0.29 + sin(ang * 3.0 + uTime * 0.28) * 0.035 + waveSample * uVocal * 0.018;
+    float ribbon = exp(-abs(rad - contour) * 65.0);
+    seed += palette(ang * 0.08 + uTime * 0.012, uPalette) * ribbon * (uBass + uVocal + uHigh) * 0.18;
   } else {
-    // Modes 4, 5, 6 use crisp procedural geometry in Pass 2 with minimal background trail
+    // Sunset uses crisp procedural geometry with a restrained background trail.
     prev *= 0.65;
   }
 
@@ -839,7 +835,7 @@ void main() {
 }
 `;
 
-// Pass 2: 7 Distinct Visual Worlds with 5-Stem Multi-Dimensional Highlights (Sub/Kick, Bass, Vocals, Mids, Treble)
+// Pass 2: Five distinct worlds shaped by measured frequency ranges and waveform.
 const COMPOSITE_FRAG = `
 precision highp float;
 varying vec2 vUv;
@@ -1013,26 +1009,38 @@ void main() {
     col += vec3(0.85, 0.97, 1.0) * trebleArcGlow;
 
   } else if (uMode == 3) {
-    // MODE 3: 3D STARFIELD & HYPER-TUNNEL —
-    // Bass: Warp Speed & Stargate | Vocals: Volumetric Singing Nebula | Treble: High-Density Starlight Sparks
-    col = fb * 0.68;
-    for (int layer = 1; layer <= 3; layer++) {
-      float fl = float(layer);
-      float z = fract(fl * 0.33 - uTime * (0.35 + uBass * 0.42 + uSubBass * 0.2));
-      float scale = mix(18.0, 1.5, z);
-      vec2 starUv = p * scale + vec2(fl * 17.3, fl * 9.1);
-      vec2 id = floor(starUv);
-      vec2 gv = fract(starUv) - 0.5;
-      vec2 rnd = hash22(id) - 0.5;
-      float d = length(gv - rnd * 0.7);
-      float spark = (0.018 / (d + 0.008)) * smoothstep(0.0, 0.2, z) * (1.0 - z);
-      col += palette(hash21(id) + uTime * 0.1, uPalette) * spark * (0.55 + uHigh * 1.1 + uTrebleSpark * 0.8);
+    // MODE 3: VORTEX — nested flowing ribbons recede into a curved vanishing point.
+    // Depth comes from perspective and soft light, rather than star dots or grid gates.
+    float energy = clamp((uSubBass + uBass + uVocal + uMid + uHigh) * 0.55, 0.0, 1.0);
+    vec2 bend = vec2(sin(uTime * 0.21), cos(uTime * 0.17)) * vec2(0.075, 0.055);
+    bend += (uPointer - 0.5) * 0.055;
+    float centerDistance = length(p - bend);
+    col = fb * 0.24 + vec3(0.007, 0.012, 0.025);
+    vec3 ribbons = vec3(0.0);
+    for (int layer = 0; layer < 10; layer++) {
+      float depth = fract((float(layer) + 0.5) / 10.0 + uTime * 0.09);
+      float fade = smoothstep(0.0, 0.12, depth) * (1.0 - smoothstep(0.86, 1.0, depth));
+      vec2 q = p - bend * (1.0 - depth);
+      float a = atan(q.y, q.x);
+      float turn = a + depth * 2.4 - uTime * 0.16;
+      float spectrum = texture2D(uAudioTex, vec2(clamp(0.5 + 0.46 * sin(a + depth), 0.01, 0.99), 0.25)).r;
+      float edgeWave = (texture2D(uAudioTex, vec2(fract(a / 6.2831853 + 0.5 + depth * 0.12), 0.75)).r - 0.5) * 2.0;
+      float radius = (0.035 + pow(depth, 1.8) * 1.3) * (1.0 + uSubBass * 0.10 + uBass * 0.045);
+      float folds = sin(turn * 3.0 + depth * 1.8) * (0.055 + uVocal * 0.025);
+      folds += cos(turn * 5.0 - depth * 2.2) * 0.022;
+      radius *= 1.0 + folds + spectrum * 0.035;
+      radius += edgeWave * (0.005 + uMid * 0.008) * (0.4 + depth * 0.6);
+      float distanceToRibbon = abs(length(q) - radius);
+      float width = 0.0014 + depth * 0.0045 + uHigh * 0.0008;
+      float core = exp(-pow(distanceToRibbon / width, 2.0));
+      float halo = exp(-distanceToRibbon / (width * 5.5)) * 0.22;
+      vec3 tint = palette(0.16 + depth * 0.34 + sin(turn) * 0.045 + uTime * 0.012, uPalette);
+      float musicalLight = 0.24 + energy * 0.95 + spectrum * 0.35 + uBeat * 0.18;
+      ribbons += (tint * (core + halo) + vec3(0.65, 0.82, 0.9) * core * uTrebleSpark * 0.16) * fade * musicalLight;
     }
-    // Sub-kick shockwave ring flying down the tunnel
-    if (uKick > 0.01 && uKick < 1.1) {
-      float kDist = abs(r - uKick * 0.75);
-      col += palette(0.1 + uPhase * 0.2, uPalette) * (0.005 / (kDist + 0.005)) * (1.0 - uKick * 0.8) * uSubBass;
-    }
+    col += ribbons;
+    // Leave a quiet center so the depth remains legible through loud passages.
+    col *= smoothstep(0.018, 0.075, centerDistance);
 
   } else if (uMode == 4) {
     // MODE 4: SYNTHWAVE SUN & 3D OUTRUN GRID —
@@ -1104,109 +1112,6 @@ void main() {
       col += vec3(0.85, 0.98, 1.0) * exp(-depth * 75.0) * (1.1 + uBeat * 0.9);
     }
 
-  } else if (uMode == 5) {
-    // MODE 5: CYBER MATRIX & 3D AUDIO METROPOLIS —
-    // Treble: Digital Matrix Rain | Vocals: Sweeping Concert Searchlight Beams & Sky Wave | Bass: 3D Skyscraper Towers
-    col = vec3(0.01, 0.02, 0.04);
-
-    // Background cascading digital Matrix rain columns (accelerated by Treble & Sparkle)
-    float rainCols = 64.0;
-    float colIdx = floor(vUv.x * rainCols);
-    float colSpeed = 0.6 + hash21(vec2(colIdx, 1.0)) * 1.4;
-    float colFft = texture2D(uAudioTex, vec2(clamp(colIdx / rainCols, 0.01, 0.99), 0.25)).r;
-    float rainY = fract(vUv.y * 0.8 + uTime * colSpeed * (0.55 + uHigh * 1.05 + uTrebleSpark * 0.4) + hash21(vec2(colIdx, 2.0)));
-    float charCell = step(0.35, hash21(vec2(colIdx, floor(vUv.y * 42.0 - uTime * 8.0))));
-    float rainTrail = pow(1.0 - rainY, 3.5) * charCell;
-    float rainHead = smoothstep(0.04, 0.0, rainY) * charCell;
-    vec3 rainCol = palette(colIdx / rainCols + uTime * 0.05, uPalette);
-    col += rainCol * rainTrail * (0.26 + colFft * 0.72) + vec3(0.9, 1.0, 0.95) * rainHead * (0.5 + uHigh + uTrebleSpark * 0.6);
-
-    // Vocal Concert Searchlight Lasers sweeping the sky above the city
-    if (uVocal > 0.08) {
-      float beam1Angle = sin(uTime * 1.7 + uVocalPitch * 2.5) * 0.55;
-      float beam2Angle = cos(uTime * 1.3 - uVocalPitch * 2.5) * 0.55;
-      vec2 bOrigin1 = vec2(-0.42, -0.35);
-      vec2 bOrigin2 = vec2(0.42, -0.35);
-      vec2 d1 = p - bOrigin1;
-      vec2 d2 = p - bOrigin2;
-      float cone1 = exp(-abs( d1.x - d1.y * beam1Angle ) * 16.0) * step(0.0, d1.y);
-      float cone2 = exp(-abs( d2.x - d2.y * beam2Angle ) * 16.0) * step(0.0, d2.y);
-      col += palette(0.32 + uVocalPitch * 0.35, uPalette) * (cone1 + cone2) * uVocal * 0.48;
-    }
-
-    // Foreground 3D Perspective Equalizer Skyscraper City (28 towers across)
-    float numTowers = 28.0;
-    for (int row = 0; row < 3; row++) {
-      float rF = float(row);
-      float rowScale = 1.0 - rF * 0.22;
-      float rowBaseY = -0.46 + rF * 0.11;
-      float tx = (p.x * rowScale + 0.85) / 1.7;
-      if (tx > 0.0 && tx < 1.0) {
-        float tIdx = floor(tx * numTowers);
-        float tLocalX = fract(tx * numTowers);
-        float binU = clamp(abs(tIdx / numTowers - 0.5) * 1.6 + rF * 0.12, 0.02, 0.96);
-        float towerFft = texture2D(uAudioTex, vec2(binU, 0.25)).r;
-        float towerH = (0.08 + pow(towerFft, 1.2) * (0.54 + uBass * 0.26 + uSubBass * 0.14)) * (1.0 - rF * 0.18);
-        float topY = rowBaseY + towerH;
-
-        if (p.y >= rowBaseY && p.y <= topY && tLocalX > 0.12 && tLocalX < 0.88) {
-          vec3 bldgCol = palette(binU + rF * 0.2 + uTime * 0.06, uPalette);
-          float sideShade = tLocalX < 0.62 ? 0.85 : 0.45;
-          float winX = step(0.3, fract(tLocalX * 5.0));
-          float winY = step(0.35, fract((p.y - rowBaseY) * 55.0));
-          float roofGlow = smoothstep(0.016, 0.0, abs(p.y - topY));
-          col = bldgCol * sideShade * (0.22 + 0.68 * winX * winY * (0.4 + towerFft + uVocal * 0.35)) + vec3(0.95, 0.98, 1.0) * roofGlow * 0.95;
-        }
-      }
-    }
-
-  } else {
-    // MODE 6: VORONOI BIO-CELLS / ELECTRIC STAINED GLASS —
-    // Bass: Cell Chamber Scale | Vocals: Bioluminescent Singing Cell Nuclei | Treble: Electric Plasma Membrane Arcs
-    float scale = 5.2 - (uBass * 0.95 + uSubBass * 0.45);
-    vec2 st = p * scale;
-    vec2 i_st = floor(st);
-    vec2 f_st = fract(st);
-
-    float minDist1 = 8.0;
-    float minDist2 = 8.0;
-    vec2 bestId = vec2(0.0);
-
-    for (int y = -1; y <= 1; y++) {
-      for (int x = -1; x <= 1; x++) {
-        vec2 neighbor = vec2(float(x), float(y));
-        vec2 cellId = i_st + neighbor;
-        vec2 rnd = hash22(cellId);
-        vec2 point = 0.5 + 0.42 * sin(uTime * (1.1 + uMid * 0.8 + uVocal * 0.5) + 6.2831 * rnd + uPhase * 0.35);
-        vec2 diff = neighbor + point - f_st;
-        float d = length(diff);
-        if (d < minDist1) {
-          minDist2 = minDist1;
-          minDist1 = d;
-          bestId = cellId;
-        } else if (d < minDist2) {
-          minDist2 = d;
-        }
-      }
-    }
-
-    float edgeDist = minDist2 - minDist1;
-    float cellHash = hash21(bestId);
-    float cellFft = texture2D(uAudioTex, vec2(clamp(cellHash * 0.85 + 0.02, 0.01, 0.99), 0.25)).r;
-
-    vec3 cellColor = palette(cellHash + cellFft * 0.45 + uVocalPitch * 0.2 + uTime * 0.06, uPalette);
-    float corePulse = exp(-minDist1 * (3.1 - cellFft * 1.8)) * (0.35 + cellFft * 1.15);
-    // Vocal Formant concentric ripples inside each cell
-    float vocalRings = (0.5 + 0.5 * sin(minDist1 * (22.0 + uVocalPitch * 18.0) - uTime * 6.0)) * uVocal * 0.28;
-    col = cellColor * (corePulse + vocalRings);
-
-    // Vocal + Beat Nucleus spark
-    col += vec3(1.0, 0.96, 0.92) * (0.0085 / (minDist1 + 0.012)) * (0.4 + cellFft * 0.85 + uVocal * 0.65 + uBeat * 0.5);
-
-    // Treble Electric plasma membrane borders
-    float borderThickness = 0.034 + abs(waveSample) * 0.042 + uBeat * 0.02 + uTrebleSpark * 0.025;
-    float borderGlow = smoothstep(borderThickness, 0.0035, edgeDist);
-    col += mix(cellColor * 1.4, vec3(0.92, 0.98, 1.0), 0.65) * borderGlow * (0.85 + uHigh * 0.8 + uTrebleSpark * 0.6);
   }
 
   // Subtle vignette & filmic contrast
@@ -2411,13 +2316,25 @@ audioEl.addEventListener('ended', () => {
 // Visual Mode Tabs
 document.querySelectorAll('.mode-pill').forEach(btn => {
   btn.addEventListener('click', () => {
+    const nextMode = Number(btn.dataset.mode);
+    if (!Number.isInteger(nextMode) || nextMode < 0 || nextMode > 4) return;
+    if (nextMode !== state.mode) {
+      // A new world starts clean, without ghost images from the previous scene.
+      for (const fbo of fbos) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+        gl.clearColor(0, 0, 0, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+      }
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      pingIndex = 0;
+    }
     document.querySelectorAll('.mode-pill').forEach(b => {
       b.classList.remove('active');
       b.setAttribute('aria-selected', 'false');
     });
     btn.classList.add('active');
     btn.setAttribute('aria-selected', 'true');
-    state.mode = Number(btn.dataset.mode) || 0;
+    state.mode = nextMode;
   });
 });
 
