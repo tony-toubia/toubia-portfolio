@@ -180,7 +180,7 @@ window.PH = window.PH || {};
           ? `<div class="ci">${c.icon}</div><div class="cn">${c.name.toUpperCase()}</div><div class="cr">${c.role}${skin ? ' · ' + skin.name : ''}</div>
              <div class="ca">${ab.icon} ${ab.name}</div><div class="cp">${ab.desc}</div>`
           : `<div class="ci">${c.icon}</div><div class="cn">${c.name.toUpperCase()}</div>
-          <div class="cr">${c.role}${skin ? ' · ' + skin.name : ''}</div><div class="cw">${w.icon} ${w.name}</div><div class="ca">${ab.icon} ${ab.name}</div><div class="cp">${c.perkText}</div>`;
+          <div class="cr">${c.role}${skin ? ' · ' + skin.name : ''}</div><div class="cw">${c.fullLoadout ? '🌟 All 10 Weapons Evolved' : `${w.icon} ${w.name}`}</div><div class="ca">${ab.icon} ${ab.name}</div><div class="cp">${c.perkText}</div>`;
         card.title = ab.desc;
         card.addEventListener('click', () => {
           this.sfx('click');
@@ -252,7 +252,7 @@ window.PH = window.PH || {};
     }
 
     buildSquad() {
-      const icons = { assault: '🔫', trapper: '🪤', medic: '💉', support: '🛡️', ranger: '🏹' };
+      const icons = { assault: '🔫', trapper: '🪤', medic: '💉', support: '🛡️', ranger: '🏹', potato: '🥔' };
       const hs = this.game.hunters;
       this.el.squad.innerHTML = hs.map((h) =>
         `<div class="sq${h.controlled ? ' you' : ''}" style="--c:${PH.CLASSES[h.cls].color}"><span>${icons[h.cls]}</span><span class="sb"><i></i></span><span class="st"></span></div>`).join('');
@@ -541,7 +541,7 @@ window.PH = window.PH || {};
           let art;
           if (tab === 'skin') {
             const file = o.model || PH.Models.HUNTERS[g].file, key = o.model ? o.portrait : PH.Models.HUNTERS[g].portrait;
-            art = `<img src="/map-mobile-game/img/lodge/${key || file.split('/').pop().replace('.glb', '')}.webp" alt="" loading="lazy">`;
+            art = `<img src="/map-mobile-game/img/lodge/${key || (file ? file.split('/').pop().replace('.glb', '') : g)}.webp" alt="" loading="lazy">`;
           } else if (tab === 'color') {
             art = `<img src="/map-mobile-game/img/lodge/${g}-${o.id ? o.id.split('-').pop() : 'standard'}.webp" alt="" loading="lazy">`;
           } else {

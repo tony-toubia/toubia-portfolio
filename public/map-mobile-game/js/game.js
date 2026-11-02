@@ -145,7 +145,16 @@ window.PH = window.PH || {};
       };
       this.weapons = [];
       this.passives = [];
-      this.addWeapon(starter && PH.WEAPONS[starter] ? starter : PH.CLASSES[classId].weapon);
+      if (PH.CLASSES[classId].fullLoadout) {
+        Object.keys(PH.WEAPONS).forEach((id, i) => {
+          this.weapons.push({ id, level: PH.EVOLUTIONS[id] ? 6 : 5, timer: 0.1 + i * 0.08, tick: 0 });
+        });
+        for (const id of Object.keys(PH.PASSIVES)) {
+          this.passives.push({ id, level: PH.PASSIVES[id].max });
+        }
+      } else {
+        this.addWeapon(starter && PH.WEAPONS[starter] ? starter : PH.CLASSES[classId].weapon);
+      }
       this.recompute();
       this.player.hp = this.player.maxHp;
       this.state = 'playing';

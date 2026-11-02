@@ -23,6 +23,7 @@ window.PH = window.PH || {};
     medic:   { file: 'kenney/characters/character-female-e.glb', gun: 'kenney/blasters/blaster-q.glb', gunLen: 0.42 }, // doctor, dart sprayer
     support: { file: 'kenney/characters/character-female-a.glb', gun: 'kenney/blasters/blaster-l.glb', gunLen: 0.48 }, // engineer, heavy blaster
     ranger:  { file: 'kenney/characters/character-female-c.glb', gun: 'kenney/blasters/blaster-e.glb', gunLen: 0.7, portrait: 'ranger-standard' }, // marksman, long rifle
+    potato:  { custom: 'potato', portrait: 'potato-standard' }, // supreme tuber
   };
   const HEIGHT = 1.65;         // in-game height of every hunter
 
@@ -96,7 +97,7 @@ window.PH = window.PH || {};
   const Models = {
     HUNTERS, HEIGHT, MONSTERS,
     /** Whether a hunter can be built now; `file` is a skin's character model. */
-    has(cls, file) { const h = HUNTERS[cls]; return !!h && cache.has(file || h.file) && (!h.gun || cache.has(h.gun)); },
+    has(cls, file) { const h = HUNTERS[cls]; return !!h && (h.custom ? (!file || cache.has(file)) : cache.has(file || h.file) && (!h.gun || cache.has(h.gun))); },
     hasFile(file) { return cache.has(file); },
 
     /** Load one more model (a skin), on demand. Resolves true once it is ready. */
@@ -122,7 +123,7 @@ window.PH = window.PH || {};
       if (!THREE.GLTFLoader) return (loading = Promise.resolve(false));
       const loader = new THREE.GLTFLoader();
       const files = new Set();
-      for (const h of Object.values(HUNTERS)) { files.add(h.file); if (h.gun) files.add(h.gun); }
+      for (const h of Object.values(HUNTERS)) { if (h.file) files.add(h.file); if (h.gun) files.add(h.gun); }
       for (const m of Object.values(MONSTERS)) if (m.file) files.add(m.file);
       loading = Promise.all([...files].map((f) => new Promise((res) => {
         loader.load(BASE + f, (g) => { cache.set(f, g); res(true); }, undefined, (e) => { console.warn('model failed', f, e); res(false); });
@@ -137,6 +138,7 @@ window.PH = window.PH || {};
      */
     createHunter(cls, file) {
       const def = HUNTERS[cls];
+      if (def && def.custom === 'potato' && !file) return this.createPotato();
       const src = cache.get(file && cache.has(file) ? file : def.file);
       const model = THREE.SkeletonUtils.clone(src.scene);
       // Scale to the game's hunter height.
@@ -216,6 +218,219 @@ window.PH = window.PH || {};
             body.walk.timeScale = 1.35;
           }
           mixer.update(dt);
+        },
+      };
+    },
+
+    /**
+     * Custom 3D Potato hunter: a chunky, lumpy golden-russet potato with
+     * dark potato-eye dimples, leafy green top sprout, golden crown,
+     * tactical shades, stubby limbs, and a rotary golden blaster.
+     */
+    createPotato() {
+      const root = new THREE.Group();
+      const tilt = new THREE.Group();
+      root.add(tilt);
+
+      const skinMat = new THREE.MeshStandardMaterial({ color: 0xc89248, roughness: 0.82, metalness: 0.05 });
+      const bumpMat = new THREE.MeshStandardMaterial({ color: 0xb88038, roughness: 0.85, metalness: 0.05 });
+      const eyeSpotMat = new THREE.MeshStandardMaterial({ color: 0x5c3a1b, roughness: 0.9, metalness: 0.0 });
+      const budMat = new THREE.MeshStandardMaterial({ color: 0xe8d595, roughness: 0.6, metalness: 0.0 });
+      const bootMat = new THREE.MeshStandardMaterial({ color: 0x3d2410, roughness: 0.65, metalness: 0.15 });
+      const leafMat = new THREE.MeshStandardMaterial({ color: 0x44bd32, roughness: 0.55, metalness: 0.05 });
+      const goldMat = new THREE.MeshStandardMaterial({ color: 0xffd32a, roughness: 0.28, metalness: 0.7, emissive: 0xff9f1a, emissiveIntensity: 0.22 });
+      const shadeMat = new THREE.MeshStandardMaterial({ color: 0x161920, roughness: 0.2, metalness: 0.8 });
+      const gunMetal = new THREE.MeshStandardMaterial({ color: 0x2f3542, roughness: 0.35, metalness: 0.8 });
+      const glowMat = new THREE.MeshBasicMaterial({ color: 0xffd700 });
+
+      // Body group that bobs & waddles
+      const bodyGrp = new THREE.Group();
+      bodyGrp.position.y = 0.82;
+      tilt.add(bodyGrp);
+
+      // Main oblong lumpy potato tuber
+      const coreGeo = new THREE.SphereGeometry(0.47, 16, 14);
+      const core = new THREE.Mesh(coreGeo, skinMat);
+      core.scale.set(1.04, 1.34, 0.94);
+      bodyGrp.add(core);
+
+      // Organic asymmetric potato lobes so silhouette reads unmistakably as a potato
+      const lobes = [
+        [0.06, 0.27, -0.03, 0.37, 1.05, 0.92, 0.94, skinMat],
+        [-0.05, -0.21, 0.04, 0.41, 1.08, 0.88, 0.96, bumpMat],
+        [0.22, 0.05, -0.06, 0.25, 1.0, 1.1, 0.9, bumpMat],
+        [-0.21, 0.12, -0.04, 0.23, 0.95, 1.05, 0.9, skinMat],
+        [0.0, -0.04, -0.22, 0.30, 1.05, 1.1, 0.85, bumpMat],
+      ];
+      for (const [x, y, z, r, sx, sy, sz, mat] of lobes) {
+        const m = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), mat);
+        m.position.set(x, y, z);
+        m.scale.set(sx, sy, sz);
+        bodyGrp.add(m);
+      }
+
+      // Potato "eyes" (dark dimples + tiny sprout buds scattered on the tuber)
+      const dimpleGeo = new THREE.SphereGeometry(0.052, 8, 6);
+      const budGeo = new THREE.ConeGeometry(0.022, 0.05, 5);
+      const spots = [
+        [-0.36, 0.22, 0.22], [0.38, -0.10, 0.20], [-0.32, -0.24, 0.24],
+        [0.34, 0.26, -0.22], [-0.35, 0.04, -0.26], [0.14, 0.35, -0.32],
+        [-0.16, -0.28, -0.34], [0.26, -0.26, -0.24],
+      ];
+      for (const [x, y, z] of spots) {
+        const d = new THREE.Mesh(dimpleGeo, eyeSpotMat);
+        d.position.set(x, y, z);
+        d.scale.set(1.2, 0.75, 0.6);
+        d.lookAt(x * 2, y, z * 2);
+        bodyGrp.add(d);
+        const b = new THREE.Mesh(budGeo, budMat);
+        b.position.set(x * 1.04, y + 0.01, z * 1.04);
+        b.rotation.z = -x * 1.2;
+        bodyGrp.add(b);
+      }
+
+      // Cool wrap-around tactical sunglasses + golden visor glint on the front (+z)
+      const visorBridge = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.13, 0.14), shadeMat);
+      visorBridge.position.set(0, 0.16, 0.40);
+      bodyGrp.add(visorBridge);
+
+      const lensGeo = new THREE.BoxGeometry(0.24, 0.10, 0.04);
+      const leftLens = new THREE.Mesh(lensGeo, goldMat);
+      leftLens.position.set(-0.15, 0.16, 0.46);
+      leftLens.rotation.z = -0.08;
+      const rightLens = new THREE.Mesh(lensGeo, goldMat);
+      rightLens.position.set(0.15, 0.16, 0.46);
+      rightLens.rotation.z = 0.08;
+      bodyGrp.add(leftLens, rightLens);
+
+      // Determined potato brow & grin
+      const brow = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.05, 0.10), bumpMat);
+      brow.position.set(0, 0.24, 0.42);
+      bodyGrp.add(brow);
+      const grin = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.045, 0.06), eyeSpotMat);
+      grin.position.set(0, -0.02, 0.44);
+      bodyGrp.add(grin);
+
+      // Golden Crown + Leafy Potato Sprout on top of the head
+      const sproutGrp = new THREE.Group();
+      sproutGrp.position.set(0, 0.58, 0);
+      bodyGrp.add(sproutGrp);
+
+      const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.15, 0.11, 8), goldMat);
+      crown.position.y = 0.04;
+      sproutGrp.add(crown);
+
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.035, 0.20, 6), leafMat);
+      stem.position.y = 0.14;
+      sproutGrp.add(stem);
+
+      const leafGeo = new THREE.SphereGeometry(0.09, 8, 6);
+      for (let i = 0; i < 3; i++) {
+        const a = (i * Math.PI * 2) / 3 + 0.3;
+        const leaf = new THREE.Mesh(leafGeo, leafMat);
+        leaf.scale.set(1.5, 0.35, 0.85);
+        leaf.position.set(Math.cos(a) * 0.10, 0.22, Math.sin(a) * 0.10);
+        leaf.rotation.y = -a;
+        leaf.rotation.z = -0.35;
+        sproutGrp.add(leaf);
+      }
+
+      // Stubby arms
+      const leftArm = new THREE.Group();
+      leftArm.position.set(-0.48, 0.0, 0.05);
+      const lArmMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.28, 8), bumpMat);
+      lArmMesh.rotation.z = 0.45;
+      const lGlove = new THREE.Mesh(new THREE.SphereGeometry(0.10, 8, 8), bootMat);
+      lGlove.position.set(-0.08, -0.14, 0.06);
+      leftArm.add(lArmMesh, lGlove);
+      bodyGrp.add(leftArm);
+
+      const rightArm = new THREE.Group();
+      rightArm.position.set(0.48, 0.0, 0.10);
+      const rArmMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.28, 8), bumpMat);
+      rArmMesh.rotation.z = -0.35;
+      rArmMesh.rotation.x = 0.4;
+      const rGlove = new THREE.Mesh(new THREE.SphereGeometry(0.10, 8, 8), bootMat);
+      rGlove.position.set(0.06, -0.08, 0.14);
+      rightArm.add(rArmMesh, rGlove);
+
+      // Multi-barrel Golden Tuber Minigun mounted in the right hand
+      const gunGrp = new THREE.Group();
+      gunGrp.position.set(0.10, -0.06, 0.32);
+      const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.34), gunMetal);
+      const goldBand = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.095, 0.08, 10), goldMat);
+      goldBand.rotation.x = Math.PI / 2;
+      goldBand.position.z = 0.14;
+      const barrels = new THREE.Group();
+      barrels.position.z = 0.28;
+      const bGeo = new THREE.CylinderGeometry(0.026, 0.026, 0.34, 6);
+      bGeo.rotateX(Math.PI / 2);
+      for (let i = 0; i < 3; i++) {
+        const ba = (i * Math.PI * 2) / 3;
+        const bm = new THREE.Mesh(bGeo, gunMetal);
+        bm.position.set(Math.cos(ba) * 0.048, Math.sin(ba) * 0.048, 0);
+        barrels.add(bm);
+      }
+      const coreGlow = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), glowMat);
+      coreGlow.position.z = 0.44;
+      gunGrp.add(receiver, goldBand, barrels, coreGlow);
+      rightArm.add(gunGrp);
+      bodyGrp.add(rightArm);
+
+      // Stubby legs & boots sitting at y = 0
+      const makeLeg = (x) => {
+        const g = new THREE.Group();
+        g.position.set(x, 0.28, 0);
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.22, 8), bumpMat);
+        leg.position.y = -0.08;
+        const boot = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.13, 0.26), bootMat);
+        boot.position.set(0, -0.21, 0.04);
+        g.add(leg, boot);
+        tilt.add(g);
+        return g;
+      };
+      const leftLeg = makeLeg(-0.20);
+      const rightLeg = makeLeg(0.20);
+
+      if (PH.Look && PH.Look.stylize) PH.Look.stylize(root, 0.04, 8);
+
+      let phase = 0;
+      return {
+        root,
+        update(dt, s) {
+          if (s.dead || s.down) {
+            tilt.rotation.x += (-1.35 - tilt.rotation.x) * Math.min(1, dt * 10);
+            tilt.position.y = 0.28;
+            return;
+          }
+          tilt.rotation.x += (0 - tilt.rotation.x) * Math.min(1, dt * 10);
+          tilt.position.y = 0;
+          const speed = s.moving ? (s.fast ? 16 : 11) : 2.6;
+          phase += dt * speed;
+          if (s.moving) {
+            const stride = s.fast ? 0.65 : 0.48;
+            bodyGrp.position.y = 0.82 + Math.abs(Math.sin(phase)) * 0.09;
+            bodyGrp.rotation.z = Math.cos(phase) * 0.11;
+            bodyGrp.rotation.x = s.fast ? 0.12 : 0.06;
+            leftLeg.rotation.x = Math.sin(phase) * stride;
+            rightLeg.rotation.x = -Math.sin(phase) * stride;
+            leftArm.rotation.x = -Math.sin(phase) * 0.45;
+            sproutGrp.rotation.z = -Math.cos(phase) * 0.18;
+          } else {
+            bodyGrp.position.y = 0.82 + Math.sin(phase) * 0.025;
+            bodyGrp.rotation.z *= 0.85;
+            bodyGrp.rotation.x *= 0.85;
+            leftLeg.rotation.x *= 0.82;
+            rightLeg.rotation.x *= 0.82;
+            leftArm.rotation.x = Math.sin(phase) * 0.08;
+            sproutGrp.rotation.z = Math.sin(phase * 0.8) * 0.06;
+          }
+          if (s.shooting) {
+            barrels.rotation.z += dt * 28;
+            gunGrp.position.z = 0.28 + Math.sin(phase * 6) * 0.035;
+          } else {
+            gunGrp.position.z += (0.32 - gunGrp.position.z) * Math.min(1, dt * 12);
+          }
         },
       };
     },

@@ -204,7 +204,7 @@ window.PH = window.PH || {};
       if (visible) {
         if (!h.moving) h.facing = Math.atan2(mon.x - h.x, mon.z - h.z);
         if (h.shotT <= 0 && pd < C.range + 7) {
-          const od = h.overdrive > 0 ? H.abilities.assault : null;
+          const od = h.overdrive > 0 ? (H.abilities[h.cls] || H.abilities.assault) : null;
           h.shotT = C.shot.cd / (od ? od.rate : 1) * (0.9 + this.rand() * 0.2);
           this.fireAt(h, od ? { ...C.shot, dmg: C.shot.dmg * (1 + od.dmg) } : C.shot);
         }
@@ -246,11 +246,11 @@ window.PH = window.PH || {};
     useAbilityFor(me) {
       if (!me || this.state !== 'playing' || me.state !== 'up' || me.abilityCd > 0) return false;
       const A = PH.HUNT_MODE.abilities[me.cls], mon = this.mon;
-      if (me.cls === 'assault') {
+      if (me.cls === 'assault' || me.cls === 'potato') {
         me.overdrive = A.dur;
         this.fx.shockwave(me.x, me.z, 3, 0xff8a3d, 0.4);
         this.fx.burst(me.x, 1, me.z, 30, 0xffb347, 5, 0.35, 0.6, 2, 1);
-        this.banner('OVERDRIVE', 'warn');
+        this.banner(me.cls === 'potato' ? 'TUBER OVERDRIVE' : 'OVERDRIVE', 'warn');
       } else if (me.cls === 'trapper') {
         if (this.zones.some((z) => z.kind === 'arena')) return false;
         this.zones.push({ kind: 'arena', x: me.x, z: me.z, r: A.r, t: 0, dur: A.dur });

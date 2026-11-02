@@ -174,7 +174,7 @@ body.in-iframe .menu-foot { justify-content: center; }
    a boss bar takes that row and pushes the loadout down. */
 #loadout { position: absolute; left: calc(10px + var(--safe-l)); top: calc(66px + var(--safe-t)); display: flex; flex-direction: column; gap: 4px; }
 #hud.has-boss #loadout { top: calc(104px + var(--safe-t)); }
-.lrow { display: flex; gap: 4px; }
+.lrow { display: flex; flex-wrap: wrap; gap: 4px; max-width: calc(100vw - 64px); }
 .lo { width: 30px; height: 30px; border-radius: 8px; background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.12);
   display: flex; align-items: center; justify-content: center; font-size: 0.95rem; position: relative; }
 .lo i { position: absolute; bottom: -3px; right: -3px; font-style: normal; font-size: 0.58rem; font-weight: 900;

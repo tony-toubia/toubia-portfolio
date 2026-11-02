@@ -58,7 +58,7 @@ export const utcDay = (offsetDays = 0) => new Date(Date.now() + offsetDays * 864
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const NAME = /^[A-Z0-9]{3}$/;
-export const CLASSES = new Set(['assault', 'trapper', 'medic', 'support', 'ranger']);
+export const CLASSES = new Set(['assault', 'trapper', 'medic', 'support', 'ranger', 'potato']);
 // Three letters can still spell things; keep the obvious ones off the board.
 export const BLOCKED = new Set(['ASS', 'FUK', 'FUC', 'FCK', 'CUM', 'COC', 'COK', 'DIK', 'DIC', 'FAG', 'GAY', 'JEW', 'KKK', 'NIG', 'NGR', 'SEX', 'TIT', 'VAG', 'WTF', 'SHT', 'CNT', 'KYS', 'POO', 'PEE', 'HOE', 'SUK', 'SUX', 'XXX', 'NAZ', 'GOD']);
 
@@ -117,7 +117,7 @@ export function validate(body: unknown): Submission {
   const bosses = Math.round(int(b.bosses, 0, 3, 'bosses'));
   const victory = b.victory === true;
   if (victory && bosses < 1) throw new BadRequest('bad victory');
-  const bonus = Math.round(int(b.bonus ?? 0, 0, 250 * level, 'bonus'));
+  const bonus = Math.round(int(b.bonus ?? 0, 0, 250 * (level + 15), 'bonus'));
   if (bonus % 250 !== 0) throw new BadRequest('bad bonus');
   // The game's own formula: kills + 2 per second + 500 per monster + 2000 for the win + bonus.
   const expected = Math.round(kills + time * 2 + bosses * 500 + (victory ? 2000 : 0) + bonus);

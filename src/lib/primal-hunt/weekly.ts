@@ -92,7 +92,7 @@ export function validateWeekly(body: unknown): WeeklySubmission {
   const bosses = Math.round(int(b.bosses, 0, 6, 'bosses'));       // Double Trouble brings twins
   const victory = b.victory === true;
   if (victory && bosses < 1) throw new BadRequest('bad victory');
-  const bonus = Math.round(int(b.bonus ?? 0, 0, 250 * level, 'bonus'));
+  const bonus = Math.round(int(b.bonus ?? 0, 0, 250 * (level + 15), 'bonus'));
   if (bonus % 250 !== 0) throw new BadRequest('bad bonus');
   const expected = Math.round(kills + time * 2 + bosses * 500 + (victory ? 2000 : 0) + bonus);
   const score = Math.round(int(b.score, 0, 1e6, 'score'));

@@ -63,6 +63,13 @@ PH.CLASSES = {
     // Drones have no cooldown, so a cooldown perk did nothing for this class.
     weapon: 'drones', ability: 'dome', perk: { extra: 1 }, perkText: '+1 projectile on every weapon',
   },
+  potato: {
+    name: 'Potato', icon: '🥔', color: '#d4a359', role: 'Supreme Tuber',
+    weapon: 'rifle', ability: 'overdrive',
+    fullLoadout: true,
+    perk: { damage: 0.30, area: 0.15, maxHp: 30, regen: 0.3, pickup: 0.25, extra: 1, speed: 0.15, cooldown: 0.10, armor: 0.10 },
+    perkText: 'ALL weapons evolved, ALL passives & perks maxed!',
+  },
 };
 
 /* ── Signature abilities ────────────────────────────────────────
@@ -484,6 +491,7 @@ PH.HUNTER_AI = {
   ranger:  { hp: 135, range: 9, shot: { vis: 'bolt',    dmg: 15, cd: 1.1, speed: 24 } },
   support: { hp: 150, range: 7, shot: { vis: 'bolt',    dmg: 6, cd: 0.6, speed: 16 },
              shield: { cd: 9, dur: 3, guard: 0.7 }, strike: { cd: 13, delay: 1.6, r: 3, dmg: 45 } },
+  potato:  { hp: 260, range: 6, shot: { vis: 'bolt',    dmg: 14, cd: 0.22, speed: 22 } },
 };
 
 /* ── Hunter mode ────────────────────────────────────────────────
@@ -508,5 +516,7 @@ PH.HUNT_MODE = {
                desc: 'Tag the monster: the squad sees it for 7s and hits it 15% harder.' },
     support: { name: 'Orbital Strike', icon: '☄️', cd: 10, r: 3.4, dmg: 90, delay: 1.2,
                desc: 'Call a strike on the monster - or where it was last seen.' },
+    potato:  { name: 'Tuber Overdrive', icon: '🥔', cd: 12, dur: 6, rate: 2.5, dmg: 0.5,
+               desc: 'Unleash full potato power: fire 150% faster and 50% harder for 6s.' },
   },
 };

@@ -82,7 +82,7 @@ export function validateApex(body: unknown): ApexSubmission {
   const bosses = Math.round(int(b.bosses, 3, 600, 'bosses'));   // the three of the win, then the Apex monsters
   const waves = Math.round(int(b.waves, 0, 300, 'waves'));
   if (bosses - 3 < waves) throw new BadRequest('bad waves');     // every cleared wave slew at least one
-  const bonus = Math.round(int(b.bonus ?? 0, 0, 250 * level, 'bonus'));
+  const bonus = Math.round(int(b.bonus ?? 0, 0, 250 * (level + 15), 'bonus'));
   if (bonus % 250 !== 0) throw new BadRequest('bad bonus');
   // The game's formula: kills + 2 per second + 500 per monster + 2000 for the win + bonus.
   const expected = Math.round(kills + time * 2 + bosses * 500 + 2000 + bonus);
