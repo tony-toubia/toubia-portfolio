@@ -42,7 +42,7 @@ export default function FranklinWindow() {
 
       {/* Status bar (hidden on phones to give the game the room) */}
       <div className="hidden sm:flex items-center justify-between px-2 py-1 border-t border-[var(--button-highlight)] bg-[var(--button-face)]">
-        <span className="text-xs text-[var(--window-text)]">Pick a colour, tap the matching numbers | Scroll or pinch to zoom</span>
+        <span className="text-xs text-[var(--window-text)]">By Numbers, Free Paint or Challenge | Scroll or pinch to zoom</span>
         <span className="text-xs text-[var(--window-text)]">🎨 🐶</span>
       </div>
     </div>

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Franklin by Numbers | Tony Toubia',
-  description: 'A colour-by-numbers game starring Franklin the dog: pick a picture, pick a colour and tap the matching numbers until he is fully painted.',
+  description: 'A colouring game starring Franklin the dog: colour by numbers, paint freely with your own colours and palettes, or race the clock.',
 };
 
 export default function FranklinPage() {
