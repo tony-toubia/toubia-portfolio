@@ -10,6 +10,7 @@ import HoleHaulWindow from './HoleHaulWindow';
 import ShardfallWindow from './ShardfallWindow';
 import StarwingWindow from './StarwingWindow';
 import TinyTurboWindow from './TinyTurboWindow';
+import FranklinWindow from './FranklinWindow';
 
 interface Project {
   id: string;
@@ -134,6 +135,26 @@ const projects: Project[] = [
     windowContent: <StarwingWindow />,
     windowSize: { width: 960, height: 640 },
   },
+  {
+    id: 'franklin',
+    name: 'Franklin by Numbers',
+    icon: (
+      <svg viewBox="0 0 48 48" className="w-10 h-10">
+        <rect x="4" y="4" width="40" height="40" rx="9" fill="#FBF1DF" stroke="#D9822B" strokeWidth="2" />
+        <path d="M13 17 L10 28 L16 25 Z" fill="#8A5A2B" />
+        <path d="M35 17 L38 28 L32 25 Z" fill="#8A5A2B" />
+        <ellipse cx="24" cy="25" rx="11" ry="11.5" fill="#D9A066" />
+        <ellipse cx="24" cy="30" rx="6" ry="5" fill="#F3DDBB" />
+        <ellipse cx="24" cy="27.5" rx="2.6" ry="2" fill="#3A2816" />
+        <circle cx="19.5" cy="22" r="1.6" fill="#3A2816" />
+        <circle cx="28.5" cy="22" r="1.6" fill="#3A2816" />
+        <circle cx="37" cy="11" r="5.5" fill="#2F6FE4" />
+        <text x="37" y="13.6" textAnchor="middle" fontSize="7.5" fontWeight="800" fill="#FFF" fontFamily="system-ui, sans-serif">1</text>
+      </svg>
+    ),
+    windowContent: <FranklinWindow />,
+    windowSize: { width: 980, height: 700 },
+  },
 ];
 
 export default function ProjectsWindow() {
@@ -160,7 +181,7 @@ export default function ProjectsWindow() {
       title: project.name,
       isMinimized: false,
       // The games and StudForge need the whole screen on a phone.
-      isMaximized: isMobile && ['studforge', 'primal-hunt', 'shardfall', 'starwing', 'tiny-turbo'].includes(project.id),
+      isMaximized: isMobile && ['studforge', 'primal-hunt', 'shardfall', 'starwing', 'tiny-turbo', 'franklin'].includes(project.id),
       position: { x: centerX, y: centerY },
       size: windowSize,
       content: project.windowContent,
@@ -229,6 +250,17 @@ export default function ProjectsWindow() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   /starwing ↗
+                </a>
+              )}
+              {project.id === 'franklin' && (
+                <a
+                  href="/franklin"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[9px] text-orange-500 hover:underline mt-0.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  /franklin ↗
                 </a>
               )}
               {project.id === 'hole-haul' && (
