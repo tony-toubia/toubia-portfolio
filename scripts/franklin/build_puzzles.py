@@ -4,11 +4,14 @@
     pip install numpy opencv-python-headless pillow
     python scripts/franklin/build_puzzles.py [--only portrait] [--preview DIR]
 
-A picture is made one of two ways (PUZZLES below).
+A picture is made one of three ways (PUZZLES below).
 
 From a line drawing (`art`: a colouring-page drawing of the photo in scripts/franklin/art): the areas between the
 drawn lines become the regions, each takes its colour from the photo underneath, and the drawing itself is kept as
 an overlay (<id>-art.webp) that the game draws on top of the paint. Numbers printed on the drawing are dropped.
+
+From a line drawing with a printed colour key and no photo (`art.key`): the same, except each area's colour comes
+from the number printed in it.
 
 From the photo alone, from the ground up, guided by shapes marked by hand:
   1. Franklin's outline: the marked polygon, snapped to the real edge in the photo.
@@ -52,6 +55,13 @@ OUT = os.path.join(ROOT, 'public', 'franklin', 'data')
 #             shade: points (fractions of the cropped drawing) inside big drawn areas to split into light and
 #             shadow tones taken from the photo.
 #   colors    palette size. min_area / min_radius: areas smaller than this merge into a neighbour.
+# Pictures from a drawing with no photo (`key`): the numbers printed on the drawing are read, removed, and looked
+# up in `key` (number → colour). The printed numbering is only a starting point:
+#             zones: [(polygon, key)] gives a different key inside a polygon (first match wins);
+#             paint: [(x, y, colour)] sets the colour of the area at a point outright;
+#             fill: the colour for areas the drawing shaded light grey (shadows).
+#             Areas with no number take the colour of the neighbour they share most border with.
+#             Points and polygons are fractions of the drawing. Light grey fills in the drawing become areas.
 # Pictures from the photo alone: all coordinates are fractions of the photo (x right, y down).
 #   outline   Franklin's silhouette, clockwise. snap: how far (fraction of the long side) the real edge may be from it.
 #   ears      polygons; fur that keeps its own outline.
@@ -62,6 +72,15 @@ OUT = os.path.join(ROOT, 'public', 'franklin', 'data')
 #   bg_sat    colour strength of the background tones (their average over many small things comes out muddy).
 # ZONES: per zone, (shading blur as a fraction of the long side, min region area in px², min inscribed radius in px).
 ZONES = dict(bg=(0.034, 4500, 19), body=(0.02, 950, 9.5), face=(0.0075, 170, 4.6))
+ORDER = ['portrait', 'sploot', 'nose', 'bandana', 'puppy', 'leaf', 'cape', 'leaves']   # in the gallery
+TAN, BROWN, DARK_BROWN, LIGHT_TAN, CREAM, NEAR_BLACK = '#d6a56b', '#a8743f', '#7a4e2c', '#e6c398', '#f3e6d0', '#3d3836'
+
+
+def frac(pts, w=1422, h=1804):
+    """Polygon marked in pixels of a w × h view of the drawing → fractions."""
+    return [(x / w, y / h) for x, y in pts]
+
+
 PUZZLES = [
     dict(id='portrait', title='Good Boy', blurb='Franklin, keeping an eye on things.', size=1600, colors=14,
          art=dict(crop=(0, 0, 2000, 1395), shade=[(.30, .75), (.62, .30), (.24, .40), (.60, .62), (.45, .50), (.15, .60)])),
@@ -95,6 +114,28 @@ PUZZLES = [
                    ('mouth', 'dark', (.545, .53, .115, .085)), ('tongue', 'pink', (.54, .535, .068, .068)),
                    ('paw', 'light', (.58, .895, .05, .035)), ('ball', 'shape', (.265, .905, .062, .047))],
          face=[(.56, .42, .22, .20)]),
+    dict(id='nose', title='Boop', blurb='Franklin checks whether the camera is food.', size=1400,
+         art=dict(key={1: DARK_BROWN, 2: BROWN, 3: TAN, 4: '#e8c4a0', 5: NEAR_BLACK, 6: '#c9c5bd'},
+                  paint=[(.299, .407, '#6b4423'), (.654, .407, '#6b4423')])),
+    dict(id='bandana', title='Park Day', blurb='Bandana on, tongue out, best day ever.', size=1400,
+         art=dict(key={1: '#cfe09a', 2: '#a9c96f', 5: '#8fb85a', 6: '#6fa049', 8: '#4f7f3c', 3: '#8fb85a', 4: '#a9c96f', 7: '#cfe09a'},
+                  zones=[(frac([(430, 905), (520, 860), (560, 800), (600, 880), (700, 940), (830, 930), (900, 880), (915, 830), (950, 800),
+                                (960, 850), (900, 905), (790, 985), (780, 1075), (660, 1090), (540, 1085), (520, 1000), (470, 950)]),
+                          {1: '#3f6fd1', 3: '#3f6fd1', 7: '#9fd0f0', 8: '#24407e', 4: '#9fd0f0', 2: '#3f6fd1'}),
+                         (frac([(470, 620), (520, 540), (600, 480), (700, 455), (800, 470), (880, 520), (925, 570), (920, 640), (880, 690),
+                                (860, 760), (880, 830), (960, 800), (960, 850), (900, 905), (920, 1000), (915, 1100), (880, 1180),
+                                (870, 1300), (880, 1380), (905, 1440), (880, 1480), (810, 1480), (790, 1420), (720, 1400), (700, 1560),
+                                (710, 1620), (650, 1640), (600, 1580), (580, 1440), (440, 1480), (400, 1510), (375, 1470), (380, 1380),
+                                (400, 1250), (375, 1160), (400, 1060), (450, 990), (430, 905), (520, 860), (560, 800), (575, 720),
+                                (510, 735), (490, 680)]),
+                          {1: TAN, 2: BROWN, 3: LIGHT_TAN, 4: CREAM, 5: '#e58fa0', 6: TAN, 7: BROWN, 8: NEAR_BLACK})],
+                  paint=[(.288, .826, TAN), (.444, .318, '#6b4423'), (.565, .301, '#6b4423')])),
+    dict(id='leaf', title='The Big Leaf', blurb='An important discovery on the morning walk.', size=1400,
+         art=dict(key={1: TAN, 2: '#c08a52', 3: BROWN, 4: '#8a5a36', 5: '#b9c45a', 6: '#d8d4cc', 7: '#c2452d', 8: '#8d99ad'},
+                  fill='#a3a7ae', paint=[(.10, .06, '#c9924e'), (.55, .04, '#c9924e'), (.90, .05, '#c9924e')])),
+    dict(id='puppy', title='Puppy Franklin', blurb='Small dog, big cushion, bigger paws.', size=1400,
+         art=dict(key={1: TAN, 2: BROWN, 3: LIGHT_TAN, 4: '#efe2a8', 5: '#b5532f', 6: '#4a3526', 7: '#f6f1e7'},
+                  paint=[(.489, .267, '#7b98b8'), (.640, .294, '#7b98b8')])),
 ]
 
 
@@ -321,6 +362,147 @@ def from_art(cfg):
     radius_map = np.where(split, 0.0085 * long, float(cfg.get('min_radius', 5.2))).astype(np.float32)
     key = merge_small(key, centres, area_map, radius_map, np.zeros((h, w), bool))
     return key, centres, photo, dict(rgba=overlay, ink=ink)
+
+
+DIGIT_FONTS = ('/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')
+
+
+def digit_templates():
+    from PIL import ImageDraw, ImageFont
+    font = next((f for f in DIGIT_FONTS if os.path.exists(f)), None)
+    if not font:
+        sys.exit('no sans font found to read the printed numbers with')
+    out = {}
+    for d in '2345678':
+        im = Image.new('L', (120, 140), 0)
+        ImageDraw.Draw(im).text((20, 10), d, fill=255, font=ImageFont.truetype(font, 100))
+        a = np.array(im)
+        ys, xs = np.nonzero(a > 128)
+        a = a[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+        out[int(d)] = (cv2.resize(a, (16, 24), interpolation=cv2.INTER_AREA).astype(np.float32) / 255, a.shape[1] / a.shape[0])
+    return out
+
+
+def read_digits(grey):
+    """The numbers printed on a drawing: [(x, y, w, h, digit)] for small separate ink blobs that match a digit.
+    digit is 0 for a blob that looks like a number but is too faint to read reliably (still removed, never used)."""
+    tpl = digit_templates()
+    num, lab, stats, _ = cv2.connectedComponentsWithStats((grey < 128).astype(np.uint8), connectivity=8)
+    hits = []
+    for i in range(1, num):
+        x, y, w, h, area = (int(v) for v in stats[i])
+        if not (9 <= h <= 22 and 2 <= w <= 15 and area >= 8):
+            continue
+        blob = lab[y:y + h, x:x + w] == i
+        if w <= 7 and w / h <= 0.45 and h >= 11:
+            if (blob.sum(0) >= 0.8 * h).any():              # a 1 is an upright stem; a grass stroke is not
+                hits.append((x, y, w, h, 1))
+            continue
+        soft = np.clip((200 - grey[y:y + h, x:x + w].astype(np.float32)) / 140, 0, 1) * blob
+        a = cv2.resize(soft, (16, 24), interpolation=cv2.INTER_AREA)
+        best, score = None, 0.58
+        for d, (t, aspect) in tpl.items():
+            if abs(np.log((w / h) / aspect)) > 0.45:
+                continue
+            sc = float((a * t).sum() / (np.linalg.norm(a) * np.linalg.norm(t) + 1e-6))
+            if sc > score:
+                best, score = d, sc
+        if best:
+            hits.append((x, y, w, h, best if score >= 0.7 else 0))     # 0: looks like a number, too faint to trust
+    return hits
+
+
+def hex_lab(colour):
+    rgb = np.array([[[int(colour[i:i + 2], 16) for i in (1, 3, 5)]]], np.uint8)
+    return cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB).reshape(3).astype(np.float32)
+
+
+def from_key_art(cfg):
+    """A picture from a line drawing with a printed colour key. Returns (key map, class Lab colours, None, overlay)."""
+    spec = cfg['art']
+    src = next((f for f in (os.path.join(HERE, 'art', cfg['id'] + e) for e in ('.png', '.jpg')) if os.path.exists(f)), None)
+    if not src:
+        sys.exit('missing the drawing for ' + cfg['id'])
+    art = cv2.imread(src)
+    grey = cv2.cvtColor(art, cv2.COLOR_BGR2GRAY)
+    digits = read_digits(grey)
+    for x, y, w, h, _ in digits:                            # the printed numbers come off the drawing
+        ring = grey[max(0, y - 4):y + h + 4, max(0, x - 4):x + w + 4]
+        edge = np.concatenate([ring[0], ring[-1], ring[:, 0], ring[:, -1]])
+        grey[max(0, y - 2):y + h + 2, max(0, x - 2):x + w + 2] = int(np.median(edge))
+    digits = [d for d in digits if d[4]]
+    up = spec.get('upscale', 2)
+    grey = cv2.resize(grey, None, fx=up, fy=up, interpolation=cv2.INTER_CUBIC)
+    scale = cfg['size'] / max(grey.shape)
+    w, h = int(round(grey.shape[1] * scale)), int(round(grey.shape[0] * scale))
+
+    fill = cv2.medianBlur(((grey > 150) & (grey < 236)).astype(np.uint8), 7)       # light grey fills (shadows)
+    fill = cv2.morphologyEx(fill, cv2.MORPH_OPEN, np.ones((9, 9), np.uint8)) > 0
+    alpha = np.clip((165 - grey.astype(np.float32)) / 100, 0, 1)
+    alpha[grey > 150] = 0
+    overlay = np.zeros(grey.shape + (4,), np.uint8)
+    overlay[..., 3] = (alpha * 255).astype(np.uint8)
+    ink = cv2.resize(alpha, (w, h), interpolation=cv2.INTER_AREA) > 0.3
+    ink = cv2.dilate(ink.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
+    zone = cv2.resize(fill.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST) > 0
+    lab_free = np.zeros((h, w), np.int32)
+    count = 1
+    for m in (~ink & ~zone, ~ink & zone):
+        num, lab, stats, _ = cv2.connectedComponentsWithStats(m.astype(np.uint8), connectivity=4)
+        big = np.flatnonzero(stats[:, cv2.CC_STAT_AREA] >= 30)
+        big = big[big > 0]
+        lut = np.zeros(num, np.int32)
+        lut[big] = np.arange(len(big)) + count
+        lab_free += lut[lab]
+        count += len(big)
+    free = lab_free > 0
+    _, nearest = cv2.distanceTransformWithLabels((~free).astype(np.uint8), cv2.DIST_L2, 5, labelType=cv2.DIST_LABEL_PIXEL)
+    lut = np.zeros(int(nearest.max()) + 1, np.int32)
+    lut[nearest[free]] = lab_free[free]
+    area_id = lut[nearest] - 1
+    n = count - 1
+    size = np.bincount(area_id.ravel(), minlength=n)
+
+    # Colour: the number printed in the area, looked up in the key for the zone the area lies in.
+    keys = [spec['key']] + [k for _, k in spec.get('zones', [])]
+    zone_of = np.zeros(n, np.int32)
+    for zi, (poly, _) in reversed(list(enumerate(spec.get('zones', []), 1))):
+        inside = np.bincount(area_id.ravel(), weights=poly_mask(poly, w, h).ravel().astype(np.float64), minlength=n) / size
+        zone_of[inside > 0.5] = zi
+    palette = []
+    def cls_of(colour):
+        if colour not in palette:
+            palette.append(colour)
+        return palette.index(colour)
+    votes = [dict() for _ in range(n)]
+    for x, y, dw, dh, d in digits:
+        a = int(area_id[min(h - 1, int((y + dh / 2) * up * scale)), min(w - 1, int((x + dw / 2) * up * scale))])
+        votes[a][d] = votes[a].get(d, 0) + 1
+    cls = np.full(n, -1, np.int32)
+    for a in range(n):
+        for d, _ in sorted(votes[a].items(), key=lambda kv: -kv[1]):
+            if d in keys[zone_of[a]]:
+                cls[a] = cls_of(keys[zone_of[a]][d])
+                break
+    if spec.get('fill'):                                    # areas the drawing shaded grey
+        shaded = np.bincount(area_id.ravel(), weights=zone.ravel().astype(np.float64), minlength=n) / size > 0.5
+        cls[shaded] = cls_of(spec['fill'])
+    for fx, fy, colour in spec.get('paint', []):
+        cls[area_id[int(fy * h), int(fx * w)]] = cls_of(colour)
+    nb = borders(area_id, n)
+    while (cls < 0).any():
+        todo = [(max(((length, t) for t, length in nb.get(a, {}).items() if cls[t] >= 0), default=(0, -1)), a) for a in np.flatnonzero(cls < 0).tolist()]
+        (length, t), a = max(todo)
+        if t < 0:
+            cls[cls < 0] = 0
+            break
+        cls[a] = cls[t]
+    key = ((np.arange(n) + 1) * 1000 + cls)[area_id]
+    centres = np.array([hex_lab(c) for c in palette], np.float32)
+    shape = (h, w)
+    key = merge_small(key, centres, np.full(shape, float(cfg.get('min_area', 330)), np.float32),
+                      np.full(shape, float(cfg.get('min_radius', 5.2)), np.float32), np.zeros(shape, bool))
+    return key, centres, None, dict(rgba=overlay, ink=ink, palette=palette)
 
 
 def majority(labels, sigma, fine=None):
@@ -596,7 +778,11 @@ def from_photo(cfg):
 
 def build(cfg, preview=None):
     overlay = None
-    if cfg.get('art'):
+    fixed = None
+    if cfg.get('art') and cfg['art'].get('key'):
+        key, colours, photo, overlay = from_key_art(cfg)
+        fixed = overlay['palette']
+    elif cfg.get('art'):
         key, colours, photo, overlay = from_art(cfg)
     else:
         key, colours, photo = from_photo(cfg)
@@ -609,26 +795,33 @@ def build(cfg, preview=None):
 
     # Palette: a class takes the mean colour of the photo under it. Near-identical classes share a number, and the
     # numbers run from light to dark.
-    lab = cv2.cvtColor(cv2.bilateralFilter(photo, 9, 40, 9), cv2.COLOR_BGR2LAB).astype(np.float32)
     cmap = key % 1000
     used = np.unique(cmap).tolist()
-    mean = {c: lab[cmap == c].mean(0) for c in used}
     size = {c: int((cmap == c).sum()) for c in used}
+    if fixed:
+        mean = {c: hex_lab(fixed[c]) for c in used}
+    else:
+        lab = cv2.cvtColor(cv2.bilateralFilter(photo, 9, 40, 9), cv2.COLOR_BGR2LAB).astype(np.float32)
+        mean = {c: lab[cmap == c].mean(0) for c in used}
     if cfg.get('bg_sat'):
         for c in np.unique(cmap[key // 1000 == 0]).tolist():
             mean[c][1:] = 128 + (mean[c][1:] - 128) * cfg['bg_sat']
     group = {c: c for c in used}
     for c in sorted(used, key=lambda c: -size[c]):
         for d in used:
-            if group[d] == d and d != c and group[c] == c and size[d] >= size[c] and np.linalg.norm(mean[c] - mean[d]) < 7.5:
+            if group[d] == d and d != c and group[c] == c and size[d] >= size[c] and np.linalg.norm(mean[c] - mean[d]) < (1 if fixed else 7.5):
                 group[c] = d
                 break
     roots = sorted({group[c] for c in used}, key=lambda c: -mean[c][0])
     number = {c: roots.index(group[c]) for c in used}
-    hsv = cv2.cvtColor(cv2.cvtColor(np.array([mean[c] for c in roots], np.float32).astype(np.uint8).reshape(1, -1, 3), cv2.COLOR_LAB2BGR), cv2.COLOR_BGR2HSV).astype(np.float32)
-    hsv[..., 1] = np.clip(hsv[..., 1] * 1.14, 0, 255)
-    rgb = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2RGB).reshape(-1, 3)
-    palette = ['#%02x%02x%02x' % tuple(int(v) for v in c) for c in rgb]
+    if fixed:
+        palette = [fixed[c] for c in roots]
+        rgb = np.array([[int(p[i:i + 2], 16) for i in (1, 3, 5)] for p in palette], np.uint8)
+    else:
+        hsv = cv2.cvtColor(cv2.cvtColor(np.array([mean[c] for c in roots], np.float32).astype(np.uint8).reshape(1, -1, 3), cv2.COLOR_LAB2BGR), cv2.COLOR_BGR2HSV).astype(np.float32)
+        hsv[..., 1] = np.clip(hsv[..., 1] * 1.14, 0, 255)
+        rgb = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2RGB).reshape(-1, 3)
+        palette = ['#%02x%02x%02x' % tuple(int(v) for v in c) for c in rgb]
     colour = np.array([number[c] for c in rclass.tolist()])
     lx, ly, rad = inscribed(reg, n)
 
@@ -670,6 +863,9 @@ def build(cfg, preview=None):
     if overlay is not None:
         body['art'] = cfg['id'] + '-art.webp'
         Image.fromarray(overlay, 'RGBA').save(os.path.join(OUT, body['art']), quality=82, method=6)
+    if photo is not None:                       # shown when the picture is finished
+        body['ref'] = cfg['id'] + '-ref.webp'
+        Image.fromarray(cv2.cvtColor(photo, cv2.COLOR_BGR2RGB)).save(os.path.join(OUT, body['ref']), quality=80, method=6)
     text = json.dumps(body, separators=(',', ':'))
     body['v'] = hashlib.sha1(text.encode()).hexdigest()[:10]
     text = json.dumps(body, separators=(',', ':'))
@@ -677,8 +873,7 @@ def build(cfg, preview=None):
     with open(os.path.join(OUT, cfg['id'] + '.json'), 'w') as f:
         f.write(text)
 
-    # The finished-picture photo and the gallery line art.
-    Image.fromarray(cv2.cvtColor(photo, cv2.COLOR_BGR2RGB)).save(os.path.join(OUT, cfg['id'] + '-ref.webp'), quality=80, method=6)
+    # The gallery line art.
     def edges(m):
         pad = np.pad(m, 1, mode='edge')
         return (m != pad[:-2, 1:-1]) | (m != pad[1:-1, :-2])
@@ -720,8 +915,10 @@ def main():
     for cfg in PUZZLES:
         if args.only and cfg['id'] != args.only:
             continue
-        index.append(build(cfg, args.preview))
+        entry = build(cfg, args.preview)
+        index.append(entry)
     if not args.only:
+        index.sort(key=lambda m: ORDER.index(m['id']))
         with open(os.path.join(OUT, 'index.json'), 'w') as f:
             json.dump(index, f, separators=(',', ':'))
 

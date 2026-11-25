@@ -76,7 +76,7 @@
         for (const ch of chains) { ch.path = new Path2D(); add(ch.path, ch, false, true); if (ch.kind === 2) ch.path.closePath(); }
         const perColour = data.palette.map(() => ({ total: 0, done: 0 }));
         for (const r of regions) perColour[r.c].total++;
-        return { id: data.id, v: data.v, title: data.title, w: data.w, h: data.h, palette: data.palette, regions, chains, perColour, filledCount: 0, art: data.art || null, artImg: null };
+        return { id: data.id, v: data.v, title: data.title, w: data.w, h: data.h, palette: data.palette, regions, chains, perColour, filledCount: 0, art: data.art || null, artImg: null, ref: data.ref || null };
     }
     const textOn = (hex) => { const n = parseInt(hex.slice(1), 16), l = 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255); return l > 150 ? '#2b1d0e' : '#ffffff'; };
 
@@ -178,7 +178,7 @@
             photo = null; photoAlpha = 0; photoTarget = 0; pulse = null; camAnim = null;
             $('gallery').hidden = true; $('play').hidden = false; $('confirm').hidden = true; hideBubble();
             $('p-title').textContent = P.title; document.title = P.title + ' | Franklin by Numbers';
-            $('btn-photo').setAttribute('aria-pressed', 'false'); $('btn-photo').textContent = 'See the real Franklin';
+            $('btn-photo').setAttribute('aria-pressed', 'false'); $('btn-photo').textContent = 'See the real Franklin'; $('btn-photo').hidden = !P.ref;   // only pictures made from a photo have one
             buildPalette(); resize(); fitView(); refreshProgress(false);
             if (P.perColour[sel].done >= P.perColour[sel].total) nextColour();
             selectColour(sel, false);
@@ -425,7 +425,7 @@
     $('btn-photo').addEventListener('click', () => {
         const on = photoTarget === 0; photoTarget = on ? 1 : 0;
         $('btn-photo').setAttribute('aria-pressed', String(on)); $('btn-photo').textContent = on ? 'Back to my painting' : 'See the real Franklin';
-        if (on && !photo) { const im = new Image(); im.onload = () => { photo = im; draw(); }; im.src = 'data/' + P.id + '-ref.webp'; }
+        if (on && !photo) { const im = new Image(); im.onload = () => { photo = im; draw(); }; im.src = 'data/' + P.ref; }
         if (reduceMotion) photoAlpha = photoTarget; draw();
     });
     $('btn-save').addEventListener('click', () => {
