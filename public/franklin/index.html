@@ -4,24 +4,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Franklin by Numbers</title>
-    <meta name="description" content="A colour-by-numbers game starring Franklin the dog. Pick a picture, pick a colour, tap the matching numbers.">
+    <meta name="description" content="A colouring game starring Franklin the dog: colour by numbers, paint freely with your own colours and palettes, or race the clock.">
     <meta name="theme-color" content="#fbf1df">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='11' fill='%23d9822b'/%3E%3Cg fill='%23fff'%3E%3Cellipse cx='24' cy='31' rx='10' ry='8'/%3E%3Cellipse cx='11' cy='21' rx='4' ry='5.2'/%3E%3Cellipse cx='37' cy='21' rx='4' ry='5.2'/%3E%3Cellipse cx='18.5' cy='12.5' rx='4' ry='5.2'/%3E%3Cellipse cx='29.5' cy='12.5' rx='4' ry='5.2'/%3E%3C/g%3E%3C/svg%3E">
-    <link rel="stylesheet" href="css/style.css?v=1">
+    <link rel="stylesheet" href="css/style.css?v=2">
 </head>
 <body>
     <svg width="0" height="0" style="position:absolute" aria-hidden="true">
         <defs>
             <symbol id="i-paw" viewBox="0 0 48 48"><ellipse cx="24" cy="31" rx="11" ry="9"/><ellipse cx="9.5" cy="20" rx="4.6" ry="6"/><ellipse cx="38.5" cy="20" rx="4.6" ry="6"/><ellipse cx="18" cy="10.5" rx="4.6" ry="6"/><ellipse cx="30" cy="10.5" rx="4.6" ry="6"/></symbol>
             <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5 8 12l7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-            <symbol id="i-hint" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.300 1.100 2.200h5c0-.9.4-1.600 1.100-2.200A6 6 0 0 0 12 3Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+            <symbol id="i-hint" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
             <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-            <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4Z" fill="currentColor"/><path d="M15.500 8.800a4.500 4.500 0 0 1 0 6.400M18 6.300a8 8 0 0 1 0 11.400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
-            <symbol id="i-mute" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4Z" fill="currentColor"/><path d="m15.500 9.500 5 5m0-5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
-            <symbol id="i-restart" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.600-5.900M4 4v4.500h4.500" fill="none" stroke="currentColor" stroke-width="2.200" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-            <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.500 4.500L19 7.500" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-            <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.600" stroke-linecap="round"/></symbol>
-            <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" stroke="currentColor" stroke-width="2.600" stroke-linecap="round"/></symbol>
+            <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4Z" fill="currentColor"/><path d="M15.5 8.8a4.5 4.5 0 0 1 0 6.4M18 6.3a8 8 0 0 1 0 11.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+            <symbol id="i-mute" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4Z" fill="currentColor"/><path d="m15.5 9.5 5 5m0-5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+            <symbol id="i-restart" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.6-5.9M4 4v4.5h4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+            <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+            <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.4 0 2.1-1 2.1-2 0-1.2-.9-1.7-.9-2.7 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.1-4-7.5-9-7.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="7.5" cy="11.5" r="1.3" fill="currentColor"/><circle cx="10" cy="7.5" r="1.3" fill="currentColor"/><circle cx="14.5" cy="7.5" r="1.3" fill="currentColor"/></symbol>
+            <symbol id="i-undo" viewBox="0 0 24 24"><path d="M8 5 3.5 9.5 8 14M4 9.5h10a6 6 0 0 1 0 12h-3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+            <symbol id="i-redo" viewBox="0 0 24 24"><path d="m16 5 4.5 4.5L16 14M20 9.5H10a6 6 0 0 0 0 12h3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+            <symbol id="i-erase" viewBox="0 0 24 24"><path d="m4 15 9.5-9.5a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8L12 19H8ZM9.5 9.5l6 6M12 19h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+            <symbol id="i-pick" viewBox="0 0 24 24"><path d="m14 6 4 4M12.5 7.5 5 15v4h4l7.5-7.5M15 4.5l1.3-1.3a2.3 2.3 0 0 1 3.3 0l1.2 1.2a2.3 2.3 0 0 1 0 3.3L19.5 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+            <symbol id="i-wand" viewBox="0 0 24 24"><path d="m4 20 11-11M13 7l4 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M18 3v3M16.5 4.5h3M20.5 10v2.4M19.3 11.2h2.4M9 3.5v2M8 4.5h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+            <symbol id="i-numbers" viewBox="0 0 24 24"><path d="M6 6.5 8.5 5v9M5.5 14h6M14 7.5a2.5 2.5 0 1 1 4.3 1.8L14 14h5M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+            <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 9v4.3l2.8 1.7M9.5 2.5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+            <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+            <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
         </defs>
     </svg>
 
@@ -33,10 +41,18 @@
                 <span class="brand-paw"><svg><use href="#i-paw"/></svg></span>
                 <div>
                     <h1>Franklin by Numbers</h1>
-                    <p>Pick a picture, pick a colour, tap the matching numbers.</p>
+                    <p>Eight pictures of one very good dog. Three ways to colour them.</p>
                 </div>
             </div>
         </header>
+        <div class="modes">
+            <div class="seg" id="mode-seg" role="group" aria-label="How to play">
+                <button type="button" data-mode="numbers"><svg><use href="#i-numbers"/></svg><span>By Numbers</span></button>
+                <button type="button" data-mode="free"><svg><use href="#i-palette"/></svg><span>Free Paint</span></button>
+                <button type="button" data-mode="challenge"><svg><use href="#i-clock"/></svg><span>Challenge</span></button>
+            </div>
+            <p class="mode-blurb" id="mode-blurb"></p>
+        </div>
         <div id="cards" class="cards" aria-live="polite"><p class="loading">Fetching Franklin…</p></div>
         <footer class="g-foot">Starring Franklin, a very good boy. Your colouring is saved on this device.</footer>
     </section>
@@ -45,9 +61,9 @@
     <section id="play" class="screen play" hidden>
         <header class="bar">
             <button class="pill" id="btn-back" type="button"><svg><use href="#i-back"/></svg><span>Pictures</span></button>
-            <div class="bar-title"><b id="p-title"></b><span id="p-pct">0%</span></div>
+            <div class="bar-title"><b id="p-title"></b><span id="p-pct">0%</span><span id="p-time" class="chip time" hidden>0:00</span><span id="p-streak" class="chip streak" hidden></span></div>
             <button class="icon" id="btn-hint" type="button" title="Show me one (H)" aria-label="Hint: show me an area to colour"><svg><use href="#i-hint"/></svg></button>
-            <button class="icon" id="btn-fit" type="button" title="Fit the picture (0)" aria-label="Fit the picture on screen"><svg><use href="#i-fit"/></svg></button>
+            <button class="icon" id="btn-pal" type="button" title="Palettes (P)" aria-label="Change the palette" aria-expanded="false"><svg><use href="#i-palette"/></svg></button>
             <button class="icon" id="btn-sound" type="button" title="Sound" aria-label="Sound on or off"><svg><use id="sound-use" href="#i-sound"/></svg></button>
             <button class="icon" id="btn-restart" type="button" title="Start this picture again" aria-label="Start this picture again"><svg><use href="#i-restart"/></svg></button>
         </header>
@@ -56,13 +72,25 @@
             <canvas id="cv" aria-label="The picture to colour"></canvas>
             <div id="bubble" class="bubble" hidden></div>
             <div class="zoom">
+                <button class="icon" id="btn-fit" type="button" title="Fit the picture (0)" aria-label="Fit the picture on screen"><svg><use href="#i-fit"/></svg></button>
                 <button class="icon" id="z-in" type="button" aria-label="Zoom in"><svg><use href="#i-plus"/></svg></button>
                 <button class="icon" id="z-out" type="button" aria-label="Zoom out"><svg><use href="#i-minus"/></svg></button>
             </div>
+            <div id="pals" class="pals" hidden>
+                <div class="pals-head"><b>Palettes</b><button class="btn small" id="pals-surprise" type="button"><svg><use href="#i-wand"/></svg>Surprise me</button><button class="icon small" id="pals-close" type="button" aria-label="Close palettes"><svg><use href="#i-plus" transform="rotate(45 12 12)"/></svg></button></div>
+                <div id="pals-list" class="pals-list"></div>
+            </div>
             <div id="confirm" class="confirm" hidden>
-                <p>Start <b id="confirm-title"></b> again? Your colouring on this picture will be cleared.</p>
+                <p id="confirm-text"></p>
                 <div><button class="btn" id="confirm-no" type="button">Keep it</button><button class="btn warn" id="confirm-yes" type="button">Start again</button></div>
             </div>
+        </div>
+        <div id="tools" class="tools" hidden>
+            <button class="tool" id="t-undo" type="button" title="Undo (Ctrl+Z)"><svg><use href="#i-undo"/></svg><span>Undo</span></button>
+            <button class="tool" id="t-redo" type="button" title="Redo (Ctrl+Shift+Z)"><svg><use href="#i-redo"/></svg><span>Redo</span></button>
+            <button class="tool" id="t-erase" type="button" aria-pressed="false" title="Eraser (E)"><svg><use href="#i-erase"/></svg><span>Erase</span></button>
+            <button class="tool" id="t-pick" type="button" aria-pressed="false" title="Pick up a colour from the picture (I)"><svg><use href="#i-pick"/></svg><span>Pick</span></button>
+            <button class="tool" id="t-fill" type="button" title="Colour everything still blank with its suggested colour"><svg><use href="#i-wand"/></svg><span>Fill the rest</span></button>
         </div>
         <nav id="palette" class="palette" aria-label="Colours"></nav>
         <div id="done" class="done" hidden>
@@ -70,12 +98,13 @@
             <div class="done-btns">
                 <button class="btn" id="btn-photo" type="button" aria-pressed="false">See the real Franklin</button>
                 <button class="btn" id="btn-save" type="button">Save picture</button>
+                <button class="btn" id="btn-again" type="button" hidden>Try again</button>
                 <button class="btn primary" id="btn-next" type="button">Next picture</button>
             </div>
         </div>
     </section>
 
     <canvas id="confetti" class="confetti" aria-hidden="true"></canvas>
-    <script src="js/game.js?v=1"></script>
+    <script src="js/game.js?v=2"></script>
 </body>
 </html>

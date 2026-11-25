@@ -2,7 +2,7 @@
 """Franklin by Numbers: turn the photos in scripts/franklin/photos into colour-by-number puzzles.
 
     pip install numpy opencv-python-headless pillow
-    python scripts/franklin/build_puzzles.py [--only portrait] [--preview DIR]
+    python scripts/franklin/build_puzzles.py [--only portrait,sploot] [--preview DIR]
 
 A picture is made one of three ways (PUZZLES below).
 
@@ -54,14 +54,17 @@ OUT = os.path.join(ROOT, 'public', 'franklin', 'data')
 #             trace of the photo; omit when the drawing covers the whole photo.
 #             shade: points (fractions of the cropped drawing) inside big drawn areas to split into light and
 #             shadow tones taken from the photo.
-#   colors    palette size. min_area / min_radius: areas smaller than this merge into a neighbour.
+#   colors    palette size.
+# Any picture: keep = [(x, y, radius)] marks eyes and noses, which may stay smaller than other areas (see TAP).
 # Pictures from a drawing with no photo (`key`): the numbers printed on the drawing are read, removed, and looked
 # up in `key` (number → colour). The printed numbering is only a starting point:
 #             zones: [(polygon, key)] gives a different key inside a polygon (first match wins);
 #             paint: [(x, y, colour)] sets the colour of the area at a point outright;
 #             fill: the colour for areas the drawing shaded light grey (shadows).
 #             Areas with no number take the colour of the neighbour they share most border with.
-#             Points and polygons are fractions of the drawing. Light grey fills in the drawing become areas.
+#             split: False stops an open area being divided between the numbers printed in it (on by default).
+#             view: (x0, y0, x1, y1), the part of the drawing to use, when Franklin is small in the frame.
+#             Points and polygons are fractions of the whole drawing. Light grey fills in it become areas.
 # Pictures from the photo alone: all coordinates are fractions of the photo (x right, y down).
 #   outline   Franklin's silhouette, clockwise. snap: how far (fraction of the long side) the real edge may be from it.
 #   ears      polygons; fur that keeps its own outline.
@@ -73,6 +76,12 @@ OUT = os.path.join(ROOT, 'public', 'franklin', 'data')
 # ZONES: per zone, (shading blur as a fraction of the long side, min region area in px², min inscribed radius in px).
 ZONES = dict(bg=(0.034, 4500, 19), body=(0.02, 950, 9.5), face=(0.0075, 170, 4.6))
 ORDER = ['portrait', 'sploot', 'nose', 'bandana', 'puppy', 'leaf', 'cape', 'leaves']   # in the gallery
+# Tap sizes, in pixels of a phone screen with the picture fitted to it (366 × 640). No area may be smaller across than
+# a fingertip: an area whose inscribed circle has a radius under `min` merges into a neighbour. Inside a `keep`
+# circle (eyes, noses: (x, y, radius) as fractions of the picture, radius of its width) the limit is `keep`. An area
+# with a radius under `same` that touches an area of the same colour joins it, so a colour is never split into
+# small pieces for no reason.
+TAP = dict(min=7.0, keep=4.5, same=8.0)
 TAN, BROWN, DARK_BROWN, LIGHT_TAN, CREAM, NEAR_BLACK = '#d6a56b', '#a8743f', '#7a4e2c', '#e6c398', '#f3e6d0', '#3d3836'
 
 
@@ -83,6 +92,7 @@ def frac(pts, w=1422, h=1804):
 
 PUZZLES = [
     dict(id='portrait', title='Good Boy', blurb='Franklin, keeping an eye on things.', size=1600, colors=14,
+         keep=[(.55, .455, .05), (.716, .465, .035), (.70, .75, .07)],
          art=dict(crop=(0, 0, 2000, 1395), shade=[(.30, .75), (.62, .30), (.24, .40), (.60, .62), (.45, .50), (.15, .60)])),
     dict(id='cape', title='Super Franklin', blurb='Not all heroes wear capes. This one does.', size=1100, fur=4, bg=3, cape=3, tone=0.62,
          outline=[(.04, .22), (.07, .14), (.13, .09), (.21, .065), (.29, .07), (.37, .10), (.43, .15), (.47, .145), (.52, .135),
@@ -95,7 +105,7 @@ PUZZLES = [
          features=[('eye', 'dark', (.458, .312, .022, .03)), ('eye', 'dark', (.558, .305, .024, .032)), ('nose', 'dark', (.495, .44, .045, .055)),
                    ('mouth', 'dark', (.515, .53, .05, .045))],
          face=[(.52, .37, .13, .24)]),
-    dict(id='sploot', title='The Sploot', blurb='Maximum floor contact achieved.', size=1600, colors=9,
+    dict(id='sploot', title='The Sploot', blurb='Maximum floor contact achieved.', size=1600, colors=9, keep=[(.51, .85, .07)],
          art=dict(crop=(73, 71, 1419, 1858),
                   align=[((760, 1590), (.505, .722)), ((252, 318), (.085, .1525)), ((188, 1390), (.035, .6485)), ((1320, 1470), (.96, .6756)),
                          ((790, 232), (.55, .1176)), ((478, 1348), (.30, .625)), ((1030, 1352), (.725, .6175))])),
@@ -115,10 +125,13 @@ PUZZLES = [
                    ('paw', 'light', (.58, .895, .05, .035)), ('ball', 'shape', (.265, .905, .062, .047))],
          face=[(.56, .42, .22, .20)]),
     dict(id='nose', title='Boop', blurb='Franklin checks whether the camera is food.', size=1400,
+         keep=[(.299, .407, .085), (.654, .407, .085)],
          art=dict(key={1: DARK_BROWN, 2: BROWN, 3: TAN, 4: '#e8c4a0', 5: NEAR_BLACK, 6: '#c9c5bd'},
                   paint=[(.299, .407, '#6b4423'), (.654, .407, '#6b4423')])),
     dict(id='bandana', title='Park Day', blurb='Bandana on, tongue out, best day ever.', size=1400,
-         art=dict(key={1: '#cfe09a', 2: '#a9c96f', 5: '#8fb85a', 6: '#6fa049', 8: '#4f7f3c', 3: '#8fb85a', 4: '#a9c96f', 7: '#cfe09a'},
+         keep=[(.444, .318, .03), (.565, .301, .03), (.527, .344, .045), (.535, .43, .06)],
+         art=dict(view=(.12, .17, .86, .96),
+                  key={1: '#cfe09a', 2: '#a9c96f', 5: '#8fb85a', 6: '#6fa049', 8: '#4f7f3c', 3: '#8fb85a', 4: '#a9c96f', 7: '#cfe09a'},
                   zones=[(frac([(430, 905), (520, 860), (560, 800), (600, 880), (700, 940), (830, 930), (900, 880), (915, 830), (950, 800),
                                 (960, 850), (900, 905), (790, 985), (780, 1075), (660, 1090), (540, 1085), (520, 1000), (470, 950)]),
                           {1: '#3f6fd1', 3: '#3f6fd1', 7: '#9fd0f0', 8: '#24407e', 4: '#9fd0f0', 2: '#3f6fd1'}),
@@ -129,14 +142,33 @@ PUZZLES = [
                                 (400, 1250), (375, 1160), (400, 1060), (450, 990), (430, 905), (520, 860), (560, 800), (575, 720),
                                 (510, 735), (490, 680)]),
                           {1: TAN, 2: BROWN, 3: LIGHT_TAN, 4: CREAM, 5: '#e58fa0', 6: TAN, 7: BROWN, 8: NEAR_BLACK})],
-                  paint=[(.288, .826, TAN), (.444, .318, '#6b4423'), (.565, .301, '#6b4423')])),
+                  paint=[(.288, .826, TAN)])),
     dict(id='leaf', title='The Big Leaf', blurb='An important discovery on the morning walk.', size=1400,
          art=dict(key={1: TAN, 2: '#c08a52', 3: BROWN, 4: '#8a5a36', 5: '#b9c45a', 6: '#d8d4cc', 7: '#c2452d', 8: '#8d99ad'},
                   fill='#a3a7ae', paint=[(.10, .06, '#c9924e'), (.55, .04, '#c9924e'), (.90, .05, '#c9924e')])),
     dict(id='puppy', title='Puppy Franklin', blurb='Small dog, big cushion, bigger paws.', size=1400,
-         art=dict(key={1: TAN, 2: BROWN, 3: LIGHT_TAN, 4: '#efe2a8', 5: '#b5532f', 6: '#4a3526', 7: '#f6f1e7'},
+         keep=[(.489, .267, .035), (.640, .294, .035), (.56, .375, .05)],
+         art=dict(split=False, key={1: TAN, 2: BROWN, 3: LIGHT_TAN, 4: '#efe2a8', 5: '#b5532f', 6: '#4a3526', 7: '#f6f1e7'},
                   paint=[(.489, .267, '#7b98b8'), (.640, .294, '#7b98b8')])),
 ]
+
+
+def in_view(cfg, x, y, r=None):
+    """A point (and radius) given as fractions of the whole drawing → fractions of the part used (art.view)."""
+    x0, y0, x1, y1 = cfg.get('art', {}).get('view', (0, 0, 1, 1))
+    out = ((x - x0) / (x1 - x0), (y - y0) / (y1 - y0))
+    return out if r is None else out + (r / (x1 - x0),)
+
+
+def tap_limits(cfg, w, h):
+    """(min radius map, min area map, keep mask, same-colour radius), in working pixels, from TAP."""
+    px = 1 / min(366 / w, 640 / h)                          # working pixels per phone pixel
+    keep = np.zeros((h, w), np.uint8)
+    for x, y, r in (in_view(cfg, *k) for k in cfg.get('keep', [])):
+        cv2.circle(keep, (int(x * w), int(y * h)), max(2, int(r * w)), 1, -1)
+    keep = keep > 0
+    radius = np.where(keep, TAP['keep'] * px, TAP['min'] * px).astype(np.float32)
+    return radius, 3.5 * radius ** 2, keep, TAP['same'] * px
 
 
 def poly_mask(pts, w, h):
@@ -357,10 +389,11 @@ def from_art(cfg):
     _, _, centres = cv2.kmeans(np.ascontiguousarray(sample), cfg['colors'], None, crit, 10, cv2.KMEANS_PP_CENTERS)
     cls = ((mean[:, None, :] - centres[None]) ** 2).sum(-1).argmin(1)
     key = ((owner + 1) * 1000 + cls)[piece]
-    # Thresholds for merging: drawn areas may be small; shading pieces must be big.
-    area_map = np.where(split, 0.0034 * h * w, float(cfg.get('min_area', 330))).astype(np.float32)
-    radius_map = np.where(split, 0.0085 * long, float(cfg.get('min_radius', 5.2))).astype(np.float32)
+    # No area smaller than a fingertip (TAP); shading pieces must be bigger still.
+    radius_map, area_map, keep, same = tap_limits(cfg, w, h)
+    area_map = np.maximum(area_map, np.where(split, 0.0034 * h * w, 0)).astype(np.float32)
     key = merge_small(key, centres, area_map, radius_map, np.zeros((h, w), bool))
+    key = merge_same(key, same, keep)
     return key, centres, photo, dict(rgba=overlay, ink=ink)
 
 
@@ -424,6 +457,9 @@ def from_key_art(cfg):
     if not src:
         sys.exit('missing the drawing for ' + cfg['id'])
     art = cv2.imread(src)
+    if spec.get('view'):
+        x0, y0, x1, y1 = spec['view']
+        art = art[int(y0 * art.shape[0]):int(y1 * art.shape[0]), int(x0 * art.shape[1]):int(x1 * art.shape[1])]
     grey = cv2.cvtColor(art, cv2.COLOR_BGR2GRAY)
     digits = read_digits(grey)
     for x, y, w, h, _ in digits:                            # the printed numbers come off the drawing
@@ -467,28 +503,35 @@ def from_key_art(cfg):
     keys = [spec['key']] + [k for _, k in spec.get('zones', [])]
     zone_of = np.zeros(n, np.int32)
     for zi, (poly, _) in reversed(list(enumerate(spec.get('zones', []), 1))):
-        inside = np.bincount(area_id.ravel(), weights=poly_mask(poly, w, h).ravel().astype(np.float64), minlength=n) / size
+        inside = np.bincount(area_id.ravel(), weights=poly_mask([in_view(cfg, *q) for q in poly], w, h).ravel().astype(np.float64), minlength=n) / size
         zone_of[inside > 0.5] = zi
     palette = []
     def cls_of(colour):
         if colour not in palette:
             palette.append(colour)
         return palette.index(colour)
-    votes = [dict() for _ in range(n)]
+    seeds = [[] for _ in range(n)]                          # per area: (x, y, colour class) of each number in it
     for x, y, dw, dh, d in digits:
-        a = int(area_id[min(h - 1, int((y + dh / 2) * up * scale)), min(w - 1, int((x + dw / 2) * up * scale))])
-        votes[a][d] = votes[a].get(d, 0) + 1
+        px, py = min(w - 1, int((x + dw / 2) * up * scale)), min(h - 1, int((y + dh / 2) * up * scale))
+        a = int(area_id[py, px])
+        if d in keys[zone_of[a]]:
+            seeds[a].append((px, py, cls_of(keys[zone_of[a]][d])))
     cls = np.full(n, -1, np.int32)
     for a in range(n):
-        for d, _ in sorted(votes[a].items(), key=lambda kv: -kv[1]):
-            if d in keys[zone_of[a]]:
-                cls[a] = cls_of(keys[zone_of[a]][d])
-                break
+        if seeds[a]:
+            kinds = [c for _, _, c in seeds[a]]
+            cls[a] = max(set(kinds), key=kinds.count)
+    painted = set()
     if spec.get('fill'):                                    # areas the drawing shaded grey
         shaded = np.bincount(area_id.ravel(), weights=zone.ravel().astype(np.float64), minlength=n) / size > 0.5
         cls[shaded] = cls_of(spec['fill'])
+        painted.update(np.flatnonzero(shaded).tolist())
     for fx, fy, colour in spec.get('paint', []):
-        cls[area_id[int(fy * h), int(fx * w)]] = cls_of(colour)
+        fx, fy = in_view(cfg, fx, fy)
+        if 0 <= fx < 1 and 0 <= fy < 1:
+            a = int(area_id[int(fy * h), int(fx * w)])
+            cls[a] = cls_of(colour)
+            painted.add(a)
     nb = borders(area_id, n)
     while (cls < 0).any():
         todo = [(max(((length, t) for t, length in nb.get(a, {}).items() if cls[t] >= 0), default=(0, -1)), a) for a in np.flatnonzero(cls < 0).tolist()]
@@ -497,11 +540,31 @@ def from_key_art(cfg):
             cls[cls < 0] = 0
             break
         cls[a] = cls[t]
-    key = ((np.arange(n) + 1) * 1000 + cls)[area_id]
+    # A big open area holding numbers of different colours (grass, a coat the drawing never closes off) is divided
+    # between them: a watershed grown from each number, which follows the drawn strokes where there are any.
+    # build() adds a light line to the overlay along the new boundaries.
+    cls_map = cls[area_id]
+    relief = cv2.GaussianBlur(ink.astype(np.float32), (0, 0), 2)
+    relief = cv2.merge([(relief / max(1e-6, float(relief.max())) * 255).astype(np.uint8)] * 3)
+    for a in range(n):
+        if not spec.get('split', True) or a in painted or size[a] < 0.03 * h * w or len({c for _, _, c in seeds[a]}) < 2:
+            continue
+        mask = area_id == a
+        markers = np.zeros((h, w), np.int32)
+        for i, (px, py, _) in enumerate(seeds[a]):
+            cv2.circle(markers, (px, py), 4, i + 2, -1)
+        markers[~mask] = 1
+        cv2.watershed(relief, markers)
+        known = markers >= 2
+        _, nearest = cv2.distanceTransformWithLabels((~known).astype(np.uint8), cv2.DIST_L2, 5, labelType=cv2.DIST_LABEL_PIXEL)
+        lut = np.zeros(int(nearest.max()) + 1, np.int32)
+        lut[nearest[known]] = markers[known]
+        cls_map[mask] = np.array([0, 0] + [c for _, _, c in seeds[a]], np.int32)[lut[nearest][mask]]
+    key = (area_id + 1) * 1000 + cls_map
     centres = np.array([hex_lab(c) for c in palette], np.float32)
-    shape = (h, w)
-    key = merge_small(key, centres, np.full(shape, float(cfg.get('min_area', 330)), np.float32),
-                      np.full(shape, float(cfg.get('min_radius', 5.2)), np.float32), np.zeros(shape, bool))
+    radius_map, area_map, keep, same = tap_limits(cfg, w, h)
+    key = merge_small(key, centres, area_map, radius_map, np.zeros((h, w), bool))
+    key = merge_same(key, same, keep)
     return key, centres, None, dict(rgba=overlay, ink=ink, palette=palette)
 
 
@@ -607,9 +670,41 @@ def merge_small(key, colours, area_map, radius_map, keep):
                     sc *= 0.12
                 if sc > score:
                     best, score = t, sc
-            new[s] = rkey[best]
+            if area[best] >= area[s]:
+                new[s] = rkey[best]
+            else:                               # the bigger of the two keeps its colour
+                new[best] = rkey[s]
             frozen.add(best)
             frozen.add(s)
+        key = new[reg]
+    return key
+
+
+def merge_same(key, limit, keep):
+    """Join an area whose inscribed radius is under `limit` to a neighbour of the same colour (the one it shares
+    most border with). Areas mostly inside `keep` are left alone."""
+    for _ in range(60):
+        reg, n = components(key)
+        flat = reg.ravel()
+        area = np.bincount(flat, minlength=n)
+        _, _, rad = inscribed(reg, n)
+        kept = np.bincount(flat, weights=keep.ravel().astype(np.float64), minlength=n) / area > 0.5
+        first = np.zeros(n, np.int64)
+        first[flat[::-1]] = np.arange(reg.size)[::-1]
+        rkey = key.ravel()[first]
+        nb = borders(reg, n)
+        new = rkey.copy()
+        frozen = set()
+        for s in sorted(np.flatnonzero((rad < limit) & ~kept).tolist(), key=lambda r: area[r]):
+            if s in frozen:
+                continue
+            same = [(length, t) for t, length in nb.get(s, {}).items() if rkey[t] % 1000 == rkey[s] % 1000 and not kept[t]]
+            if same:
+                new[s] = rkey[max(same)[1]]
+                frozen.add(s)
+                frozen.add(max(same)[1])
+        if not frozen:
+            return key
         key = new[reg]
     return key
 
@@ -768,12 +863,13 @@ def from_photo(cfg):
         m = ZONES['bg'][i] * (1 - body) + ZONES['body'][i] * body
         return m * (1 - face) + ZONES['face'][i] * face
 
-    area_map, radius_map = by_zone(1), by_zone(2)
+    radius_floor, area_floor, _, same = tap_limits(cfg, w, h)
+    area_map, radius_map = np.maximum(by_zone(1), area_floor), np.maximum(by_zone(2), radius_floor)
     for sigma in (4.0, 2.4):
         smooth = majority(key, sigma, face)
         smooth[stamped] = key[stamped]         # the features keep the shape they were given
         key = merge_small(smooth, colours, area_map, radius_map, stamped)
-    return key, colours, photo
+    return merge_same(key, same, stamped), colours, photo
 
 
 def build(cfg, preview=None):
@@ -911,13 +1007,16 @@ def main():
     ap.add_argument('--only')
     ap.add_argument('--preview')
     args = ap.parse_args()
+    only = args.only.split(',') if args.only else None
     index = []
+    if only and os.path.exists(os.path.join(OUT, 'index.json')):
+        index = [m for m in json.load(open(os.path.join(OUT, 'index.json'))) if m['id'] not in only]
     for cfg in PUZZLES:
-        if args.only and cfg['id'] != args.only:
+        if only and cfg['id'] not in only:
             continue
         entry = build(cfg, args.preview)
         index.append(entry)
-    if not args.only:
+    if not only or len(index) == len(PUZZLES):
         index.sort(key=lambda m: ORDER.index(m['id']))
         with open(os.path.join(OUT, 'index.json'), 'w') as f:
             json.dump(index, f, separators=(',', ':'))

@@ -59,6 +59,17 @@ body.in-iframe .back-link { display: none; }
 .card.done .card-bar i { background: var(--good); }
 .g-foot { max-width: 980px; width: 100%; margin: 20px auto 0; color: var(--ink-2); font-size: 13px; text-align: center; }
 
+.modes { max-width: 980px; width: 100%; margin: 0 auto 16px; }
+.seg { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--paper-2); border: 2px solid var(--line); }
+.seg button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 40px; padding: 0 16px; border-radius: 999px; font-weight: 800; font-size: 14px; color: var(--ink-2); white-space: nowrap; }
+.seg button svg { width: 18px; height: 18px; }
+.seg button:hover { color: var(--ink); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+.seg button:focus-visible, .tool:focus-visible, .pal:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.mode-blurb { margin: 9px 4px 0; color: var(--ink-2); font-size: 14px; min-height: 1.3em; }
+.card-stars { letter-spacing: 1px; color: #e0a020; font-size: 14px; }
+.card-stars i { font-style: normal; color: var(--line); }
+
 /* ---------- play ---------- */
 .bar { display: flex; align-items: center; gap: 6px; padding: calc(8px + var(--st)) calc(10px + var(--sr)) 8px calc(10px + var(--sl)); }
 .pill { display: inline-flex; align-items: center; gap: 2px; height: 40px; padding: 0 14px 0 8px; border-radius: 999px; background: var(--card); border: 2px solid var(--line); font-weight: 800; font-size: 14px; }
@@ -136,3 +147,59 @@ body.in-iframe .back-link { display: none; }
     .bar { padding-top: calc(4px + var(--st)); padding-bottom: 4px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ---------- modes: challenge status, free-paint tools, palettes ---------- */
+.chip { flex: none; font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: var(--ink); color: #fff; font-variant-numeric: tabular-nums; }
+.bar-title .chip { color: #fff; }
+.chip.streak { background: var(--accent); }
+.chip.flash { animation: flash 0.5s ease; }
+@keyframes flash { 30% { background: var(--warn); transform: scale(1.15); } }
+.tools { display: flex; gap: 6px; padding: 8px calc(10px + var(--sr)) 0 calc(10px + var(--sl)); background: var(--card); border-top: 2px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.tools::-webkit-scrollbar { display: none; }
+.tools + .palette { border-top: 0; }
+.tool { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 999px; background: var(--paper); border: 2px solid var(--line); font-weight: 800; font-size: 13px; white-space: nowrap; }
+.tool svg { width: 17px; height: 17px; }
+.tool:hover { border-color: var(--accent); }
+.tool:active { transform: scale(0.95); }
+.tool:disabled { opacity: 0.38; pointer-events: none; }
+.tool[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+#t-fill { margin-left: auto; }
+#cv.erasing { cursor: cell; }
+#cv.picking { cursor: copy; }
+#play[data-mode="free"] .sw.complete { order: 0; opacity: 1; }
+#play[data-mode="free"] .sw.complete .num { display: block; }
+#play[data-mode="free"] .sw.complete .tick, #play[data-mode="free"] .sw.complete .left { display: none; }
+.sw.custom .num, .sw.custom .left, .sw.custom .ring, .sw.custom .tick { display: none; }
+.sw.add { cursor: pointer; }
+.sw.add .dot { background: conic-gradient(#ff5d5d, #ffd35d, #6fe06f, #5dd3ff, #7a7bff, #ff5dd0, #ff5d5d); }
+.sw.add svg { position: relative; width: 22px; height: 22px; color: #fff; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5)); }
+.sw.add input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+.sw-gap { flex: none; width: 2px; margin: 8px 2px; background: var(--line); border-radius: 2px; }
+.pals { position: absolute; left: 0; right: 0; bottom: 0; max-height: min(72%, 420px); display: flex; flex-direction: column; background: var(--card); border-top: 2px solid var(--line); border-radius: 20px 20px 0 0; box-shadow: 0 -12px 40px rgba(50, 30, 8, 0.22); animation: rise 0.2s ease; }
+@keyframes rise { from { transform: translateY(24px); opacity: 0; } }
+.pals-head { display: flex; align-items: center; gap: 8px; padding: 12px calc(14px + var(--sr)) 8px calc(14px + var(--sl)); }
+.pals-head b { font-size: 17px; margin-right: auto; }
+.btn.small { height: 36px; padding: 0 13px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+.btn.small svg { width: 16px; height: 16px; }
+.icon.small { width: 36px; height: 36px; }
+.pals-list { overflow-y: auto; -webkit-overflow-scrolling: touch; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); padding: 4px calc(14px + var(--sr)) 14px calc(14px + var(--sl)); }
+.pal { display: flex; flex-direction: column; gap: 6px; padding: 9px 10px 10px; border-radius: 14px; background: var(--paper); border: 2px solid var(--line); text-align: left; font-weight: 800; font-size: 13px; }
+.pal:hover { border-color: var(--accent); }
+.pal[aria-pressed="true"] { border-color: var(--ink); box-shadow: 0 0 0 2px var(--ink); }
+.pal-strip { display: flex; height: 22px; border-radius: 7px; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); }
+.pal-strip i { flex: 1; }
+.done-text .stars { color: #e0a020; letter-spacing: 2px; font-size: 18px; }
+.done-text .stars i { font-style: normal; color: var(--line); }
+#play[data-mode="free"] .done { padding-top: 8px; padding-bottom: 8px; border-bottom: 0; }
+@media (max-width: 520px) {
+    .seg { display: flex; }
+    .seg button { flex: 1; padding: 0 6px; font-size: 13px; }
+    .seg button svg { display: none; }
+    .tool { padding: 0 10px; }
+    .tool span { display: none; }
+    #t-fill span { display: inline; }
+    .pals-list { grid-template-columns: 1fr 1fr; }
+    .bar-title { gap: 5px; padding: 0 2px; }
+    #play[data-mode="challenge"] #p-pct { display: none; }   /* the bar under the header shows it */
+    .pals { max-height: min(48%, 340px); }
+}
